@@ -3,9 +3,13 @@ import { Platform } from 'react-native';
 import EventEmitter from 'eventemitter3';
 
 export interface DownloadProgress {
-  bytesWritten: number;
-  contentLength: number;
-  progress: number;
+  [key: string]: {
+    progress: number;
+    bytesDownloaded: number;
+    totalBytes: number;
+    status: string;
+    downloadId: number;
+  };
 }
 
 export interface ModelInfo {
@@ -15,76 +19,169 @@ export interface ModelInfo {
   modified: string;
 }
 
+export interface StoredModel {
+  name: string;
+  path: string;
+  size: number;
+  modified: string;
+}
+
+export interface DownloadStatus {
+  status: string;
+  bytesDownloaded?: number;
+  totalBytes?: number;
+  reason?: string;
+}
+
+interface ActiveDownload {
+  controller: AbortController;
+  progress: {
+    bytesDownloaded: number;
+    totalBytes: number;
+    status: string;
+  };
+}
+
 class ModelDownloader extends EventEmitter {
   private readonly baseDir: string;
-  private activeDownloads: Map<number, FileSystem.DownloadProgressData> = new Map();
+  private activeDownloads: Map<number, ActiveDownload> = new Map();
+  private nextDownloadId = 1;
 
   constructor() {
     super();
-    this.baseDir = `${FileSystem.documentDirectory}Ragionare`;
+    this.baseDir = `${FileSystem.documentDirectory}models`;
+    this.initializeDirectory();
+  }
+
+  private async initializeDirectory() {
+    try {
+      const dirInfo = await FileSystem.getInfoAsync(this.baseDir);
+      if (!dirInfo.exists) {
+        await FileSystem.makeDirectoryAsync(this.baseDir, { intermediates: true });
+      }
+    } catch (error) {
+      console.error('Failed to initialize directory:', error);
+    }
   }
 
   async downloadModel(url: string, filename: string): Promise<{ downloadId: number; path: string }> {
-    const downloadPath = `${this.baseDir}/${filename}`;
-    
-    // Create directory if it doesn't exist
-    await FileSystem.makeDirectoryAsync(this.baseDir, { intermediates: true });
-
-    const downloadId = Date.now();
-    
-    const downloadResumable = FileSystem.createDownloadResumable(
-      url,
-      downloadPath,
-      {},
-      (downloadProgress) => {
-        if (downloadProgress.totalBytesWritten && downloadProgress.totalBytesExpectedToWrite) {
-          this.emit('progress', downloadId, {
-            bytesWritten: downloadProgress.totalBytesWritten,
-            contentLength: downloadProgress.totalBytesExpectedToWrite,
-            progress: downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite
-          });
-        }
-      }
-    );
-
     try {
-      const { uri } = await downloadResumable.downloadAsync();
+      const downloadId = this.nextDownloadId++;
+      const controller = new AbortController();
+      
+      this.activeDownloads.set(downloadId, {
+        controller,
+        progress: {
+          bytesDownloaded: 0,
+          totalBytes: 0,
+          status: 'starting'
+        }
+      });
+
+      // Start download in background
+      this.startDownload(url, filename, downloadId);
+
       return {
         downloadId,
-        path: uri
+        path: `${this.baseDir}/${filename}`
       };
     } catch (error) {
-      console.error('Download error:', error);
-      throw error;
+      console.error('Download start error:', error);
+      throw new Error('Failed to start download');
     }
   }
 
-  async checkDownloadStatus(downloadId: number): Promise<{
-    status: string;
-    bytesDownloaded?: number;
-    totalBytes?: number;
-  }> {
+  private async startDownload(url: string, filename: string, downloadId: number) {
     try {
-      const info = await FileSystem.getInfoAsync(this.baseDir);
-      if (!info.exists) {
-        return { status: 'unknown' };
+      const downloadResumable = FileSystem.createDownloadResumable(
+        url,
+        `${this.baseDir}/${filename}`,
+        {},
+        (downloadProgress) => {
+          if (downloadProgress.totalBytesWritten && downloadProgress.totalBytesExpectedToWrite) {
+            const progress = {
+              progress: Math.round((downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite) * 100),
+              bytesDownloaded: downloadProgress.totalBytesWritten,
+              totalBytes: downloadProgress.totalBytesExpectedToWrite,
+              status: 'downloading',
+              downloadId
+            };
+            
+            // Update active downloads map
+            const download = this.activeDownloads.get(downloadId);
+            if (download) {
+              download.progress = {
+                bytesDownloaded: downloadProgress.totalBytesWritten,
+                totalBytes: downloadProgress.totalBytesExpectedToWrite,
+                status: 'downloading'
+              };
+            }
+            
+            // Emit progress event
+            this.emit('downloadProgress', { modelName: filename, ...progress });
+          }
+        }
+      );
+
+      // Start the download
+      const result = await downloadResumable.downloadAsync();
+      
+      if (result) {
+        const finalProgress = {
+          progress: 100,
+          bytesDownloaded: result.totalBytesWritten || 0,
+          totalBytes: result.totalBytesWritten || 0,
+          status: 'completed',
+          downloadId
+        };
+        this.emit('downloadProgress', { modelName: filename, ...finalProgress });
       }
-      
-      return {
-        status: 'running',
-        bytesDownloaded: info.size,
-        totalBytes: info.size
+    } catch (error) {
+      console.error('Download error:', error);
+      const failedProgress = {
+        progress: 0,
+        bytesDownloaded: 0,
+        totalBytes: 0,
+        status: 'failed',
+        downloadId
       };
-    } catch {
-      return { status: 'failed' };
+      this.emit('downloadProgress', { modelName: filename, ...failedProgress });
+    } finally {
+      // Clean up the active download
+      this.activeDownloads.delete(downloadId);
     }
   }
 
-  async getStoredModels(): Promise<ModelInfo[]> {
+  async checkDownloadStatus(downloadId: number): Promise<DownloadStatus> {
+    const download = this.activeDownloads.get(downloadId);
+    if (!download) {
+      return {
+        status: 'unknown',
+        bytesDownloaded: 0,
+        totalBytes: 0
+      };
+    }
+
+    return {
+      status: download.progress.status,
+      bytesDownloaded: download.progress.bytesDownloaded,
+      totalBytes: download.progress.totalBytes
+    };
+  }
+
+  async cancelDownload(downloadId: number): Promise<boolean> {
+    const download = this.activeDownloads.get(downloadId);
+    if (download) {
+      download.controller.abort();
+      this.activeDownloads.delete(downloadId);
+      return true;
+    }
+    return false;
+  }
+
+  async getStoredModels(): Promise<StoredModel[]> {
     try {
-      await FileSystem.makeDirectoryAsync(this.baseDir, { intermediates: true });
       const files = await FileSystem.readDirectoryAsync(this.baseDir);
-      
       const models = await Promise.all(
         files.map(async (filename) => {
           const path = `${this.baseDir}/${filename}`;
@@ -93,11 +190,10 @@ class ModelDownloader extends EventEmitter {
             name: filename,
             path,
             size: info.size || 0,
-            modified: new Date().toISOString() // FileSystem doesn't provide modification date
+            modified: new Date().toISOString()
           };
         })
       );
-      
       return models;
     } catch (error) {
       console.error('Error getting stored models:', error);
@@ -107,8 +203,12 @@ class ModelDownloader extends EventEmitter {
 
   async deleteModel(path: string): Promise<boolean> {
     try {
-      await FileSystem.deleteAsync(path);
-      return true;
+      const info = await FileSystem.getInfoAsync(path);
+      if (info.exists) {
+        await FileSystem.deleteAsync(path);
+        return true;
+      }
+      return false;
     } catch (error) {
       console.error('Error deleting model:', error);
       return false;

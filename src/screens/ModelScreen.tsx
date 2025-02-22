@@ -11,6 +11,7 @@ import {
   Modal,
   TextInput,
   ActivityIndicator,
+  ScrollView,
 } from 'react-native';
 import { CompositeNavigationProp } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
@@ -21,8 +22,8 @@ import { theme } from '../constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { llamaManager } from '../utils/LlamaManager';
 import AppHeader from '../components/AppHeader';
-import DownloadManager from '../components/DownloadManager';
 import CustomUrlDialog from '../components/CustomUrlDialog';
+import { modelDownloader, DownloadProgress } from '../services/ModelDownloader';
 
 type ModelScreenProps = {
   navigation: CompositeNavigationProp<
@@ -45,31 +46,6 @@ interface DownloadableModel {
   huggingFaceLink: string;
   modelFamily: string;
 }
-
-interface ModelDownloaderType {
-  downloadModel: (url: string, filename: string) => Promise<{ downloadId: number; path: string }>;
-  checkDownloadStatus: (downloadId: number) => Promise<{
-    status: string;
-    bytesDownloaded?: number;
-    totalBytes?: number;
-    reason?: string;
-  }>;
-  cancelDownload: (downloadId: number) => Promise<boolean>;
-  getStoredModels: () => Promise<StoredModel[]>;
-  deleteModel: (path: string) => Promise<boolean>;
-}
-
-interface DownloadProgress {
-  [key: string]: {
-    progress: number;
-    bytesDownloaded: number;
-    totalBytes: number;
-    status: string;
-    downloadId: number;
-  };
-}
-
-const ModelDownloaderModule = NativeModules.ModelDownloader as ModelDownloaderType;
 
 const DOWNLOADABLE_MODELS: DownloadableModel[] = [
   {
@@ -98,7 +74,7 @@ const DOWNLOADABLE_MODELS: DownloadableModel[] = [
   },
   {
     name: "Qwen 7B",
-    size: "2.44 GB  ",
+    size: "2.27 GB  ",
     huggingFaceLink: "https://huggingface.co/Qwen/Qwen2.5-Coder-3B-Instruct-GGUF/resolve/main/qwen2.5-coder-3b-instruct-q5_k_m.gguf",
     modelFamily: "Qwen"
   }
@@ -124,24 +100,13 @@ let globalCheckInterval: NodeJS.Timeout | null = null;
 export default function ModelScreen({ navigation }: ModelScreenProps) {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme];
-  const [activeTab, setActiveTab] = useState<'stored' | 'download'>('stored');
+  const [activeTab, setActiveTab] = useState<'stored' | 'downloadable'>('stored');
   const [storedModels, setStoredModels] = useState<StoredModel[]>([]);
   const [downloadProgress, setDownloadProgress] = useState<DownloadProgress>({});
   const [isDownloadsDialogVisible, setIsDownloadsDialogVisible] = useState(false);
   const [customUrl, setCustomUrl] = useState('');
   const [isCustomUrlValid, setIsCustomUrlValid] = useState(false);
   const [isCustomUrlLoading, setIsCustomUrlLoading] = useState(false);
-  const [hasActiveDownloads, setHasActiveDownloads] = useState(false);
-  const [downloadManagerVisible, setDownloadManagerVisible] = useState(false);
-  const downloadManagerRef = useRef<{
-    addDownload: (downloadId: number, name: string) => void;
-  } | null>(null);
-
-  // Add these refs at the component level
-  const downloadCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const activeDownloadsRef = useRef<{[key: string]: boolean}>({});
-
-  // Add state for custom URL dialog
   const [customUrlDialogVisible, setCustomUrlDialogVisible] = useState(false);
 
   const validateModelUrl = (url: string) => {
@@ -180,7 +145,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         return;
       }
       
-      const { downloadId } = await ModelDownloaderModule.downloadModel(
+      const { downloadId } = await modelDownloader.downloadModel(
         customUrl,
         filename
       );
@@ -208,15 +173,11 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     }
   };
 
-  
-
   const DownloadableModelList = ({ 
     downloadProgress, 
-    onDownloadStart,
     setDownloadProgress
   }: { 
-    downloadProgress: DownloadProgress; 
-    onDownloadStart: (downloadId: number, modelName: string) => void;
+    downloadProgress: DownloadProgress;
     setDownloadProgress: React.Dispatch<React.SetStateAction<DownloadProgress>>;
   }) => {
     const { theme: currentTheme } = useTheme();
@@ -224,66 +185,26 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     const [downloadingModels, setDownloadingModels] = useState<{ [key: string]: boolean }>({});
     const [initializingDownloads, setInitializingDownloads] = useState<{ [key: string]: boolean }>({});
 
-    const openHuggingFace = (url: string) => {
-      Linking.openURL(url);
-    };
-
     const handleDownload = async (model: DownloadableModel) => {
       try {
         setInitializingDownloads(prev => ({ ...prev, [model.name]: true }));
         
-        // First check if the URL points to a .gguf file
-        const response = await fetch(model.huggingFaceLink, { method: 'HEAD' });
-        const contentDisposition = response.headers.get('content-disposition');
-        const contentType = response.headers.get('content-type');
-        
-        // Try to get filename from content-disposition header
-        let remoteFilename = '';
-        if (contentDisposition) {
-          const matches = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/.exec(contentDisposition);
-          if (matches != null && matches[1]) {
-            remoteFilename = matches[1].replace(/['"]/g, '');
-          }
-        }
-
-        // If no filename in header, try to get it from URL
-        if (!remoteFilename) {
-          remoteFilename = model.huggingFaceLink.split('/').pop() || '';
-        }
-
-        // Check if file is a GGUF file
-        if (!remoteFilename.toLowerCase().endsWith('.gguf')) {
-          Alert.alert(
-            'Invalid File',
-            'Only GGUF model files are supported. Please make sure you are downloading a GGUF model file.'
-          );
-          return;
-        }
-
-        setDownloadingModels(prev => ({ ...prev, [model.name]: true }));
-        
-        // Create a filename for local storage
-        const localFilename = `${model.name.toLowerCase().replace(/\s+/g, '_')}.gguf`;
-        
-        // Initialize progress immediately with proper typing
         setDownloadProgress(prev => ({
           ...prev,
           [model.name]: {
             progress: 0,
             bytesDownloaded: 0,
             totalBytes: 0,
-            status: '',
+            status: 'starting',
             downloadId: 0
           }
         }));
         
-        // Start the download
-        const { downloadId, path } = await ModelDownloaderModule.downloadModel(
+        const { downloadId } = await modelDownloader.downloadModel(
           model.huggingFaceLink, 
-          localFilename
+          model.name
         );
         
-        // Update the progress with the downloadId
         setDownloadProgress(prev => ({
           ...prev,
           [model.name]: {
@@ -291,104 +212,93 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
             downloadId
           }
         }));
-        
-        // Start tracking progress
-        onDownloadStart(downloadId, model.name);
-        
 
       } catch (error) {
         console.error('Download error:', error);
-        if (error instanceof Error) {
-          Alert.alert('Error', error.message || 'Failed to start download');
-        } else {
-          Alert.alert('Error', 'Failed to start download');
-        }
-        // Clean up progress state on error
         setDownloadProgress(prev => {
           const newProgress = { ...prev };
           delete newProgress[model.name];
           return newProgress;
         });
+        Alert.alert('Error', 'Failed to start download');
       } finally {
-        setDownloadingModels(prev => ({ ...prev, [model.name]: false }));
         setInitializingDownloads(prev => ({ ...prev, [model.name]: false }));
       }
     };
 
-    const renderDownloadableItem = ({ item }: { item: DownloadableModel }) => (
-      <View style={[styles.downloadableCard, { backgroundColor: themeColors.borderColor }]}>
-        <View style={styles.downloadableInfo}>
-          <View style={styles.modelHeader}>
-            <View style={styles.modelTitleContainer}>
-              <Text style={[styles.downloadableName, { color: themeColors.text }]}>
-                {item.name}
-              </Text>
-              <View style={[styles.modelFamily, { backgroundColor: '#4a0660' }]}>
-                <Text style={styles.modelFamilyText}>{item.modelFamily}</Text>
-              </View>
-            </View>
-            <TouchableOpacity
-              style={[
-                styles.downloadButton, 
-                { backgroundColor: '#4a0660' },
-                (downloadingModels[item.name] || downloadProgress[item.name] || initializingDownloads[item.name]) && { opacity: 0.5 }
-              ]}
-              onPress={() => handleDownload(item)}
-              disabled={Boolean(downloadingModels[item.name] || downloadProgress[item.name] || initializingDownloads[item.name])}
-            >
-              <Ionicons 
-                name={
-                  initializingDownloads[item.name] 
-                    ? "sync" 
-                    : downloadingModels[item.name] || downloadProgress[item.name] 
-                      ? "hourglass-outline" 
-                      : "cloud-download-outline"
-                } 
-                size={20} 
-                color="#fff" 
-              />
-            </TouchableOpacity>
-          </View>
-          <View style={styles.modelMetaInfo}>
-            <View style={styles.metaItem}>
-              <Ionicons name="disc-outline" size={16} color={themeColors.secondaryText} />
-              <Text style={[styles.metaText, { color: themeColors.secondaryText }]}>
-                {item.size}
-              </Text>
-            </View>
-          </View>
-          {downloadProgress[item.name] && (
-            <View style={styles.downloadProgress}>
-              <Text style={[styles.modelDetails, { color: themeColors.secondaryText }]}>
-                {getProgressText(downloadProgress[item.name])}
-              </Text>
-              <View style={[styles.progressBar, { backgroundColor: themeColors.background }]}>
-                <View 
-                  style={[
-                    styles.progressFill, 
-                    { 
-                      width: `${downloadProgress[item.name].progress}%`, 
-                      backgroundColor: '#4a0660' 
-                    }
-                  ]} 
-                />
-              </View>
-            </View>
-          )}
-        </View>
-      </View>
-    );
-
     return (
-      <View style={styles.downloadableContainer}>
-        <FlatList
-          data={DOWNLOADABLE_MODELS}
-          renderItem={renderDownloadableItem}
-          keyExtractor={item => item.name}
-          contentContainerStyle={styles.downloadableList}
-          showsVerticalScrollIndicator={false}
-        />
-      </View>
+      <ScrollView 
+        style={styles.downloadableContainer}
+        contentContainerStyle={styles.downloadableList}
+        showsVerticalScrollIndicator={false}
+      >
+        {DOWNLOADABLE_MODELS.map(model => (
+          <View 
+            key={model.name} 
+            style={[styles.downloadableCard, { backgroundColor: themeColors.borderColor }]}
+          >
+            <View style={styles.downloadableInfo}>
+              <View style={styles.modelHeader}>
+                <View style={styles.modelTitleContainer}>
+                  <Text style={[styles.downloadableName, { color: themeColors.text }]}>
+                    {model.name}
+                  </Text>
+                  <View style={[styles.modelFamily, { backgroundColor: '#4a0660' }]}>
+                    <Text style={styles.modelFamilyText}>{model.modelFamily}</Text>
+                  </View>
+                </View>
+                <TouchableOpacity
+                  style={[
+                    styles.downloadButton, 
+                    { backgroundColor: '#4a0660' },
+                    (downloadingModels[model.name] || downloadProgress[model.name] || initializingDownloads[model.name]) && { opacity: 0.5 }
+                  ]}
+                  onPress={() => handleDownload(model)}
+                  disabled={Boolean(downloadingModels[model.name] || downloadProgress[model.name] || initializingDownloads[model.name])}
+                >
+                  <Ionicons 
+                    name={
+                      initializingDownloads[model.name] 
+                        ? "sync" 
+                        : downloadingModels[model.name] || downloadProgress[model.name] 
+                          ? "hourglass-outline" 
+                          : "cloud-download-outline"
+                    } 
+                    size={20} 
+                    color="#fff" 
+                  />
+                </TouchableOpacity>
+              </View>
+              <View style={styles.modelMetaInfo}>
+                <View style={styles.metaItem}>
+                  <Ionicons name="disc-outline" size={16} color={themeColors.secondaryText} />
+                  <Text style={[styles.metaText, { color: themeColors.secondaryText }]}>
+                    {model.size}
+                  </Text>
+                </View>
+              </View>
+              {downloadProgress[model.name] && (
+                <View style={styles.downloadProgress}>
+                  <Text style={[styles.modelDetails, { color: themeColors.secondaryText }]}>
+                    {getProgressText(downloadProgress[model.name])}
+                  </Text>
+                  <View style={[styles.progressBar, { backgroundColor: themeColors.background }]}>
+                    <View 
+                      style={[
+                        styles.progressFill, 
+                        { 
+                          width: `${downloadProgress[model.name].progress}%`, 
+                          backgroundColor: '#4a0660' 
+                        }
+                      ]} 
+                    />
+                  </View>
+                </View>
+              )}
+            </View>
+          </View>
+        ))}
+      </ScrollView>
     );
   };
 
@@ -407,7 +317,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     const themeColors = theme[currentTheme];
 
     const activeDownloads = Object.entries(downloads).filter(([_, value]) => 
-      value.progress < 100
+      value.status !== 'completed' && value.status !== 'failed'
     );
 
     const handleCancel = async (modelName: string) => {
@@ -425,7 +335,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         });
 
         // Then cancel the download
-        await ModelDownloaderModule.cancelDownload(downloadInfo.downloadId);
+        await modelDownloader.cancelDownload(downloadInfo.downloadId);
         
         // Removed the cancellation dialog
       } catch (error) {
@@ -496,7 +406,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
 
   const loadStoredModels = async () => {
     try {
-      const models = await ModelDownloaderModule.getStoredModels();
+      const models = await modelDownloader.getStoredModels();
       setStoredModels(models);
     } catch (error) {
       console.error('Error loading stored models:', error);
@@ -505,87 +415,36 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
 
   useEffect(() => {
     loadStoredModels();
-    // Refresh list every 30 seconds instead of 5 seconds
-    const interval = setInterval(loadStoredModels, 30000);
-    return () => clearInterval(interval);
   }, []);
 
-  const checkDownloadProgress = async () => {
-    const activeDownloads = { ...downloadProgress };
-    let stillActive = false;
-
-    for (const [modelName, data] of Object.entries(activeDownloads)) {
-      try {
-        const status = await ModelDownloaderModule.checkDownloadStatus(data.downloadId);
-        
-        if (status.status === 'failed' || !status.bytesDownloaded) {
-          setDownloadProgress(prev => {
-            const newProgress = { ...prev };
-            delete newProgress[modelName];
-            return newProgress;
-          });
-          continue;
-        }
-
-        const totalBytes = status.totalBytes || 0;
-        const bytesDownloaded = status.bytesDownloaded || 0;
-        const progress = totalBytes > 0 ? Math.round((bytesDownloaded / totalBytes) * 100) : 0;
-
-        if (progress < 100) {
-          stillActive = true;
-        }
-
-        setDownloadProgress(prev => ({
-          ...prev,
-          [modelName]: {
-            ...prev[modelName],
-            progress,
-            bytesDownloaded,
-            totalBytes,
-            status: status.status
-          }
-        }));
-      } catch (error) {
-        console.error(`Error checking download status for ${modelName}:`, error);
-      }
-    }
-
-    setHasActiveDownloads(stillActive);
-    return stillActive;
-  };
-
   useEffect(() => {
-    const startChecking = async () => {
-      // Clear any existing interval
-      if (globalCheckInterval) {
-        clearInterval(globalCheckInterval);
-        globalCheckInterval = null;
-      }
-
-      // If there are downloads, start checking
-      if (Object.keys(downloadProgress).length > 0) {
-        // Check immediately
-        const hasActive = await checkDownloadProgress();
+    const handleProgress = ({ modelName, ...progress }) => {
+      const displayName = modelName.split('.')[0];
+      
+      // Batch state updates to reduce re-renders
+      setDownloadProgress(prev => {
+        const newProgress = { ...prev };
         
-        if (hasActive) {
-          // Start interval
-          globalCheckInterval = setInterval(checkDownloadProgress, 1000);
+        if (progress.status === 'completed') {
+          // If completed, remove from progress and load stored models once
+          delete newProgress[displayName];
+          // Schedule stored models refresh
+          setTimeout(loadStoredModels, 1000);
+        } else if (progress.status === 'failed') {
+          // If failed, just remove from progress
+          delete newProgress[displayName];
+        } else {
+          // Update progress
+          newProgress[displayName] = progress;
         }
-      } else {
-        setHasActiveDownloads(false);
-      }
+        
+        return newProgress;
+      });
     };
 
-    startChecking();
-
-    // Cleanup
-    return () => {
-      if (globalCheckInterval) {
-        clearInterval(globalCheckInterval);
-        globalCheckInterval = null;
-      }
-    };
-  }, [downloadProgress]);
+    modelDownloader.on('downloadProgress', handleProgress);
+    return () => modelDownloader.removeListener('downloadProgress', handleProgress);
+  }, []);
 
   const handleDelete = (model: StoredModel) => {
     Alert.alert(
@@ -601,7 +460,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
           style: 'destructive',
           onPress: async () => {
             try {
-              await ModelDownloaderModule.deleteModel(model.path);
+              await modelDownloader.deleteModel(model.path);
               loadStoredModels();
             } catch (error) {
               console.error('Error deleting model:', error);
@@ -617,48 +476,45 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     return filename.split('.')[0];
   };
 
-  const handleDownloadStart = async (downloadId: number, modelName: string) => {
-    console.log('Starting download:', downloadId, modelName); // Debug log
-    if (downloadManagerRef.current) {
-      downloadManagerRef.current.addDownload(downloadId, modelName);
-      setDownloadManagerVisible(true);
-    }
-  };
-
-  // Add button to the downloadable list section
+  // Update the renderDownloadableList function
   const renderDownloadableList = () => (
     <View style={styles.downloadableContainer}>
-      <TouchableOpacity
-        style={[styles.customUrlButton, { backgroundColor: themeColors.borderColor }]}
-        onPress={() => setCustomUrlDialogVisible(true)}
+      <ScrollView 
+        style={{ flex: 1 }}
+        contentContainerStyle={{ padding: 16 }}
+        showsVerticalScrollIndicator={false}
       >
-        <View style={styles.customUrlButtonContent}>
-          <View style={styles.customUrlIconContainer}>
-            <Ionicons name="add-circle-outline" size={24} color="#4a0660" />
+        <TouchableOpacity
+          style={[styles.customUrlButton, { backgroundColor: themeColors.borderColor }]}
+          onPress={() => setCustomUrlDialogVisible(true)}
+        >
+          <View style={styles.customUrlButtonContent}>
+            <View style={styles.customUrlIconContainer}>
+              <Ionicons name="add-circle-outline" size={24} color="#4a0660" />
+            </View>
+            <View style={styles.customUrlTextContainer}>
+              <Text style={[styles.customUrlButtonTitle, { color: themeColors.text }]}>
+                Download from URL
+              </Text>
+              <Text style={[styles.customUrlButtonSubtitle, { color: themeColors.secondaryText }]}>
+                Import a custom GGUF model
+              </Text>
+            </View>
           </View>
-          <View style={styles.customUrlTextContainer}>
-            <Text style={[styles.customUrlButtonTitle, { color: themeColors.text }]}>
-              Download from URL
-            </Text>
-            <Text style={[styles.customUrlButtonSubtitle, { color: themeColors.secondaryText }]}>
-              Import a custom GGUF model
-            </Text>
-          </View>
-        </View>
-        <Ionicons name="chevron-forward" size={20} color={themeColors.secondaryText} />
-      </TouchableOpacity>
+          <Ionicons name="chevron-forward" size={20} color={themeColors.secondaryText} />
+        </TouchableOpacity>
 
-      <DownloadableModelList
-        downloadProgress={downloadProgress}
-        onDownloadStart={handleDownloadStart}
-        setDownloadProgress={setDownloadProgress}
-      />
+        <DownloadableModelList
+          downloadProgress={downloadProgress}
+          setDownloadProgress={setDownloadProgress}
+        />
 
-      <CustomUrlDialog
-        visible={customUrlDialogVisible}
-        onClose={() => setCustomUrlDialogVisible(false)}
-        onDownloadStart={handleDownloadStart}
-      />
+        <CustomUrlDialog
+          visible={customUrlDialogVisible}
+          onClose={() => setCustomUrlDialogVisible(false)}
+          onDownloadStart={handleCustomDownload}
+        />
+      </ScrollView>
     </View>
   );
 
@@ -785,32 +641,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
           )}
         </View>
       </View>
-
-      <DownloadManager
-        ref={downloadManagerRef}
-        visible={downloadManagerVisible}
-        onClose={() => setDownloadManagerVisible(false)}
-      />
-
-      <TouchableOpacity
-        style={[styles.fab, { backgroundColor: '#4a0660' }]}
-        onPress={() => setDownloadManagerVisible(true)}
-      >
-        <View style={styles.fabContent}>
-          <Ionicons 
-            name="cloud-download-outline" 
-            size={24} 
-            color="#ffffff" 
-          />
-          {Object.keys(downloadProgress).length > 0 && (
-            <View style={styles.fabBadge}>
-              <Text style={styles.fabBadgeText}>
-                {Object.keys(downloadProgress).length}
-              </Text>
-            </View>
-          )}
-        </View>
-      </TouchableOpacity>
     </View>
   );
 }
@@ -914,7 +744,7 @@ const styles = StyleSheet.create({
   },
   downloadableList: {
     padding: 16,
-    flexGrow: 1,
+    paddingTop: 0,
   },
   downloadableCard: {
     borderRadius: 16,
@@ -1075,48 +905,6 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     padding: 4,
-  },
-  fab: {
-    position: 'absolute',
-    right: 20,
-    bottom: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#4a0660',
-    elevation: 5,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-  },
-  fabContent: {
-    width: '100%',
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  fabBadge: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    minWidth: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#ff4444',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#ffffff',
-  },
-  fabBadgeText: {
-    color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '600',
-    paddingHorizontal: 4,
   },
   customUrlCard: {
     padding: 16,
