@@ -12,8 +12,8 @@ import {
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import { Ionicons } from '@expo/vector-icons';
-import { NativeModules } from 'react-native';
-import { llamaManager } from '../utils/LlamaManager';
+import { modelDownloader } from '../services/ModelDownloader';
+import { ThemeType, ThemeColors } from '../types/theme';
 
 interface StoredModel {
   name: string;
@@ -25,8 +25,6 @@ interface StoredModel {
 interface ModelDownloaderType {
   getStoredModels: () => Promise<StoredModel[]>;
 }
-
-const ModelDownloaderModule = NativeModules.ModelDownloader as ModelDownloaderType;
 
 // Add this interface for the ref
 export interface ModelSelectorRef {
@@ -41,14 +39,14 @@ interface ModelSelectorProps {
 const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorProps>(
   ({ onModelSelect, onModelUnload }, ref) => {
     const { theme: currentTheme } = useTheme();
-    const themeColors = theme[currentTheme];
+    const themeColors = theme[currentTheme as ThemeColors];
     const [modalVisible, setModalVisible] = useState(false);
     const [models, setModels] = useState<StoredModel[]>([]);
     const [selectedModel, setSelectedModel] = useState<string | null>(null);
 
     const loadModels = async () => {
       try {
-        const storedModels = await ModelDownloaderModule.getStoredModels();
+        const storedModels = await modelDownloader.getStoredModels();
         setModels(storedModels);
       } catch (error) {
         console.error('Error loading models:', error);

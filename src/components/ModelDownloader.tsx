@@ -5,7 +5,6 @@ import {
   TouchableOpacity,
   Text,
   StyleSheet,
-  NativeModules,
   Alert,
   Modal,
   Pressable,
@@ -14,8 +13,9 @@ import {
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import { Ionicons } from '@expo/vector-icons';
+import { modelDownloader, ModelInfo } from '../services/ModelDownloader';
+import { ThemeType, ThemeColors } from '../types/theme';
 
-const { ModelDownloader } = NativeModules;
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface ModelDownloaderType {
@@ -25,13 +25,13 @@ interface ModelDownloaderType {
     bytesDownloaded?: number;
     totalBytes?: number;
   }>;
-  pauseDownload: (downloadId: number) => Promise<boolean>;
-  resumeDownload: (downloadId: number) => Promise<boolean>;
   cancelDownload: (downloadId: number) => Promise<boolean>;
+  getStoredModels: () => Promise<ModelInfo[]>;
+  deleteModel: (path: string) => Promise<boolean>;
 }
 
 // Type assertion for the native module
-const ModelDownloaderModule = ModelDownloader as ModelDownloaderType;
+const ModelDownloaderModule = modelDownloader as ModelDownloaderType;
 
 interface ModelDownloaderProps {
   downloadProgress: DownloadProgress;
@@ -49,7 +49,7 @@ interface DownloadProgress {
 
 const ModelDownloaderComponent = ({ downloadProgress, onDownloadStart }: ModelDownloaderProps) => {
   const { theme: currentTheme } = useTheme();
-  const themeColors = theme[currentTheme];
+  const themeColors = theme[currentTheme as ThemeColors];
   const [url, setUrl] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
   const [currentDownload, setCurrentDownload] = useState<string | null>(null);
@@ -66,7 +66,7 @@ const ModelDownloaderComponent = ({ downloadProgress, onDownloadStart }: ModelDo
       setCurrentDownload(filename);
       
       console.log('Starting download:', { url, filename });
-      const result = await ModelDownloaderModule.downloadModel(url, filename);
+      const result = await modelDownloader.downloadModel(url, filename);
       console.log('Download started:', result);
       
       onDownloadStart(result.downloadId, filename);
@@ -109,7 +109,7 @@ const ModelDownloaderComponent = ({ downloadProgress, onDownloadStart }: ModelDo
             </View>
 
             <View style={styles.warningContainer}>
-              <Ionicons name="warning-outline" size={20} color={themeColors.primary} />
+              <Ionicons name="warning-outline" size={20} color="#4a0660" />
               <Text style={[styles.warningText, { color: themeColors.secondaryText }]}>
                 Only Georgi Gerganov's GGUF format models are supported.
               </Text>

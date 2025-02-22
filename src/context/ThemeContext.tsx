@@ -1,8 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { useColorScheme } from 'react-native';
+import { useColorScheme, Appearance } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-type ThemeType = 'system' | 'light' | 'dark';
+import { ThemeType, ThemeColors } from '../types/theme';
 
 interface ThemeContextType {
   theme: ThemeType;  // The active theme (light/dark)
@@ -64,4 +63,19 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   );
 };
 
-export const useTheme = () => useContext(ThemeContext); 
+export const useTheme = () => {
+  const context = useContext(ThemeContext);
+  if (!context) {
+    throw new Error('useTheme must be used within a ThemeProvider');
+  }
+  
+  // Convert system theme to actual theme colors
+  const effectiveTheme = context.theme === 'system' 
+    ? (Appearance.getColorScheme() as ThemeColors) || 'light'
+    : (context.theme as ThemeColors);
+    
+  return {
+    ...context,
+    effectiveTheme,
+  };
+}; 

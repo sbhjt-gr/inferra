@@ -5,8 +5,8 @@
   "scripts": {
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
     "web": "expo start --web",
     "test": "jest --watchAll",
     "lint": "expo lint"
@@ -21,6 +21,7 @@
     "@react-navigation/native": "^7.0.14",
     "@react-navigation/native-stack": "^7.2.0",
     "@react-navigation/stack": "^7.1.1",
+    "eventemitter3": "^5.0.1",
     "expo": "~52.0.31",
     "expo-blur": "~14.0.3",
     "expo-constants": "~17.0.5",
@@ -41,7 +42,6 @@
     "react-dom": "18.3.1",
     "react-native": "0.76.7",
     "react-native-document-picker": "^9.3.1",
-    "react-native-fs": "^2.20.0",
     "react-native-gesture-handler": "~2.20.2",
     "react-native-markdown-display": "^7.0.2",
     "react-native-material-menu": "^2.0.0",
@@ -62,5 +62,8 @@
     "react-test-renderer": "18.3.1",
     "typescript": "^5.3.3"
   },
-  "private": true
+  "private": true,
+  "engines": {
+    "node": ">=16.0.0 <20.0.0"
+  }
 }
