@@ -25,6 +25,7 @@ import AppHeader from '../components/AppHeader';
 import CustomUrlDialog from '../components/CustomUrlDialog';
 import { modelDownloader, DownloadProgress } from '../services/ModelDownloader';
 import DownloadsDialog from '../components/DownloadsDialog';
+import { useDownloads } from '../context/DownloadContext';
 
 type ModelScreenProps = {
   navigation: CompositeNavigationProp<
@@ -100,17 +101,16 @@ let globalCheckInterval: NodeJS.Timeout | null = null;
 
 export default function ModelScreen({ navigation }: ModelScreenProps) {
   const { theme: currentTheme } = useTheme();
-  const themeColors = theme[currentTheme];
+  const themeColors = theme[currentTheme as 'light' | 'dark'];
   const [activeTab, setActiveTab] = useState<'stored' | 'downloadable'>('stored');
   const [storedModels, setStoredModels] = useState<StoredModel[]>([]);
-  const [downloadProgress, setDownloadProgress] = useState<DownloadProgress>({});
+  const { downloadProgress, setDownloadProgress, activeDownloadsCount } = useDownloads();
   const [isDownloadsDialogVisible, setIsDownloadsDialogVisible] = useState(false);
   const [customUrl, setCustomUrl] = useState('');
   const [isCustomUrlValid, setIsCustomUrlValid] = useState(false);
   const [isCustomUrlLoading, setIsCustomUrlLoading] = useState(false);
   const [customUrlDialogVisible, setCustomUrlDialogVisible] = useState(false);
   const [isDownloadsVisible, setIsDownloadsVisible] = useState(false);
-  const activeDownloadsCount = Object.keys(downloadProgress).length;
   const buttonScale = useRef(new Animated.Value(1)).current;
 
   const validateModelUrl = (url: string) => {
@@ -143,7 +143,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     setDownloadProgress: React.Dispatch<React.SetStateAction<DownloadProgress>>;
   }) => {
     const { theme: currentTheme } = useTheme();
-    const themeColors = theme[currentTheme];
+    const themeColors = theme[currentTheme as 'light' | 'dark'];
     const [downloadingModels, setDownloadingModels] = useState<{ [key: string]: boolean }>({});
     const [initializingDownloads, setInitializingDownloads] = useState<{ [key: string]: boolean }>({});
 
@@ -276,7 +276,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     setDownloadProgress: React.Dispatch<React.SetStateAction<DownloadProgress>>;
   }) => {
     const { theme: currentTheme } = useTheme();
-    const themeColors = theme[currentTheme];
+    const themeColors = theme[currentTheme as 'light' | 'dark'];
 
     const activeDownloads = Object.entries(downloads).filter(([_, value]) => 
       value.status !== 'completed' && value.status !== 'failed'
@@ -380,7 +380,14 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
   }, []);
 
   useEffect(() => {
-    const handleProgress = ({ modelName, ...progress }) => {
+    const handleProgress = ({ modelName, ...progress }: { 
+      modelName: string;
+      progress: number;
+      bytesDownloaded: number;
+      totalBytes: number;
+      status: string;
+      downloadId: number;
+    }) => {
       // Get just the filename without path
       const filename = modelName.split('/').pop() || modelName;
       
@@ -407,7 +414,9 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     };
 
     modelDownloader.on('downloadProgress', handleProgress);
-    return () => modelDownloader.removeListener('downloadProgress', handleProgress);
+    return () => {
+      modelDownloader.removeListener('downloadProgress', handleProgress);
+    };
   }, []);
 
   const handleDelete = (model: StoredModel) => {
@@ -486,9 +495,12 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     <TouchableOpacity
       style={[styles.modelCard, { backgroundColor: themeColors.borderColor }]}
       onPress={() => {
-        navigation.navigate('HomeTab', {
-          openModelSelector: true,
-          preselectedModelPath: item.path
+        navigation.navigate('MainTabs', {
+          screen: 'HomeTab',
+          params: {
+            chatId: undefined,
+            modelPath: item.path
+          }
         });
       }}
     >
@@ -559,7 +571,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       >
         <TouchableOpacity
           style={[styles.floatingButtonContent, { backgroundColor: '#4a0660' }]}
-          onPress={() => setIsDownloadsVisible(true)}
+          onPress={() => navigation.navigate('Downloads')}
         >
           <Ionicons name="cloud-download" size={24} color="#fff" />
           <View style={styles.downloadCount}>

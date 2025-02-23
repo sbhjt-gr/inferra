@@ -3,6 +3,7 @@ export type RootStackParamList = {
     screen: string;
     params?: {
       chatId?: string;
+      modelPath?: string;
     };
   };
   Home: undefined;
@@ -12,11 +13,13 @@ export type RootStackParamList = {
     onChatDeleted?: (chatId: string) => void;
     onAllChatsDeleted?: () => void;
   };
+  Downloads: undefined;
 };
 
 export type TabParamList = {
   HomeTab: {
     chatId?: string;
+    modelPath?: string;
   };
   Model: undefined;
   Settings: undefined;
