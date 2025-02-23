@@ -25,6 +25,15 @@ const formatBytes = (bytes: number) => {
   return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
 };
 
+interface DownloadItem {
+  id: number;
+  name: string;
+  progress: number;
+  bytesDownloaded: number;
+  totalBytes: number;
+  status: string;
+}
+
 export default function DownloadsScreen() {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
@@ -71,29 +80,72 @@ export default function DownloadsScreen() {
     );
   };
 
-  const renderItem = ({ item }) => (
+  const handlePauseResume = async (downloadId: number, modelName: string, shouldResume: boolean) => {
+    try {
+      if (shouldResume) {
+        await modelDownloader.resumeDownload(downloadId);
+        setDownloadProgress(prev => ({
+          ...prev,
+          [modelName]: {
+            ...prev[modelName],
+            status: 'downloading'
+          }
+        }));
+      } else {
+        await modelDownloader.pauseDownload(downloadId);
+        setDownloadProgress(prev => ({
+          ...prev,
+          [modelName]: {
+            ...prev[modelName],
+            status: 'paused'
+          }
+        }));
+      }
+    } catch (error) {
+      console.error('Error toggling download state:', error);
+      Alert.alert('Error', `Failed to ${shouldResume ? 'resume' : 'pause'} download`);
+    }
+  };
+
+  const renderItem = ({ item }: { item: DownloadItem }) => (
     <View style={[styles.downloadItem, { backgroundColor: themeColors.borderColor }]}>
       <View style={styles.downloadHeader}>
         <Text style={[styles.downloadName, { color: themeColors.text }]}>
           {item.name}
         </Text>
-        <TouchableOpacity
-          style={styles.cancelButton}
-          onPress={() => handleCancel(item.id, item.name)}
-        >
-          <Ionicons name="close-circle" size={24} color="#ff4444" />
-        </TouchableOpacity>
+        <View style={styles.downloadActions}>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => handlePauseResume(item.id, item.name, item.status === 'paused')}
+          >
+            <Ionicons 
+              name={item.status === 'paused' ? "play-circle" : "pause-circle"} 
+              size={24} 
+              color="#4a0660" 
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.cancelButton}
+            onPress={() => handleCancel(item.id, item.name)}
+          >
+            <Ionicons name="close-circle" size={24} color="#ff4444" />
+          </TouchableOpacity>
+        </View>
       </View>
       
       <Text style={[styles.downloadProgress, { color: themeColors.secondaryText }]}>
         {`${item.progress}% • ${formatBytes(item.bytesDownloaded)} / ${formatBytes(item.totalBytes)}`}
+        {item.status === 'paused' && ' (Paused)'}
       </Text>
       
       <View style={[styles.progressBar, { backgroundColor: themeColors.background }]}>
         <View 
           style={[
             styles.progressFill, 
-            { width: `${item.progress}%`, backgroundColor: '#4a0660' }
+            { 
+              width: `${item.progress}%`, 
+              backgroundColor: item.status === 'paused' ? '#666' : '#4a0660' 
+            }
           ]} 
         />
       </View>
@@ -159,11 +211,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 4,
   },
   downloadName: {
     fontSize: 16,
     fontWeight: '500',
     marginBottom: 4,
+  },
+  downloadActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   downloadProgress: {
     fontSize: 14,
@@ -188,6 +246,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   cancelButton: {
+    padding: 4,
+  },
+  actionButton: {
     padding: 4,
   },
 }); 

@@ -14,14 +14,18 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import { modelDownloader } from '../services/ModelDownloader';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../types/navigation';
 
 interface CustomUrlDialogProps {
   visible: boolean;
   onClose: () => void;
   onDownloadStart: (downloadId: number, modelName: string) => void;
+  navigation: NativeStackNavigationProp<RootStackParamList>;
 }
 
-const CustomUrlDialog = ({ visible, onClose, onDownloadStart }: CustomUrlDialogProps) => {
+const CustomUrlDialog = ({ visible, onClose, onDownloadStart, navigation }: CustomUrlDialogProps) => {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme];
   const [url, setUrl] = useState('');
@@ -37,6 +41,10 @@ const CustomUrlDialog = ({ visible, onClose, onDownloadStart }: CustomUrlDialogP
 
   const handleDownload = async () => {
     if (!isValid) return;
+    
+    // Navigate to Downloads screen immediately
+    navigation.navigate('Downloads');
+    onClose();
     
     setIsLoading(true);
     try {
@@ -58,7 +66,7 @@ const CustomUrlDialog = ({ visible, onClose, onDownloadStart }: CustomUrlDialogP
       if (!filename.toLowerCase().endsWith('.gguf')) {
         Alert.alert(
           'Invalid File',
-          'Only GGUF model files are supported. Please make sure you are downloading a GGUF model file.'
+          'Only direct download links to GGUF models are supported. Please make sure opening the link in a browser downloads a GGUF model file directly.'
         );
         return;
       }
@@ -66,7 +74,6 @@ const CustomUrlDialog = ({ visible, onClose, onDownloadStart }: CustomUrlDialogP
       const { downloadId } = await modelDownloader.downloadModel(url, filename);
       onDownloadStart(downloadId, filename);
       setUrl('');
-      onClose();
     } catch (error) {
       console.error('Custom download error:', error);
       Alert.alert('Error', 'Failed to start download');

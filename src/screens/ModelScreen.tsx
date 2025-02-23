@@ -122,6 +122,9 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
   };
 
   const handleCustomDownload = async (downloadId: number, modelName: string) => {
+    // Navigate to Downloads screen immediately
+    navigation.navigate('Downloads');
+    
     // Add to download progress tracking with the full filename
     setDownloadProgress(prev => ({
       ...prev,
@@ -133,6 +136,9 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         downloadId
       }
     }));
+    
+    // Close the custom URL dialog
+    setCustomUrlDialogVisible(false);
   };
 
   const DownloadableModelList = ({ 
@@ -148,6 +154,9 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     const [initializingDownloads, setInitializingDownloads] = useState<{ [key: string]: boolean }>({});
 
     const handleDownload = async (model: DownloadableModel) => {
+      // Navigate to Downloads screen immediately
+      navigation.navigate('Downloads');
+      
       try {
         setInitializingDownloads(prev => ({ ...prev, [model.name]: true }));
         
@@ -486,6 +495,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
           visible={customUrlDialogVisible}
           onClose={() => setCustomUrlDialogVisible(false)}
           onDownloadStart={handleCustomDownload}
+          navigation={navigation}
         />
       </ScrollView>
     </View>
@@ -495,12 +505,11 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     <TouchableOpacity
       style={[styles.modelCard, { backgroundColor: themeColors.borderColor }]}
       onPress={() => {
-        navigation.navigate('MainTabs', {
-          screen: 'HomeTab',
-          params: {
-            chatId: undefined,
-            modelPath: item.path
-          }
+        navigation.navigate('HomeTab', {
+          chatId: undefined,
+          modelPath: item.path,
+          openModelSelector: true,
+          preselectedModelPath: item.path
         });
       }}
     >

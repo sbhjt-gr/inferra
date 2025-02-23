@@ -20,7 +20,10 @@ export type TabParamList = {
   HomeTab: {
     chatId?: string;
     modelPath?: string;
+    openModelSelector?: boolean;
+    preselectedModelPath?: string;
   };
   Model: undefined;
+  Downloads: undefined;
   Settings: undefined;
 }; 

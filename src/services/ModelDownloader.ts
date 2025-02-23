@@ -37,6 +37,13 @@ class ModelDownloader extends EventEmitter {
   private readonly baseDir: string;
   private downloadResumables: Map<number, FileSystem.DownloadResumable> = new Map();
   private nextDownloadId = 1;
+  private downloadProgress: Record<string, {
+    progress: number;
+    bytesDownloaded: number;
+    totalBytes: number;
+    status: string;
+    downloadId: number;
+  }> = {};
 
   constructor() {
     super();
@@ -118,6 +125,8 @@ class ModelDownloader extends EventEmitter {
             downloadId
           };
           
+          this.downloadProgress[filename] = progress;
+          
           this.emit('downloadProgress', { modelName: filename, ...progress });
         }
       }
@@ -140,6 +149,7 @@ class ModelDownloader extends EventEmitter {
           downloadId
         };
         this.emit('downloadProgress', { modelName: filename, ...finalProgress });
+        this.downloadProgress[filename] = finalProgress;
       }
     } catch (error) {
       console.error('Download error:', error);
@@ -160,9 +170,33 @@ class ModelDownloader extends EventEmitter {
     const downloadResumable = this.downloadResumables.get(downloadId);
     if (downloadResumable) {
       try {
+        // Get the filename from pending downloads
+        const pendingDownloads = await AsyncStorage.getItem('pendingDownloads') || '{}';
+        const downloads = JSON.parse(pendingDownloads);
+        const downloadInfo = downloads[downloadId] as { filename: string } | undefined;
+        
+        // Construct the full path
+        const filePath = downloadInfo 
+          ? `${this.baseDir}/${downloadInfo.filename}`
+          : null;
+
+        // Pause/cancel the download
         await downloadResumable.pauseAsync();
         this.downloadResumables.delete(downloadId);
         await this.removePendingDownload(downloadId);
+
+        // Delete the partial file if we have the path
+        if (filePath) {
+          try {
+            const fileInfo = await FileSystem.getInfoAsync(filePath);
+            if (fileInfo.exists) {
+              await FileSystem.deleteAsync(filePath, { idempotent: true });
+            }
+          } catch (error) {
+            console.error('Error deleting partial file:', error);
+          }
+        }
+
         return true;
       } catch (error) {
         console.error('Error cancelling download:', error);
@@ -231,6 +265,70 @@ class ModelDownloader extends EventEmitter {
     } catch (error) {
       console.error('Error deleting model:', error);
       return false;
+    }
+  }
+
+  async pauseDownload(downloadId: number): Promise<void> {
+    const downloadResumable = this.downloadResumables.get(downloadId);
+    if (downloadResumable) {
+      try {
+        const pendingDownloads = await AsyncStorage.getItem('pendingDownloads') || '{}';
+        const downloads = JSON.parse(pendingDownloads);
+        const downloadInfo = downloads[downloadId];
+        const currentProgress = this.downloadProgress[downloadInfo?.filename];
+        
+        if (downloadInfo && currentProgress) {
+          // Just pause the download and keep the resumable
+          await downloadResumable.pauseAsync();
+          
+          const pausedProgress = {
+            ...currentProgress,
+            status: 'paused'
+          };
+          
+          this.downloadProgress[downloadInfo.filename] = pausedProgress;
+          
+          this.emit('downloadProgress', {
+            modelName: downloadInfo.filename,
+            ...pausedProgress
+          });
+        }
+      } catch (error) {
+        console.error('Error pausing download:', error);
+        throw error;
+      }
+    }
+  }
+
+  async resumeDownload(downloadId: number): Promise<void> {
+    const downloadResumable = this.downloadResumables.get(downloadId);
+    if (downloadResumable) {
+      try {
+        const pendingDownloads = await AsyncStorage.getItem('pendingDownloads') || '{}';
+        const downloads = JSON.parse(pendingDownloads);
+        const downloadInfo = downloads[downloadId];
+        const currentProgress = this.downloadProgress[downloadInfo?.filename];
+        
+        if (downloadInfo && currentProgress) {
+          // Simply resume the existing download
+          await downloadResumable.resumeAsync();
+          
+          const resumedProgress = {
+            ...currentProgress,
+            status: 'downloading'
+          };
+          
+          this.downloadProgress[downloadInfo.filename] = resumedProgress;
+          
+          this.emit('downloadProgress', {
+            modelName: downloadInfo.filename,
+            ...resumedProgress
+          });
+        }
+      } catch (error) {
+        console.error('Error resuming download:', error);
+        throw error;
+      }
     }
   }
 }
