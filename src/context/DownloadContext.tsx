@@ -1,5 +1,15 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { modelDownloader, DownloadProgress } from '../services/ModelDownloader';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+interface DownloadProgress {
+  [key: string]: {
+    downloadId: number;
+    progress: number;
+    bytesDownloaded: number;
+    totalBytes: number;
+    status: string;
+  };
+}
 
 interface DownloadContextType {
   downloadProgress: DownloadProgress;
@@ -9,54 +19,54 @@ interface DownloadContextType {
 
 const DownloadContext = createContext<DownloadContextType | undefined>(undefined);
 
-export function DownloadProvider({ children }: { children: React.ReactNode }) {
+export const DownloadProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [downloadProgress, setDownloadProgress] = useState<DownloadProgress>({});
-  const activeDownloadsCount = Object.keys(downloadProgress).length;
+  const activeDownloadsCount = Object.values(downloadProgress).filter(
+    d => d.status !== 'completed' && d.status !== 'failed'
+  ).length;
 
+  // Load saved download states on mount
   useEffect(() => {
-    const handleProgress = ({ modelName, ...progress }) => {
-      const filename = modelName.split('/').pop() || modelName;
-      
-      setDownloadProgress(prev => {
-        const newProgress = { ...prev };
-        
-        if (progress.status === 'completed' || progress.status === 'failed') {
-          delete newProgress[filename];
-        } else {
-          newProgress[filename] = {
-            progress: progress.progress,
-            bytesDownloaded: progress.bytesDownloaded,
-            totalBytes: progress.totalBytes,
-            status: progress.status,
-            downloadId: progress.downloadId
-          };
+    const loadSavedStates = async () => {
+      try {
+        const savedProgress = await AsyncStorage.getItem('download_progress');
+        if (savedProgress) {
+          setDownloadProgress(JSON.parse(savedProgress));
         }
-        
-        return newProgress;
-      });
+      } catch (error) {
+        console.error('Error loading download states:', error);
+      }
     };
-
-    modelDownloader.on('downloadProgress', handleProgress);
-    return () => {
-      modelDownloader.removeListener('downloadProgress', handleProgress);
-    };
+    loadSavedStates();
   }, []);
 
+  // Save download states whenever they change
+  useEffect(() => {
+    const saveStates = async () => {
+      try {
+        if (Object.keys(downloadProgress).length > 0) {
+          await AsyncStorage.setItem('download_progress', JSON.stringify(downloadProgress));
+        } else {
+          await AsyncStorage.removeItem('download_progress');
+        }
+      } catch (error) {
+        console.error('Error saving download states:', error);
+      }
+    };
+    saveStates();
+  }, [downloadProgress]);
+
   return (
-    <DownloadContext.Provider value={{ 
-      downloadProgress, 
-      setDownloadProgress,
-      activeDownloadsCount 
-    }}>
+    <DownloadContext.Provider value={{ downloadProgress, setDownloadProgress, activeDownloadsCount }}>
       {children}
     </DownloadContext.Provider>
   );
-}
+};
 
-export function useDownloads() {
+export const useDownloads = () => {
   const context = useContext(DownloadContext);
   if (context === undefined) {
     throw new Error('useDownloads must be used within a DownloadProvider');
   }
   return context;
-} 
+}; 

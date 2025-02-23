@@ -17,12 +17,19 @@ import { modelDownloader } from '../services/ModelDownloader';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface CustomUrlDialogProps {
   visible: boolean;
   onClose: () => void;
   onDownloadStart: (downloadId: number, modelName: string) => void;
   navigation: NativeStackNavigationProp<RootStackParamList>;
+}
+
+interface DownloadState {
+  downloadId: number;
+  status: string;
+  modelName: string;
 }
 
 const CustomUrlDialog = ({ visible, onClose, onDownloadStart, navigation }: CustomUrlDialogProps) => {
@@ -72,6 +79,29 @@ const CustomUrlDialog = ({ visible, onClose, onDownloadStart, navigation }: Cust
       }
       
       const { downloadId } = await modelDownloader.downloadModel(url, filename);
+      
+      // Initialize download progress
+      const initialProgress = {
+        downloadId,
+        progress: 0,
+        bytesDownloaded: 0,
+        totalBytes: 0,
+        status: 'downloading'
+      };
+
+      // Get existing progress
+      const existingProgressJson = await AsyncStorage.getItem('download_progress');
+      const existingProgress = existingProgressJson ? JSON.parse(existingProgressJson) : {};
+
+      // Update progress
+      const newProgress = {
+        ...existingProgress,
+        [filename]: initialProgress
+      };
+
+      // Save to AsyncStorage
+      await AsyncStorage.setItem('download_progress', JSON.stringify(newProgress));
+      
       onDownloadStart(downloadId, filename);
       setUrl('');
     } catch (error) {

@@ -141,6 +141,57 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     setCustomUrlDialogVisible(false);
   };
 
+  const handlePauseResume = async (downloadId: number, modelName: string, shouldResume: boolean) => {
+    try {
+      setDownloadProgress(prev => ({
+        ...prev,
+        [modelName]: {
+          ...prev[modelName],
+          status: shouldResume ? 'downloading' : 'paused'
+        }
+      }));
+      
+      if (shouldResume) {
+        await modelDownloader.resumeDownload(downloadId);
+      } else {
+        await modelDownloader.pauseDownload(downloadId);
+      }
+    } catch (error) {
+      console.error('Error toggling download state:', error);
+      Alert.alert('Error', `Failed to ${shouldResume ? 'resume' : 'pause'} download`);
+    }
+  };
+
+  const handleCancel = async (downloadId: number, modelName: string) => {
+    Alert.alert(
+      'Cancel Download',
+      'Are you sure you want to cancel this download?',
+      [
+        {
+          text: 'No',
+          style: 'cancel'
+        },
+        {
+          text: 'Yes',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await modelDownloader.cancelDownload(downloadId);
+              setDownloadProgress(prev => {
+                const newProgress = { ...prev };
+                delete newProgress[modelName];
+                return newProgress;
+              });
+            } catch (error) {
+              console.error('Error canceling download:', error);
+              Alert.alert('Error', 'Failed to cancel download');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const DownloadableModelList = ({ 
     downloadProgress, 
     setDownloadProgress
@@ -501,53 +552,79 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     </View>
   );
 
-  const renderItem = ({ item }: { item: StoredModel }) => (
-    <TouchableOpacity
-      style={[styles.modelCard, { backgroundColor: themeColors.borderColor }]}
-      onPress={() => {
-        navigation.navigate('HomeTab', {
-          chatId: undefined,
-          modelPath: item.path,
-          openModelSelector: true,
-          preselectedModelPath: item.path
-        });
-      }}
-    >
-      <View style={styles.modelInfo}>
-        <Text style={[styles.modelName, { color: themeColors.text }]} numberOfLines={1}>
-          {getDisplayName(item.name)}
-        </Text>
-        <Text style={[styles.modelDetails, { color: themeColors.secondaryText }]}>
-          {formatBytes(item.size)}
-        </Text>
-        {/* Use the filename for progress lookup */}
-        {downloadProgress[item.name.split('/').pop() || item.name] && (
-          <View style={styles.downloadProgress}>
-            <Text style={[styles.modelDetails, { color: themeColors.secondaryText }]}>
-              {getProgressText(downloadProgress[item.name.split('/').pop() || item.name])}
-            </Text>
-            <View style={[styles.progressBar, { backgroundColor: themeColors.background }]}>
-              <View 
-                style={[
-                  styles.progressFill, 
-                  { 
-                    width: `${downloadProgress[item.name.split('/').pop() || item.name].progress}%`, 
-                    backgroundColor: '#4a0660' 
-                  }
-                ]} 
-              />
-            </View>
-          </View>
-        )}
-      </View>
+  const renderItem = ({ item }: { item: StoredModel }) => {
+    const downloadInfo = downloadProgress[item.name.split('/').pop() || item.name];
+    
+    return (
       <TouchableOpacity
-        style={styles.deleteButton}
-        onPress={() => handleDelete(item)}
+        style={[styles.modelCard, { backgroundColor: themeColors.borderColor }]}
+        onPress={() => {
+          navigation.navigate('HomeTab', {
+            chatId: undefined,
+            modelPath: item.path,
+            openModelSelector: true,
+            preselectedModelPath: item.path
+          });
+        }}
       >
-        <Ionicons name="trash-outline" size={20} color="#ff4444" />
+        <View style={styles.modelInfo}>
+          <Text style={[styles.modelName, { color: themeColors.text }]} numberOfLines={1}>
+            {getDisplayName(item.name)}
+          </Text>
+          <Text style={[styles.modelDetails, { color: themeColors.secondaryText }]}>
+            {formatBytes(item.size)}
+          </Text>
+          {downloadInfo && (
+            <View style={styles.downloadProgress}>
+              <View style={styles.downloadStatusRow}>
+                <Text style={[styles.modelDetails, { color: themeColors.secondaryText }]}>
+                  {`${downloadInfo.progress}% • ${formatBytes(downloadInfo.bytesDownloaded)} / ${formatBytes(downloadInfo.totalBytes)}`}
+                  {downloadInfo.status === 'paused' && ' (Paused)'}
+                </Text>
+                <View style={styles.downloadActions}>
+                  <TouchableOpacity
+                    style={styles.actionButton}
+                    onPress={() => handlePauseResume(downloadInfo.downloadId, item.name, downloadInfo.status === 'paused')}
+                  >
+                    <Ionicons 
+                      name={downloadInfo.status === 'paused' ? "play-circle" : "pause-circle"} 
+                      size={24} 
+                      color="#4a0660" 
+                    />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.cancelButton}
+                    onPress={() => handleCancel(downloadInfo.downloadId, item.name)}
+                  >
+                    <Ionicons name="close-circle" size={24} color="#ff4444" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+              <View style={[styles.progressBar, { backgroundColor: themeColors.background }]}>
+                <View 
+                  style={[
+                    styles.progressFill, 
+                    { 
+                      width: `${downloadInfo.progress}%`, 
+                      backgroundColor: downloadInfo.status === 'paused' ? '#666' : '#4a0660' 
+                    }
+                  ]} 
+                />
+              </View>
+            </View>
+          )}
+        </View>
+        {!downloadInfo && (
+          <TouchableOpacity
+            style={styles.deleteButton}
+            onPress={() => handleDelete(item)}
+          >
+            <Ionicons name="trash-outline" size={20} color="#ff4444" />
+          </TouchableOpacity>
+        )}
       </TouchableOpacity>
-    </TouchableOpacity>
-  );
+    );
+  };
 
   // Add this effect to animate the button when downloads change
   useEffect(() => {
@@ -883,7 +960,6 @@ const styles = StyleSheet.create({
   progressBar: {
     height: 4,
     borderRadius: 2,
-    marginTop: 4,
     overflow: 'hidden',
   },
   progressFill: {
@@ -1040,5 +1116,31 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 12,
     fontWeight: 'bold',
+  },
+  downloadStatusRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  downloadActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  actionButton: {
+    padding: 4,
+  },
+  cancelButton: {
+    padding: 4,
+  },
+  progressBar: {
+    height: 4,
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 2,
   },
 }); 

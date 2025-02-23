@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import { modelDownloader } from '../services/ModelDownloader';
 import { useDownloads } from '../context/DownloadContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const formatBytes = (bytes: number) => {
   if (bytes === 0) return '0 B';
@@ -28,6 +29,20 @@ const formatBytes = (bytes: number) => {
 interface DownloadItem {
   id: number;
   name: string;
+  progress: number;
+  bytesDownloaded: number;
+  totalBytes: number;
+  status: string;
+}
+
+interface DownloadState {
+  downloadId: number;
+  status: string;
+  modelName: string;
+}
+
+interface StoredDownloadProgress {
+  downloadId: number;
   progress: number;
   bytesDownloaded: number;
   totalBytes: number;
@@ -49,6 +64,67 @@ export default function DownloadsScreen() {
     totalBytes: data.totalBytes,
     status: data.status
   }));
+
+  // Load saved state on mount
+  useEffect(() => {
+    loadSavedDownloadStates();
+  }, []);
+
+  // Update the loadSavedDownloadStates function
+  const loadSavedDownloadStates = async () => {
+    try {
+      const savedProgress = await AsyncStorage.getItem('download_progress');
+      if (savedProgress) {
+        const progress = JSON.parse(savedProgress);
+        setDownloadProgress(progress);
+      }
+    } catch (error) {
+      console.error('Error loading download states:', error);
+    }
+  };
+
+  // Add this effect to load saved state on mount
+  useEffect(() => {
+    loadSavedDownloadStates();
+  }, []);
+
+  // Add this effect to save state whenever it changes
+  useEffect(() => {
+    const saveDownloadProgress = async () => {
+      try {
+        if (Object.keys(downloadProgress).length > 0) {
+          await AsyncStorage.setItem('download_progress', JSON.stringify(downloadProgress));
+        } else {
+          await AsyncStorage.removeItem('download_progress');
+        }
+      } catch (error) {
+        console.error('Error saving download progress:', error);
+      }
+    };
+
+    saveDownloadProgress();
+  }, [downloadProgress]);
+
+  const handlePauseResume = async (downloadId: number, modelName: string, shouldResume: boolean) => {
+    try {
+      setDownloadProgress(prev => ({
+        ...prev,
+        [modelName]: {
+          ...prev[modelName],
+          status: shouldResume ? 'downloading' : 'paused'
+        }
+      }));
+      
+      if (shouldResume) {
+        await modelDownloader.resumeDownload(downloadId);
+      } else {
+        await modelDownloader.pauseDownload(downloadId);
+      }
+    } catch (error) {
+      console.error('Error toggling download state:', error);
+      Alert.alert('Error', `Failed to ${shouldResume ? 'resume' : 'pause'} download`);
+    }
+  };
 
   const handleCancel = async (downloadId: number, modelName: string) => {
     Alert.alert(
@@ -78,33 +154,6 @@ export default function DownloadsScreen() {
         }
       ]
     );
-  };
-
-  const handlePauseResume = async (downloadId: number, modelName: string, shouldResume: boolean) => {
-    try {
-      if (shouldResume) {
-        await modelDownloader.resumeDownload(downloadId);
-        setDownloadProgress(prev => ({
-          ...prev,
-          [modelName]: {
-            ...prev[modelName],
-            status: 'downloading'
-          }
-        }));
-      } else {
-        await modelDownloader.pauseDownload(downloadId);
-        setDownloadProgress(prev => ({
-          ...prev,
-          [modelName]: {
-            ...prev[modelName],
-            status: 'paused'
-          }
-        }));
-      }
-    } catch (error) {
-      console.error('Error toggling download state:', error);
-      Alert.alert('Error', `Failed to ${shouldResume ? 'resume' : 'pause'} download`);
-    }
   };
 
   const renderItem = ({ item }: { item: DownloadItem }) => (
