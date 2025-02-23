@@ -14,6 +14,7 @@ import { theme } from '../constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { modelDownloader } from '../services/ModelDownloader';
 import { ThemeType, ThemeColors } from '../types/theme';
+import { useModel } from '../context/ModelContext';
 
 interface StoredModel {
   name: string;
@@ -32,17 +33,18 @@ export interface ModelSelectorRef {
 }
 
 interface ModelSelectorProps {
-  onModelSelect?: (modelPath: string) => void;
-  onModelUnload?: () => void;
+  isOpen?: boolean;
+  onClose?: () => void;
+  preselectedModelPath?: string | null;
 }
 
 const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorProps>(
-  ({ onModelSelect, onModelUnload }, ref) => {
+  ({ isOpen, onClose, preselectedModelPath }, ref) => {
     const { theme: currentTheme } = useTheme();
     const themeColors = theme[currentTheme as ThemeColors];
     const [modalVisible, setModalVisible] = useState(false);
     const [models, setModels] = useState<StoredModel[]>([]);
-    const [selectedModel, setSelectedModel] = useState<string | null>(null);
+    const { selectedModelPath, isModelLoading, loadModel, unloadModel } = useModel();
 
     const loadModels = async () => {
       try {
@@ -64,10 +66,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
 
     const handleModelSelect = async (model: StoredModel) => {
       setModalVisible(false);
-      setSelectedModel(model.name);
-      if (onModelSelect) {
-        onModelSelect(model.path);
-      }
+      await loadModel(model.path);
     };
 
     const handleUnloadModel = () => {
@@ -81,11 +80,8 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
           },
           {
             text: 'Unload',
-            onPress: () => {
-              setSelectedModel(null);
-              if (onModelUnload) {
-                onModelUnload();
-              }
+            onPress: async () => {
+              await unloadModel();
             },
             style: 'destructive'
           }
@@ -106,27 +102,33 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
       return filename.split('.')[0];
     };
 
+    const getModelNameFromPath = (path: string | null, models: StoredModel[]): string => {
+      if (!path) return 'Select a Model';
+      const model = models.find(m => m.path === path);
+      return model ? getDisplayName(model.name) : getDisplayName(path.split('/').pop() || '');
+    };
+
     const renderModelItem = ({ item }: { item: StoredModel }) => (
       <TouchableOpacity
         style={[
           styles.modelItem,
           { backgroundColor: themeColors.borderColor },
-          selectedModel === item.name && styles.selectedModelItem
+          selectedModelPath === item.path && styles.selectedModelItem
         ]}
         onPress={() => handleModelSelect(item)}
       >
         <View style={styles.modelIconContainer}>
           <Ionicons 
-            name={selectedModel === item.name ? "cube" : "cube-outline"} 
+            name={selectedModelPath === item.path ? "cube" : "cube-outline"} 
             size={28} 
-            color={selectedModel === item.name ? '#4a0660' : themeColors.text} 
+            color={selectedModelPath === item.path ? '#4a0660' : themeColors.text} 
           />
         </View>
         <View style={styles.modelInfo}>
           <Text style={[
             styles.modelName, 
             { color: themeColors.text },
-            selectedModel === item.name && styles.selectedModelText
+            selectedModelPath === item.path && styles.selectedModelText
           ]}>
             {getDisplayName(item.name)}
           </Text>
@@ -136,7 +138,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
             </Text>
           </View>
         </View>
-        {selectedModel === item.name && (
+        {selectedModelPath === item.path && (
           <View style={styles.selectedIndicator}>
             <Ionicons name="checkmark-circle" size={24} color="#4a0660" />
           </View>
@@ -144,31 +146,64 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
       </TouchableOpacity>
     );
 
+    // Add effect to handle isOpen prop
+    useEffect(() => {
+      if (isOpen !== undefined) {
+        setModalVisible(isOpen);
+      }
+    }, [isOpen]);
+
+    // Update modal close handler
+    const handleModalClose = () => {
+      setModalVisible(false);
+      onClose?.();
+    };
+
+    // Add effect to handle preselected model
+    useEffect(() => {
+      if (preselectedModelPath && models.length > 0) {
+        const preselectedModel = models.find(model => model.path === preselectedModelPath);
+        if (preselectedModel) {
+          handleModelSelect(preselectedModel);
+        }
+      }
+    }, [preselectedModelPath, models]);
+
     return (
       <>
         <TouchableOpacity
           style={[styles.selector, { backgroundColor: themeColors.borderColor }]}
-          onPress={() => setModalVisible(true)}
+          onPress={() => {
+            setModalVisible(true);
+          }}
+          disabled={isModelLoading}
         >
           <View style={styles.selectorContent}>
             <View style={styles.modelIconWrapper}>
-              <Ionicons 
-                name={selectedModel ? "cube" : "cube-outline"} 
-                size={24} 
-                color={selectedModel ? '#4a0660' : themeColors.text} 
-              />
+              {isModelLoading ? (
+                <ActivityIndicator size="small" color="#4a0660" />
+              ) : (
+                <Ionicons 
+                  name={selectedModelPath ? "cube" : "cube-outline"} 
+                  size={24} 
+                  color={selectedModelPath ? '#4a0660' : themeColors.text} 
+                />
+              )}
             </View>
             <View style={styles.selectorTextContainer}>
               <Text style={[styles.selectorLabel, { color: themeColors.secondaryText }]}>
                 Active Model
               </Text>
               <Text style={[styles.selectorText, { color: themeColors.text }]}>
-                {selectedModel ? getDisplayName(selectedModel) : 'Select a Model'}
+                {isModelLoading 
+                  ? 'Loading...' 
+                  : getModelNameFromPath(selectedModelPath, models)
+                }
               </Text>
             </View>
           </View>
           <View style={styles.selectorActions}>
-            {selectedModel && (
+            {selectedModelPath && !isModelLoading && (
               <TouchableOpacity 
                 onPress={handleUnloadModel}
                 style={styles.unloadButton}
@@ -184,7 +219,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
           visible={modalVisible}
           transparent={true}
           animationType="slide"
-          onRequestClose={() => setModalVisible(false)}
+          onRequestClose={handleModalClose}
         >
           <View style={styles.modalOverlay}>
             <View style={[styles.modalContent, { backgroundColor: themeColors.background }]}>
@@ -193,7 +228,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                   Select Model
                 </Text>
                 <TouchableOpacity 
-                  onPress={() => setModalVisible(false)}
+                  onPress={handleModalClose}
                   style={styles.closeButton}
                 >
                   <Ionicons name="close" size={24} color={themeColors.text} />

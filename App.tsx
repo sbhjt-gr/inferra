@@ -4,6 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { Platform, StatusBar } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import HomeScreen from './src/screens/HomeScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import ModelScreen from './src/screens/ModelScreen';
@@ -13,6 +14,7 @@ import { theme } from './src/constants/theme';
 import { useEffect } from 'react';
 import { llamaManager } from './src/utils/LlamaManager';
 import ChatHistoryScreen from './src/screens/ChatHistoryScreen';
+import { ModelProvider } from './src/context/ModelContext';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -157,10 +159,14 @@ function Navigation() {
 
 export default function App() {
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <ThemeProvider>
-        <Navigation />
-      </ThemeProvider>
-    </GestureHandlerRootView>
+    <SafeAreaProvider>
+      <ModelProvider>
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <ThemeProvider>
+            <Navigation />
+          </ThemeProvider>
+        </GestureHandlerRootView>
+      </ModelProvider>
+    </SafeAreaProvider>
   );
 }

@@ -21,9 +21,10 @@ import { useFocusEffect } from '@react-navigation/native';
 import Markdown from 'react-native-markdown-display';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Menu, MenuItem } from 'react-native-material-menu';
-import { useNavigation, RouteProp } from '@react-navigation/native';
+import { useNavigation, RouteProp, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList, TabParamList } from '../types/navigation';
+import { useModel } from '../context/ModelContext';
 
 type Message = {
   id: string;
@@ -46,32 +47,6 @@ type HomeScreenProps = {
   route: RouteProp<TabParamList, 'HomeTab'>;
 };
 
-const LoadingDialog = ({ visible }: { visible: boolean }) => {
-  const { theme: currentTheme } = useTheme();
-  const themeColors = theme[currentTheme as 'light' | 'dark'];
-
-  if (!visible) return null;
-
-  return (
-    <View style={styles.loadingOverlay}>
-      <View style={[styles.loadingDialog, { backgroundColor: themeColors.background }]}>
-        <View style={styles.loadingContent}>
-          <View style={styles.loadingIconContainer}>
-            <ActivityIndicator size="large" color="#4a0660" />
-            <View style={styles.loadingPulse} />
-          </View>
-          
-          <View style={styles.loadingTextContainer}>
-            <Text style={[styles.loadingTitle, { color: themeColors.text }]}>
-              Loading Model
-            </Text>
-          </View>
-        </View>
-      </View>
-    </View>
-  );
-};
-
 const extractCodeFromFence = (content: string): string => {
   const codeMatch = content.match(/```[\s\S]*?\n([\s\S]*?)```/);
   return codeMatch ? codeMatch[1].trim() : '';
@@ -86,10 +61,12 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   const flatListRef = useRef<FlatList>(null);
   const [streamingMessage, setStreamingMessage] = useState<string>('');
   const modelSelectorRef = useRef<{ refreshModels: () => void }>(null);
-  const [isModelLoading, setIsModelLoading] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
   const [chatHistories, setChatHistories] = useState<{ id: string, messages: Message[], timestamp: number }[]>([]);
   const [currentChatId, setCurrentChatId] = useState<string>(Date.now().toString());
+  const [shouldOpenModelSelector, setShouldOpenModelSelector] = useState(false);
+  const [preselectedModelPath, setPreselectedModelPath] = useState<string | null>(null);
+  const { isModelLoading } = useModel();
 
   useFocusEffect(
     useCallback(() => {
@@ -112,6 +89,16 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       }
     }
   }, [route.params?.chatId, chatHistories]);
+
+  useEffect(() => {
+    if (route.params?.openModelSelector) {
+      setShouldOpenModelSelector(true);
+      if (route.params?.preselectedModelPath) {
+        setPreselectedModelPath(route.params.preselectedModelPath);
+      }
+      navigation.setParams({ openModelSelector: undefined, preselectedModelPath: undefined });
+    }
+  }, [route.params?.openModelSelector]);
 
   const loadMessages = async () => {
     try {
@@ -432,35 +419,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     setChatHistories([]);
   };
 
-  const handleModelSelect = async (modelPath: string) => {
-    try {
-      setIsModelLoading(true);
-      
-      // First check if model exists
-      if (!modelPath) {
-        throw new Error('Invalid model path');
-      }
-
-      // Initialize model with progress feedback
-      await llamaManager.initializeModel(modelPath);
-      
-      // Verify initialization
-      if (!llamaManager.isInitialized()) {
-        throw new Error('Model failed to initialize properly');
-      }
-
-      Alert.alert('Success', 'Model loaded successfully');
-    } catch (error) {
-      console.error('Model loading error:', error);
-      Alert.alert(
-        'Model Error',
-        `Failed to initialize model: ${error instanceof Error ? error.message : 'Unknown error'}. Please try another model or restart the app.`
-      );
-    } finally {
-      setIsModelLoading(false);
-    }
-  };
-
   return (
     <View style={[styles.container, { backgroundColor: themeColors.background }]}>
       <AppHeader />
@@ -493,17 +451,9 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
           <View style={styles.modelSelectorWrapper}>
             <ModelSelector 
               ref={modelSelectorRef}
-              onModelSelect={handleModelSelect}
-              onModelUnload={async () => {
-                try {
-                  setIsModelLoading(true);
-                  await llamaManager.release();
-                } catch (error) {
-                  console.error('Error unloading model:', error);
-                } finally {
-                  setIsModelLoading(false);
-                }
-              }}
+              isOpen={shouldOpenModelSelector}
+              onClose={() => setShouldOpenModelSelector(false)}
+              preselectedModelPath={preselectedModelPath}
             />
           </View>
 
@@ -585,8 +535,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
           </View>
         </View>
       </KeyboardAvoidingView>
-      
-      <LoadingDialog visible={isModelLoading} />
     </View>
   );
 }
@@ -672,79 +620,6 @@ const styles = StyleSheet.create({
   },
   inputContainerDisabled: {
     opacity: 0.7,
-  },
-  loadingOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 1000,
-  },
-  loadingDialog: {
-    width: '85%',
-    maxWidth: 320,
-    borderRadius: 24,
-    padding: 24,
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-  },
-  loadingContent: {
-    alignItems: 'center',
-  },
-  loadingIconContainer: {
-    width: 80,
-    height: 80,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  loadingPulse: {
-    position: 'absolute',
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(74, 6, 96, 0.1)',
-    transform: [{ scale: 1 }],
-    opacity: 0.5,
-  },
-  loadingTextContainer: {
-    alignItems: 'center',
-  },
-  loadingTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  loadingSubtext: {
-    fontSize: 14,
-    textAlign: 'center',
-  },
-  loadingSteps: {
-    width: '100%',
-    gap: 12,
-  },
-  loadingStep: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: 'rgba(74, 6, 96, 0.05)',
-    padding: 12,
-    borderRadius: 12,
-  },
-  loadingStepText: {
-    fontSize: 14,
-    flex: 1,
   },
   codeBlockContainer: {
     backgroundColor: '#1e1e1e',

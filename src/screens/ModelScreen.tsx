@@ -521,14 +521,12 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
   const renderItem = ({ item }: { item: StoredModel }) => (
     <TouchableOpacity
       style={[styles.modelCard, { backgroundColor: themeColors.borderColor }]}
-      onPress={async () => {
-        try {
-          await llamaManager.initializeModel(item.path);
-          Alert.alert('Success', 'Model loaded successfully');
-        } catch (error) {
-          console.error('Error loading model:', error);
-          Alert.alert('Error', 'Failed to load model');
-        }
+      onPress={() => {
+        // Navigate to Home tab and pass a parameter to open model selector
+        navigation.navigate('HomeTab', {
+          openModelSelector: true,
+          preselectedModelPath: item.path
+        });
       }}
     >
       <View style={styles.modelInfo}>
