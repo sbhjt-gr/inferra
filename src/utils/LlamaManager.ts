@@ -1,4 +1,4 @@
-import { initLlama, type LlamaContext } from 'llama.rn';
+import { initLlama, loadLlamaModelInfo, type LlamaContext } from 'llama.rn';
 import { Platform, NativeModules } from 'react-native';
 
 interface ModelMemoryInfo {
@@ -18,19 +18,38 @@ class LlamaManager {
   private modelPath: string | null = null;
 
   async initializeModel(modelPath: string) {
-    if (this.context) {
-      await this.context.release();
+    try {
+      // First load model info to validate the model
+      const modelInfo = await loadLlamaModelInfo(modelPath);
+      console.log('Model Info:', modelInfo);
+
+      // Release existing context if any
+      if (this.context) {
+        await this.context.release();
+        this.context = null;
+      }
+
+      this.modelPath = modelPath;
+      
+      // Initialize with recommended settings
+      this.context = await initLlama({
+        model: modelPath,
+        use_mlock: true,
+        n_ctx: 2048,
+        n_batch: 512,
+        n_threads: Platform.OS === 'ios' ? 6 : 4,
+        n_gpu_layers: Platform.OS === 'ios' ? 1 : 0, // Reduced for better stability
+        embedding: false,
+        rope_freq_base: 10000,
+        rope_freq_scale: 1,
+        low_vram: true,
+      });
+
+      return this.context;
+    } catch (error) {
+      console.error('Model initialization error:', error);
+      throw new Error(`Failed to initialize model: ${error}`);
     }
-
-    this.modelPath = modelPath;
-    this.context = await initLlama({
-      model: modelPath,
-      use_mlock: true,
-      n_ctx: 2048,
-      n_gpu_layers: Platform.OS === 'ios' ? 99 : 0, 
-    });
-
-    return this.context;
   }
 
   async generateResponse(
@@ -42,48 +61,53 @@ class LlamaManager {
     }
 
     const stopWords = [
-      '</s>',
-      '<|end|>',
-      '<|eot_id|>',
-      '<|end_of_text|>',
-      '<|im_end|>',
-      '<|EOT|>',
-      '<|END_OF_TURN_TOKEN|>',
-      '<|end_of_turn|>',
-      '<|endoftext|>',
-      '<|end_of_sentence|>',
+      '</s>', '<|end|>', 'User:', 'Assistant:', '\n\n\n',
+      '<|im_end|>', '<|endoftext|>'
     ];
 
     let fullResponse = '';
 
-    const result = await this.context.completion(
-      {
-        messages,
-        n_predict: 400,
-        stop: stopWords,
-        temperature: 0.7,
-        top_p: 0.9,
-      },
-      (data) => {
-        // Only process if token doesn't contain stop words
-        if (!stopWords.some(stop => data.token.includes(stop))) {
-          fullResponse += data.token;
-          if (onToken) {
-            onToken(data.token);
+    try {
+      const result = await this.context.completion(
+        {
+          messages,
+          n_predict: 400,
+          stop: stopWords,
+          temperature: 0.7,
+          top_k: 40,
+          top_p: 0.9,
+          min_p: 0.05,
+          repeat_penalty: 1.1,
+          tfs_z: 1.0,
+          mirostat: 2,
+          mirostat_tau: 5.0,
+          mirostat_eta: 0.1,
+        },
+        (data) => {
+          if (!stopWords.some(stop => data.token.includes(stop))) {
+            fullResponse += data.token;
+            onToken?.(data.token);
           }
         }
-      }
-    );
+      );
 
-    // Clean up any remaining control tokens from the full response
-    const cleanResponse = fullResponse.replace(/<\|.*?\|>/g, '').trim();
-    return cleanResponse;
+      return fullResponse.trim();
+    } catch (error) {
+      console.error('Generation error:', error);
+      throw error;
+    }
   }
 
   async release() {
-    if (this.context) {
-      await this.context.release();
-      this.context = null;
+    try {
+      if (this.context) {
+        await this.context.release();
+        this.context = null;
+        this.modelPath = null;
+      }
+    } catch (error) {
+      console.error('Release error:', error);
+      throw error;
     }
   }
 
@@ -93,24 +117,24 @@ class LlamaManager {
 
   async checkMemoryRequirements(): Promise<ModelMemoryInfo> {
     try {
-      // Fallback values if native module is not available
       if (!LlamaManagerModule?.getMemoryInfo) {
-        console.warn('Memory info check not available on this platform');
         return {
           requiredMemory: 0,
           availableMemory: 0
         };
       }
-
       return await LlamaManagerModule.getMemoryInfo();
     } catch (error) {
-      console.warn('Failed to get memory info:', error);
-      // Return fallback values
+      console.warn('Memory info check failed:', error);
       return {
         requiredMemory: 0,
         availableMemory: 0
       };
     }
+  }
+
+  isInitialized(): boolean {
+    return this.context !== null;
   }
 }
 

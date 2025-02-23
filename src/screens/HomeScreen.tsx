@@ -432,6 +432,35 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     setChatHistories([]);
   };
 
+  const handleModelSelect = async (modelPath: string) => {
+    try {
+      setIsModelLoading(true);
+      
+      // First check if model exists
+      if (!modelPath) {
+        throw new Error('Invalid model path');
+      }
+
+      // Initialize model with progress feedback
+      await llamaManager.initializeModel(modelPath);
+      
+      // Verify initialization
+      if (!llamaManager.isInitialized()) {
+        throw new Error('Model failed to initialize properly');
+      }
+
+      Alert.alert('Success', 'Model loaded successfully');
+    } catch (error) {
+      console.error('Model loading error:', error);
+      Alert.alert(
+        'Model Error',
+        `Failed to initialize model: ${error instanceof Error ? error.message : 'Unknown error'}. Please try another model or restart the app.`
+      );
+    } finally {
+      setIsModelLoading(false);
+    }
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: themeColors.background }]}>
       <AppHeader />
@@ -464,20 +493,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
           <View style={styles.modelSelectorWrapper}>
             <ModelSelector 
               ref={modelSelectorRef}
-              onModelSelect={async (modelPath) => {
-                try {
-                  setIsModelLoading(true);
-                  await llamaManager.initializeModel(modelPath);
-                  Alert.alert('Success', 'Model loaded successfully');
-                } catch (error) {
-                  Alert.alert(
-                    'Model Error',
-                    'Failed to initialize the model. Please try another model or restart the app.'
-                  );
-                } finally {
-                  setIsModelLoading(false);
-                }
-              }}
+              onModelSelect={handleModelSelect}
               onModelUnload={async () => {
                 try {
                   setIsModelLoading(true);
