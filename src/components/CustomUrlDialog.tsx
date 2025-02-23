@@ -150,7 +150,7 @@ const CustomUrlDialog = ({ visible, onClose, onDownloadStart, navigation }: Cust
           <View style={styles.warningContainer}>
             <Ionicons name="warning-outline" size={20} color="#4a0660" />
             <Text style={[styles.warningText, { color: themeColors.secondaryText }]}>
-              Only GGUF format models are supported.
+            Only direct download links to GGUF models are supported. Please make sure opening the link in a browser downloads a GGUF model file directly.
             </Text>
           </View>
 
