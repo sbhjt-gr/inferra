@@ -8,10 +8,12 @@ import {
   TextInput,
   ActivityIndicator,
   Alert,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
+import { modelDownloader } from '../services/ModelDownloader';
 
 interface CustomUrlDialogProps {
   visible: boolean;
@@ -61,7 +63,7 @@ const CustomUrlDialog = ({ visible, onClose, onDownloadStart }: CustomUrlDialogP
         return;
       }
       
-      const { downloadId } = await NativeModules.ModelDownloader.downloadModel(url, filename);
+      const { downloadId } = await modelDownloader.downloadModel(url, filename);
       onDownloadStart(downloadId, filename);
       setUrl('');
       onClose();
@@ -71,6 +73,10 @@ const CustomUrlDialog = ({ visible, onClose, onDownloadStart }: CustomUrlDialogP
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const openHuggingFace = () => {
+    Linking.openURL('https://huggingface.co/models?library=gguf');
   };
 
   return (
@@ -90,6 +96,19 @@ const CustomUrlDialog = ({ visible, onClose, onDownloadStart }: CustomUrlDialogP
               <Ionicons name="close" size={24} color={themeColors.text} />
             </TouchableOpacity>
           </View>
+
+          <TouchableOpacity 
+            style={[styles.hfLink, { backgroundColor: themeColors.borderColor }]}
+            onPress={openHuggingFace}
+          >
+            <View style={styles.hfLinkContent}>
+              <Ionicons name="search" size={18} color="#4a0660" />
+              <Text style={[styles.hfLinkText, { color: themeColors.text }]}>
+                Browse GGUF Models on HuggingFace
+              </Text>
+            </View>
+            <Ionicons name="open-outline" size={18} color={themeColors.secondaryText} />
+          </TouchableOpacity>
 
           <View style={styles.warningContainer}>
             <Ionicons name="warning-outline" size={20} color="#4a0660" />
@@ -191,6 +210,23 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  hfLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  hfLinkContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  hfLinkText: {
+    fontSize: 14,
+    fontWeight: '500',
   },
 });
 

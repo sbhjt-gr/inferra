@@ -12,6 +12,7 @@ import {
   TextInput,
   ActivityIndicator,
   ScrollView,
+  Animated,
 } from 'react-native';
 import { CompositeNavigationProp } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
@@ -20,10 +21,10 @@ import { RootStackParamList, TabParamList } from '../types/navigation';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import { Ionicons } from '@expo/vector-icons';
-import { llamaManager } from '../utils/LlamaManager';
 import AppHeader from '../components/AppHeader';
 import CustomUrlDialog from '../components/CustomUrlDialog';
 import { modelDownloader, DownloadProgress } from '../services/ModelDownloader';
+import DownloadsDialog from '../components/DownloadsDialog';
 
 type ModelScreenProps = {
   navigation: CompositeNavigationProp<
@@ -90,7 +91,7 @@ const formatBytes = (bytes?: number) => {
 
 const getProgressText = (data: DownloadProgress[string]) => {
   const downloaded = formatBytes(data.bytesDownloaded);
-  const total = data.totalBytes > 0 ? formatBytes(data.totalBytes) : 'Unknown size';
+  const total = data.totalBytes > 0 ? formatBytes(data.totalBytes) : '0 B';
   return `${data.progress}% • ${downloaded} / ${total}`;
 };
 
@@ -108,6 +109,9 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
   const [isCustomUrlValid, setIsCustomUrlValid] = useState(false);
   const [isCustomUrlLoading, setIsCustomUrlLoading] = useState(false);
   const [customUrlDialogVisible, setCustomUrlDialogVisible] = useState(false);
+  const [isDownloadsVisible, setIsDownloadsVisible] = useState(false);
+  const activeDownloadsCount = Object.keys(downloadProgress).length;
+  const buttonScale = useRef(new Animated.Value(1)).current;
 
   const validateModelUrl = (url: string) => {
     setCustomUrl(url);
@@ -117,60 +121,18 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     setIsCustomUrlValid(isValid);
   };
 
-  const handleCustomDownload = async (onDownloadStart: (downloadId: number, modelName: string) => void) => {
-    if (!isCustomUrlValid) return;
-    
-    setIsCustomUrlLoading(true);
-    try {
-      const response = await fetch(customUrl, { method: 'HEAD' });
-      const contentDisposition = response.headers.get('content-disposition');
-      
-      let filename = '';
-      if (contentDisposition) {
-        const matches = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/.exec(contentDisposition);
-        if (matches != null && matches[1]) {
-          filename = matches[1].replace(/['"]/g, '');
-        }
+  const handleCustomDownload = async (downloadId: number, modelName: string) => {
+    // Add to download progress tracking with the full filename
+    setDownloadProgress(prev => ({
+      ...prev,
+      [modelName.split('/').pop() || modelName]: { // Get just the filename
+        progress: 0,
+        bytesDownloaded: 0,
+        totalBytes: 0,
+        status: 'starting',
+        downloadId
       }
-
-      if (!filename) {
-        filename = customUrl.split('/').pop() || 'custom_model.gguf';
-      }
-
-      if (!filename.toLowerCase().endsWith('.gguf')) {
-        Alert.alert(
-          'Invalid File',
-          'Only GGUF model files are supported. Please make sure you are downloading a GGUF model file.'
-        );
-        return;
-      }
-      
-      const { downloadId } = await modelDownloader.downloadModel(
-        customUrl,
-        filename
-      );
-      
-      setDownloadProgress(prev => ({
-        ...prev,
-        [filename]: {
-          progress: 0,
-          bytesDownloaded: 0,
-          totalBytes: 0,
-          status: '',
-          downloadId
-        }
-      }));
-      
-      onDownloadStart(downloadId, filename);
-      setCustomUrl('');
-      
-
-    } catch (error) {
-      console.error('Custom download error:', error);
-      Alert.alert('Error', 'Failed to start download');
-    } finally {
-      setIsCustomUrlLoading(false);
-    }
+    }));
   };
 
   const DownloadableModelList = ({ 
@@ -419,23 +381,25 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
 
   useEffect(() => {
     const handleProgress = ({ modelName, ...progress }) => {
-      const displayName = modelName.split('.')[0];
+      // Get just the filename without path
+      const filename = modelName.split('/').pop() || modelName;
       
-      // Batch state updates to reduce re-renders
       setDownloadProgress(prev => {
         const newProgress = { ...prev };
         
         if (progress.status === 'completed') {
-          // If completed, remove from progress and load stored models once
-          delete newProgress[displayName];
-          // Schedule stored models refresh
+          delete newProgress[filename];
           setTimeout(loadStoredModels, 1000);
         } else if (progress.status === 'failed') {
-          // If failed, just remove from progress
-          delete newProgress[displayName];
+          delete newProgress[filename];
         } else {
-          // Update progress
-          newProgress[displayName] = progress;
+          newProgress[filename] = {
+            progress: progress.progress,
+            bytesDownloaded: progress.bytesDownloaded,
+            totalBytes: progress.totalBytes,
+            status: progress.status,
+            downloadId: progress.downloadId
+          };
         }
         
         return newProgress;
@@ -522,7 +486,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     <TouchableOpacity
       style={[styles.modelCard, { backgroundColor: themeColors.borderColor }]}
       onPress={() => {
-        // Navigate to Home tab and pass a parameter to open model selector
         navigation.navigate('HomeTab', {
           openModelSelector: true,
           preselectedModelPath: item.path
@@ -536,16 +499,20 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         <Text style={[styles.modelDetails, { color: themeColors.secondaryText }]}>
           {formatBytes(item.size)}
         </Text>
-        {downloadProgress[item.name] && (
+        {/* Use the filename for progress lookup */}
+        {downloadProgress[item.name.split('/').pop() || item.name] && (
           <View style={styles.downloadProgress}>
             <Text style={[styles.modelDetails, { color: themeColors.secondaryText }]}>
-              {getProgressText(downloadProgress[item.name])}
+              {getProgressText(downloadProgress[item.name.split('/').pop() || item.name])}
             </Text>
             <View style={[styles.progressBar, { backgroundColor: themeColors.background }]}>
               <View 
                 style={[
                   styles.progressFill, 
-                  { width: `${downloadProgress[item.name].progress}%`, backgroundColor: '#4a0660' }
+                  { 
+                    width: `${downloadProgress[item.name.split('/').pop() || item.name].progress}%`, 
+                    backgroundColor: '#4a0660' 
+                  }
                 ]} 
               />
             </View>
@@ -560,6 +527,48 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       </TouchableOpacity>
     </TouchableOpacity>
   );
+
+  // Add this effect to animate the button when downloads change
+  useEffect(() => {
+    if (activeDownloadsCount > 0) {
+      Animated.sequence([
+        Animated.timing(buttonScale, {
+          toValue: 1.2,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(buttonScale, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [activeDownloadsCount]);
+
+  // Add this before the return statement
+  const renderDownloadsButton = () => {
+    if (activeDownloadsCount === 0) return null;
+
+    return (
+      <Animated.View 
+        style={[
+          styles.floatingButton,
+          { transform: [{ scale: buttonScale }] }
+        ]}
+      >
+        <TouchableOpacity
+          style={[styles.floatingButtonContent, { backgroundColor: '#4a0660' }]}
+          onPress={() => setIsDownloadsVisible(true)}
+        >
+          <Ionicons name="cloud-download" size={24} color="#fff" />
+          <View style={styles.downloadCount}>
+            <Text style={styles.downloadCountText}>{activeDownloadsCount}</Text>
+          </View>
+        </TouchableOpacity>
+      </Animated.View>
+    );
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: themeColors.background }]}>
@@ -639,6 +648,14 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
           )}
         </View>
       </View>
+      {renderDownloadsButton()}
+      
+      <DownloadsDialog
+        visible={isDownloadsVisible}
+        onClose={() => setIsDownloadsVisible(false)}
+        downloads={downloadProgress}
+        setDownloadProgress={setDownloadProgress}
+      />
     </View>
   );
 }
@@ -964,5 +981,43 @@ const styles = StyleSheet.create({
   },
   customUrlButtonSubtitle: {
     fontSize: 13,
+  },
+  floatingButton: {
+    position: 'absolute',
+    right: 16,
+    bottom: 16,
+    zIndex: 1000,
+  },
+  floatingButtonContent: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  downloadCount: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: '#ff4444',
+    borderRadius: 12,
+    minWidth: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+  },
+  downloadCountText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
 }); 
