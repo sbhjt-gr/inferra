@@ -2,7 +2,7 @@
   "expo": {
     "name": "Ragionare",
     "slug": "Ragionare",
-    "version": "1.0.0",
+    "version": "1.4.2",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "myapp",
@@ -34,7 +34,6 @@
         }
       ]
     ],
-    "entryPoint": "./index.tsx",
     "experiments": {
       "typedRoutes": true
     },

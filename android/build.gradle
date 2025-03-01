@@ -38,4 +38,10 @@ allprojects {
         mavenCentral()
         maven { url 'https://www.jitpack.io' }
     }
+    configurations.all {
+        resolutionStrategy {
+            force 'androidx.core:core:1.13.1'
+            exclude group: 'com.android.support'
+        }
+    }
 }
