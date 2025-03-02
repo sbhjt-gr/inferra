@@ -608,7 +608,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       {item.role === 'assistant' && item.thinking && (
         <View style={[styles.thinkingBubble, { backgroundColor: themeColors.borderColor }]}>
             <View style={styles.thinkingContent}>
-          <Text style={[styles.thinkingText, { color: themeColors.secondaryText }]}>
+          <Text style={[styles.thinkingText, { color: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.75)' }]}>
             Reasoning:
           </Text>
               <Text 
@@ -627,7 +627,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
               <Ionicons 
                 name="copy-outline" 
                 size={16} 
-                color={themeColors.secondaryText} 
+                color={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.75)'} 
               />
             </TouchableOpacity>
         </View>
@@ -681,20 +681,18 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
               marginVertical: 0,
             },
                     code_block: {
-                      ...styles.codeBlockContainer,
-                      height: 0,
-                      opacity: 0,
-                      padding: 0,
-                      margin: 0,
-                      overflow: 'hidden',
+                      backgroundColor: '#1e1e1e',
+                      borderRadius: 8,
+                      padding: 12,
+                      marginVertical: 4,
+                      position: 'relative',
                     },
                     fence: {
-                      ...styles.codeBlockContainer,
-                      height: 0,
-                      opacity: 0,
-                      padding: 0,
-                      margin: 0,
-                      overflow: 'hidden',
+                      backgroundColor: '#1e1e1e',
+                      borderRadius: 8,
+                      padding: 12,
+                      marginVertical: 4,
+                      position: 'relative',
                     },
                     code_inline: {
                       color: '#fff',
@@ -854,41 +852,45 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
               <Text key={node.key} style={styles.s} selectable={true}>
                 {children}
               </Text>
+            ),
+            code_block: (node, children, parent, styles) => (
+              <View key={node.key} style={styles.code_block}>
+                <Text selectable={true} style={styles.code_block_text}>
+                  {node.content}
+                </Text>
+                <TouchableOpacity 
+                  style={styles.codeBlockCopyButton}
+                  onPress={() => {
+                    copyToClipboard(node.content);
+                    copyToastMessageRef.current = 'Code copied to clipboard';
+                  }}
+                  hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+                >
+                  <Ionicons name="copy-outline" size={14} color="#fff" />
+                </TouchableOpacity>
+              </View>
+            ),
+            fence: (node, children, parent, styles) => (
+              <View key={node.key} style={styles.fence}>
+                <Text selectable={true} style={styles.fence_text}>
+                  {node.content}
+                </Text>
+                <TouchableOpacity 
+                  style={styles.codeBlockCopyButton}
+                  onPress={() => {
+                    copyToClipboard(node.content);
+                    copyToastMessageRef.current = 'Code copied to clipboard';
+                  }}
+                  hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+                >
+                  <Ionicons name="copy-outline" size={14} color="#fff" />
+                </TouchableOpacity>
+              </View>
             )
           }}
         >
           {item.content}
         </Markdown>
-                
-                {/* Render code blocks with copy buttons */}
-                {hasCodeBlock(item.content) && (
-                  <View style={{ marginVertical: 8 }}>
-                    {extractAllCodeBlocks(item.content).map((code, index) => (
-                      <View key={`code-${index}`} style={styles.codeBlock}>
-                        <Text 
-                          selectable={true}
-                          style={styles.codeText}
-                        >
-                          {code}
-                        </Text>
-                        <TouchableOpacity 
-                          style={styles.codeBlockCopyButton}
-                          onPress={() => {
-                            copyToClipboard(code);
-                            copyToastMessageRef.current = 'Code copied to clipboard';
-                          }}
-                          hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
-                        >
-                          <Ionicons 
-                            name="copy-outline" 
-                            size={14} 
-                            color="#fff" 
-                          />
-                        </TouchableOpacity>
-                      </View>
-                    ))}
-                  </View>
-                )}
               </View>
             )}
           </View>
@@ -902,14 +904,14 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             <Ionicons 
               name="copy-outline" 
               size={16} 
-              color={item.role === 'user' ? 'rgba(255, 255, 255, 0.7)' : themeColors.secondaryText} 
+              color={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.75)'} 
             />
           </TouchableOpacity>
       </View>
       {item.role === 'assistant' && item.stats && (
         <View style={styles.statsContainer}>
-          <Text style={[styles.statsText, { color: themeColors.secondaryText }]}>
-              {`${item.stats.tokens.toLocaleString()} tokens · ${(item.stats.duration / 1000).toFixed(1)}s`}
+          <Text style={[styles.statsText, { color: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.75)' }]}>
+              {`${item.stats.tokens.toLocaleString()} tokens · ${item.stats.duration.toFixed(1)}s`}
           </Text>
             
             {/* Add regenerate button below stats for the last assistant message */}
@@ -925,15 +927,15 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                 disabled={isLoading || isRegenerating}
               >
                 {isRegenerating ? (
-                  <ActivityIndicator size="small" color={themeColors.secondaryText} />
+                  <ActivityIndicator size="small" color={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.75)'} />
                 ) : (
                   <>
                     <Ionicons 
                       name="refresh-outline" 
                       size={14} 
-                      color={themeColors.secondaryText} 
+                      color={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.75)'} 
                     />
-                    <Text style={[styles.regenerateButtonText, { color: themeColors.secondaryText }]}>
+                    <Text style={[styles.regenerateButtonText, { color: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.75)' }]}>
                       Regenerate.
                     </Text>
                   </>
@@ -1092,9 +1094,9 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                 <Ionicons 
                   name="chatbubble-ellipses-outline" 
                   size={48} 
-                  color={themeColors.secondaryText} 
+                  color={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.75)'} 
                 />
-                <Text style={[styles.emptyStateText, { color: themeColors.secondaryText }]}>
+                <Text style={[styles.emptyStateText, { color: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.75)' }]}>
                   Select a model and start chatting
                 </Text>
               </View>
@@ -1131,7 +1133,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
               value={message}
               onChangeText={setMessage}
               placeholder={isLoading ? "Model is processing..." : "Type a message..."}
-              placeholderTextColor={themeColors.secondaryText}
+              placeholderTextColor={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.6)'}
               multiline
               editable={!isLoading}
             />
@@ -1172,7 +1174,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                 <Ionicons
                   name="send"
                   size={20}
-                  color={message.trim() ? '#fff' : themeColors.secondaryText}
+                  color={message.trim() ? '#fff' : currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.6)'}
                 />
               </TouchableOpacity>
             )}

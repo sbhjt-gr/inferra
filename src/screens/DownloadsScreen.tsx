@@ -77,8 +77,17 @@ export default function DownloadsScreen() {
     try {
       const savedProgress = await AsyncStorage.getItem('download_progress');
       if (savedProgress) {
-        const progress = JSON.parse(savedProgress);
-        setDownloadProgress(progress);
+        const parsedProgress = JSON.parse(savedProgress);
+        
+        // Filter out any completed or failed downloads
+        const filteredProgress = Object.entries(parsedProgress).reduce((acc, [key, value]) => {
+          if (value.status !== 'completed' && value.status !== 'failed') {
+            acc[key] = value;
+          }
+          return acc;
+        }, {} as DownloadProgress);
+        
+        setDownloadProgress(filteredProgress);
       }
     } catch (error) {
       console.error('Error loading download states:', error);

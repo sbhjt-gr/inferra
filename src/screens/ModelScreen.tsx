@@ -53,6 +53,7 @@ interface DownloadableModel {
 const DOWNLOADABLE_MODELS: DownloadableModel[] = [
   {
     "name": "Phi-3 Mini Instruct",
+    "description": "Microsoft's compact instruction-tuned model with strong reasoning capabilities despite its small size.",
     "size": "2.2 GB  ",
     "huggingFaceLink": "https://huggingface.co/bartowski/Phi-3-mini-4k-instruct-GGUF/resolve/main/Phi-3-mini-4k-instruct-Q4_K_M.gguf",
     "modelFamily": "3.8 Billion",
@@ -60,6 +61,7 @@ const DOWNLOADABLE_MODELS: DownloadableModel[] = [
   },
   {
     "name": "Qwen 2.5 Coder Instruct",
+    "description": "Alibaba's specialized coding model with excellent code completion and explanation abilities.",
     "size": "2.27 GB  ",
     "huggingFaceLink": "https://huggingface.co/Qwen/Qwen2.5-Coder-3B-Instruct-GGUF/resolve/main/qwen2.5-coder-3b-instruct-q5_k_m.gguf",
     "modelFamily": "7 Billion",
@@ -67,6 +69,7 @@ const DOWNLOADABLE_MODELS: DownloadableModel[] = [
   },
   {
     "name": "CodeLlama",
+    "description": "Meta's code-specialized model trained on code repositories with strong programming capabilities.",
     "size": "2.95 GB  ",
     "huggingFaceLink": "https://huggingface.co/TheBloke/CodeLlama-7B-GGUF/resolve/main/codellama-7b.Q3_K_S.gguf",
     "modelFamily": "7 Billion",
@@ -74,6 +77,7 @@ const DOWNLOADABLE_MODELS: DownloadableModel[] = [
   },
   {
     "name": "DeepSeek R1 Distill",
+    "description": "Distilled version of DeepSeek's R1 model with balanced performance and efficiency.",
     "size": "3.8 GB  ",
     "huggingFaceLink": "https://huggingface.co/unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF/resolve/main/DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf",
     "modelFamily": "7 Billion",
@@ -81,6 +85,7 @@ const DOWNLOADABLE_MODELS: DownloadableModel[] = [
   },
   {
     "name": "Mistral Instruct",
+    "description": "Instruction-tuned version of Mistral's powerful base model with excellent reasoning abilities.",
     "size": "4.1 GB  ",
     "huggingFaceLink": "https://huggingface.co/TheBloke/Mistral-7B-Instruct-v0.2-GGUF/resolve/main/mistral-7b-instruct-v0.2.Q4_K_M.gguf",
     "modelFamily": "7 Billion",
@@ -88,6 +93,7 @@ const DOWNLOADABLE_MODELS: DownloadableModel[] = [
   },
   {
     "name": "DeepSeek Base",
+    "description": "Foundation model from DeepSeek trained on diverse data with strong general capabilities.",
     "size": "4.6 GB  ",
     "huggingFaceLink": "https://huggingface.co/TheBloke/deepseek-llm-7B-base-GGUF/resolve/main/deepseek-llm-7b-base.Q4_K_S.gguf",
     "modelFamily": "8 Billion",
@@ -95,6 +101,7 @@ const DOWNLOADABLE_MODELS: DownloadableModel[] = [
   },
   {
     "name": "LLaMA 3.1 Instruct",
+    "description": "Meta's latest instruction-tuned model with improved reasoning and instruction following.",
     "size": "4.7 GB  ",
     "huggingFaceLink": "https://huggingface.co/bartowski/Meta-Llama-3.1-8B-Instruct-GGUF/resolve/main/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf",
     "modelFamily": "8 Billion",
@@ -102,6 +109,7 @@ const DOWNLOADABLE_MODELS: DownloadableModel[] = [
   },
   {
     "name": "DeepSeek Coder Instruct",
+    "description": "Specialized coding assistant trained on high-quality programming data with instruction tuning.",
     "size": "4.8 GB  ",
     "huggingFaceLink": "https://huggingface.co/TheBloke/deepseek-coder-6.7B-instruct-GGUF/resolve/main/deepseek-coder-6.7b-instruct-Q6_K.gguf",
     "modelFamily": "6.7 Billion",
@@ -109,6 +117,7 @@ const DOWNLOADABLE_MODELS: DownloadableModel[] = [
   },
   {
     "name": "CodeGemma Instruct",
+    "description": "Google's code-focused model with strong programming and technical documentation capabilities.",
     "size": "5.1 GB  ",
     "huggingFaceLink": "https://huggingface.co/bartowski/codegemma-7b-it-GGUF/resolve/main/codegemma-7b-it-Q6_K.gguf",
     "modelFamily": "7 Billion",
@@ -116,6 +125,7 @@ const DOWNLOADABLE_MODELS: DownloadableModel[] = [
   },
   {
     "name": "Mistral Grok",
+    "description": "Mistral's adaptation of the Grok model with enhanced conversational abilities.",
     "size": "5.1 GB  ",
     "huggingFaceLink": "https://huggingface.co/mradermacher/mistral-7b-grok-GGUF/resolve/main/mistral-7b-grok.Q3_K_L.gguf",
     "modelFamily": "7 Billion",
@@ -123,6 +133,7 @@ const DOWNLOADABLE_MODELS: DownloadableModel[] = [
   },
   {
     "name": "Qwen 2.5 Instruct",
+    "description": "Alibaba's general-purpose instruction-tuned model with strong multilingual capabilities.",
     "size": "5.2 GB  ",
     "huggingFaceLink": "https://huggingface.co/bartowski/Qwen2.5-7B-Instruct-GGUF/resolve/main/Qwen2.5-7B-Instruct-Q6_K.gguf",
     "modelFamily": "7 Billion",
@@ -130,6 +141,7 @@ const DOWNLOADABLE_MODELS: DownloadableModel[] = [
   },
   {
     "name": "Gemma 2 Instruct",
+    "description": "Google's latest instruction-tuned model with excellent reasoning and helpfulness.",
     "size": "5.4 GB  ",
     "huggingFaceLink": "https://huggingface.co/bartowski/gemma-2-9b-it-GGUF/resolve/main/gemma-2-9b-it-Q4_K_M.gguf",
     "modelFamily": "9 Billion",
@@ -137,6 +149,7 @@ const DOWNLOADABLE_MODELS: DownloadableModel[] = [
   },
   {
     "name": "LLaMA 2 Chat",
+    "description": "Meta's larger chat-optimized model with enhanced reasoning and instruction following.",
     "size": "8.7 GB  ",
     "huggingFaceLink": "https://huggingface.co/TheBloke/Llama-2-13B-chat-GGUF/resolve/main/llama-2-13b-chat.Q5_K_M.gguf",
     "modelFamily": "13 Billion",
@@ -379,6 +392,13 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
                   </Text>
                 </View>
               </View>
+              
+              {model.description && (
+                <Text style={[styles.modelDescription, { color: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.75)' }]}>
+                  {model.description}
+                </Text>
+              )}
+              
               {downloadProgress[model.name] && downloadProgress[model.name].status !== 'completed' && downloadProgress[model.name].status !== 'failed' && (
                 <View style={styles.downloadProgress}>
                   <Text style={[styles.modelDetails, { color: themeColors.secondaryText }]}>
@@ -1272,5 +1292,12 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     padding: 4,
+  },
+  modelDescription: {
+    marginTop: 4,
+    marginBottom: 6,
+    fontSize: 14,
+    lineHeight: 20,
+    color: 'rgba(255, 255, 255, 0.7)',
   },
 }); 

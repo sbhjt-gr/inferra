@@ -31,7 +31,17 @@ export const DownloadProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       try {
         const savedProgress = await AsyncStorage.getItem('download_progress');
         if (savedProgress) {
-          setDownloadProgress(JSON.parse(savedProgress));
+          const parsedProgress = JSON.parse(savedProgress);
+          
+          // Filter out any completed or failed downloads that might have been saved
+          const filteredProgress = Object.entries(parsedProgress).reduce((acc, [key, value]) => {
+            if (value.status !== 'completed' && value.status !== 'failed') {
+              acc[key] = value;
+            }
+            return acc;
+          }, {} as DownloadProgress);
+          
+          setDownloadProgress(filteredProgress);
         }
       } catch (error) {
         console.error('Error loading download states:', error);

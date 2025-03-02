@@ -149,7 +149,9 @@ class ModelDownloader extends EventEmitter {
           downloadId
         };
         this.emit('downloadProgress', { modelName: filename, ...finalProgress });
-        this.downloadProgress[filename] = finalProgress;
+        
+        // Remove from download progress after emitting the completed event
+        delete this.downloadProgress[filename];
       }
     } catch (error) {
       console.error('Download error:', error);
@@ -161,6 +163,10 @@ class ModelDownloader extends EventEmitter {
         downloadId
       };
       this.emit('downloadProgress', { modelName: filename, ...failedProgress });
+      
+      // Remove from download progress after emitting the failed event
+      delete this.downloadProgress[filename];
+      
       await this.removePendingDownload(downloadId);
       this.downloadResumables.delete(downloadId);
     }
