@@ -23,7 +23,7 @@ import { theme } from '../constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import AppHeader from '../components/AppHeader';
 import CustomUrlDialog from '../components/CustomUrlDialog';
-import { modelDownloader, DownloadProgress } from '../services/ModelDownloader';
+import { modelDownloader, StoredModel, DownloadProgress } from '../services/ModelDownloader';
 import DownloadsDialog from '../components/DownloadsDialog';
 import { useDownloads } from '../context/DownloadContext';
 
@@ -33,13 +33,6 @@ type ModelScreenProps = {
     NativeStackNavigationProp<RootStackParamList>
   >;
 };
-
-interface StoredModel {
-  name: string;
-  path: string;
-  size: number;
-  modified: string;
-}
 
 interface DownloadableModel {
   name: string;
@@ -200,6 +193,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
   const [customUrlDialogVisible, setCustomUrlDialogVisible] = useState(false);
   const [isDownloadsVisible, setIsDownloadsVisible] = useState(false);
   const buttonScale = useRef(new Animated.Value(1)).current;
+  const buttonProcessingRef = useRef(new Set<string>());
 
   const validateModelUrl = (url: string) => {
     setCustomUrl(url);
@@ -231,22 +225,58 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
 
   const handlePauseResume = async (downloadId: number, modelName: string, shouldResume: boolean) => {
     try {
+      // Create a local variable to track if this button is currently processing
+      const isProcessing = buttonProcessingRef.current.has(modelName);
+      if (isProcessing) {
+        console.log(`Already processing pause/resume for ${modelName}`);
+        return;
+      }
+      
+      // Mark this button as processing
+      buttonProcessingRef.current.add(modelName);
+      
+      // Update UI immediately to show feedback
       setDownloadProgress(prev => ({
         ...prev,
         [modelName]: {
           ...prev[modelName],
-          status: shouldResume ? 'downloading' : 'paused'
+          isProcessing: true
         }
       }));
       
+      // Call the appropriate method
       if (shouldResume) {
         await modelDownloader.resumeDownload(downloadId);
       } else {
         await modelDownloader.pauseDownload(downloadId);
       }
+      
+      // Update UI state after operation completes
+      setDownloadProgress(prev => ({
+        ...prev,
+        [modelName]: {
+          ...prev[modelName],
+          status: shouldResume ? 'downloading' : 'paused',
+          isProcessing: false
+        }
+      }));
     } catch (error) {
       console.error('Error toggling download state:', error);
+      
+      // Revert UI state on error
+      setDownloadProgress(prev => ({
+        ...prev,
+        [modelName]: {
+          ...prev[modelName],
+          isProcessing: false
+          // Don't change status here as the ModelDownloader will emit the correct status
+        }
+      }));
+      
       Alert.alert('Error', `Failed to ${shouldResume ? 'resume' : 'pause'} download`);
+    } finally {
+      // Clear the processing flag
+      buttonProcessingRef.current.delete(modelName);
     }
   };
 
@@ -553,36 +583,67 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       
       console.log(`Download progress for ${filename}:`, progress.status, progress.progress);
       
+      // Make sure we have valid numbers for all cases
+      const bytesDownloaded = typeof progress.bytesDownloaded === 'number' ? progress.bytesDownloaded : 0;
+      const totalBytes = typeof progress.totalBytes === 'number' ? progress.totalBytes : 0;
+      const progressValue = typeof progress.progress === 'number' ? progress.progress : 0;
+      
       if (progress.status === 'completed') {
         console.log(`Download completed for ${filename}`);
-        // Remove the download from progress tracking immediately
-        setDownloadProgress(prev => {
-          const newProgress = { ...prev };
-          delete newProgress[filename];
-          return newProgress;
-        });
         
-        // Refresh the stored models list to show the new model
-        setTimeout(loadStoredModels, 1000);
+        // First update with 100% progress to ensure UI shows completion
+        setDownloadProgress(prev => ({
+          ...prev,
+          [filename]: {
+            progress: 100,
+            bytesDownloaded,
+            totalBytes,
+            status: 'completed',
+            downloadId: progress.downloadId
+          }
+        }));
+        
+        // Then remove after a short delay to allow UI to update
+        setTimeout(() => {
+          setDownloadProgress(prev => {
+            const newProgress = { ...prev };
+            delete newProgress[filename];
+            return newProgress;
+          });
+          
+          // Refresh the stored models list to show the new model
+          loadStoredModels();
+        }, 1500);
       } else if (progress.status === 'failed') {
         console.log(`Download failed for ${filename}`);
-        // Remove failed downloads from progress tracking
-        setDownloadProgress(prev => {
-          const newProgress = { ...prev };
-          delete newProgress[filename];
-          return newProgress;
-        });
+        
+        // Update with failed status first
+        setDownloadProgress(prev => ({
+          ...prev,
+          [filename]: {
+            progress: progressValue,
+            bytesDownloaded,
+            totalBytes,
+            status: 'failed',
+            downloadId: progress.downloadId
+          }
+        }));
+        
+        // Then remove after a short delay
+        setTimeout(() => {
+          setDownloadProgress(prev => {
+            const newProgress = { ...prev };
+            delete newProgress[filename];
+            return newProgress;
+          });
+        }, 1500);
       } else {
         // Update progress for active downloads
         setDownloadProgress(prev => {
-          // Make sure we have valid numbers
-          const bytesDownloaded = typeof progress.bytesDownloaded === 'number' ? progress.bytesDownloaded : 0;
-          const totalBytes = typeof progress.totalBytes === 'number' ? progress.totalBytes : 0;
-          
           return {
             ...prev,
             [filename]: {
-              progress: progress.progress || 0,
+              progress: progressValue,
               bytesDownloaded,
               totalBytes,
               status: progress.status,
@@ -680,17 +741,12 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
   );
 
   const renderItem = ({ item }: { item: StoredModel }) => {
-    const filename = item.name.split('/').pop() || item.name;
-    const downloadInfo = downloadProgress[filename];
-    
-    // Only show download info if it exists and is not completed or failed
-    const showDownloadInfo = downloadInfo && 
-                            downloadInfo.status !== 'completed' && 
-                            downloadInfo.status !== 'failed';
+    const downloadInfo = downloadProgress[item.name];
+    const showDownloadInfo = !!downloadInfo && downloadInfo.status !== 'completed';
     
     return (
       <TouchableOpacity
-        style={[styles.modelCard, { backgroundColor: themeColors.borderColor }]}
+        style={[styles.modelItem, { backgroundColor: themeColors.borderColor }]}
         onPress={() => {
           navigation.navigate('HomeTab', {
             chatId: undefined,
@@ -718,16 +774,22 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
                   <TouchableOpacity
                     style={styles.actionButton}
                     onPress={() => handlePauseResume(downloadInfo.downloadId, item.name, downloadInfo.status === 'paused')}
+                    disabled={downloadInfo.isProcessing}
                   >
-                    <Ionicons 
-                      name={downloadInfo.status === 'paused' ? "play-circle" : "pause-circle"} 
-                      size={24} 
-                      color="#4a0660" 
-                    />
+                    {downloadInfo.isProcessing ? (
+                      <ActivityIndicator size="small" color="#4a0660" />
+                    ) : (
+                      <Ionicons 
+                        name={downloadInfo.status === 'paused' ? "play-circle" : "pause-circle"} 
+                        size={24} 
+                        color="#4a0660" 
+                      />
+                    )}
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.cancelButton}
                     onPress={() => handleCancel(downloadInfo.downloadId, item.name)}
+                    disabled={downloadInfo.isProcessing}
                   >
                     <Ionicons name="close-circle" size={24} color="#ff4444" />
                   </TouchableOpacity>
@@ -1299,5 +1361,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     color: 'rgba(255, 255, 255, 0.7)',
+  },
+  modelItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 8,
   },
 }); 

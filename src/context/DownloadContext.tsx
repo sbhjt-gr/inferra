@@ -22,7 +22,7 @@ const DownloadContext = createContext<DownloadContextType | undefined>(undefined
 export const DownloadProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [downloadProgress, setDownloadProgress] = useState<DownloadProgress>({});
   const activeDownloadsCount = Object.values(downloadProgress).filter(
-    d => d.status !== 'completed' && d.status !== 'failed'
+    d => d.status !== 'completed' && d.status !== 'failed' && d.progress < 100
   ).length;
 
   // Load saved download states on mount
@@ -33,9 +33,11 @@ export const DownloadProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         if (savedProgress) {
           const parsedProgress = JSON.parse(savedProgress);
           
-          // Filter out any completed or failed downloads that might have been saved
+          // Filter out any completed, failed, or 100% progress downloads
           const filteredProgress = Object.entries(parsedProgress).reduce((acc, [key, value]) => {
-            if (value.status !== 'completed' && value.status !== 'failed') {
+            if (value.status !== 'completed' && 
+                value.status !== 'failed' && 
+                value.progress < 100) {
               acc[key] = value;
             }
             return acc;

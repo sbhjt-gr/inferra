@@ -102,7 +102,8 @@ const DownloadManager = forwardRef<DownloadManagerRef, DownloadManagerProps>(
             if (progress < 100) {
               hasActiveDownloads = true;
             } else {
-              // If progress is 100% but status isn't 'completed', consider it completed
+              // If progress is 100% but status isn't 'completed', mark it as completed
+              // and remove it from active downloads
               updatedDownloads.delete(id);
               continue;
             }
@@ -114,6 +115,16 @@ const DownloadManager = forwardRef<DownloadManagerRef, DownloadManagerProps>(
               totalBytes: status.totalBytes,
               status: status.status
             });
+          } else if (status.status === 'unknown') {
+            // If status is unknown and we can't get progress info, consider it inactive
+            updatedDownloads.delete(id);
+          } else {
+            // Keep the download in the list but update its status
+            updatedDownloads.set(id, {
+              ...info,
+              status: status.status
+            });
+            hasActiveDownloads = true;
           }
         } catch (error) {
           console.error(`Error checking download ${id}:`, error);
@@ -159,7 +170,7 @@ const DownloadManager = forwardRef<DownloadManagerRef, DownloadManagerProps>(
     };
 
     const formatBytes = (bytes: number) => {
-      if (bytes === 0) return '0 B';
+      if (bytes === undefined || bytes === null || isNaN(bytes) || bytes === 0) return '0 B';
       const k = 1024;
       const sizes = ['B', 'KB', 'MB', 'GB'];
       const i = Math.floor(Math.log(bytes) / Math.log(k));
@@ -203,14 +214,14 @@ const DownloadManager = forwardRef<DownloadManagerRef, DownloadManagerProps>(
                     </View>
                     
                     <Text style={[styles.downloadProgress, { color: themeColors.secondaryText }]}>
-                      {`${download.progress}% • ${formatBytes(download.bytesDownloaded)} / ${formatBytes(download.totalBytes)}`}
+                      {`${download.progress || 0}% • ${formatBytes(download.bytesDownloaded || 0)} / ${formatBytes(download.totalBytes || 0)}`}
                     </Text>
                     
                     <View style={[styles.progressBar, { backgroundColor: themeColors.borderColor }]}>
                       <View 
                         style={[
                           styles.progressFill, 
-                          { width: `${download.progress}%`, backgroundColor: '#4a0660' }
+                          { width: `${download.progress || 0}%`, backgroundColor: '#4a0660' }
                         ]} 
                       />
                     </View>

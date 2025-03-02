@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Platform,
   Alert,
+  ActivityIndicator
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
@@ -19,7 +20,7 @@ import { useDownloads } from '../context/DownloadContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const formatBytes = (bytes: number) => {
-  if (bytes === 0) return '0 B';
+  if (bytes === undefined || bytes === null || isNaN(bytes) || bytes === 0) return '0 B';
   const k = 1024;
   const sizes = ['B', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
@@ -33,6 +34,7 @@ interface DownloadItem {
   bytesDownloaded: number;
   totalBytes: number;
   status: string;
+  isProcessing: boolean;
 }
 
 interface DownloadState {
@@ -54,17 +56,24 @@ export default function DownloadsScreen() {
   const themeColors = theme[currentTheme as 'light' | 'dark'];
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { downloadProgress, setDownloadProgress } = useDownloads();
+  const buttonProcessingRef = useRef<Set<string>>(new Set());
 
   // Convert downloadProgress object to array for FlatList and filter out completed downloads
   const downloads = Object.entries(downloadProgress)
-    .filter(([_, data]) => data.status !== 'completed' && data.status !== 'failed')
+    .filter(([_, data]) => {
+      // Filter out completed, failed, or 100% progress downloads
+      return data.status !== 'completed' && 
+             data.status !== 'failed' && 
+             data.progress < 100;
+    })
     .map(([name, data]) => ({
       id: data.downloadId,
       name,
       progress: data.progress,
       bytesDownloaded: data.bytesDownloaded,
       totalBytes: data.totalBytes,
-      status: data.status
+      status: data.status,
+      isProcessing: data.isProcessing
     }));
 
   // Load saved state on mount
@@ -79,9 +88,11 @@ export default function DownloadsScreen() {
       if (savedProgress) {
         const parsedProgress = JSON.parse(savedProgress);
         
-        // Filter out any completed or failed downloads
+        // Filter out any completed, failed, or 100% progress downloads
         const filteredProgress = Object.entries(parsedProgress).reduce((acc, [key, value]) => {
-          if (value.status !== 'completed' && value.status !== 'failed') {
+          if (value.status !== 'completed' && 
+              value.status !== 'failed' && 
+              value.progress < 100) {
             acc[key] = value;
           }
           return acc;
@@ -118,22 +129,58 @@ export default function DownloadsScreen() {
 
   const handlePauseResume = async (downloadId: number, modelName: string, shouldResume: boolean) => {
     try {
+      // Create a local variable to track if this button is currently processing
+      const isProcessing = buttonProcessingRef.current.has(modelName);
+      if (isProcessing) {
+        console.log(`Already processing pause/resume for ${modelName}`);
+        return;
+      }
+      
+      // Mark this button as processing
+      buttonProcessingRef.current.add(modelName);
+      
+      // Update UI immediately to show feedback
       setDownloadProgress(prev => ({
         ...prev,
         [modelName]: {
           ...prev[modelName],
-          status: shouldResume ? 'downloading' : 'paused'
+          isProcessing: true
         }
       }));
       
+      // Call the appropriate method
       if (shouldResume) {
         await modelDownloader.resumeDownload(downloadId);
       } else {
         await modelDownloader.pauseDownload(downloadId);
       }
+      
+      // Update UI state after operation completes
+      setDownloadProgress(prev => ({
+        ...prev,
+        [modelName]: {
+          ...prev[modelName],
+          status: shouldResume ? 'downloading' : 'paused',
+          isProcessing: false
+        }
+      }));
     } catch (error) {
       console.error('Error toggling download state:', error);
+      
+      // Revert UI state on error
+      setDownloadProgress(prev => ({
+        ...prev,
+        [modelName]: {
+          ...prev[modelName],
+          isProcessing: false
+          // Don't change status here as the ModelDownloader will emit the correct status
+        }
+      }));
+      
       Alert.alert('Error', `Failed to ${shouldResume ? 'resume' : 'pause'} download`);
+    } finally {
+      // Clear the processing flag
+      buttonProcessingRef.current.delete(modelName);
     }
   };
 
@@ -177,16 +224,22 @@ export default function DownloadsScreen() {
           <TouchableOpacity
             style={styles.actionButton}
             onPress={() => handlePauseResume(item.id, item.name, item.status === 'paused')}
+            disabled={item.isProcessing}
           >
-            <Ionicons 
-              name={item.status === 'paused' ? "play-circle" : "pause-circle"} 
-              size={24} 
-              color="#4a0660" 
-            />
+            {item.isProcessing ? (
+              <ActivityIndicator size="small" color="#4a0660" />
+            ) : (
+              <Ionicons 
+                name={item.status === 'paused' ? "play-circle" : "pause-circle"} 
+                size={24} 
+                color="#4a0660" 
+              />
+            )}
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.cancelButton}
             onPress={() => handleCancel(item.id, item.name)}
+            disabled={item.isProcessing}
           >
             <Ionicons name="close-circle" size={24} color="#ff4444" />
           </TouchableOpacity>
@@ -194,7 +247,7 @@ export default function DownloadsScreen() {
       </View>
       
       <Text style={[styles.downloadProgress, { color: themeColors.secondaryText }]}>
-        {`${item.progress}% • ${formatBytes(item.bytesDownloaded)} / ${formatBytes(item.totalBytes)}`}
+        {`${item.progress || 0}% • ${formatBytes(item.bytesDownloaded || 0)} / ${formatBytes(item.totalBytes || 0)}`}
         {item.status === 'paused' && ' (Paused)'}
       </Text>
       
@@ -203,7 +256,7 @@ export default function DownloadsScreen() {
           style={[
             styles.progressFill, 
             { 
-              width: `${item.progress}%`, 
+              width: `${item.progress || 0}%`, 
               backgroundColor: item.status === 'paused' ? '#666' : '#4a0660' 
             }
           ]} 

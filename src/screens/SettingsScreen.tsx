@@ -129,6 +129,27 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
         </SettingsSection>
 
         <SettingsSection title="SUPPORT">
+          
+        <TouchableOpacity 
+            style={[styles.settingItem, styles.settingItemBorder]}
+            onPress={() => openLink('https://play.google.com/store/apps/details?id=com.gorai.ragionare')}
+          >
+            <View style={styles.settingLeft}>
+              <View style={[styles.iconContainer, { backgroundColor: themeColors.primary + '20' }]}>
+                <Ionicons name="logo-google-playstore" size={22} color={themeColors.primary} />
+              </View>
+              <View style={styles.settingTextContainer}>
+                <Text style={[styles.settingText, { color: themeColors.text }]}>
+                  Liked My App?
+                </Text>
+                <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
+                  Please rate my app 5 stars
+                </Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={themeColors.secondaryText} />
+          </TouchableOpacity>
+
           <TouchableOpacity 
             style={styles.settingItem}
             onPress={() => openLink('https://github.com/ggerganov/llama.cpp')}
@@ -149,6 +170,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
             <Ionicons name="chevron-forward" size={20} color={themeColors.secondaryText} />
           </TouchableOpacity>
 
+
           <TouchableOpacity 
             style={[styles.settingItem, styles.settingItemBorder]}
             onPress={() => openLink('https://ragionare.ct.ws/privacy-policy')}
@@ -162,7 +184,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
                   Privacy Policy
                 </Text>
                 <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
-                  View our privacy policy
+                  View the privacy policy
                 </Text>
               </View>
             </View>

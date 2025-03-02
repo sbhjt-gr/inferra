@@ -108,7 +108,6 @@ const CodeBlock = ({ content, style }: { content: string, style?: any }) => {
   );
 };
 
-// Add this function near the other helper functions at the top of the file
 const hasMarkdownFormatting = (content: string): boolean => {
   // Check for common markdown syntax
   const markdownPatterns = [
@@ -478,7 +477,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     // Remove the last assistant message
     const newMessages = messages.slice(0, -1);
     
-    // Add a new empty assistant message
+  
     const assistantMessage: Message = {
       id: Date.now().toString(),
       content: '',
@@ -724,7 +723,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                       color: '#fff',
                       fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
                     },
-                    // Add styles for bold, italic, and other formatting
                     strong: {
                       fontWeight: 'bold',
                       color: item.role === 'user' ? '#fff' : themeColors.text,
@@ -831,7 +829,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                       color: item.role === 'user' ? '#fff' : themeColors.text,
                     },
           }}
-          // Add custom renderers to ensure text formatting works properly
           rules={{
             strong: (node, children, parent, styles) => (
               <Text key={node.key} style={styles.strong} selectable={true}>
@@ -904,7 +901,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             <Ionicons 
               name="copy-outline" 
               size={16} 
-              color={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.75)'} 
+              color="pink"
             />
           </TouchableOpacity>
       </View>
@@ -914,7 +911,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
               {`${item.stats.tokens.toLocaleString()} tokens · ${item.stats.duration.toFixed(1)}s`}
           </Text>
             
-            {/* Add regenerate button below stats for the last assistant message */}
             {item === messages[messages.length - 1] && (
               <TouchableOpacity 
                 style={[
@@ -1006,7 +1002,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             : chat
         );
         
-        // Add current chat to history if it's not already there
         if (!updatedHistories.some(chat => chat.id === currentChatId)) {
           updatedHistories.push({ 
             id: currentChatId, 
