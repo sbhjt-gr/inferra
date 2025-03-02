@@ -55,15 +55,17 @@ export default function DownloadsScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { downloadProgress, setDownloadProgress } = useDownloads();
 
-  // Convert downloadProgress object to array for FlatList
-  const downloads = Object.entries(downloadProgress).map(([name, data]) => ({
-    id: data.downloadId,
-    name,
-    progress: data.progress,
-    bytesDownloaded: data.bytesDownloaded,
-    totalBytes: data.totalBytes,
-    status: data.status
-  }));
+  // Convert downloadProgress object to array for FlatList and filter out completed downloads
+  const downloads = Object.entries(downloadProgress)
+    .filter(([_, data]) => data.status !== 'completed' && data.status !== 'failed')
+    .map(([name, data]) => ({
+      id: data.downloadId,
+      name,
+      progress: data.progress,
+      bytesDownloaded: data.bytesDownloaded,
+      totalBytes: data.totalBytes,
+      status: data.status
+    }));
 
   // Load saved state on mount
   useEffect(() => {

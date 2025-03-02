@@ -35,14 +35,13 @@ class LlamaManager {
       this.context = await initLlama({
         model: modelPath,
         use_mlock: true,
-        n_ctx: 2048,
+        n_ctx: 6144,
         n_batch: 512,
         n_threads: Platform.OS === 'ios' ? 6 : 4,
         n_gpu_layers: Platform.OS === 'ios' ? 1 : 0, // Reduced for better stability
         embedding: false,
         rope_freq_base: 10000,
         rope_freq_scale: 1,
-        low_vram: true,
       });
 
       return this.context;
@@ -71,14 +70,12 @@ class LlamaManager {
       const result = await this.context.completion(
         {
           messages,
-          n_predict: 400,
+          n_predict: 1200,
           stop: stopWords,
           temperature: 0.7,
           top_k: 40,
           top_p: 0.9,
           min_p: 0.05,
-          repeat_penalty: 1.1,
-          tfs_z: 1.0,
           mirostat: 2,
           mirostat_tau: 5.0,
           mirostat_eta: 0.1,

@@ -37,6 +37,11 @@ const DownloadsDialog = ({ visible, onClose, downloads, setDownloadProgress }: D
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme];
 
+  // Filter out completed and failed downloads
+  const activeDownloads = Object.entries(downloads).filter(
+    ([_, data]) => data.status !== 'completed' && data.status !== 'failed'
+  );
+
   const handleCancel = async (modelName: string) => {
     try {
       const downloadInfo = downloads[modelName];
@@ -62,7 +67,7 @@ const DownloadsDialog = ({ visible, onClose, downloads, setDownloadProgress }: D
         <View style={[styles.container, { backgroundColor: themeColors.background }]}>
           <View style={styles.header}>
             <Text style={[styles.title, { color: themeColors.text }]}>
-              Active Downloads ({Object.keys(downloads).length})
+              Active Downloads ({activeDownloads.length})
             </Text>
             <TouchableOpacity onPress={onClose}>
               <Ionicons name="close" size={24} color={themeColors.text} />
@@ -70,37 +75,43 @@ const DownloadsDialog = ({ visible, onClose, downloads, setDownloadProgress }: D
           </View>
 
           <ScrollView style={styles.downloadsList}>
-            {Object.entries(downloads).map(([name, data]) => (
-              <View 
-                key={name} 
-                style={[styles.downloadItem, { backgroundColor: themeColors.borderColor }]}
-              >
-                <View style={styles.downloadHeader}>
-                  <Text style={[styles.downloadName, { color: themeColors.text }]}>
-                    {name}
+            {activeDownloads.length === 0 ? (
+              <Text style={[styles.emptyText, { color: themeColors.secondaryText }]}>
+                No active downloads
+              </Text>
+            ) : (
+              activeDownloads.map(([name, data]) => (
+                <View 
+                  key={name} 
+                  style={[styles.downloadItem, { backgroundColor: themeColors.borderColor }]}
+                >
+                  <View style={styles.downloadHeader}>
+                    <Text style={[styles.downloadName, { color: themeColors.text }]}>
+                      {name}
+                    </Text>
+                    <TouchableOpacity 
+                      onPress={() => handleCancel(name)}
+                      style={styles.cancelButton}
+                    >
+                      <Ionicons name="close-circle" size={24} color="#ff4444" />
+                    </TouchableOpacity>
+                  </View>
+                  
+                  <Text style={[styles.downloadProgress, { color: themeColors.secondaryText }]}>
+                    {`${data.progress}% • ${formatBytes(data.bytesDownloaded)} / ${formatBytes(data.totalBytes)}`}
                   </Text>
-                  <TouchableOpacity 
-                    onPress={() => handleCancel(name)}
-                    style={styles.cancelButton}
-                  >
-                    <Ionicons name="close-circle" size={24} color="#ff4444" />
-                  </TouchableOpacity>
+                  
+                  <View style={[styles.progressBar, { backgroundColor: themeColors.background }]}>
+                    <View 
+                      style={[
+                        styles.progressFill, 
+                        { width: `${data.progress}%`, backgroundColor: '#4a0660' }
+                      ]} 
+                    />
+                  </View>
                 </View>
-                
-                <Text style={[styles.downloadProgress, { color: themeColors.secondaryText }]}>
-                  {`${data.progress}% • ${formatBytes(data.bytesDownloaded)} / ${formatBytes(data.totalBytes)}`}
-                </Text>
-                
-                <View style={[styles.progressBar, { backgroundColor: themeColors.background }]}>
-                  <View 
-                    style={[
-                      styles.progressFill, 
-                      { width: `${data.progress}%`, backgroundColor: '#4a0660' }
-                    ]} 
-                  />
-                </View>
-              </View>
-            ))}
+              ))
+            )}
           </ScrollView>
         </View>
       </View>
@@ -165,6 +176,12 @@ const styles = StyleSheet.create({
   progressFill: {
     height: '100%',
     borderRadius: 2,
+  },
+  emptyText: {
+    fontSize: 16,
+    fontWeight: '500',
+    textAlign: 'center',
+    marginTop: 20,
   },
 });
 

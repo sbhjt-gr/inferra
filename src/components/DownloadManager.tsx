@@ -90,7 +90,8 @@ const DownloadManager = forwardRef<DownloadManagerRef, DownloadManagerProps>(
           const status = await NativeModules.ModelDownloader.checkDownloadStatus(id);
           console.log('Download status:', id, status); // Debug log
           
-          if (status.status === 'failed') {
+          if (status.status === 'failed' || status.status === 'completed') {
+            // Remove completed or failed downloads
             updatedDownloads.delete(id);
             continue;
           }
@@ -100,6 +101,10 @@ const DownloadManager = forwardRef<DownloadManagerRef, DownloadManagerProps>(
             
             if (progress < 100) {
               hasActiveDownloads = true;
+            } else {
+              // If progress is 100% but status isn't 'completed', consider it completed
+              updatedDownloads.delete(id);
+              continue;
             }
 
             updatedDownloads.set(id, {

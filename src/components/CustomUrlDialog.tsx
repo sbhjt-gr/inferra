@@ -18,12 +18,18 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { CompositeNavigationProp } from '@react-navigation/native';
+import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import { TabParamList } from '../types/navigation';
 
 interface CustomUrlDialogProps {
   visible: boolean;
   onClose: () => void;
   onDownloadStart: (downloadId: number, modelName: string) => void;
-  navigation: NativeStackNavigationProp<RootStackParamList>;
+  navigation: CompositeNavigationProp<
+    BottomTabNavigationProp<TabParamList, 'Model'>,
+    NativeStackNavigationProp<RootStackParamList>
+  >;
 }
 
 interface DownloadState {
@@ -34,7 +40,7 @@ interface DownloadState {
 
 const CustomUrlDialog = ({ visible, onClose, onDownloadStart, navigation }: CustomUrlDialogProps) => {
   const { theme: currentTheme } = useTheme();
-  const themeColors = theme[currentTheme];
+  const themeColors = theme[currentTheme as 'light' | 'dark'];
   const [url, setUrl] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isValid, setIsValid] = useState(false);

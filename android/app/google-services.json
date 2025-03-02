@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "509514517553",
+    "project_id": "ragionare-f3e16",
+    "storage_bucket": "ragionare-f3e16.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:509514517553:android:6d966b47cf3a4d905c1910",
+        "android_client_info": {
+          "package_name": "com.gorai.ragionare"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAlsusW0p86W26Ji54G3L9uyTQRDriydSw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

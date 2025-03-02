@@ -47,53 +47,128 @@ interface DownloadableModel {
   size: string;
   huggingFaceLink: string;
   modelFamily: string;
+  quantization: string;
 }
 
 const DOWNLOADABLE_MODELS: DownloadableModel[] = [
   {
-    name: "DeepSeek-R1 Distill Llama 8B",
-    size: "4.6 GB ",
-    huggingFaceLink: "https://huggingface.co/TheBloke/deepseek-llm-7B-base-GGUF/resolve/main/deepseek-llm-7b-base.Q4_K_S.gguf",
-    modelFamily: "DeepSeek"
+    "name": "Phi-3 Mini Instruct",
+    "size": "2.2 GB  ",
+    "huggingFaceLink": "https://huggingface.co/bartowski/Phi-3-mini-4k-instruct-GGUF/resolve/main/Phi-3-mini-4k-instruct-Q4_K_M.gguf",
+    "modelFamily": "3.8 Billion",
+    "quantization": "Q4_K_M"
   },
   {
-    name: "Deepseek 7B Base",
-    size: "3.8 GB ",
-    huggingFaceLink: "https://huggingface.co/unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF/resolve/main/DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf",
-    modelFamily: "DeepSeek"
+    "name": "Qwen 2.5 Coder Instruct",
+    "size": "2.27 GB  ",
+    "huggingFaceLink": "https://huggingface.co/Qwen/Qwen2.5-Coder-3B-Instruct-GGUF/resolve/main/qwen2.5-coder-3b-instruct-q5_k_m.gguf",
+    "modelFamily": "7 Billion",
+    "quantization": "Q5_K_M"
   },
   {
-    name: "CodeLlama 7B",
-    size: "2.95 GB  ",
-    huggingFaceLink: "https://huggingface.co/TheBloke/CodeLlama-7B-GGUF/resolve/main/codellama-7b.Q3_K_S.gguf",
-    modelFamily: "Llama"
+    "name": "CodeLlama",
+    "size": "2.95 GB  ",
+    "huggingFaceLink": "https://huggingface.co/TheBloke/CodeLlama-7B-GGUF/resolve/main/codellama-7b.Q3_K_S.gguf",
+    "modelFamily": "7 Billion",
+    "quantization": "Q3_K_S"
   },
   {
-    name: "Mistral 7B Grok",
-    size: "5.1 GB ",
-    huggingFaceLink: "https://huggingface.co/mradermacher/mistral-7b-grok-GGUF/resolve/main/mistral-7b-grok.Q3_K_L.gguf",
-    modelFamily: "Grok"
+    "name": "DeepSeek R1 Distill",
+    "size": "3.8 GB  ",
+    "huggingFaceLink": "https://huggingface.co/unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF/resolve/main/DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf",
+    "modelFamily": "7 Billion",
+    "quantization": "Q4_K_M"
   },
   {
-    name: "Qwen 7B",
-    size: "2.27 GB  ",
-    huggingFaceLink: "https://huggingface.co/Qwen/Qwen2.5-Coder-3B-Instruct-GGUF/resolve/main/qwen2.5-coder-3b-instruct-q5_k_m.gguf",
-    modelFamily: "Qwen"
+    "name": "Mistral Instruct",
+    "size": "4.1 GB  ",
+    "huggingFaceLink": "https://huggingface.co/TheBloke/Mistral-7B-Instruct-v0.2-GGUF/resolve/main/mistral-7b-instruct-v0.2.Q4_K_M.gguf",
+    "modelFamily": "7 Billion",
+    "quantization": "Q4_K_M"
+  },
+  {
+    "name": "DeepSeek Base",
+    "size": "4.6 GB  ",
+    "huggingFaceLink": "https://huggingface.co/TheBloke/deepseek-llm-7B-base-GGUF/resolve/main/deepseek-llm-7b-base.Q4_K_S.gguf",
+    "modelFamily": "8 Billion",
+    "quantization": "Q4_K_S"
+  },
+  {
+    "name": "LLaMA 3.1 Instruct",
+    "size": "4.7 GB  ",
+    "huggingFaceLink": "https://huggingface.co/bartowski/Meta-Llama-3.1-8B-Instruct-GGUF/resolve/main/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf",
+    "modelFamily": "8 Billion",
+    "quantization": "Q4_K_M"
+  },
+  {
+    "name": "DeepSeek Coder Instruct",
+    "size": "4.8 GB  ",
+    "huggingFaceLink": "https://huggingface.co/TheBloke/deepseek-coder-6.7B-instruct-GGUF/resolve/main/deepseek-coder-6.7b-instruct-Q6_K.gguf",
+    "modelFamily": "6.7 Billion",
+    "quantization": "Q6_K"
+  },
+  {
+    "name": "CodeGemma Instruct",
+    "size": "5.1 GB  ",
+    "huggingFaceLink": "https://huggingface.co/bartowski/codegemma-7b-it-GGUF/resolve/main/codegemma-7b-it-Q6_K.gguf",
+    "modelFamily": "7 Billion",
+    "quantization": "Q6_K"
+  },
+  {
+    "name": "Mistral Grok",
+    "size": "5.1 GB  ",
+    "huggingFaceLink": "https://huggingface.co/mradermacher/mistral-7b-grok-GGUF/resolve/main/mistral-7b-grok.Q3_K_L.gguf",
+    "modelFamily": "7 Billion",
+    "quantization": "Q3_K_L"
+  },
+  {
+    "name": "Qwen 2.5 Instruct",
+    "size": "5.2 GB  ",
+    "huggingFaceLink": "https://huggingface.co/bartowski/Qwen2.5-7B-Instruct-GGUF/resolve/main/Qwen2.5-7B-Instruct-Q6_K.gguf",
+    "modelFamily": "7 Billion",
+    "quantization": "Q6_K"
+  },
+  {
+    "name": "Gemma 2 Instruct",
+    "size": "5.4 GB  ",
+    "huggingFaceLink": "https://huggingface.co/bartowski/gemma-2-9b-it-GGUF/resolve/main/gemma-2-9b-it-Q4_K_M.gguf",
+    "modelFamily": "9 Billion",
+    "quantization": "Q4_K_M"
+  },
+  {
+    "name": "LLaMA 2 Chat",
+    "size": "8.7 GB  ",
+    "huggingFaceLink": "https://huggingface.co/TheBloke/Llama-2-13B-chat-GGUF/resolve/main/llama-2-13b-chat.Q5_K_M.gguf",
+    "modelFamily": "13 Billion",
+    "quantization": "Q5_K_M"
   }
 ];
 
 const formatBytes = (bytes?: number) => {
   if (bytes === undefined || bytes === null || isNaN(bytes) || bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
+  try {
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    if (i < 0 || i >= sizes.length || !isFinite(bytes)) return '0 B';
+    return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
+  } catch (error) {
+    console.error('Error formatting bytes:', error, bytes);
+    return '0 B';
+  }
 };
 
 const getProgressText = (data: DownloadProgress[string]) => {
-  const downloaded = formatBytes(data.bytesDownloaded);
-  const total = data.totalBytes > 0 ? formatBytes(data.totalBytes) : '0 B';
-  return `${data.progress}% • ${downloaded} / ${total}`;
+  if (!data) return '0% • 0 B / 0 B';
+  
+  const progress = typeof data.progress === 'number' ? data.progress : 0;
+  const bytesDownloaded = typeof data.bytesDownloaded === 'number' ? data.bytesDownloaded : 0;
+  const totalBytes = typeof data.totalBytes === 'number' && data.totalBytes > 0 ? data.totalBytes : 0;
+  
+  const downloadedFormatted = formatBytes(bytesDownloaded);
+  const totalFormatted = formatBytes(totalBytes);
+  
+  return `${progress}% • ${downloadedFormatted} / ${totalFormatted}`;
 };
 
 // Add this at the top level, outside the component
@@ -263,10 +338,15 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
               <View style={styles.modelHeader}>
                 <View style={styles.modelTitleContainer}>
                   <Text style={[styles.downloadableName, { color: themeColors.text }]}>
-                    {model.name}
+                    {model.name.replace(/ \([^)]+\)$/, '')}
                   </Text>
-                  <View style={[styles.modelFamily, { backgroundColor: '#4a0660' }]}>
-                    <Text style={styles.modelFamilyText}>{model.modelFamily}</Text>
+                  <View style={styles.modelBadgesContainer}>
+                    <View style={[styles.modelFamily, { backgroundColor: '#4a0660' }]}>
+                      <Text style={styles.modelFamilyText}>{model.modelFamily}</Text>
+                    </View>
+                    <View style={[styles.modelQuantization, { backgroundColor: '#2c7fb8' }]}>
+                      <Text style={styles.modelQuantizationText}>{model.quantization}</Text>
+                    </View>
                   </View>
                 </View>
                 <TouchableOpacity
@@ -299,7 +379,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
                   </Text>
                 </View>
               </View>
-              {downloadProgress[model.name] && (
+              {downloadProgress[model.name] && downloadProgress[model.name].status !== 'completed' && downloadProgress[model.name].status !== 'failed' && (
                 <View style={styles.downloadProgress}>
                   <Text style={[styles.modelDetails, { color: themeColors.secondaryText }]}>
                     {getProgressText(downloadProgress[model.name])}
@@ -400,7 +480,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
                       {name}
                     </Text>
                     <TouchableOpacity 
-                      style={styles.cancelButton}
+                      style={styles.cancelDownloadButton}
                       onPress={() => handleCancel(name)}
                     >
                       <Ionicons name="close-circle" size={24} color="#ff4444" />
@@ -451,26 +531,46 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       // Get just the filename without path
       const filename = modelName.split('/').pop() || modelName;
       
-      setDownloadProgress(prev => {
-        const newProgress = { ...prev };
+      console.log(`Download progress for ${filename}:`, progress.status, progress.progress);
+      
+      if (progress.status === 'completed') {
+        console.log(`Download completed for ${filename}`);
+        // Remove the download from progress tracking immediately
+        setDownloadProgress(prev => {
+          const newProgress = { ...prev };
+          delete newProgress[filename];
+          return newProgress;
+        });
         
-        if (progress.status === 'completed') {
+        // Refresh the stored models list to show the new model
+        setTimeout(loadStoredModels, 1000);
+      } else if (progress.status === 'failed') {
+        console.log(`Download failed for ${filename}`);
+        // Remove failed downloads from progress tracking
+        setDownloadProgress(prev => {
+          const newProgress = { ...prev };
           delete newProgress[filename];
-          setTimeout(loadStoredModels, 1000);
-        } else if (progress.status === 'failed') {
-          delete newProgress[filename];
-        } else {
-          newProgress[filename] = {
-            progress: progress.progress,
-            bytesDownloaded: progress.bytesDownloaded,
-            totalBytes: progress.totalBytes,
-            status: progress.status,
-            downloadId: progress.downloadId
+          return newProgress;
+        });
+      } else {
+        // Update progress for active downloads
+        setDownloadProgress(prev => {
+          // Make sure we have valid numbers
+          const bytesDownloaded = typeof progress.bytesDownloaded === 'number' ? progress.bytesDownloaded : 0;
+          const totalBytes = typeof progress.totalBytes === 'number' ? progress.totalBytes : 0;
+          
+          return {
+            ...prev,
+            [filename]: {
+              progress: progress.progress || 0,
+              bytesDownloaded,
+              totalBytes,
+              status: progress.status,
+              downloadId: progress.downloadId
+            }
           };
-        }
-        
-        return newProgress;
-      });
+        });
+      }
     };
 
     modelDownloader.on('downloadProgress', handleProgress);
@@ -478,6 +578,13 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       modelDownloader.removeListener('downloadProgress', handleProgress);
     };
   }, []);
+
+  // Add this effect to refresh models when downloads complete
+  useEffect(() => {
+    if (activeDownloadsCount === 0) {
+      loadStoredModels();
+    }
+  }, [activeDownloadsCount]);
 
   const handleDelete = (model: StoredModel) => {
     Alert.alert(
@@ -553,7 +660,13 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
   );
 
   const renderItem = ({ item }: { item: StoredModel }) => {
-    const downloadInfo = downloadProgress[item.name.split('/').pop() || item.name];
+    const filename = item.name.split('/').pop() || item.name;
+    const downloadInfo = downloadProgress[filename];
+    
+    // Only show download info if it exists and is not completed or failed
+    const showDownloadInfo = downloadInfo && 
+                            downloadInfo.status !== 'completed' && 
+                            downloadInfo.status !== 'failed';
     
     return (
       <TouchableOpacity
@@ -574,7 +687,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
           <Text style={[styles.modelDetails, { color: themeColors.secondaryText }]}>
             {formatBytes(item.size)}
           </Text>
-          {downloadInfo && (
+          {showDownloadInfo && (
             <View style={styles.downloadProgress}>
               <View style={styles.downloadStatusRow}>
                 <Text style={[styles.modelDetails, { color: themeColors.secondaryText }]}>
@@ -614,7 +727,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
             </View>
           )}
         </View>
-        {!downloadInfo && (
+        {!showDownloadInfo && (
           <TouchableOpacity
             style={styles.deleteButton}
             onPress={() => handleDelete(item)}
@@ -886,12 +999,29 @@ const styles = StyleSheet.create({
     marginRight: 8,
     marginBottom: 4,
   },
+  modelBadgesContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 4,
+  },
   modelFamily: {
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 16,
   },
   modelFamilyText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  modelQuantization: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 16,
+  },
+  modelQuantizationText: {
     color: '#fff',
     fontSize: 12,
     fontWeight: '600',
@@ -957,12 +1087,12 @@ const styles = StyleSheet.create({
     flex: 1,
     marginTop: 4,
   },
-  progressBar: {
+  downloadProgressBar: {
     height: 4,
     borderRadius: 2,
     overflow: 'hidden',
   },
-  progressFill: {
+  downloadProgressFill: {
     height: '100%',
     borderRadius: 2,
   },
@@ -1015,7 +1145,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginBottom: 8,
   },
-  cancelButton: {
+  cancelDownloadButton: {
     padding: 4,
   },
   customUrlCard: {
@@ -1131,9 +1261,6 @@ const styles = StyleSheet.create({
   actionButton: {
     padding: 4,
   },
-  cancelButton: {
-    padding: 4,
-  },
   progressBar: {
     height: 4,
     borderRadius: 2,
@@ -1142,5 +1269,8 @@ const styles = StyleSheet.create({
   progressFill: {
     height: '100%',
     borderRadius: 2,
+  },
+  cancelButton: {
+    padding: 4,
   },
 }); 

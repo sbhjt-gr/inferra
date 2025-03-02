@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   TextInput,
@@ -54,6 +54,16 @@ const ModelDownloaderComponent = ({ downloadProgress, onDownloadStart }: ModelDo
   const [modalVisible, setModalVisible] = useState(false);
   const [currentDownload, setCurrentDownload] = useState<string | null>(null);
 
+  // Clear currentDownload if it's completed
+  useEffect(() => {
+    if (currentDownload && 
+        (!downloadProgress[currentDownload] || 
+         downloadProgress[currentDownload]?.status === 'completed' ||
+         downloadProgress[currentDownload]?.status === 'failed')) {
+      setCurrentDownload(null);
+    }
+  }, [downloadProgress, currentDownload]);
+
   const handleDownload = async () => {
     if (!url.trim()) {
       Alert.alert('Error', 'Please enter a valid URL');
@@ -78,16 +88,27 @@ const ModelDownloaderComponent = ({ downloadProgress, onDownloadStart }: ModelDo
     }
   };
 
-  const formatBytes = (bytes: number) => {
-    if (!bytes || bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
-  };
-
   // Get current download progress if any
-  const currentProgress = currentDownload ? downloadProgress[currentDownload] : null;
+  const currentProgress = currentDownload && 
+                         downloadProgress[currentDownload] && 
+                         downloadProgress[currentDownload].status !== 'completed' && 
+                         downloadProgress[currentDownload].status !== 'failed' 
+                         ? downloadProgress[currentDownload] 
+                         : null;
+
+  const formatBytes = (bytes: number) => {
+    if (!bytes || bytes === 0 || isNaN(bytes)) return '0 B';
+    try {
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      if (i < 0 || i >= sizes.length || !isFinite(bytes)) return '0 B';
+      return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
+    } catch (error) {
+      console.error('Error formatting bytes:', error, bytes);
+      return '0 B';
+    }
+  };
 
   return (
     <>
