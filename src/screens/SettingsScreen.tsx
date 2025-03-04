@@ -131,7 +131,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
         <SettingsSection title="SUPPORT">
           
         <TouchableOpacity 
-            style={[styles.settingItem, styles.settingItemBorder]}
+            style={[styles.settingItem]}
             onPress={() => openLink('https://play.google.com/store/apps/details?id=com.gorai.ragionare')}
           >
             <View style={styles.settingLeft}>
@@ -151,7 +151,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           </TouchableOpacity>
 
           <TouchableOpacity 
-            style={styles.settingItem}
+            style={[styles.settingItem, styles.settingItemBorder]}
             onPress={() => openLink('https://github.com/ggerganov/llama.cpp')}
           >
             <View style={styles.settingLeft}>
@@ -169,7 +169,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
             </View>
             <Ionicons name="chevron-forward" size={20} color={themeColors.secondaryText} />
           </TouchableOpacity>
-
 
           <TouchableOpacity 
             style={[styles.settingItem, styles.settingItemBorder]}

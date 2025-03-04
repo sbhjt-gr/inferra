@@ -4,9 +4,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ThemeType, ThemeColors } from '../types/theme';
 
 interface ThemeContextType {
-  theme: ThemeType;  // The active theme (light/dark)
-  selectedTheme: ThemeType;  // The selected theme mode (system/light/dark)
-  toggleTheme: (newTheme: ThemeType) => void;
+  theme: ThemeColors;
+  selectedTheme: ThemeType;
+  toggleTheme: (theme: ThemeType) => void;
 }
 
 const ThemeContext = createContext<ThemeContextType>({
@@ -18,24 +18,47 @@ const ThemeContext = createContext<ThemeContextType>({
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const systemColorScheme = useColorScheme();
   const [selectedTheme, setSelectedTheme] = useState<ThemeType>('system');
+  const [theme, setTheme] = useState<ThemeColors>(systemColorScheme as ThemeColors || 'light');
 
-  const getActiveTheme = () => {
-    if (selectedTheme === 'system') {
-      return systemColorScheme || 'light';
-    }
-    return selectedTheme;
-  };
+  // Effect to handle system theme changes
+  useEffect(() => {
+    const updateTheme = ({ colorScheme }: { colorScheme: string | null }) => {
+      if (selectedTheme === 'system') {
+        const newTheme = (colorScheme as ThemeColors) || 'light';
+        setTheme(newTheme);
+        // Force update Android native theme
+        Appearance.setColorScheme(newTheme);
+      }
+    };
 
+    const subscription = Appearance.addChangeListener(updateTheme);
+    
+    // Initial update
+    updateTheme({ colorScheme: systemColorScheme });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [selectedTheme, systemColorScheme]);
+
+  // Effect to load saved theme preference
   useEffect(() => {
     loadThemePreference();
   }, []);
 
+  // Effect to update active theme when selected theme changes
   useEffect(() => {
     if (selectedTheme === 'system') {
-      // Force re-render when system theme changes
-      getActiveTheme();
+      const newTheme = (systemColorScheme as ThemeColors) || 'light';
+      setTheme(newTheme);
+      // Force update Android native theme
+      Appearance.setColorScheme(newTheme);
+    } else {
+      setTheme(selectedTheme as ThemeColors);
+      // Force update Android native theme
+      Appearance.setColorScheme(selectedTheme as ThemeColors);
     }
-  }, [systemColorScheme]);
+  }, [selectedTheme, systemColorScheme]);
 
   const loadThemePreference = async () => {
     try {
@@ -48,13 +71,18 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  const toggleTheme = (newTheme: ThemeType) => {
+  const toggleTheme = async (newTheme: ThemeType) => {
     setSelectedTheme(newTheme);
+    try {
+      await AsyncStorage.setItem('@theme_preference', newTheme);
+    } catch (error) {
+      console.error('Error saving theme preference:', error);
+    }
   };
 
   return (
     <ThemeContext.Provider value={{ 
-      theme: getActiveTheme(), 
+      theme,
       selectedTheme,
       toggleTheme 
     }}>
@@ -68,14 +96,5 @@ export const useTheme = () => {
   if (!context) {
     throw new Error('useTheme must be used within a ThemeProvider');
   }
-  
-  // Convert system theme to actual theme colors
-  const effectiveTheme = context.theme === 'system' 
-    ? (Appearance.getColorScheme() as ThemeColors) || 'light'
-    : (context.theme as ThemeColors);
-    
-  return {
-    ...context,
-    effectiveTheme,
-  };
+  return context;
 }; 

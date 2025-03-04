@@ -33,11 +33,9 @@ export const DownloadProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         if (savedProgress) {
           const parsedProgress = JSON.parse(savedProgress);
           
-          // Filter out any completed, failed, or 100% progress downloads
+          // Keep all downloads that are not completed or failed
           const filteredProgress = Object.entries(parsedProgress).reduce((acc, [key, value]) => {
-            if (value.status !== 'completed' && 
-                value.status !== 'failed' && 
-                value.progress < 100) {
+            if (value.status !== 'completed' && value.status !== 'failed') {
               acc[key] = value;
             }
             return acc;

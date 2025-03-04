@@ -519,7 +519,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
             </View>
             
             {activeDownloads.length === 0 ? (
-              <Text style={[styles.emptyText, { color: themeColors.secondaryText }]}>
+              <Text style={styles.emptyText}>
                 No active downloads
               </Text>
             ) : (
