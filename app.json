@@ -2,20 +2,32 @@
   "expo": {
     "name": "Ragionare",
     "slug": "Ragionare",
-    "version": "1.5.4",
+    "version": "1.6.5",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "fetch",
+          "remote-notification"
+        ]
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#000"
-      }
+      },
+      "permissions": [
+        "NOTIFICATIONS",
+        "BACKGROUND_FETCH",
+        "WAKE_LOCK",
+        "FOREGROUND_SERVICE"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -30,6 +42,14 @@
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#4a0660",
+          "sounds": ["./assets/notification.wav"]
         }
       ]
     ],

@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { modelDownloader } from '../services/ModelDownloader';
 import { ThemeType, ThemeColors } from '../types/theme';
 import { useModel } from '../context/ModelContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface StoredModel {
   name: string;
@@ -50,7 +51,21 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     const loadModels = async () => {
       try {
         const storedModels = await modelDownloader.getStoredModels();
-        setModels(storedModels);
+        // Filter out any models that are still being downloaded
+        const downloadStates = await AsyncStorage.getItem('active_downloads');
+        const activeDownloads = downloadStates ? JSON.parse(downloadStates) : {};
+        
+        // Only show models that are not currently being downloaded
+        const completedModels = storedModels.filter(model => {
+          const isDownloading = Object.values(activeDownloads).some(
+            (download: any) => 
+              download.filename === model.name && 
+              download.status !== 'completed'
+          );
+          return !isDownloading;
+        });
+        
+        setModels(completedModels);
       } catch (error) {
         console.error('Error loading models:', error);
       }
@@ -58,6 +73,27 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
 
     useEffect(() => {
       loadModels();
+    }, []);
+
+    // Add effect to refresh models when downloads change
+    useEffect(() => {
+      const checkDownloads = async () => {
+        const downloadStates = await AsyncStorage.getItem('active_downloads');
+        if (downloadStates) {
+          const downloads = JSON.parse(downloadStates);
+          // If any download just completed, refresh the model list
+          const hasCompletedDownload = Object.values(downloads).some(
+            (download: any) => download.status === 'completed'
+          );
+          if (hasCompletedDownload) {
+            loadModels();
+          }
+        }
+      };
+
+      // Check downloads every 2 seconds
+      const interval = setInterval(checkDownloads, 2000);
+      return () => clearInterval(interval);
     }, []);
 
     // Expose the refresh method through the ref

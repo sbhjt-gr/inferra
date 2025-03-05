@@ -34,7 +34,6 @@ interface DownloadItem {
   bytesDownloaded: number;
   totalBytes: number;
   status: string;
-  isProcessing: boolean;
 }
 
 interface DownloadState {
@@ -73,7 +72,6 @@ export default function DownloadsScreen() {
       bytesDownloaded: data.bytesDownloaded,
       totalBytes: data.totalBytes,
       status: data.status,
-      isProcessing: data.isProcessing
     }));
 
   // Load saved state on mount
@@ -127,63 +125,6 @@ export default function DownloadsScreen() {
     saveDownloadProgress();
   }, [downloadProgress]);
 
-  const handlePauseResume = async (downloadId: number, modelName: string, shouldResume: boolean) => {
-    try {
-      // Create a local variable to track if this button is currently processing
-      const isProcessing = buttonProcessingRef.current.has(modelName);
-      if (isProcessing) {
-        console.log(`Already processing pause/resume for ${modelName}`);
-        return;
-      }
-      
-      // Mark this button as processing
-      buttonProcessingRef.current.add(modelName);
-      
-      // Update UI immediately to show feedback
-      setDownloadProgress(prev => ({
-        ...prev,
-        [modelName]: {
-          ...prev[modelName],
-          isProcessing: true
-        }
-      }));
-      
-      // Call the appropriate method
-      if (shouldResume) {
-        await modelDownloader.resumeDownload(downloadId);
-      } else {
-        await modelDownloader.pauseDownload(downloadId);
-      }
-      
-      // Update UI state after operation completes
-      setDownloadProgress(prev => ({
-        ...prev,
-        [modelName]: {
-          ...prev[modelName],
-          status: shouldResume ? 'downloading' : 'paused',
-          isProcessing: false
-        }
-      }));
-    } catch (error) {
-      console.error('Error toggling download state:', error);
-      
-      // Revert UI state on error
-      setDownloadProgress(prev => ({
-        ...prev,
-        [modelName]: {
-          ...prev[modelName],
-          isProcessing: false
-          // Don't change status here as the ModelDownloader will emit the correct status
-        }
-      }));
-      
-      Alert.alert('Error', `Failed to ${shouldResume ? 'resume' : 'pause'} download`);
-    } finally {
-      // Clear the processing flag
-      buttonProcessingRef.current.delete(modelName);
-    }
-  };
-
   const handleCancel = async (downloadId: number, modelName: string) => {
     Alert.alert(
       'Cancel Download',
@@ -222,24 +163,8 @@ export default function DownloadsScreen() {
         </Text>
         <View style={styles.downloadActions}>
           <TouchableOpacity
-            style={styles.actionButton}
-            onPress={() => handlePauseResume(item.id, item.name, item.status === 'paused')}
-            disabled={item.isProcessing}
-          >
-            {item.isProcessing ? (
-              <ActivityIndicator size="small" color="#4a0660" />
-            ) : (
-              <Ionicons 
-                name={item.status === 'paused' ? "play-circle" : "pause-circle"} 
-                size={24} 
-                color="#4a0660" 
-              />
-            )}
-          </TouchableOpacity>
-          <TouchableOpacity
             style={styles.cancelButton}
             onPress={() => handleCancel(item.id, item.name)}
-            disabled={item.isProcessing}
           >
             <Ionicons name="close-circle" size={24} color="#ff4444" />
           </TouchableOpacity>
@@ -248,17 +173,13 @@ export default function DownloadsScreen() {
       
       <Text style={[styles.downloadProgress, { color: themeColors.secondaryText }]}>
         {`${item.progress || 0}% • ${formatBytes(item.bytesDownloaded || 0)} / ${formatBytes(item.totalBytes || 0)}`}
-        {item.status === 'paused' && ' (Paused)'}
       </Text>
       
       <View style={[styles.progressBar, { backgroundColor: themeColors.background }]}>
         <View 
           style={[
             styles.progressFill, 
-            { 
-              width: `${item.progress || 0}%`, 
-              backgroundColor: item.status === 'paused' ? '#666' : '#4a0660' 
-            }
+            { width: `${item.progress}%`, backgroundColor: '#4a0660' }
           ]} 
         />
       </View>
@@ -359,9 +280,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   cancelButton: {
-    padding: 4,
-  },
-  actionButton: {
     padding: 4,
   },
 }); 

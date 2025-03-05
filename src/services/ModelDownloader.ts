@@ -3,6 +3,20 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import EventEmitter from 'eventemitter3';
 import { Platform, AppState, AppStateStatus } from 'react-native';
 import { notificationService } from './NotificationService';
+import * as Notifications from 'expo-notifications';
+import * as Device from 'expo-device';
+
+interface ActiveDownload {
+  downloadId: number;
+  filename: string;
+  url: string;
+  progress: number;
+  bytesDownloaded: number;
+  totalBytes: number;
+  status: 'queued' | 'downloading' | 'completed' | 'failed';
+  timestamp: number;
+  options?: FileSystem.DownloadOptions;
+}
 
 export interface DownloadProgress {
   [key: string]: {
@@ -40,111 +54,89 @@ export interface DownloadStatus {
 class ModelDownloader extends EventEmitter {
   private readonly baseDir: string;
   private downloadResumables: Map<number, FileSystem.DownloadResumable> = new Map();
-  private nextDownloadId = 1;
-  private downloadProgress: Record<string, {
-    progress: number;
-    bytesDownloaded: number;
-    totalBytes: number;
-    status: string;
-    downloadId: number;
-  }> = {};
-  private operationsInProgress: Map<number, string> = new Map();
+  private activeDownloads: Map<string, ActiveDownload> = new Map();
+  private nextDownloadId: number = 1;
   private appState: AppStateStatus = AppState.currentState;
+  private isInitialized: boolean = false;
+  private hasNotificationPermission: boolean = false;
+  private _notificationSubscription: Notifications.NotificationSubscription | null = null;
+  private wasOpenedViaNotification: boolean = false;
 
   constructor() {
     super();
     this.baseDir = `${FileSystem.documentDirectory}models`;
-    this.initializeDirectory();
-    this.setupAppStateListener();
-    this.resumePendingDownloads();
-    
-    // Check for downloads that might have completed in the background
-    setTimeout(() => {
-      this.checkBackgroundDownloads();
-    }, 2000);
+    this.initialize();
   }
 
-  private setupAppStateListener() {
-    AppState.addEventListener('change', this.handleAppStateChange);
-  }
-
-  private handleAppStateChange = async (nextAppState: AppStateStatus) => {
-    if (this.appState === 'active' && nextAppState.match(/inactive|background/)) {
-      // App is going to background, save all active downloads
-      await this.saveAllDownloadStates();
-    } else if (this.appState.match(/inactive|background/) && nextAppState === 'active') {
-      // App is coming to foreground
-      await this.resumePendingDownloads();
-    }
-    this.appState = nextAppState;
-  };
-
-  private async saveAllDownloadStates() {
+  private async initialize() {
     try {
-      // Save all current download states
-      for (const [downloadId, downloadResumable] of this.downloadResumables.entries()) {
-        const filename = this.operationsInProgress.get(downloadId);
-        if (filename && this.downloadProgress[filename]) {
-          const currentProgress = this.downloadProgress[filename];
-          
-          // Skip if already paused
-          if (currentProgress.status === 'paused') {
-            continue;
-          }
-          
-          try {
-            // Get resumable data
-            const resumableData = await downloadResumable.savable();
-            
-            // Get URL from pending downloads
-            const pendingDownloads = await AsyncStorage.getItem('pendingDownloads') || '{}';
-            const downloads = JSON.parse(pendingDownloads);
-            const downloadInfo = downloads[downloadId];
-            
-            if (downloadInfo) {
-              // Update status to paused
-              currentProgress.status = 'paused';
-              
-              // Save all necessary data for resumption
-              await Promise.all([
-                // Save progress
-                this.saveProgressToStorage(filename, {
-                  ...currentProgress,
-                  downloadId
-                }),
-                
-                // Save the resumable data with URL
-                AsyncStorage.setItem(
-                  `download_resumable_${downloadId}`,
-                  JSON.stringify({
-                    url: downloadInfo.url,
-                    options: downloadResumable.options,
-                    resumeData: resumableData
-                  })
-                ),
-                
-                // Ensure pending download is saved
-                this.savePendingDownload(downloadId, downloadInfo.url, filename)
-              ]);
-              
-              try {
-                // Only try to pause if not already paused
-                await downloadResumable.pauseAsync();
-              } catch (pauseError) {
-                console.log('Download may already be paused:', pauseError.message);
-              }
-              
-              // Emit the paused state
-              this.emit('downloadProgress', { modelName: filename, ...currentProgress });
-            }
-          } catch (error) {
-            console.error('Error saving individual download state:', error);
-          }
-        }
+      // Initialize directory
+      await this.initializeDirectory();
+      
+      // Set up notifications
+      await this.setupNotifications();
+      
+      // Load next download ID
+      const savedId = await AsyncStorage.getItem('next_download_id');
+      if (savedId) {
+        this.nextDownloadId = parseInt(savedId, 10);
       }
+
+      // Load active downloads
+      await this.loadActiveDownloads();
+
+      // Set up app state listener
+      AppState.addEventListener('change', this.handleAppStateChange);
+
+      this.isInitialized = true;
     } catch (error) {
-      console.error('Error in saveAllDownloadStates:', error);
+      console.error('Failed to initialize ModelDownloader:', error);
     }
+  }
+
+  private async setupNotifications() {
+    if (Platform.OS === 'android') {
+      await Notifications.setNotificationChannelAsync('downloads', {
+        name: 'Downloads',
+        importance: Notifications.AndroidImportance.HIGH,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#FF231F7C',
+      });
+    }
+
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: false,
+        shouldSetBadge: false,
+        shouldHandleInForeground: false,
+      }),
+    });
+
+    // Set up notification response handler
+    const subscription = Notifications.addNotificationResponseReceivedListener(response => {
+      // Set the flag when notification is clicked
+      this.wasOpenedViaNotification = true;
+    });
+
+    this._notificationSubscription = subscription;
+  }
+
+  private async requestNotificationPermissions(): Promise<boolean> {
+    if (Device.isDevice) {
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+      
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+      
+      this.hasNotificationPermission = finalStatus === 'granted';
+      return this.hasNotificationPermission;
+    }
+    
+    return false;
   }
 
   private async initializeDirectory() {
@@ -155,173 +147,392 @@ class ModelDownloader extends EventEmitter {
       }
     } catch (error) {
       console.error('Failed to initialize directory:', error);
+      throw error;
     }
   }
 
-  private async savePendingDownload(downloadId: number, url: string, filename: string) {
+  private handleAppStateChange = async (nextAppState: AppStateStatus) => {
     try {
-      const pendingDownloads = await AsyncStorage.getItem('pendingDownloads') || '{}';
-      const downloads = JSON.parse(pendingDownloads);
-      downloads[downloadId] = { url, filename };
-      await AsyncStorage.setItem('pendingDownloads', JSON.stringify(downloads));
-    } catch (err) {
-      console.error('Error saving pending download:', err);
+      await this.persistActiveDownloads();
+      this.appState = nextAppState;
+    } catch (error) {
+      console.error('Error handling app state change:', error);
     }
-  }
+  };
 
-  private async resumePendingDownloads() {
+  private async persistActiveDownloads() {
     try {
-      // Clear existing maps to prevent stale data
-      this.downloadResumables.clear();
-      this.operationsInProgress.clear();
-      this.downloadProgress = {};
+      const downloads: Record<string, ActiveDownload> = {};
       
-      // Load all saved progress first
-      const savedProgress = await AsyncStorage.getItem('download_progress') || '{}';
-      const allProgress = JSON.parse(savedProgress);
-      
-      // Load pending downloads
-      const pendingDownloads = await AsyncStorage.getItem('pendingDownloads') || '{}';
-      const downloads = JSON.parse(pendingDownloads);
-
-      // First restore all progress states
-      for (const [filename, progress] of Object.entries(allProgress)) {
-        this.downloadProgress[filename] = progress as any;
-        
-        // Emit the current state immediately so UI can show it
-        this.emit('downloadProgress', { 
-          modelName: filename, 
-          ...progress 
-        });
-      }
-
-      // Then handle resumables
-      for (const [downloadId, data] of Object.entries(downloads)) {
-        const { url, filename } = data as { url: string; filename: string };
-        const numericDownloadId = Number(downloadId);
-        
-        // Check if we have a saved resumable for this download
-        const savedResumableData = await AsyncStorage.getItem(`download_resumable_${downloadId}`);
-        
-        if (savedResumableData) {
+      for (const [filename, download] of this.activeDownloads.entries()) {
+        const downloadResumable = this.downloadResumables.get(download.downloadId);
+        if (downloadResumable) {
           try {
-            const resumableData = JSON.parse(savedResumableData);
-            
-            // Create a new download resumable with the saved URL
-            const downloadResumable = FileSystem.createDownloadResumable(
-              resumableData.url || url, // Use saved URL if available
-              `${this.baseDir}/${filename}`,
-              resumableData.options,
-              this.createProgressCallback(numericDownloadId, filename),
-              resumableData.resumeData
-            );
-
-            // Store the resumable in our map
-            this.downloadResumables.set(numericDownloadId, downloadResumable);
-            
-            // Map the downloadId to filename for operations
-            this.operationsInProgress.set(numericDownloadId, filename);
-
-            // Make sure we have progress info
-            if (!this.downloadProgress[filename]) {
-                  const progress = {
-                downloadId: numericDownloadId,
-                progress: 0,
-                bytesDownloaded: 0,
-                totalBytes: 0,
-                status: 'paused'
-                  };
-                  
-                  this.downloadProgress[filename] = progress;
-              await this.saveProgressToStorage(filename, progress);
+            // Only try to get resumable data on iOS
+            let resumeData = undefined;
+            if (Platform.OS === 'ios') {
+              resumeData = await downloadResumable.savable();
             }
             
-            // Always ensure the status is paused when restoring
-            this.downloadProgress[filename].status = 'paused';
-            await this.saveProgressToStorage(filename, this.downloadProgress[filename]);
-            
-            // Emit the current state
-            this.emit('downloadProgress', { 
-              modelName: filename, 
-              ...this.downloadProgress[filename]
-            });
-
+            downloads[filename] = {
+              ...download,
+              resumeData,
+              options: downloadResumable.options,
+              timestamp: Date.now()
+            };
           } catch (error) {
-            console.error('Error reconstructing download:', error);
-            // Don't clean up on error - let the user retry
-            console.error('Download reconstruction failed but keeping data for retry');
+            console.error(`Failed to save resumable for ${filename}:`, error);
+            downloads[filename] = {
+              ...download,
+              timestamp: Date.now()
+            };
           }
         }
       }
+
+      await AsyncStorage.setItem('active_downloads', JSON.stringify(downloads));
+      await AsyncStorage.setItem('next_download_id', this.nextDownloadId.toString());
     } catch (error) {
-      console.error('Error in resumePendingDownloads:', error);
+      console.error('Failed to persist active downloads:', error);
+    }
+  }
+
+  private async loadActiveDownloads() {
+    try {
+      const savedDownloads = await AsyncStorage.getItem('active_downloads');
+      if (!savedDownloads) return;
+
+      const downloads = JSON.parse(savedDownloads) as Record<string, ActiveDownload>;
+      this.activeDownloads.clear();
+      this.downloadResumables.clear();
+
+      for (const [filename, download] of Object.entries(downloads)) {
+        if (download.status === 'completed' || download.status === 'failed') continue;
+
+        try {
+          // Create download options
+          const downloadOptions: FileSystem.DownloadOptions = {
+            cache: false,
+            // @ts-ignore
+            requiresNetworkSession: true,
+            // @ts-ignore
+            allowsBackgroundSessionDownloads: true
+          };
+
+          // Create new download resumable
+            const downloadResumable = FileSystem.createDownloadResumable(
+            download.url,
+              `${this.baseDir}/${filename}`,
+            downloadOptions,
+            this.createProgressCallback(download.downloadId, filename)
+          );
+
+          // Store the download info
+          const restoredDownload = {
+            ...download,
+            status: 'downloading'
+          };
+                  
+          this.activeDownloads.set(filename, restoredDownload);
+          this.downloadResumables.set(download.downloadId, downloadResumable);
+
+          // Start the download immediately
+          downloadResumable.downloadAsync().catch(error => {
+            console.error(`Failed to start download for ${filename}:`, error);
+          });
+
+          // Emit current state
+            this.emit('downloadProgress', { 
+              modelName: filename, 
+            progress: restoredDownload.progress,
+            bytesDownloaded: restoredDownload.bytesDownloaded,
+            totalBytes: restoredDownload.totalBytes,
+            status: 'downloading',
+            downloadId: restoredDownload.downloadId
+          });
+          } catch (error) {
+          console.error(`Failed to restore download for ${filename}:`, error);
+          continue;
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load active downloads:', error);
     }
   }
 
   private createProgressCallback(downloadId: number, filename: string) {
-    return (downloadProgress: FileSystem.DownloadProgressData) => {
-      if (downloadProgress.totalBytesWritten && downloadProgress.totalBytesExpectedToWrite) {
-        const progress = {
-          progress: Math.round((downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite) * 100),
+    let lastNotificationTime = 0;
+    const NOTIFICATION_THROTTLE = 1000; // Update notification every second
+
+    return async (downloadProgress: FileSystem.DownloadProgressData) => {
+      if (!downloadProgress.totalBytesWritten || !downloadProgress.totalBytesExpectedToWrite) return;
+
+      const progress = Math.round((downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite) * 100);
+      
+      // Update active download
+      const download = this.activeDownloads.get(filename);
+      if (download) {
+        download.progress = progress;
+        download.bytesDownloaded = downloadProgress.totalBytesWritten;
+        download.totalBytes = downloadProgress.totalBytesExpectedToWrite;
+        download.timestamp = Date.now();
+        
+        // Don't change status here - maintain the current status
+        const currentStatus = download.status;
+        
+        // Persist progress
+        await this.persistActiveDownloads();
+
+        // Emit progress with current status
+        this.emit('downloadProgress', {
+          modelName: filename,
+          progress,
           bytesDownloaded: downloadProgress.totalBytesWritten,
           totalBytes: downloadProgress.totalBytesExpectedToWrite,
-          status: 'downloading',
+          status: currentStatus,
           downloadId
-        };
-        
-        this.downloadProgress[filename] = progress;
-        this.emit('downloadProgress', { modelName: filename, ...progress });
+        });
+
+        // Update notification with throttling
+        const now = Date.now();
+        if (this.hasNotificationPermission && (now - lastNotificationTime > NOTIFICATION_THROTTLE)) {
+          lastNotificationTime = now;
+          
+          const formattedSize = (downloadProgress.totalBytesExpectedToWrite / (1024 * 1024)).toFixed(1);
+          const formattedProgress = (downloadProgress.totalBytesWritten / (1024 * 1024)).toFixed(1);
+          
+          // Update the existing notification with progress
+          await Notifications.scheduleNotificationAsync({
+            identifier: `download_${downloadId}`,
+            content: {
+              title: `Downloading ${filename}`,
+              body: `${formattedProgress}MB / ${formattedSize}MB`,
+              data: { downloadId, type: 'download_progress' },
+              // Common notification properties
+              sound: null,
+              priority: Notifications.AndroidNotificationPriority.HIGH,
+              // Android specific properties
+              android: {
+                channelId: 'downloads',
+                // Show progress bar
+                progress: progress,
+                maxProgress: 100,
+                ongoing: true,
+                autoCancel: false,
+                showWhen: true,
+                // Make it a foreground notification
+                sticky: true,
+                priority: Notifications.AndroidImportance.HIGH,
+                // Prevent notification from being cancelled when clicked
+                onlyAlertOnce: true,
+                indeterminate: false,
+                // Show progress in the notification
+                showProgress: true,
+                // Use small icon for notification
+                smallIcon: 'ic_notification',
+                // Color the progress bar
+                color: '#4a0660'
+              },
+              // iOS specific properties
+              ios: {
+                sound: null,
+                // Show progress in the notification (iOS 15+)
+                progress: progress / 100
+              }
+            },
+            trigger: null,
+          });
+        }
       }
     };
   }
 
-  private async saveDownloadState(downloadId: number, state: any) {
-    try {
-      const states = JSON.parse(await AsyncStorage.getItem('download_states') || '{}');
-      states[downloadId] = state;
-      await AsyncStorage.setItem('download_states', JSON.stringify(states));
-    } catch (error) {
-      console.error('Error saving download state:', error);
-    }
-  }
-
-  private async removePendingDownload(downloadId: number) {
-    try {
-      const pendingDownloads = await AsyncStorage.getItem('pendingDownloads') || '{}';
-      const downloads = JSON.parse(pendingDownloads);
-      delete downloads[downloadId];
-      await AsyncStorage.setItem('pendingDownloads', JSON.stringify(downloads));
-    } catch (err) {
-      console.error('Error removing pending download:', err);
-    }
-  }
-
-  private async saveProgressToStorage(filename: string, progress: any) {
-    try {
-      const savedProgress = await AsyncStorage.getItem('download_progress') || '{}';
-      const allProgress = JSON.parse(savedProgress);
-      allProgress[filename] = progress;
-      await AsyncStorage.setItem('download_progress', JSON.stringify(allProgress));
-    } catch (error) {
-      console.error('Error saving download progress:', error);
-    }
-  }
-
-  private async removeProgressFromStorage(filename: string) {
-    try {
-      const savedProgress = await AsyncStorage.getItem('download_progress') || '{}';
-      const allProgress = JSON.parse(savedProgress);
-      delete allProgress[filename];
-      await AsyncStorage.setItem('download_progress', JSON.stringify(allProgress));
-    } catch (error) {
-      console.error('Error removing download progress:', error);
-    }
-  }
-
   async downloadModel(url: string, filename: string): Promise<{ downloadId: number; path: string }> {
+    if (!this.isInitialized) {
+      throw new Error('ModelDownloader not initialized');
+    }
+
+    // Request notification permissions before starting download
+    await this.requestNotificationPermissions();
+
     const downloadId = this.nextDownloadId++;
-    await this.savePendingDownload(downloadId, url, filename);
-    await this.startNewDownload(downloadId, url, filename);
+    
+    // Create download options
+    const downloadOptions: FileSystem.DownloadOptions = {
+      cache: false,
+      // @ts-ignore
+      requiresNetworkSession: true,
+      // @ts-ignore
+      allowsBackgroundSessionDownloads: true
+    };
+
+    // Create download resumable
+    const downloadResumable = FileSystem.createDownloadResumable(
+      url,
+      `${this.baseDir}/${filename}`,
+      downloadOptions,
+      this.createProgressCallback(downloadId, filename)
+    );
+
+    // Store download info
+    const download: ActiveDownload = {
+      downloadId,
+      filename,
+      url,
+      progress: 0,
+      bytesDownloaded: 0,
+      totalBytes: 0,
+      status: 'queued',
+      timestamp: Date.now(),
+      options: downloadOptions
+    };
+
+    this.activeDownloads.set(filename, download);
+    this.downloadResumables.set(downloadId, downloadResumable);
+
+    // Persist state
+    await this.persistActiveDownloads();
+
+    try {
+      // Show initial notification if we have permission
+      if (this.hasNotificationPermission) {
+        await Notifications.scheduleNotificationAsync({
+          identifier: `download_${downloadId}`,
+          content: {
+            title: `Downloading ${filename}`,
+            body: 'Starting download...',
+            data: { downloadId, type: 'download_start' },
+            // Common notification properties
+            sound: null,
+            priority: Notifications.AndroidNotificationPriority.HIGH,
+            // Android specific properties
+            android: {
+              channelId: 'downloads',
+              // Show indeterminate progress initially
+        progress: 0,
+              maxProgress: 100,
+              ongoing: true,
+              autoCancel: false,
+              showWhen: true,
+              // Make it a foreground notification
+              sticky: true,
+              priority: Notifications.AndroidImportance.HIGH,
+              // Show progress in the notification
+              showProgress: true,
+              // Use small icon for notification
+              smallIcon: 'ic_notification',
+              // Color the progress bar
+              color: '#4a0660',
+              // Show indeterminate progress initially
+              indeterminate: true
+            },
+            // iOS specific properties
+            ios: {
+              sound: null,
+              // Show initial progress
+              progress: 0
+            }
+          },
+          trigger: null,
+        });
+      }
+      
+      // Start download
+      download.status = 'downloading';
+      await this.persistActiveDownloads();
+
+      const result = await downloadResumable.downloadAsync();
+      if (result) {
+        // Update status
+        download.status = 'completed';
+        download.progress = 100;
+        download.bytesDownloaded = result.totalBytesWritten || 0;
+        download.totalBytes = result.totalBytesWritten || 0;
+        
+        // Persist final state
+        await this.persistActiveDownloads();
+
+        // Show completion notification if we have permission
+        if (this.hasNotificationPermission) {
+          await Notifications.scheduleNotificationAsync({
+            identifier: `download_${downloadId}`,
+            content: {
+              title: `Download Complete`,
+              body: `${filename} has been downloaded successfully`,
+              data: { downloadId, type: 'download_complete' },
+              // Common notification properties
+              sound: null,
+              // Android specific properties
+              android: {
+                channelId: 'downloads',
+                // Show completed progress
+          progress: 100,
+                maxProgress: 100,
+                ongoing: false,
+                autoCancel: true,
+                showWhen: true,
+                // Show progress in the notification
+                showProgress: true,
+                // Use small icon for notification
+                smallIcon: 'ic_notification',
+                // Color the progress bar
+                color: '#4a0660'
+              },
+              // iOS specific properties
+              ios: {
+                sound: null,
+                // Show completed progress
+                progress: 1
+              }
+            },
+            trigger: null,
+          });
+        }
+        
+        // Clean up
+        this.activeDownloads.delete(filename);
+        this.downloadResumables.delete(downloadId);
+        await this.persistActiveDownloads();
+      }
+    } catch (error) {
+      console.error('Download error:', error);
+      
+      // Update status
+      download.status = 'failed';
+      await this.persistActiveDownloads();
+
+      // Show failure notification if we have permission
+      if (this.hasNotificationPermission) {
+        await Notifications.scheduleNotificationAsync({
+          identifier: `download_${downloadId}`,
+          content: {
+            title: `Download Failed`,
+            body: `Failed to download ${filename}`,
+            data: { downloadId, type: 'download_failed' },
+            // Common notification properties
+            sound: null,
+            // Android specific properties
+            android: {
+              channelId: 'downloads',
+              ongoing: false,
+              autoCancel: true,
+              // Use small icon for notification
+              smallIcon: 'ic_notification',
+              // Color for the notification
+              color: '#ff4444'
+            }
+          },
+          trigger: null,
+        });
+      }
+      
+      // Clean up
+      this.activeDownloads.delete(filename);
+      this.downloadResumables.delete(downloadId);
+      await this.persistActiveDownloads();
+
+      throw error;
+    }
 
     return {
       downloadId,
@@ -329,268 +540,39 @@ class ModelDownloader extends EventEmitter {
     };
   }
 
-  private async startNewDownload(downloadId: number, url: string, filename: string) {
-    // Create download options with background download support
-    const downloadOptions: FileSystem.DownloadOptions = {
-      cache: false
-    };
-    
-    // Add background download capability if supported by the platform
-    if (Platform.OS === 'ios' || Platform.OS === 'android') {
-      // @ts-ignore - The type definitions don't include these options
-      downloadOptions.requiresNetworkSession = true;
-      // @ts-ignore - The type definitions don't include these options
-      downloadOptions.allowsBackgroundSessionDownloads = true;
-    }
-
-    // Map the downloadId to filename BEFORE creating the download
-    this.operationsInProgress.set(downloadId, filename);
-
-    const downloadResumable = FileSystem.createDownloadResumable(
-      url,
-      `${this.baseDir}/${filename}`,
-      downloadOptions,
-      (downloadProgress) => {
-        if (downloadProgress.totalBytesWritten && downloadProgress.totalBytesExpectedToWrite) {
-          const progress = {
-            progress: Math.round((downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite) * 100),
-            bytesDownloaded: downloadProgress.totalBytesWritten,
-            totalBytes: downloadProgress.totalBytesExpectedToWrite,
-            status: 'downloading',
-            downloadId
-          };
-          
-          this.downloadProgress[filename] = progress;
-          
-          // Save progress to AsyncStorage
-          this.saveProgressToStorage(filename, progress).catch(error => {
-            console.error('Error saving progress:', error);
-          });
-          
-          this.emit('downloadProgress', { modelName: filename, ...progress });
-          
-          // Update notification with progress
-          if (progress.progress % 5 === 0 || progress.progress === 100) {
-            notificationService.updateDownloadProgressNotification(
-              filename,
-              downloadId,
-              progress.progress,
-              progress.bytesDownloaded,
-              progress.totalBytes
-            );
-          }
-        }
-      }
-    );
-
-    this.downloadResumables.set(downloadId, downloadResumable);
-
-    try {
-      // Show download started notification
-      await notificationService.showDownloadStartedNotification(filename, downloadId);
-      
-      // Save initial download state
-      const initialState = {
-        status: 'downloading',
-        progress: 0,
-        bytesDownloaded: 0,
-        totalBytes: 0
-      };
-      
-      await this.saveDownloadState(downloadId, initialState);
-      await this.saveProgressToStorage(filename, {
-        ...initialState,
-        downloadId
-      });
-      
-      // Save the resumable data to AsyncStorage for potential resumption after app restart
-      if (Platform.OS === 'ios' || Platform.OS === 'android') {
-        try {
-          const resumableData = await downloadResumable.savable();
-          await AsyncStorage.setItem(`download_resumable_${downloadId}`, JSON.stringify({
-            options: downloadOptions,
-            resumeData: resumableData
-          }));
-        } catch (error) {
-          console.error('Error saving resumable data:', error);
-        }
-      }
-
-      const result = await downloadResumable.downloadAsync();
-      
-      if (result) {
-        await this.removePendingDownload(downloadId);
-        this.downloadResumables.delete(downloadId);
-        this.operationsInProgress.delete(downloadId);
-        
-        // Remove the saved resumable data and state
-        await AsyncStorage.removeItem(`download_resumable_${downloadId}`);
-        await AsyncStorage.removeItem(`download_states_${downloadId}`);
-        await this.removeProgressFromStorage(filename);
-        
-        const finalProgress = {
-          progress: 100,
-          bytesDownloaded: result.totalBytesWritten || 0,
-          totalBytes: result.totalBytesWritten || 0,
-          status: 'completed',
-          downloadId
-        };
-        
-        // First update the progress in our internal state
-        this.downloadProgress[filename] = finalProgress;
-        
-        // Then emit the event
-        this.emit('downloadProgress', { modelName: filename, ...finalProgress });
-        
-        // Show download completed notification
-        await notificationService.showDownloadCompletedNotification(filename, downloadId);
-        
-        // Wait a short time to ensure the UI updates before removing from progress
-        setTimeout(() => {
-          // Remove from download progress after emitting the completed event
-          delete this.downloadProgress[filename];
-          this.emit('downloadProgress', { modelName: filename, ...finalProgress });
-        }, 1000);
-      }
-    } catch (error) {
-      console.error('Download error:', error);
-      const failedProgress = {
-        progress: 0,
-        bytesDownloaded: 0,
-        totalBytes: 0,
-        status: 'failed',
-        downloadId
-      };
-      
-      // First update the progress in our internal state
-      this.downloadProgress[filename] = failedProgress;
-      
-      // Then emit the event
-      this.emit('downloadProgress', { modelName: filename, ...failedProgress });
-      
-      // Show download failed notification
-      await notificationService.showDownloadFailedNotification(filename, downloadId);
-      
-      // Clean up failed download
-      await this.removePendingDownload(downloadId);
-      this.downloadResumables.delete(downloadId);
-      this.operationsInProgress.delete(downloadId);
-      
-      // Remove the saved resumable data and state
-      await AsyncStorage.removeItem(`download_resumable_${downloadId}`);
-      await AsyncStorage.removeItem(`download_states_${downloadId}`);
-      await this.removeProgressFromStorage(filename);
-      
-      // Wait a short time to ensure the UI updates before removing from progress
-      setTimeout(() => {
-        // Remove from download progress after emitting the failed event
-        delete this.downloadProgress[filename];
-        this.emit('downloadProgress', { modelName: filename, ...failedProgress });
-      }, 1000);
-    }
-  }
-
-  async cancelDownload(downloadId: number): Promise<boolean> {
-    const downloadResumable = this.downloadResumables.get(downloadId);
-    if (downloadResumable) {
-      try {
-        // Get the filename from pending downloads
-        const pendingDownloads = await AsyncStorage.getItem('pendingDownloads') || '{}';
-        const downloads = JSON.parse(pendingDownloads);
-        const downloadInfo = downloads[downloadId] as { filename: string } | undefined;
-        
-        // Construct the full path
-        const filePath = downloadInfo 
-          ? `${this.baseDir}/${downloadInfo.filename}`
-          : null;
-
-        // Pause/cancel the download
-        await downloadResumable.pauseAsync();
-        this.downloadResumables.delete(downloadId);
-        await this.removePendingDownload(downloadId);
-        
-        // Remove the saved resumable data
-        await AsyncStorage.removeItem(`download_resumable_${downloadId}`);
-
-        // Delete the partial file if we have the path
-        if (filePath) {
-          try {
-            const fileInfo = await FileSystem.getInfoAsync(filePath);
-            if (fileInfo.exists) {
-              await FileSystem.deleteAsync(filePath, { idempotent: true });
-            }
-          } catch (error) {
-            console.error('Error deleting partial file:', error);
-          }
-        }
-        
-        // Cancel any notifications for this download
-        await notificationService.cancelDownloadNotification(downloadId);
-
-        return true;
-      } catch (error) {
-        console.error('Error cancelling download:', error);
-        return false;
-      }
-    }
-    return false;
-  }
-
-  async checkDownloadStatus(downloadId: number): Promise<DownloadStatus> {
+  async cancelDownload(downloadId: number): Promise<void> {
     const downloadResumable = this.downloadResumables.get(downloadId);
     if (!downloadResumable) {
-      return {
-        status: 'unknown',
-        bytesDownloaded: 0,
-        totalBytes: 0
-      };
+      throw new Error('Download not found');
+    }
+
+    const filename = Array.from(this.activeDownloads.entries())
+      .find(([_, download]) => download.downloadId === downloadId)?.[0];
+    
+    if (!filename) {
+      throw new Error('Download not found');
     }
 
     try {
-      const result = await downloadResumable.downloadAsync();
-      if (result) {
-        // If downloadAsync returns a result, the download is completed
-        return {
-          status: 'completed',
-          bytesDownloaded: result.totalBytesWritten || 0,
-          totalBytes: result.totalBytesWritten || 0
-        };
-      } else {
-        // Check if we have progress information for this download
-        const filename = Object.keys(this.downloadProgress).find(
-          key => this.downloadProgress[key].downloadId === downloadId
-        );
-        
-        if (filename) {
-          const progress = this.downloadProgress[filename];
-          // If progress is 100%, consider it completed
-          if (progress.progress === 100) {
-            return {
-              status: 'completed',
-              bytesDownloaded: progress.bytesDownloaded,
-              totalBytes: progress.totalBytes
-            };
-          }
-          
-          return {
-            status: progress.status,
-            bytesDownloaded: progress.bytesDownloaded,
-            totalBytes: progress.totalBytes
-          };
-        }
-        
-        return {
-          status: 'unknown',
-          bytesDownloaded: 0,
-          totalBytes: 0
-        };
+      await downloadResumable.pauseAsync();
+      
+      // Delete partial file
+      const filePath = `${this.baseDir}/${filename}`;
+      const fileInfo = await FileSystem.getInfoAsync(filePath);
+      if (fileInfo.exists) {
+        await FileSystem.deleteAsync(filePath, { idempotent: true });
       }
+
+      // Clean up
+      this.activeDownloads.delete(filename);
+      this.downloadResumables.delete(downloadId);
+      await this.persistActiveDownloads();
+
+      // Cancel notification
+      await notificationService.cancelDownloadNotification(downloadId);
     } catch (error) {
-      console.error('Error checking download status:', error);
-      return {
-        status: 'failed',
-        reason: error.message
-      };
+      console.error('Error canceling download:', error);
+      throw error;
     }
   }
 
@@ -630,180 +612,64 @@ class ModelDownloader extends EventEmitter {
     }
   }
 
-  async pauseDownload(downloadId: number): Promise<void> {
-    const downloadResumable = this.downloadResumables.get(downloadId);
-    if (!downloadResumable) {
-      throw new Error('Download not found');
-    }
-
+  async checkBackgroundDownloads(): Promise<void> {
     try {
-      const filename = this.operationsInProgress.get(downloadId);
-      if (!filename) {
-        throw new Error('Download operation not found');
-      }
+      // Load active downloads from storage
+      const savedDownloads = await AsyncStorage.getItem('active_downloads');
+      if (!savedDownloads) return;
 
-      // Get the URL from pending downloads
-        const pendingDownloads = await AsyncStorage.getItem('pendingDownloads') || '{}';
-        const downloads = JSON.parse(pendingDownloads);
-        const downloadInfo = downloads[downloadId];
+      const downloads = JSON.parse(savedDownloads) as Record<string, ActiveDownload>;
       
-      if (!downloadInfo) {
-        throw new Error('Download info not found');
-      }
+      // Check each download
+      for (const [filename, download] of Object.entries(downloads)) {
+        if (download.status !== 'downloading') continue;
 
-      // Save resumable data BEFORE pausing
-      const resumableData = await downloadResumable.savable();
-      
-      if (this.downloadProgress[filename]) {
-        const currentProgress = this.downloadProgress[filename];
-        currentProgress.status = 'paused';
-        
-        // Save all necessary data for resumption
-        await Promise.all([
-          // Save the current progress
-          this.saveProgressToStorage(filename, {
-            ...currentProgress,
-            downloadId
-          }),
+        try {
+          // Check file status
+          const filePath = `${this.baseDir}/${filename}`;
+          const fileInfo = await FileSystem.getInfoAsync(filePath);
           
-          // Save the resumable data with URL
-          AsyncStorage.setItem(
-            `download_resumable_${downloadId}`,
-            JSON.stringify({
-              url: downloadInfo.url,
-              options: downloadResumable.options,
-              resumeData: resumableData
-            })
-          ),
-          
-          // Make sure pending download is saved
-          this.savePendingDownload(downloadId, downloadInfo.url, filename)
-        ]);
-        
-        // Pause the download but keep it in our maps
-        await downloadResumable.pauseAsync();
-        
-        // Emit the paused state
-        this.emit('downloadProgress', { modelName: filename, ...currentProgress });
-      }
-    } catch (error) {
-      console.error('Error pausing download:', error);
-      throw error;
-    }
-  }
+          if (fileInfo.exists) {
+            // Update notification if we have permission
+            if (this.hasNotificationPermission) {
+              const formattedSize = (download.totalBytes / (1024 * 1024)).toFixed(1);
+              const formattedProgress = (download.bytesDownloaded / (1024 * 1024)).toFixed(1);
+              
+              await Notifications.scheduleNotificationAsync({
+                content: {
+                  title: `Downloading ${filename}`,
+                  body: `${download.progress}% complete (${formattedProgress}MB / ${formattedSize}MB)`,
+                  data: { downloadId: download.downloadId, type: 'download_progress' },
+                },
+                trigger: null,
+              });
+            }
 
-  async resumeDownload(downloadId: number): Promise<void> {
-    const downloadResumable = this.downloadResumables.get(downloadId);
-    if (!downloadResumable) {
-      throw new Error('Download not found');
-    }
-
-    try {
-      const filename = this.operationsInProgress.get(downloadId);
-      if (!filename) {
-        throw new Error('Download operation not found');
-      }
-
-      if (this.downloadProgress[filename]) {
-        this.downloadProgress[filename].status = 'downloading';
-        
-        // Update the state to downloading
-        await this.saveDownloadState(downloadId, {
-          status: 'downloading',
-          progress: this.downloadProgress[filename].progress,
-          bytesDownloaded: this.downloadProgress[filename].bytesDownloaded,
-          totalBytes: this.downloadProgress[filename].totalBytes
-        });
-
-        // Save progress to AsyncStorage
-        await this.saveProgressToStorage(filename, {
-          ...this.downloadProgress[filename],
-          downloadId
-        });
-        
-        this.emit('downloadProgress', { modelName: filename, ...this.downloadProgress[filename] });
-      }
-          
-          const result = await downloadResumable.resumeAsync();
-          
-          if (result) {
-        // Clean up after successful download
-            await this.removePendingDownload(downloadId);
-            this.downloadResumables.delete(downloadId);
-        this.operationsInProgress.delete(downloadId);
-            await AsyncStorage.removeItem(`download_resumable_${downloadId}`);
-        await AsyncStorage.removeItem(`download_states_${downloadId}`);
-        await this.removeProgressFromStorage(filename);
-            
-            const finalProgress = {
-              progress: 100,
-              bytesDownloaded: result.totalBytesWritten || 0,
-              totalBytes: result.totalBytesWritten || 0,
-              status: 'completed',
-              downloadId
-            };
-            
-        if (this.downloadProgress[filename]) {
-          this.downloadProgress[filename] = finalProgress;
-          this.emit('downloadProgress', { modelName: filename, ...finalProgress });
-            
-            setTimeout(() => {
-            delete this.downloadProgress[filename];
-            this.emit('downloadProgress', { modelName: filename, ...finalProgress });
-            }, 1000);
-        }
-        }
-      } catch (error) {
-        console.error('Error resuming download:', error);
-        throw error;
-    }
-  }
-
-  async checkBackgroundDownloads() {
-    try {
-      // Check if any downloads completed in the background
-      const pendingDownloads = await AsyncStorage.getItem('pendingDownloads') || '{}';
-      const downloads = JSON.parse(pendingDownloads);
-      
-      for (const [downloadId, data] of Object.entries(downloads)) {
-        const { filename } = data as { url: string; filename: string };
-        const filePath = `${this.baseDir}/${filename}`;
-        
-        // Check if the file exists and is complete
-        const fileInfo = await FileSystem.getInfoAsync(filePath);
-        if (fileInfo.exists) {
-          // If the file exists but we still have it in pending downloads,
-          // it might have completed in the background
-          console.log(`Found potentially completed background download: ${filename}`);
-          
-          // Remove from pending downloads
-          await this.removePendingDownload(Number(downloadId));
-          
-          // Remove any saved resumable data
-          await AsyncStorage.removeItem(`download_resumable_${downloadId}`);
-          
-          // Emit a completed event
-          const finalProgress = {
-            progress: 100,
-            bytesDownloaded: fileInfo.size || 0,
-            totalBytes: fileInfo.size || 0,
-            status: 'completed',
-            downloadId: Number(downloadId)
-          };
-          
+            // Emit progress event
           this.emit('downloadProgress', { 
             modelName: filename, 
-            ...finalProgress 
-          });
+              progress: download.progress,
+              bytesDownloaded: download.bytesDownloaded,
+              totalBytes: download.totalBytes,
+              status: download.status,
+              downloadId: download.downloadId
+            });
+          }
+        } catch (error) {
+          console.error(`Error checking download status for ${filename}:`, error);
         }
       }
     } catch (error) {
       console.error('Error checking background downloads:', error);
+      throw error;
     }
   }
 
-  public cleanup() {
+  cleanup() {
     AppState.removeEventListener('change', this.handleAppStateChange);
+    if (this._notificationSubscription) {
+      this._notificationSubscription.remove();
+    }
   }
 }
 

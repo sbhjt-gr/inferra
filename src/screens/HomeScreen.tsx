@@ -12,6 +12,7 @@ import {
   Alert,
   Clipboard,
   ToastAndroid,
+  Modal,
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
@@ -26,6 +27,7 @@ import { RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList, TabParamList } from '../types/navigation';
 import { useModel } from '../context/ModelContext';
+import * as Device from 'expo-device';
 
 type Message = {
   id: string;
@@ -140,12 +142,13 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   const [currentChatId, setCurrentChatId] = useState<string>(Date.now().toString());
   const [shouldOpenModelSelector, setShouldOpenModelSelector] = useState(false);
   const [preselectedModelPath, setPreselectedModelPath] = useState<string | null>(null);
-  const { isModelLoading } = useModel();
+  const { isModelLoading, unloadModel } = useModel();
   const [showCopyToast, setShowCopyToast] = useState(false);
   const copyToastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const copyToastMessageRef = useRef<string>('Copied to clipboard');
   const [isRegenerating, setIsRegenerating] = useState(false);
   const cancelGenerationRef = useRef<boolean>(false);
+  const [showMemoryWarning, setShowMemoryWarning] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -185,6 +188,31 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         clearTimeout(copyToastTimeoutRef.current);
       }
     };
+  }, []);
+
+  useEffect(() => {
+    const checkSystemMemory = async () => {
+      try {
+        // Check if warning has been shown before
+        const hasShownWarning = await AsyncStorage.getItem('@memory_warning_shown');
+        if (hasShownWarning === 'true') {
+          return;
+        }
+
+        // Get device memory
+        const memory = Device.totalMemory;
+        if (!memory) return;
+
+        const memoryGB = memory / (1024 * 1024 * 1024);
+        if (memoryGB < 7) {
+          setShowMemoryWarning(true);
+        }
+      } catch (error) {
+        console.error('Error checking system memory:', error);
+      }
+    };
+
+    checkSystemMemory();
   }, []);
 
   const loadMessages = async () => {
@@ -257,26 +285,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   };
 
   const handleCancelGeneration = useCallback(() => {
-    cancelGenerationRef.current = true;
-    setIsLoading(false);
-    
-    // Update the last message to indicate cancellation
-    setMessages(prev => {
-      const updated = [...prev];
-      const lastMessage = updated[updated.length - 1];
-      if (lastMessage.role === 'assistant') {
-        updated[updated.length - 1] = {
-          ...lastMessage,
-          content: lastMessage.content + " [Cancelled]",
-          stats: {
-            duration: lastMessage.stats?.duration || 0,
-            tokens: lastMessage.stats?.tokens || 0,
-          },
-        };
-      }
-      return updated;
-    });
-  }, []);
+    unloadModel();
+  }, [unloadModel]);
 
   const processMessage = async () => {
     if (!message.trim()) return;
@@ -672,7 +682,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       ]}>
         <View style={styles.messageHeader}>
           <Text style={[styles.roleLabel, { color: item.role === 'user' ? '#fff' : themeColors.text }]}>
-            {item.role === 'user' ? 'You' : 'Assistant'}
+            {item.role === 'user' ? 'You' : 'Model'}
           </Text>
           <TouchableOpacity 
             style={styles.copyButton} 
@@ -879,6 +889,15 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     setChatHistories([]);
   };
 
+  const handleMemoryWarningClose = async () => {
+    try {
+      await AsyncStorage.setItem('@memory_warning_shown', 'true');
+      setShowMemoryWarning(false);
+    } catch (error) {
+      console.error('Error saving memory warning state:', error);
+    }
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: themeColors.background }]}>
       <AppHeader />
@@ -908,6 +927,46 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
           <Ionicons name="time-outline" size={22} color="#fff" />
         </TouchableOpacity>
       </View>
+
+      {/* Memory Warning Modal */}
+      <Modal
+        visible={showMemoryWarning}
+        transparent
+        animationType="fade"
+        onRequestClose={handleMemoryWarningClose}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: themeColors.borderColor }]}>
+            <View style={styles.modalHeader}>
+              <Ionicons name="warning-outline" size={32} color="#FFA726" />
+              <Text style={[styles.modalTitle, { color: themeColors.text }]}>
+                Low Memory Warning
+              </Text>
+            </View>
+            
+            <Text style={[styles.modalText, { color: themeColors.text }]}>
+              Your device has less than 8GB of RAM. Large language models require significant memory to run efficiently. You may experience:
+            </Text>
+            
+            <View style={styles.bulletPoints}>
+              <Text style={[styles.bulletPoint, { color: themeColors.text }]}>• Slower response times</Text>
+              <Text style={[styles.bulletPoint, { color: themeColors.text }]}>• Potential app crashes</Text>
+              <Text style={[styles.bulletPoint, { color: themeColors.text }]}>• Limited model size support</Text>
+            </View>
+            
+            <Text style={[styles.modalText, { color: themeColors.text, marginTop: 8 }]}>
+              Although, you can still continue using this app, but optimal performance, consider using a phone with more RAM.
+            </Text>
+
+            <TouchableOpacity
+              style={[styles.modalButton, { backgroundColor: themeColors.headerBackground }]}
+              onPress={handleMemoryWarningClose}
+            >
+              <Text style={styles.modalButtonText}>I Understand</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       <KeyboardAvoidingView 
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -1259,5 +1318,58 @@ const styles = StyleSheet.create({
   },
   messageContainer: {
     marginVertical: 4,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 400,
+    borderRadius: 16,
+    padding: 24,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 12,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+  },
+  modalText: {
+    fontSize: 15,
+    lineHeight: 22,
+    marginBottom: 8,
+  },
+  bulletPoints: {
+    marginVertical: 12,
+    paddingLeft: 8,
+  },
+  bulletPoint: {
+    fontSize: 15,
+    lineHeight: 24,
+  },
+  modalButton: {
+    marginTop: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  modalButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 }); 

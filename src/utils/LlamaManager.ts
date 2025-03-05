@@ -60,7 +60,7 @@ class LlamaManager {
     }
 
     const stopWords = [
-      '</s>', '<|end|>', 'User:', 'Assistant:', '\n\n\n',
+      '</s>', '<|end|>', 
       '<|im_end|>', '<|endoftext|>','<｜end▁of▁sentence｜>','<｜end_of_sentence｜>'
     ];
 

@@ -3,27 +3,23 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface DownloadProgress {
   [key: string]: {
-    downloadId: number;
     progress: number;
     bytesDownloaded: number;
     totalBytes: number;
     status: string;
+    downloadId: number;
   };
 }
 
 interface DownloadContextType {
   downloadProgress: DownloadProgress;
   setDownloadProgress: React.Dispatch<React.SetStateAction<DownloadProgress>>;
-  activeDownloadsCount: number;
 }
 
 const DownloadContext = createContext<DownloadContextType | undefined>(undefined);
 
 export const DownloadProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [downloadProgress, setDownloadProgress] = useState<DownloadProgress>({});
-  const activeDownloadsCount = Object.values(downloadProgress).filter(
-    d => d.status !== 'completed' && d.status !== 'failed' && d.progress < 100
-  ).length;
 
   // Load saved download states on mount
   useEffect(() => {
@@ -67,7 +63,7 @@ export const DownloadProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, [downloadProgress]);
 
   return (
-    <DownloadContext.Provider value={{ downloadProgress, setDownloadProgress, activeDownloadsCount }}>
+    <DownloadContext.Provider value={{ downloadProgress, setDownloadProgress }}>
       {children}
     </DownloadContext.Provider>
   );

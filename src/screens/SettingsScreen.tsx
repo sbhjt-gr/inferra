@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, Switch, Platform, ScrollView, TouchableOpacity, Linking } from 'react-native';
 import { CompositeNavigationProp } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
@@ -9,6 +9,8 @@ import { theme } from '../constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AppHeader from '../components/AppHeader';
+import * as Device from 'expo-device';
+import Constants from 'expo-constants';
 
 type SettingsScreenProps = {
   navigation: CompositeNavigationProp<
@@ -43,6 +45,37 @@ const SettingsSection = ({ title, children }: SettingsSectionProps) => {
 export default function SettingsScreen({ navigation }: SettingsScreenProps) {
   const { theme: currentTheme, selectedTheme, toggleTheme } = useTheme();
   const themeColors = theme[currentTheme];
+  const [showSystemInfo, setShowSystemInfo] = useState(false);
+  const [systemInfo, setSystemInfo] = useState({
+    totalMemory: 'Unknown',
+    deviceName: Device.deviceName || 'Unknown Device',
+    osVersion: Device.osVersion || 'Unknown',
+    cpuCores: 'Unknown',
+    gpu: 'Unknown'
+  });
+
+  useEffect(() => {
+    const getSystemInfo = async () => {
+      try {
+        const memory = Device.totalMemory;
+        const memoryGB = memory ? (memory / (1024 * 1024 * 1024)).toFixed(1) : 'Unknown';
+        
+        // Get CPU cores
+        const cpuCores = Device.supportedCpuArchitectures?.join(', ') || 'Unknown';
+        
+        setSystemInfo(prev => ({
+          ...prev,
+          totalMemory: `${memoryGB} GB`,
+          cpuCores,
+          gpu: Device.modelName || 'Unknown' // Best approximation for GPU in mobile devices
+        }));
+      } catch (error) {
+        console.error('Error getting system info:', error);
+      }
+    };
+
+    getSystemInfo();
+  }, []);
 
   const handleThemeChange = async (newTheme: ThemeOption) => {
     try {
@@ -100,12 +133,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     <View style={[styles.container, { backgroundColor: themeColors.background }]}>
       <AppHeader />
       <ScrollView contentContainerStyle={styles.contentContainer}>
-        <View style={styles.header}>
-          <View style={styles.appInfo}>
-            <Text style={[styles.appName, { color: themeColors.text }]}>Ragionare</Text>
-            <Text style={[styles.appVersion, { color: themeColors.secondaryText }]}>Version 1.0.0</Text>
-          </View>
-        </View>
 
         <SettingsSection title="APPEARANCE">
           <ThemeOption
@@ -189,6 +216,116 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
             </View>
             <Ionicons name="chevron-forward" size={20} color={themeColors.secondaryText} />
           </TouchableOpacity>
+        </SettingsSection>
+
+        <SettingsSection title="SYSTEM INFO">
+          <TouchableOpacity 
+            style={[styles.settingItem]}
+            onPress={() => setShowSystemInfo(!showSystemInfo)}
+          >
+            <View style={styles.settingLeft}>
+              <View style={[styles.iconContainer, { backgroundColor: themeColors.primary + '20' }]}>
+                <Ionicons name="information-circle-outline" size={22} color={themeColors.primary} />
+              </View>
+              <View style={styles.settingTextContainer}>
+                <Text style={[styles.settingText, { color: themeColors.text }]}>
+                  Device Information
+                </Text>
+                <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
+                  Tap to {showSystemInfo ? 'hide' : 'view'} system details
+                </Text>
+              </View>
+            </View>
+            <Ionicons 
+              name={showSystemInfo ? "chevron-up" : "chevron-down"} 
+              size={20} 
+              color={themeColors.secondaryText} 
+            />
+          </TouchableOpacity>
+
+          {showSystemInfo && (
+            <>
+              <View style={[styles.settingItem, styles.settingItemBorder]}>
+                <View style={styles.settingLeft}>
+                  <View style={[styles.iconContainer, { backgroundColor: themeColors.primary + '20' }]}>
+                    <Ionicons name="phone-portrait-outline" size={22} color={themeColors.primary} />
+                  </View>
+                  <View style={styles.settingTextContainer}>
+                    <Text style={[styles.settingText, { color: themeColors.text }]}>
+                      Platform
+                    </Text>
+                    <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
+                      {Device.osName} {systemInfo.osVersion}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              <View style={[styles.settingItem, styles.settingItemBorder]}>
+                <View style={styles.settingLeft}>
+                  <View style={[styles.iconContainer, { backgroundColor: themeColors.primary + '20' }]}>
+                    <Ionicons name="hardware-chip-outline" size={22} color={themeColors.primary} />
+                  </View>
+                  <View style={styles.settingTextContainer}>
+                    <Text style={[styles.settingText, { color: themeColors.text }]}>
+                      CPU
+                    </Text>
+                    <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
+                      {systemInfo.cpuCores}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              <View style={[styles.settingItem, styles.settingItemBorder]}>
+                <View style={styles.settingLeft}>
+                  <View style={[styles.iconContainer, { backgroundColor: themeColors.primary + '20' }]}>
+                    <Ionicons name="save-outline" size={22} color={themeColors.primary} />
+                  </View>
+                  <View style={styles.settingTextContainer}>
+                    <Text style={[styles.settingText, { color: themeColors.text }]}>
+                      Memory
+                    </Text>
+                    <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
+                      {systemInfo.totalMemory}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              <View style={[styles.settingItem, styles.settingItemBorder]}>
+                <View style={styles.settingLeft}>
+                  <View style={[styles.iconContainer, { backgroundColor: themeColors.primary + '20' }]}>
+                    <Ionicons name="phone-portrait-outline" size={22} color={themeColors.primary} />
+                  </View>
+                  <View style={styles.settingTextContainer}>
+                    <Text style={[styles.settingText, { color: themeColors.text }]}>
+                      Device
+                    </Text>
+                    <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
+                      {systemInfo.deviceName}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              <View style={[styles.settingItem, styles.settingItemBorder]}>
+                <View style={styles.settingLeft}>
+                  <View style={[styles.iconContainer, { backgroundColor: themeColors.primary + '20' }]}>
+                    <Ionicons name="apps-outline" size={22} color={themeColors.primary} />
+                  </View>
+                  <View style={styles.settingTextContainer}>
+                    <Text style={[styles.settingText, { color: themeColors.text }]}>
+                      App Version
+                    </Text>
+                    <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
+                      {Constants.expoConfig?.version || '1.0.0'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </>
+          )}
         </SettingsSection>
       </ScrollView>
     </View>

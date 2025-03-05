@@ -38,12 +38,14 @@ try {
 // Register the background fetch task
 async function registerBackgroundFetchAsync() {
   try {
+    // Register with more aggressive settings
     await BackgroundFetch.registerTaskAsync(BACKGROUND_DOWNLOAD_TASK, {
-      minimumInterval: 60, // 1 minute
-      stopOnTerminate: false,
-      startOnBoot: true,
+      minimumInterval: 30, // Check every 30 seconds
+      stopOnTerminate: false, // Continue running even if the app is terminated
+      startOnBoot: true // Start the task when the device restarts
     });
-    console.log('Background fetch task registered');
+    
+    console.log('Background fetch task registered with enhanced settings');
   } catch (err) {
     console.error('Background fetch registration failed:', err);
   }
@@ -131,15 +133,12 @@ function Navigation() {
     initializeNotifications();
 
     return () => {
-      // Unregister the background fetch task when the component unmounts
-      if (Platform.OS === 'ios' || Platform.OS === 'android') {
-        try {
-          BackgroundFetch.unregisterTaskAsync(BACKGROUND_DOWNLOAD_TASK).catch(error => {
-            console.error('Error unregistering background fetch:', error);
-          });
-        } catch (error) {
-          console.error('Error in cleanup function:', error);
-        }
+      // Cleanup when component unmounts
+      try {
+        // Unregister the background fetch task
+        BackgroundFetch.unregisterTaskAsync(BACKGROUND_DOWNLOAD_TASK);
+      } catch (error) {
+        console.error('Error cleaning up background fetch:', error);
       }
     };
   }, []);
