@@ -22,8 +22,7 @@ import AppHeader from '../components/AppHeader';
 import { useFocusEffect } from '@react-navigation/native';
 import Markdown from 'react-native-markdown-display';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Menu, MenuItem } from 'react-native-material-menu';
-import { useNavigation, RouteProp, useRoute } from '@react-navigation/native';
+import { RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList, TabParamList } from '../types/navigation';
 import { useModel } from '../context/ModelContext';
@@ -259,11 +258,31 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
 
   const handleCancelGeneration = useCallback(() => {
     cancelGenerationRef.current = true;
-    // We'll let the generation loop detect this flag and stop
+    setIsLoading(false);
+    
+    // Update the last message to indicate cancellation
+    setMessages(prev => {
+      const updated = [...prev];
+      const lastMessage = updated[updated.length - 1];
+      if (lastMessage.role === 'assistant') {
+        updated[updated.length - 1] = {
+          ...lastMessage,
+          content: lastMessage.content + " [Cancelled]",
+          stats: {
+            duration: lastMessage.stats?.duration || 0,
+            tokens: lastMessage.stats?.tokens || 0,
+          },
+        };
+      }
+      return updated;
+    });
   }, []);
 
   const processMessage = async () => {
     if (!message.trim()) return;
+
+    // Reset cancellation flag at the start of new generation
+    cancelGenerationRef.current = false;
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -307,7 +326,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         (token) => {
           // Check if cancellation was requested
           if (cancelGenerationRef.current) {
-            throw new Error('Generation cancelled by user');
+            return false; // Return false to stop generation instead of throwing error
           }
 
           tokenCount++;
@@ -368,28 +387,28 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     } catch (error) {
       console.error('Error generating response:', error);
       
-      // Only show alert if it wasn't a cancellation
-      if (!cancelGenerationRef.current) {
-      Alert.alert('Error', 'Failed to generate response');
-      } else {
-        // If cancelled, update the last message to indicate cancellation
-        setMessages(prev => {
-          const updated = [...prev];
-          const lastMessage = updated[updated.length - 1];
-          if (lastMessage.role === 'assistant') {
-            updated[updated.length - 1] = {
-              ...lastMessage,
-              content: fullResponse + " [Cancelled]",
-              thinking: thinking,
-              stats: {
-                duration: (Date.now() - startTime) / 1000,
-                tokens: tokenCount,
-              },
-            };
-          }
-          return updated;
-        });
+      // Handle any errors that aren't cancellation
+      if (error instanceof Error && !error.message.includes('cancelled')) {
+        Alert.alert('Error', 'Failed to generate response');
       }
+      
+      // Always update the message for any error case
+      setMessages(prev => {
+        const updated = [...prev];
+        const lastMessage = updated[updated.length - 1];
+        if (lastMessage.role === 'assistant') {
+          updated[updated.length - 1] = {
+            ...lastMessage,
+            content: fullResponse + (cancelGenerationRef.current ? " [Cancelled]" : ""),
+            thinking: thinking,
+            stats: {
+              duration: (Date.now() - startTime) / 1000,
+              tokens: tokenCount,
+            },
+          };
+        }
+        return updated;
+      });
     } finally {
       setIsLoading(false);
       cancelGenerationRef.current = false;
@@ -603,296 +622,14 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
 
   const renderMessage = useCallback(({ item }: { item: Message }) => {
     return (
-    <View>
-      {item.role === 'assistant' && item.thinking && (
-        <View style={[styles.thinkingBubble, { backgroundColor: themeColors.borderColor }]}>
-            <View style={styles.thinkingContent}>
-          <Text style={[styles.thinkingText, { color: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.75)' }]}>
-            Reasoning:
+      <View style={[
+        styles.messageCard,
+        { backgroundColor: item.role === 'user' ? themeColors.headerBackground : themeColors.borderColor }
+      ]}>
+        <View style={styles.messageHeader}>
+          <Text style={[styles.roleLabel, { color: item.role === 'user' ? '#fff' : themeColors.text }]}>
+            {item.role === 'user' ? 'You' : 'Assistant'}
           </Text>
-              <Text 
-                style={[styles.thinkingContentText, { color: themeColors.text }]} 
-                selectable={true}
-              >
-            {item.thinking}
-          </Text>
-            </View>
-            
-            <TouchableOpacity 
-              style={styles.copyButton} 
-              onPress={() => copyToClipboard(item.thinking || '')}
-              hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
-            >
-              <Ionicons 
-                name="copy-outline" 
-                size={16} 
-                color={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.75)'} 
-              />
-            </TouchableOpacity>
-        </View>
-      )}
-      <View
-        style={[
-          styles.messageBubble,
-          item.role === 'user' ? styles.userMessage : styles.assistantMessage,
-          {
-            backgroundColor:
-              item.role === 'user' ? themeColors.headerBackground : themeColors.borderColor,
-          },
-        ]}
-      >
-          <View style={styles.messageBubbleContent}>
-            {/* For plain text content, use selectable Text */}
-            {!hasMarkdownFormatting(item.content) ? (
-              <Text 
-                selectable={true} 
-                style={{ 
-                  color: item.role === 'user' ? '#fff' : themeColors.text,
-                  fontSize: 16,
-                  lineHeight: 22,
-                }}
-              >
-                {item.content}
-              </Text>
-            ) : (
-              /* For markdown content, use Markdown component */
-              <View>
-                <Text 
-                  selectable={true} 
-                  style={{ 
-                    position: 'absolute', 
-                    opacity: 0, 
-                    height: 1, 
-                    width: '100%',
-                    zIndex: -1
-                  }}
-                >
-                  {item.content}
-                </Text>
-        <Markdown
-          style={{
-            body: {
-              color: item.role === 'user' ? '#fff' : themeColors.text,
-              fontSize: 16,
-              lineHeight: 22,
-            },
-            paragraph: {
-              marginVertical: 0,
-            },
-                    code_block: {
-                      backgroundColor: '#1e1e1e',
-                      borderRadius: 8,
-                      padding: 12,
-                      marginVertical: 4,
-                      position: 'relative',
-                    },
-                    fence: {
-                      backgroundColor: '#1e1e1e',
-                      borderRadius: 8,
-                      padding: 12,
-                      marginVertical: 4,
-                      position: 'relative',
-                    },
-                    code_inline: {
-                      color: '#fff',
-                      backgroundColor: '#1e1e1e',
-                      borderRadius: 4,
-                      paddingHorizontal: 4,
-                      paddingVertical: 2,
-                      fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-                      fontSize: 12,
-                    },
-                    text: {
-                      color: item.role === 'user' ? '#fff' : themeColors.text,
-                    },
-                    code_block_text: {
-                      color: '#fff',
-                      fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-                      fontSize: 12,
-                    },
-                    fence_text: {
-                      color: '#fff',
-                      fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-                      fontSize: 12,
-                    },
-                    pre: {
-                      backgroundColor: '#1e1e1e',
-                      color: '#fff',
-                    },
-                    code: {
-                      color: '#fff',
-                      fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-                    },
-                    strong: {
-                      fontWeight: 'bold',
-                      color: item.role === 'user' ? '#fff' : themeColors.text,
-                    },
-                    em: {
-                      fontStyle: 'italic',
-                      color: item.role === 'user' ? '#fff' : themeColors.text,
-                    },
-                    heading1: {
-                      fontSize: 24,
-                      fontWeight: 'bold',
-                      marginTop: 12,
-                      marginBottom: 6,
-                      color: item.role === 'user' ? '#fff' : themeColors.text,
-                    },
-                    heading2: {
-                      fontSize: 22,
-                      fontWeight: 'bold',
-                      marginTop: 10,
-                      marginBottom: 5,
-                      color: item.role === 'user' ? '#fff' : themeColors.text,
-                    },
-                    heading3: {
-                      fontSize: 20,
-                      fontWeight: 'bold',
-                      marginTop: 8,
-                      marginBottom: 4,
-                      color: item.role === 'user' ? '#fff' : themeColors.text,
-                    },
-                    heading4: {
-                      fontSize: 18,
-                      fontWeight: 'bold',
-                      marginTop: 6,
-                      marginBottom: 3,
-                      color: item.role === 'user' ? '#fff' : themeColors.text,
-                    },
-                    heading5: {
-                      fontSize: 17,
-                      fontWeight: 'bold',
-                      marginTop: 4,
-                      marginBottom: 2,
-                      color: item.role === 'user' ? '#fff' : themeColors.text,
-                    },
-                    heading6: {
-                      fontSize: 16,
-                      fontWeight: 'bold',
-                      marginTop: 4,
-                      marginBottom: 2,
-                      color: item.role === 'user' ? '#fff' : themeColors.text,
-                    },
-                    link: {
-                      color: item.role === 'user' ? '#9cc7ff' : '#0366d6',
-                      textDecorationLine: 'underline',
-                    },
-                    blockquote: {
-                      borderLeftWidth: 4,
-                      borderLeftColor: item.role === 'user' ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.1)',
-                      paddingLeft: 8,
-                      marginLeft: 8,
-                      marginVertical: 4,
-                    },
-                    bullet_list: {
-                      marginVertical: 4,
-                    },
-                    ordered_list: {
-                      marginVertical: 4,
-                    },
-                    list_item: {
-                      flexDirection: 'row',
-                      marginVertical: 2,
-                    },
-                    bullet_list_icon: {
-                      marginRight: 6,
-                      color: item.role === 'user' ? '#fff' : themeColors.text,
-                    },
-                    ordered_list_icon: {
-                      marginRight: 6,
-                      color: item.role === 'user' ? '#fff' : themeColors.text,
-                    },
-                    s: {
-                      textDecorationLine: 'line-through',
-                      color: item.role === 'user' ? '#fff' : themeColors.text,
-                    },
-                    table: {
-                      borderWidth: 1,
-                      borderColor: item.role === 'user' ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.1)',
-                      borderRadius: 4,
-                      marginVertical: 8,
-                    },
-                    thead: {
-                      backgroundColor: item.role === 'user' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
-                    },
-                    th: {
-                      padding: 6,
-                      fontWeight: 'bold',
-                      color: item.role === 'user' ? '#fff' : themeColors.text,
-                    },
-                    tr: {
-                      borderBottomWidth: 1,
-                      borderBottomColor: item.role === 'user' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
-                    },
-                    td: {
-                      padding: 6,
-                      color: item.role === 'user' ? '#fff' : themeColors.text,
-                    },
-          }}
-          rules={{
-            strong: (node, children, parent, styles) => (
-              <Text key={node.key} style={styles.strong} selectable={true}>
-                {children}
-              </Text>
-            ),
-            text: (node, children, parent, styles) => (
-              <Text key={node.key} style={styles.text} selectable={true}>
-                {node.content}
-              </Text>
-            ),
-            em: (node, children, parent, styles) => (
-              <Text key={node.key} style={styles.em} selectable={true}>
-                {children}
-              </Text>
-            ),
-            s: (node, children, parent, styles) => (
-              <Text key={node.key} style={styles.s} selectable={true}>
-                {children}
-              </Text>
-            ),
-            code_block: (node, children, parent, styles) => (
-              <View key={node.key} style={styles.code_block}>
-                <Text selectable={true} style={styles.code_block_text}>
-                  {node.content}
-                </Text>
-                <TouchableOpacity 
-                  style={styles.codeBlockCopyButton}
-                  onPress={() => {
-                    copyToClipboard(node.content);
-                    copyToastMessageRef.current = 'Code copied to clipboard';
-                  }}
-                  hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
-                >
-                  <Ionicons name="copy-outline" size={14} color="#fff" />
-                </TouchableOpacity>
-              </View>
-            ),
-            fence: (node, children, parent, styles) => (
-              <View key={node.key} style={styles.fence}>
-                <Text selectable={true} style={styles.fence_text}>
-                  {node.content}
-                </Text>
-                <TouchableOpacity 
-                  style={styles.codeBlockCopyButton}
-                  onPress={() => {
-                    copyToClipboard(node.content);
-                    copyToastMessageRef.current = 'Code copied to clipboard';
-                  }}
-                  hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
-                >
-                  <Ionicons name="copy-outline" size={14} color="#fff" />
-                </TouchableOpacity>
-              </View>
-            )
-          }}
-        >
-          {item.content}
-        </Markdown>
-              </View>
-            )}
-          </View>
-          
-          {/* Copy button */}
           <TouchableOpacity 
             style={styles.copyButton} 
             onPress={() => copyToClipboard(item.content)}
@@ -901,46 +638,129 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             <Ionicons 
               name="copy-outline" 
               size={16} 
-              color="pink"
+              color={item.role === 'user' ? '#fff' : themeColors.text} 
             />
           </TouchableOpacity>
-      </View>
-      {item.role === 'assistant' && item.stats && (
-        <View style={styles.statsContainer}>
-          <Text style={[styles.statsText, { color: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.75)' }]}>
-              {`${item.stats.tokens.toLocaleString()} tokens · ${item.stats.duration.toFixed(1)}s`}
-          </Text>
+        </View>
+
+        {!hasMarkdownFormatting(item.content) ? (
+          <View style={styles.messageContent}>
+            <Text 
+              style={[
+                styles.messageText,
+                { color: item.role === 'user' ? '#fff' : themeColors.text }
+              ]}
+              selectable={true}
+            >
+              {item.content}
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.markdownWrapper}>
+            <Markdown
+              style={{
+                body: {
+                  color: item.role === 'user' ? '#fff' : themeColors.text,
+                  fontSize: 16,
+                  lineHeight: 22,
+                },
+                paragraph: {
+                  marginVertical: 0,
+                },
+                code_block: {
+                  backgroundColor: '#1e1e1e',
+                  borderRadius: 8,
+                  padding: 12,
+                  marginVertical: 4,
+                },
+                fence: {
+                  backgroundColor: '#1e1e1e',
+                  borderRadius: 8,
+                  padding: 12,
+                  marginVertical: 4,
+                },
+                code_inline: {
+                  color: '#fff',
+                  backgroundColor: '#1e1e1e',
+                  borderRadius: 4,
+                  paddingHorizontal: 4,
+                  paddingVertical: 2,
+                  fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+                  fontSize: 14,
+                },
+                text: {
+                  color: item.role === 'user' ? '#fff' : themeColors.text,
+                }
+              }}
+            >
+              {item.content}
+            </Markdown>
+          </View>
+        )}
+
+        {item.role === 'assistant' && item.stats && (
+          <View style={styles.statsContainer}>
+            <Text style={[styles.statsText, { color: themeColors.secondaryText }]}>
+              {`${item.stats.tokens.toLocaleString()} tokens generated`}
+            </Text>
             
             {item === messages[messages.length - 1] && (
               <TouchableOpacity 
                 style={[
-                  styles.regenerateButtonRow,
+                  styles.regenerateButton,
                   isRegenerating && styles.regenerateButtonDisabled
                 ]}
-                onPress={() => {
-                  handleRegenerate();
-                }}
+                onPress={handleRegenerate}
                 disabled={isLoading || isRegenerating}
               >
                 {isRegenerating ? (
-                  <ActivityIndicator size="small" color={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.75)'} />
+                  <ActivityIndicator size="small" color={themeColors.secondaryText} />
                 ) : (
                   <>
                     <Ionicons 
                       name="refresh-outline" 
                       size={14} 
-                      color={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.75)'} 
+                      color={themeColors.secondaryText}
                     />
-                    <Text style={[styles.regenerateButtonText, { color: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.75)' }]}>
+                    <Text style={[styles.regenerateButtonText, { color: themeColors.secondaryText }]}>
                       Regenerate.
                     </Text>
                   </>
                 )}
               </TouchableOpacity>
             )}
-        </View>
-      )}
-    </View>
+          </View>
+        )}
+
+        {item.role === 'assistant' && item.thinking && (
+          <View style={[styles.thinkingCard, { backgroundColor: themeColors.borderColor }]}>
+            <View style={styles.messageHeader}>
+              <Text style={[styles.roleLabel, { color: themeColors.text }]}>
+                Reasoning
+              </Text>
+              <TouchableOpacity 
+                style={styles.copyButton} 
+                onPress={() => copyToClipboard(item.thinking || '')}
+                hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+              >
+                <Ionicons 
+                  name="copy-outline" 
+                  size={16} 
+                  color={themeColors.text} 
+                />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.messageContent}>
+              <Text 
+                style={[styles.messageText, { color: themeColors.text }]} 
+                selectable={true}
+              >
+                {item.thinking}
+              </Text>
+            </View>
+          </View>
+        )}
+      </View>
     );
   }, [themeColors, messages, isLoading, isRegenerating, handleRegenerate, copyToClipboard]);
 
@@ -1080,6 +900,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
               isOpen={shouldOpenModelSelector}
               onClose={() => setShouldOpenModelSelector(false)}
               preselectedModelPath={preselectedModelPath}
+              isGenerating={isLoading || isRegenerating}
             />
           </View>
 
@@ -1202,30 +1023,92 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     width: '100%',
   },
-  messageBubble: {
-    maxWidth: '85%',
-    paddingLeft: 12,
-    paddingRight: 12,
-    borderRadius: 16,
+  messageCard: {
+    width: '100%',
+    borderRadius: 8,
     marginVertical: 4,
-    marginHorizontal: 16,
-    position: 'relative',
-    padding: 15,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
   },
-  messageBubbleContent: {
-    paddingRight: 24, // Make room for the copy button
+  messageHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 6,
+    borderBottomWidth: 0.5,
+    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
   },
-  userMessage: {
-    alignSelf: 'flex-end',
-    borderBottomRightRadius: 4,
+  roleLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'capitalize',
+    opacity: 0.7,
   },
-  assistantMessage: {
-    alignSelf: 'flex-start',
-    borderBottomLeftRadius: 4,
+  messageContent: {
+    padding: 12,
+    paddingTop: 8,
   },
   messageText: {
-    fontSize: 16,
+    fontSize: 15,
     lineHeight: 20,
+  },
+  markdownWrapper: {
+    padding: 12,
+    paddingTop: 8,
+  },
+  copyButton: {
+    padding: 4,
+    borderRadius: 4,
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    paddingHorizontal: 12,
+    paddingBottom: 8,
+    paddingTop: 4,
+    borderTopWidth: 0.5,
+    borderTopColor: 'rgba(0, 0, 0, 0.1)',
+  },
+  statsText: {
+    fontSize: 11,
+    opacity: 0.7,
+  },
+  regenerateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 8,
+    padding: 4,
+    borderRadius: 4,
+    opacity: 0.8,
+  },
+  regenerateButtonDisabled: {
+    opacity: 0.5,
+  },
+  regenerateButtonText: {
+    fontSize: 12,
+    marginLeft: 4,
+  },
+  modelSelectorWrapper: {
+    marginBottom: 16,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 16,
+  },
+  emptyStateText: {
+    fontSize: 16,
+    textAlign: 'center',
+    paddingHorizontal: 32,
   },
   inputContainer: {
     flexDirection: 'row',
@@ -1248,22 +1131,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  modelSelectorWrapper: {
-    marginBottom: 16,
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  emptyState: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 16,
-  },
-  emptyStateText: {
-    fontSize: 16,
-    textAlign: 'center',
-    paddingHorizontal: 32,
-  },
   inputContainerDisabled: {
     opacity: 0.7,
   },
@@ -1280,14 +1147,6 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
     fontSize: 12,
   },
-  copyButton: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    padding: 4,
-    borderRadius: 4,
-    backgroundColor: 'transparent',
-  },
   codeBlockCopyButton: {
     position: 'absolute',
     bottom: 8,
@@ -1298,36 +1157,6 @@ const styles = StyleSheet.create({
   },
   activeButton: {
     backgroundColor: '#4a0660',
-  },
-  statsContainer: {
-    marginHorizontal: 16,
-    marginTop: 4,
-  },
-  statsText: {
-    fontSize: 12,
-    opacity: 0.7,
-  },
-  thinkingBubble: {
-    padding: 12,
-    borderRadius: 16,
-    marginVertical: 8,
-    marginHorizontal: 16,
-    borderStyle: 'dashed',
-    borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.1)',
-    position: 'relative',
-  },
-  thinkingContent: {
-    paddingRight: 24, // Make room for the copy button
-  },
-  thinkingText: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  thinkingContentText: {
-    fontSize: 14,
-    lineHeight: 20,
   },
   headerButtons: {
     position: 'absolute',
@@ -1365,21 +1194,6 @@ const styles = StyleSheet.create({
     marginVertical: 4,
     position: 'relative',
   },
-  regenerateButtonRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 6,
-    padding: 4,
-    borderRadius: 4,
-    alignSelf: 'flex-start',
-  },
-  regenerateButtonText: {
-    fontSize: 12,
-    marginLeft: 4,
-  },
-  regenerateButtonDisabled: {
-    opacity: 0.5,
-  },
   loadingButtonsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1394,5 +1208,19 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  thinkingCard: {
+    width: '100%',
+    borderRadius: 8,
+    marginTop: 4,
+    marginBottom: 4,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    borderWidth: 0.5,
+    borderColor: 'rgba(0, 0, 0, 0.1)',
+    borderStyle: 'dashed',
   },
 }); 

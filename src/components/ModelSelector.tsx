@@ -36,10 +36,11 @@ interface ModelSelectorProps {
   isOpen?: boolean;
   onClose?: () => void;
   preselectedModelPath?: string | null;
+  isGenerating?: boolean;
 }
 
 const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorProps>(
-  ({ isOpen, onClose, preselectedModelPath }, ref) => {
+  ({ isOpen, onClose, preselectedModelPath, isGenerating }, ref) => {
     const { theme: currentTheme } = useTheme();
     const themeColors = theme[currentTheme as ThemeColors];
     const [modalVisible, setModalVisible] = useState(false);
@@ -65,6 +66,13 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     }));
 
     const handleModelSelect = async (model: StoredModel) => {
+      if (isGenerating) {
+        Alert.alert(
+          'Model In Use',
+          'Cannot change model while generating a response. Please wait for the current generation to complete or cancel it.'
+        );
+        return;
+      }
       setModalVisible(false);
       await loadModel(model.path);
     };
@@ -72,7 +80,9 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     const handleUnloadModel = () => {
       Alert.alert(
         'Unload Model',
-        'Are you sure you want to unload the current model?',
+        isGenerating 
+          ? 'This will stop the current generation. Are you sure you want to unload the model?'
+          : 'Are you sure you want to unload the current model?',
         [
           {
             text: 'Cancel',
@@ -113,9 +123,11 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
         style={[
           styles.modelItem,
           { backgroundColor: themeColors.borderColor },
-          selectedModelPath === item.path && styles.selectedModelItem
+          selectedModelPath === item.path && styles.selectedModelItem,
+          isGenerating && styles.modelItemDisabled
         ]}
         onPress={() => handleModelSelect(item)}
+        disabled={isGenerating}
       >
         <View style={styles.modelIconContainer}>
           <Ionicons 
@@ -169,14 +181,32 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
       }
     }, [preselectedModelPath, models]);
 
+    // Add effect to close modal if generation starts
+    useEffect(() => {
+      if (isGenerating && modalVisible) {
+        setModalVisible(false);
+      }
+    }, [isGenerating]);
+
     return (
       <>
         <TouchableOpacity
-          style={[styles.selector, { backgroundColor: themeColors.borderColor }]}
+          style={[
+            styles.selector, 
+            { backgroundColor: themeColors.borderColor },
+            (isGenerating || isModelLoading) && styles.selectorDisabled
+          ]}
           onPress={() => {
+            if (isGenerating) {
+              Alert.alert(
+                'Model In Use',
+                'Cannot change model while generating a response. Please wait for the current generation to complete or cancel it.'
+              );
+              return;
+            }
             setModalVisible(true);
           }}
-          disabled={isModelLoading}
+          disabled={isModelLoading || isGenerating}
         >
           <View style={styles.selectorContent}>
             <View style={styles.modelIconWrapper}>
@@ -206,9 +236,16 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
             {selectedModelPath && !isModelLoading && (
               <TouchableOpacity 
                 onPress={handleUnloadModel}
-                style={styles.unloadButton}
+                style={[
+                  styles.unloadButton,
+                  isGenerating && styles.unloadButtonActive
+                ]}
               >
-                <Ionicons name="close-circle" size={20} color={themeColors.secondaryText} />
+                <Ionicons 
+                  name="close-circle" 
+                  size={20} 
+                  color={isGenerating ? '#d32f2f' : themeColors.secondaryText} 
+                />
               </TouchableOpacity>
             )}
             <Ionicons name="chevron-forward" size={20} color={themeColors.secondaryText} />
@@ -390,5 +427,16 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 16,
     lineHeight: 24,
+  },
+  selectorDisabled: {
+    opacity: 0.6,
+  },
+  modelItemDisabled: {
+    opacity: 0.6,
+  },
+  unloadButtonActive: {
+    backgroundColor: 'rgba(211, 47, 47, 0.1)',
+    borderRadius: 12,
+    padding: 4,
   },
 }); 

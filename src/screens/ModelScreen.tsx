@@ -69,7 +69,7 @@ const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "quantization": "Q3_K_S"
   },
   {
-    "name": "DeepSeek R1 Distill",
+    "name": "DeepSeek-R1 Distilled",
     "description": "Distilled version of DeepSeek's R1 model with balanced performance and efficiency.",
     "size": "3.8 GB  ",
     "huggingFaceLink": "https://huggingface.co/unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF/resolve/main/DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf",
@@ -931,7 +931,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
                     color={themeColors.secondaryText}
                   />
                   <Text style={[styles.emptyText, { color: themeColors.secondaryText }]}>
-                    No models downloaded yet
+                    No models downloaded yet. Go to the "Download Models" tab to get started.
                   </Text>
                 </View>
               }
