@@ -61,7 +61,7 @@ class LlamaManager {
 
     const stopWords = [
       '</s>', '<|end|>', 'User:', 'Assistant:', '\n\n\n',
-      '<|im_end|>', '<|endoftext|>'
+      '<|im_end|>', '<|endoftext|>','<｜end▁of▁sentence｜>','<｜end_of_sentence｜>'
     ];
 
     let fullResponse = '';

@@ -333,11 +333,11 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
 
           if (token.includes('<think>')) {
             isThinking = true;
-            return;
+            return true;
           }
           if (token.includes('</think>')) {
             isThinking = false;
-            return;
+            return true;
           }
 
           if (isThinking) {
@@ -346,6 +346,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             fullResponse += token;
           }
 
+          // Update message with current content and thinking
           setMessages(prev => {
             const updated = [...prev];
             const lastMessage = updated[updated.length - 1];
@@ -353,7 +354,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
               updated[updated.length - 1] = {
                 ...lastMessage,
                 content: fullResponse,
-                thinking: thinking,
+                thinking: thinking.trim(),
                 stats: {
                   duration: (Date.now() - startTime) / 1000,
                   tokens: tokenCount,
@@ -362,6 +363,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             }
             return updated;
           });
+
+          return true;
         }
       );
 
@@ -373,7 +376,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
           updated[updated.length - 1] = {
             ...lastMessage,
             content: fullResponse,
-            thinking: thinking,
+            thinking: thinking.trim(),
             stats: {
               duration: (Date.now() - startTime) / 1000,
               tokens: tokenCount,
@@ -400,7 +403,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
           updated[updated.length - 1] = {
             ...lastMessage,
             content: fullResponse + (cancelGenerationRef.current ? " [Cancelled]" : ""),
-            thinking: thinking,
+            thinking: thinking.trim(),
             stats: {
               duration: (Date.now() - startTime) / 1000,
               tokens: tokenCount,
@@ -531,18 +534,18 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         (token) => {
           // Check if cancellation was requested
           if (cancelGenerationRef.current) {
-            throw new Error('Generation cancelled by user');
+            return false;
           }
           
           tokenCount++;
           
           if (token.includes('<think>')) {
             isThinking = true;
-            return;
+            return true;
           }
           if (token.includes('</think>')) {
             isThinking = false;
-            return;
+            return true;
           }
           
           if (isThinking) {
@@ -558,7 +561,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
               updated[updated.length - 1] = {
                 ...lastMessage,
                 content: fullResponse,
-                thinking: thinking,
+                thinking: thinking.trim(),
                 stats: {
                   duration: (Date.now() - startTime) / 1000,
                   tokens: tokenCount,
@@ -567,6 +570,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             }
             return updated;
           });
+
+          return true;
         }
       );
       
@@ -578,7 +583,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
           updated[updated.length - 1] = {
             ...lastMessage,
             content: fullResponse,
-            thinking: thinking,
+            thinking: thinking.trim(),
             stats: {
               duration: (Date.now() - startTime) / 1000,
               tokens: tokenCount,
@@ -604,7 +609,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             updated[updated.length - 1] = {
               ...lastMessage,
               content: fullResponse + " [Cancelled]",
-              thinking: thinking,
+              thinking: thinking.trim(),
               stats: {
                 duration: (Date.now() - startTime) / 1000,
                 tokens: tokenCount,
@@ -621,8 +626,47 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   };
 
   const renderMessage = useCallback(({ item }: { item: Message }) => {
-    return (
-      <View style={[
+    const messageElements = [];
+
+    // Add thinking card first if it exists
+    if (item.role === 'assistant' && item.thinking) {
+      messageElements.push(
+        <View key="thinking" style={styles.thinkingContainer}>
+          <View style={styles.thinkingHeader}>
+            <Ionicons 
+              name="bulb-outline" 
+              size={14} 
+              color={themeColors.secondaryText}
+              style={styles.thinkingIcon}
+            />
+            <Text style={[styles.thinkingLabel, { color: themeColors.secondaryText }]}>
+              Reasoning
+            </Text>
+            <TouchableOpacity 
+              style={styles.copyButton} 
+              onPress={() => copyToClipboard(item.thinking || '')}
+              hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+            >
+              <Ionicons 
+                name="copy-outline" 
+                size={14} 
+                color={themeColors.secondaryText} 
+              />
+            </TouchableOpacity>
+          </View>
+          <Text 
+            style={[styles.thinkingText, { color: themeColors.secondaryText }]} 
+            selectable={true}
+          >
+            {item.thinking}
+          </Text>
+        </View>
+      );
+    }
+
+    // Add main message card
+    messageElements.push(
+      <View key="message" style={[
         styles.messageCard,
         { backgroundColor: item.role === 'user' ? themeColors.headerBackground : themeColors.borderColor }
       ]}>
@@ -723,7 +767,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                       color={themeColors.secondaryText}
                     />
                     <Text style={[styles.regenerateButtonText, { color: themeColors.secondaryText }]}>
-                      Regenerate.
+                      Regenerate
                     </Text>
                   </>
                 )}
@@ -731,35 +775,12 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             )}
           </View>
         )}
+      </View>
+    );
 
-        {item.role === 'assistant' && item.thinking && (
-          <View style={[styles.thinkingCard, { backgroundColor: themeColors.borderColor }]}>
-            <View style={styles.messageHeader}>
-              <Text style={[styles.roleLabel, { color: themeColors.text }]}>
-                Reasoning
-              </Text>
-              <TouchableOpacity 
-                style={styles.copyButton} 
-                onPress={() => copyToClipboard(item.thinking || '')}
-                hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
-              >
-                <Ionicons 
-                  name="copy-outline" 
-                  size={16} 
-                  color={themeColors.text} 
-                />
-              </TouchableOpacity>
-            </View>
-            <View style={styles.messageContent}>
-              <Text 
-                style={[styles.messageText, { color: themeColors.text }]} 
-                selectable={true}
-              >
-                {item.thinking}
-              </Text>
-            </View>
-          </View>
-        )}
+    return (
+      <View style={styles.messageContainer}>
+        {messageElements}
       </View>
     );
   }, [themeColors, messages, isLoading, isRegenerating, handleRegenerate, copyToClipboard]);
@@ -1018,7 +1039,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   messageList: {
-    flexGrow: 1,
     paddingVertical: 16,
     paddingHorizontal: 8,
     width: '100%',
@@ -1032,6 +1052,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
+    overflow: 'visible',
   },
   messageHeader: {
     flexDirection: 'row',
@@ -1052,14 +1073,17 @@ const styles = StyleSheet.create({
   messageContent: {
     padding: 12,
     paddingTop: 8,
+    overflow: 'visible',
   },
   messageText: {
     fontSize: 15,
     lineHeight: 20,
+    overflow: 'visible',
   },
   markdownWrapper: {
     padding: 12,
     paddingTop: 8,
+    overflow: 'visible',
   },
   copyButton: {
     padding: 4,
@@ -1074,6 +1098,7 @@ const styles = StyleSheet.create({
     paddingTop: 4,
     borderTopWidth: 0.5,
     borderTopColor: 'rgba(0, 0, 0, 0.1)',
+    overflow: 'visible',
   },
   statsText: {
     fontSize: 11,
@@ -1209,18 +1234,30 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  thinkingCard: {
-    width: '100%',
-    borderRadius: 8,
-    marginTop: 4,
+  thinkingContainer: {
+    marginBottom: 8,
+    paddingHorizontal: 12,
+  },
+  thinkingHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 4,
-    elevation: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    borderWidth: 0.5,
-    borderColor: 'rgba(0, 0, 0, 0.1)',
-    borderStyle: 'dashed',
+  },
+  thinkingIcon: {
+    marginRight: 4,
+  },
+  thinkingLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    opacity: 0.8,
+  },
+  thinkingText: {
+    fontSize: 14,
+    lineHeight: 20,
+    opacity: 0.9,
+    marginLeft: 18,
+  },
+  messageContainer: {
+    marginVertical: 4,
   },
 }); 
