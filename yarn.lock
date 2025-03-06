@@ -1769,6 +1769,11 @@
     "@jridgewell/resolve-uri" "^3.1.0"
     "@jridgewell/sourcemap-codec" "^1.4.14"
 
+"@kesha-antonov/react-native-background-downloader@^3.2.6":
+  version "3.2.6"
+  resolved "https://registry.npmjs.org/@kesha-antonov/react-native-background-downloader/-/react-native-background-downloader-3.2.6.tgz"
+  integrity sha512-J87PHzBh4knWTQNkCNM4LTMZ85RpMW/QSV+0LGdTxz4JmfLXoeg8R6ratbFU0DP/l8K1eL7r4S1Rc8bmqNJ3Ug==
+
 "@ngenux/react-native-background-downloader@^0.1.4":
   version "0.1.4"
   resolved "https://registry.npmjs.org/@ngenux/react-native-background-downloader/-/react-native-background-downloader-0.1.4.tgz"
@@ -6872,7 +6877,7 @@ react-native-vector-icons@*:
     prop-types "^15.7.2"
     yargs "^16.1.1"
 
-react-native@*, "react-native@^0.0.0-0 || >=0.60 <1.0", react-native@>=0.50.4, react-native@>=0.73.0, react-native@0.76.7:
+react-native@*, "react-native@^0.0.0-0 || >=0.60 <1.0", react-native@>=0.50.4, react-native@>=0.57.0, react-native@>=0.73.0, react-native@0.76.7:
   version "0.76.7"
   resolved "https://registry.npmjs.org/react-native/-/react-native-0.76.7.tgz"
   integrity sha512-GPJcQeO3qUi1MvuhsC2DC6tH8gJQ4uc4JWPORrdeuCGFWE3QLsN8/hiChTEvJREHLfQSV61YPI8gIOtAQ8c37g==

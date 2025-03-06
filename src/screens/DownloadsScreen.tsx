@@ -7,7 +7,8 @@ import {
   TouchableOpacity,
   Platform,
   Alert,
-  ActivityIndicator
+  AppState,
+  AppStateStatus
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
@@ -18,6 +19,9 @@ import { RootStackParamList } from '../types/navigation';
 import { modelDownloader } from '../services/ModelDownloader';
 import { useDownloads } from '../context/DownloadContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { DownloadProgress } from '../services/ModelDownloader';
+import type { DownloadTask } from '@kesha-antonov/react-native-background-downloader';
+import * as FileSystem from 'expo-file-system';
 
 const formatBytes = (bytes: number) => {
   if (bytes === undefined || bytes === null || isNaN(bytes) || bytes === 0) return '0 B';
@@ -50,6 +54,17 @@ interface StoredDownloadProgress {
   status: string;
 }
 
+interface DownloadTaskInfo {
+  task: DownloadTask;
+  downloadId: number;
+  modelName: string;
+  progress?: number;
+  bytesDownloaded?: number;
+  totalBytes?: number;
+  destination?: string;
+  url?: string;
+}
+
 export default function DownloadsScreen() {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
@@ -58,7 +73,7 @@ export default function DownloadsScreen() {
   const buttonProcessingRef = useRef<Set<string>>(new Set());
 
   // Convert downloadProgress object to array for FlatList and filter out completed downloads
-  const downloads = Object.entries(downloadProgress)
+  const downloads: DownloadItem[] = Object.entries(downloadProgress)
     .filter(([_, data]) => {
       // Filter out completed, failed, or 100% progress downloads
       return data.status !== 'completed' && 
@@ -66,17 +81,32 @@ export default function DownloadsScreen() {
              data.progress < 100;
     })
     .map(([name, data]) => ({
-      id: data.downloadId,
+      id: data.downloadId || 0,  // Ensure id is never undefined
       name,
-      progress: data.progress,
-      bytesDownloaded: data.bytesDownloaded,
-      totalBytes: data.totalBytes,
-      status: data.status,
+      progress: data.progress || 0,
+      bytesDownloaded: data.bytesDownloaded || 0,
+      totalBytes: data.totalBytes || 0,
+      status: data.status || 'unknown'
     }));
 
   // Load saved state on mount
   useEffect(() => {
+    const handleAppStateChange = async (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'active') {
+        // Reload download states when app comes to foreground
+        await loadSavedDownloadStates();
+      }
+    };
+
+    // Subscribe to app state changes
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+
+    // Initial load
     loadSavedDownloadStates();
+
+    return () => {
+      subscription.remove();
+    };
   }, []);
 
   // Update the loadSavedDownloadStates function
@@ -84,17 +114,24 @@ export default function DownloadsScreen() {
     try {
       const savedProgress = await AsyncStorage.getItem('download_progress');
       if (savedProgress) {
-        const parsedProgress = JSON.parse(savedProgress);
+        const parsedProgress = JSON.parse(savedProgress) as DownloadProgress;
         
-        // Filter out any completed, failed, or 100% progress downloads
-        const filteredProgress = Object.entries(parsedProgress).reduce((acc, [key, value]) => {
-          if (value.status !== 'completed' && 
-              value.status !== 'failed' && 
-              value.progress < 100) {
-            acc[key] = value;
+        // Filter out completed downloads and verify file existence
+        const filteredProgress: DownloadProgress = {};
+        
+        for (const [key, value] of Object.entries(parsedProgress)) {
+          if (!value || value.status === 'completed' || value.status === 'failed' || value.progress >= 100) {
+            continue;
           }
-          return acc;
-        }, {} as DownloadProgress);
+          
+          // Check if file exists in models directory
+          const modelPath = `${FileSystem.documentDirectory}models/${key}`;
+          const fileInfo = await FileSystem.getInfoAsync(modelPath);
+          
+          if (!fileInfo.exists) {
+            filteredProgress[key] = value;
+          }
+        }
         
         setDownloadProgress(filteredProgress);
       }
@@ -201,7 +238,7 @@ export default function DownloadsScreen() {
       <FlatList
         data={downloads}
         renderItem={renderItem}
-        keyExtractor={item => item.id.toString()}
+        keyExtractor={item => `download-${item.id || item.name}`}
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={() => (
           <View style={styles.emptyContainer}>

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,8 @@ import {
   TouchableOpacity,
   Modal,
   ScrollView,
+  AppState,
+  AppStateStatus,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
@@ -21,6 +23,7 @@ interface DownloadsDialogProps {
     totalBytes: number;
     status: string;
     downloadId: number;
+    isPaused?: boolean;
   }>;
   setDownloadProgress: React.Dispatch<React.SetStateAction<any>>;
 }
@@ -36,6 +39,55 @@ const formatBytes = (bytes: number) => {
 const DownloadsDialog = ({ visible, onClose, downloads, setDownloadProgress }: DownloadsDialogProps) => {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme];
+
+  const checkCompletedDownloads = async () => {
+    try {
+      // Force a check for completed downloads
+      await modelDownloader.checkBackgroundDownloads();
+      
+      // Get the current stored models
+      const storedModels = await modelDownloader.getStoredModels();
+      const storedModelNames = new Set(storedModels.map(model => model.name));
+      
+      // Remove any downloads that are actually completed
+      setDownloadProgress((prev: Record<string, {
+        progress: number;
+        bytesDownloaded: number;
+        totalBytes: number;
+        status: string;
+        downloadId: number;
+        isPaused?: boolean;
+      }>) => {
+        const newProgress = { ...prev };
+        Object.keys(newProgress).forEach(modelName => {
+          if (storedModelNames.has(modelName)) {
+            delete newProgress[modelName];
+          }
+        });
+        return newProgress;
+      });
+    } catch (error) {
+      console.error('Error checking completed downloads:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (visible) {
+      checkCompletedDownloads();
+    }
+  }, [visible]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', async (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'active') {
+        await checkCompletedDownloads();
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
 
   // Filter out completed and failed downloads
   const activeDownloads = Object.entries(downloads).filter(
@@ -53,6 +105,22 @@ const DownloadsDialog = ({ visible, onClose, downloads, setDownloadProgress }: D
       });
     } catch (error) {
       console.error('Error canceling download:', error);
+    }
+  };
+
+  const handlePauseResume = async (modelName: string) => {
+    try {
+      const downloadInfo = downloads[modelName];
+      
+      if (downloadInfo.isPaused) {
+        // Resume download
+        await modelDownloader.resumeDownload(downloadInfo.downloadId);
+      } else {
+        // Pause download
+        await modelDownloader.pauseDownload(downloadInfo.downloadId);
+      }
+    } catch (error) {
+      console.error('Error pausing/resuming download:', error);
     }
   };
 
@@ -85,19 +153,12 @@ const DownloadsDialog = ({ visible, onClose, downloads, setDownloadProgress }: D
                   key={name} 
                   style={[styles.downloadItem, { backgroundColor: themeColors.borderColor }]}
                 >
-                  <View style={styles.downloadHeader}>
-                    <Text style={[styles.downloadName, { color: themeColors.text }]}>
-                      {name}
-                    </Text>
-                    <TouchableOpacity 
-                      onPress={() => handleCancel(name)}
-                      style={styles.cancelButton}
-                    >
-                      <Ionicons name="close-circle" size={24} color="#ff4444" />
-                    </TouchableOpacity>
-                  </View>
+                  <Text style={[styles.downloadName, { color: themeColors.text }]}>
+                    {name}
+                  </Text>
                   
                   <Text style={[styles.downloadProgress, { color: themeColors.secondaryText }]}>
+                    {data.isPaused ? 'Paused • ' : ''}
                     {`${data.progress}% • ${formatBytes(data.bytesDownloaded)} / ${formatBytes(data.totalBytes)}`}
                   </Text>
                   
@@ -105,9 +166,36 @@ const DownloadsDialog = ({ visible, onClose, downloads, setDownloadProgress }: D
                     <View 
                       style={[
                         styles.progressFill, 
-                        { width: `${data.progress}%`, backgroundColor: '#4a0660' }
+                        { 
+                          width: `${data.progress}%`, 
+                          backgroundColor: data.isPaused ? '#888888' : '#4a0660' 
+                        }
                       ]} 
                     />
+                  </View>
+
+                  <View style={styles.controls}>
+                    <TouchableOpacity 
+                      style={[styles.controlButton, { backgroundColor: themeColors.primary }]}
+                      onPress={() => handlePauseResume(name)}
+                    >
+                      <Ionicons 
+                        name={data.isPaused ? "play" : "pause"} 
+                        size={20} 
+                        color="#fff" 
+                      />
+                      <Text style={styles.controlButtonText}>
+                        {data.isPaused ? 'Resume' : 'Pause'}
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity 
+                      style={[styles.controlButton, { backgroundColor: '#ff4444' }]}
+                      onPress={() => handleCancel(name)}
+                    >
+                      <Ionicons name="close" size={20} color="#fff" />
+                      <Text style={styles.controlButtonText}>Cancel</Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
               ))
@@ -149,33 +237,43 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 12,
   },
-  downloadHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
   downloadName: {
     fontSize: 16,
     fontWeight: '500',
-    flex: 1,
-    marginRight: 12,
+    marginBottom: 8,
   },
   downloadProgress: {
     fontSize: 14,
     marginBottom: 8,
   },
-  cancelButton: {
-    padding: 4,
-  },
   progressBar: {
     height: 4,
     borderRadius: 2,
     overflow: 'hidden',
+    marginBottom: 16,
   },
   progressFill: {
     height: '100%',
     borderRadius: 2,
+  },
+  controls: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
+  },
+  controlButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 10,
+    borderRadius: 8,
+    gap: 8,
+    minWidth: 100,
+  },
+  controlButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   emptyText: {
     fontSize: 16,
