@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, Switch, Platform, ScrollView, TouchableOpacity, Linking, TextInput, Alert } from 'react-native';
+import { StyleSheet, Text, View, Switch, Platform, ScrollView, TouchableOpacity, Linking, TextInput, Alert, ActivityIndicator } from 'react-native';
 import { CompositeNavigationProp } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -15,6 +15,9 @@ import { llamaManager } from '../utils/LlamaManager';
 import SettingSlider from '../components/SettingSlider';
 import ModelSettingDialog from '../components/ModelSettingDialog';
 import StopWordsDialog from '../components/StopWordsDialog';
+import * as FileSystem from 'expo-file-system';
+import { useFocusEffect } from '@react-navigation/native';
+import { modelDownloader } from '../services/ModelDownloader';
 
 type SettingsScreenProps = {
   navigation: CompositeNavigationProp<
@@ -84,6 +87,12 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     visible: false
   });
   const [showStopWordsDialog, setShowStopWordsDialog] = useState(false);
+  const [storageInfo, setStorageInfo] = useState({
+    tempSize: '0 B',
+    modelsSize: '0 B',
+    cacheSize: '0 B'
+  });
+  const [isClearing, setIsClearing] = useState(false);
 
   useEffect(() => {
     const getSystemInfo = async () => {
@@ -208,6 +217,154 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
         )}
       </View>
     </TouchableOpacity>
+  );
+
+  // Add function to format bytes to human-readable format
+  const formatBytes = (bytes: number) => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  // Add function to get directory size
+  const getDirectorySize = async (directory: string): Promise<number> => {
+    try {
+      const dirInfo = await FileSystem.getInfoAsync(directory);
+      if (!dirInfo.exists) return 0;
+
+      const files = await FileSystem.readDirectoryAsync(directory);
+      let totalSize = 0;
+
+      for (const file of files) {
+        const filePath = `${directory}/${file}`;
+        const fileInfo = await FileSystem.getInfoAsync(filePath, { size: true });
+        if (fileInfo.exists) {
+          totalSize += (fileInfo as any).size || 0;
+        }
+      }
+
+      return totalSize;
+    } catch (error) {
+      console.error(`Error getting size of ${directory}:`, error);
+      return 0;
+    }
+  };
+
+  // Add function to load storage information
+  const loadStorageInfo = async () => {
+    try {
+      const tempDir = `${FileSystem.documentDirectory}temp`;
+      const modelsDir = `${FileSystem.documentDirectory}models`;
+      const cacheDir = FileSystem.cacheDirectory || '';
+
+      const tempSize = await getDirectorySize(tempDir);
+      const modelsSize = await getDirectorySize(modelsDir);
+      const cacheSize = await getDirectorySize(cacheDir);
+
+      setStorageInfo({
+        tempSize: formatBytes(tempSize),
+        modelsSize: formatBytes(modelsSize),
+        cacheSize: formatBytes(cacheSize)
+      });
+    } catch (error) {
+      console.error('Error loading storage info:', error);
+    }
+  };
+
+  // Add function to clear a directory
+  const clearDirectory = async (directory: string): Promise<void> => {
+    try {
+      const dirInfo = await FileSystem.getInfoAsync(directory);
+      if (!dirInfo.exists) return;
+
+      const files = await FileSystem.readDirectoryAsync(directory);
+      
+      for (const file of files) {
+        const filePath = `${directory}/${file}`;
+        await FileSystem.deleteAsync(filePath, { idempotent: true });
+      }
+    } catch (error) {
+      console.error(`Error clearing directory ${directory}:`, error);
+      throw error;
+    }
+  };
+
+  // Add functions to clear specific directories
+  const clearCache = async () => {
+    try {
+      setIsClearing(true);
+      if (FileSystem.cacheDirectory) {
+        await clearDirectory(FileSystem.cacheDirectory);
+      }
+      await loadStorageInfo();
+      Alert.alert('Success', 'Cache cleared successfully');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to clear cache');
+    } finally {
+      setIsClearing(false);
+    }
+  };
+
+  const clearTempFiles = async () => {
+    try {
+      setIsClearing(true);
+      const tempDir = `${FileSystem.documentDirectory}temp`;
+      await clearDirectory(tempDir);
+      await loadStorageInfo();
+      Alert.alert('Success', 'Temporary files cleared successfully');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to clear temporary files');
+    } finally {
+      setIsClearing(false);
+    }
+  };
+
+  const clearAllModels = async () => {
+    try {
+      Alert.alert(
+        'Clear All Models',
+        'Are you sure you want to delete all models? This action cannot be undone.',
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel'
+          },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                setIsClearing(true);
+                const modelsDir = `${FileSystem.documentDirectory}models`;
+                await clearDirectory(modelsDir);
+                
+                // Also clear external models references
+                await modelDownloader.refreshStoredModels();
+                
+                await loadStorageInfo();
+                Alert.alert('Success', 'All models cleared successfully');
+              } catch (error) {
+                Alert.alert('Error', 'Failed to clear models');
+              } finally {
+                setIsClearing(false);
+              }
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      Alert.alert('Error', 'Failed to clear models');
+    }
+  };
+
+  // Load storage info when the screen is focused
+  useFocusEffect(
+    React.useCallback(() => {
+      loadStorageInfo();
+      return () => {};
+    }, [])
   );
 
   return (
@@ -566,6 +723,83 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           )}
         </SettingsSection>
 
+        <SettingsSection title="STORAGE">
+          <TouchableOpacity 
+            style={styles.settingItem}
+            onPress={clearCache}
+            disabled={isClearing}
+          >
+            <View style={styles.settingLeft}>
+              <View style={[styles.iconContainer, { backgroundColor: themeColors.primary + '20' }]}>
+                <Ionicons name="trash-outline" size={22} color={themeColors.primary} />
+              </View>
+              <View style={styles.settingTextContainer}>
+                <Text style={[styles.settingText, { color: themeColors.text }]}>
+                  Clear Cache
+                </Text>
+                <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
+                  {storageInfo.cacheSize} of cached data
+                </Text>
+              </View>
+            </View>
+            {isClearing ? (
+              <ActivityIndicator size="small" color={themeColors.primary} />
+            ) : (
+              <Ionicons name="chevron-forward" size={20} color={themeColors.secondaryText} />
+            )}
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={[styles.settingItem, styles.settingItemBorder]}
+            onPress={clearTempFiles}
+            disabled={isClearing}
+          >
+            <View style={styles.settingLeft}>
+              <View style={[styles.iconContainer, { backgroundColor: themeColors.primary + '20' }]}>
+                <Ionicons name="folder-outline" size={22} color={themeColors.primary} />
+              </View>
+              <View style={styles.settingTextContainer}>
+                <Text style={[styles.settingText, { color: themeColors.text }]}>
+                  Clear Temporary Files
+                </Text>
+                <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
+                  {storageInfo.tempSize} of temporary data
+                </Text>
+              </View>
+            </View>
+            {isClearing ? (
+              <ActivityIndicator size="small" color={themeColors.primary} />
+            ) : (
+              <Ionicons name="chevron-forward" size={20} color={themeColors.secondaryText} />
+            )}
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={[styles.settingItem, styles.settingItemBorder]}
+            onPress={clearAllModels}
+            disabled={isClearing}
+          >
+            <View style={styles.settingLeft}>
+              <View style={[styles.iconContainer, { backgroundColor: '#FF3B3020' }]}>
+                <Ionicons name="alert-circle-outline" size={22} color="#FF3B30" />
+              </View>
+              <View style={styles.settingTextContainer}>
+                <Text style={[styles.settingText, { color: themeColors.text }]}>
+                  Clear All Models
+                </Text>
+                <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
+                  {storageInfo.modelsSize} of model data will be permanently deleted
+                </Text>
+              </View>
+            </View>
+            {isClearing ? (
+              <ActivityIndicator size="small" color="#FF3B30" />
+            ) : (
+              <Ionicons name="chevron-forward" size={20} color={themeColors.secondaryText} />
+            )}
+          </TouchableOpacity>
+        </SettingsSection>
+
         {dialogConfig.setting && (
           <ModelSettingDialog
             key={dialogConfig.setting.key}
@@ -848,6 +1082,36 @@ const styles = StyleSheet.create({
   },
   valueText: {
     fontSize: 16,
+    fontWeight: '500',
+  },
+  storageInfoContainer: {
+    marginTop: 8,
+  },
+  storageItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(150, 150, 150, 0.2)',
+  },
+  storageLabel: {
+    fontSize: 16,
+    flex: 1,
+  },
+  storageValue: {
+    fontSize: 14,
+    marginRight: 16,
+  },
+  clearButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    minWidth: 80,
+    alignItems: 'center',
+  },
+  clearButtonText: {
+    fontSize: 14,
     fontWeight: '500',
   },
 }); 

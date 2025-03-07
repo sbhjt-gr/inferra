@@ -92,6 +92,7 @@ export interface StoredModel {
   path: string;
   size: number;
   modified: string;
+  isExternal?: boolean;
 }
 
 export interface DownloadStatus {
@@ -111,6 +112,8 @@ class ModelDownloader extends EventEmitter {
   private hasNotificationPermission: boolean = false;
   private _notificationSubscription: any = null;
   private wasOpenedViaNotification: boolean = false;
+  private externalModels: StoredModel[] = [];
+  private readonly EXTERNAL_MODELS_KEY = 'external_models';
 
   constructor() {
     super();
@@ -132,6 +135,9 @@ class ModelDownloader extends EventEmitter {
       if (savedId) {
         this.nextDownloadId = parseInt(savedId, 10);
       }
+
+      // Load external models
+      await this.loadExternalModels();
 
       // Set up app state change listener
       AppState.addEventListener('change', this.handleAppStateChange);
@@ -922,73 +928,79 @@ class ModelDownloader extends EventEmitter {
       if (!dirInfo.exists) {
         console.log('[ModelDownloader] Models directory does not exist, creating it');
         await FileSystem.makeDirectoryAsync(this.baseDir, { intermediates: true });
-        return [];
+        return [...this.externalModels]; // Return only external models if no local models
       }
       
       // Read the directory contents
       const dir = await FileSystem.readDirectoryAsync(this.baseDir);
       console.log(`[ModelDownloader] Found ${dir.length} files in models directory:`, dir);
       
-      if (dir.length === 0) {
-        return [];
+      // Process each file
+      let localModels: StoredModel[] = [];
+      if (dir.length > 0) {
+        localModels = await Promise.all(
+          dir.map(async (name) => {
+            const path = `${this.baseDir}/${name}`;
+            const fileInfo = await FileSystem.getInfoAsync(path, { size: true });
+            
+            // Get file size safely
+            let size = 0;
+            if (fileInfo.exists) {
+              size = (fileInfo as any).size || 0;
+            }
+            
+            // Use current time as modification time
+            const modified = new Date().toISOString();
+            
+            console.log(`[ModelDownloader] Found model: ${name}, size: ${size} bytes`);
+            
+            return {
+              name,
+              path,
+              size,
+              modified,
+              isExternal: false
+            };
+          })
+        );
       }
       
-      // Process each file
-      const models = await Promise.all(
-        dir.map(async (name) => {
-          const path = `${this.baseDir}/${name}`;
-          const fileInfo = await FileSystem.getInfoAsync(path, { size: true });
-          
-          // Get file size safely
-          let size = 0;
-          if (fileInfo.exists) {
-            size = (fileInfo as any).size || 0;
-          }
-          
-          // Use current time as modification time
-          const modified = new Date().toISOString();
-          
-          console.log(`[ModelDownloader] Found model: ${name}, size: ${size} bytes`);
-          
-          return {
-            name,
-            path,
-            size,
-            modified
-          };
-        })
-      );
-      
-      return models;
+      // Combine local and external models
+      return [...localModels, ...this.externalModels];
     } catch (error) {
       console.error('[ModelDownloader] Error getting stored models:', error);
-      return [];
+      return [...this.externalModels]; // Return only external models on error
     }
   }
 
   async deleteModel(path: string): Promise<void> {
     try {
-      console.log(`[ModelDownloader] Deleting model at path: ${path}`);
+      console.log('[ModelDownloader] Deleting model:', path);
       
-      // Check if file exists
-      const fileInfo = await FileSystem.getInfoAsync(path);
-      if (!fileInfo.exists) {
-        console.log(`[ModelDownloader] File does not exist at path: ${path}`);
+      // Check if it's an external model
+      const externalModelIndex = this.externalModels.findIndex(model => model.path === path);
+      if (externalModelIndex !== -1) {
+        // Just remove from our list, don't delete the actual file
+        this.externalModels.splice(externalModelIndex, 1);
+        await this.saveExternalModels();
+        this.emit('modelsChanged');
+        console.log('[ModelDownloader] Removed external model reference:', path);
         return;
       }
       
-      // Delete the file
-      await FileSystem.deleteAsync(path);
-      
-      // Verify deletion
-      const afterInfo = await FileSystem.getInfoAsync(path);
-      if (afterInfo.exists) {
-        console.error(`[ModelDownloader] Failed to delete file at path: ${path}`);
+      // Otherwise it's a local model, delete the file
+      const fileInfo = await FileSystem.getInfoAsync(path);
+      if (fileInfo.exists) {
+        await FileSystem.deleteAsync(path);
+        console.log('[ModelDownloader] Deleted model file:', path);
       } else {
-        console.log(`[ModelDownloader] Successfully deleted file at path: ${path}`);
+        console.log('[ModelDownloader] Model file not found:', path);
       }
+      
+      // Emit event to notify listeners
+      this.emit('modelsChanged');
     } catch (error) {
-      console.error(`[ModelDownloader] Error deleting model at path ${path}:`, error);
+      console.error('[ModelDownloader] Error deleting model:', error);
       throw error;
     }
   }
@@ -1284,50 +1296,108 @@ class ModelDownloader extends EventEmitter {
   }
 
   // Add the linkExternalModel method
-  async linkExternalModel(uri: string, fileName: string, shouldCopy: boolean = false): Promise<void> {
+  async linkExternalModel(uri: string, fileName: string): Promise<void> {
     try {
-      console.log(`[ModelDownloader] ${shouldCopy ? 'Copying' : 'Linking'} external model: ${fileName} from ${uri}`);
+      console.log(`[ModelDownloader] Linking external model: ${fileName} from ${uri}`);
       
-      // Create a link in the models directory
+      // Check if file with same name already exists in models directory
       const destPath = `${this.baseDir}/${fileName}`;
-      
-      // Check if file with same name already exists
       const destInfo = await FileSystem.getInfoAsync(destPath);
       if (destInfo.exists) {
-        throw new Error('A model with this name already exists');
+        throw new Error('A model with this name already exists in the models directory');
       }
 
-      // Create models directory if it doesn't exist
-      await FileSystem.makeDirectoryAsync(this.baseDir, { intermediates: true }).catch(() => {});
-
-      if (shouldCopy) {
-        // Copy the file
-        await FileSystem.copyAsync({
-          from: uri,
-          to: destPath
-        });
-      } else {
-        // Create a link using the original file path
-        await FileSystem.makeDirectoryAsync(this.baseDir, { intermediates: true });
-        await FileSystem.copyAsync({
-          from: uri,
-          to: destPath
-        });
+      // Check if file with same name already exists in external models
+      const existingExternal = this.externalModels.find(model => model.name === fileName);
+      if (existingExternal) {
+        throw new Error('A model with this name already exists in external models');
       }
-      
-      // Verify the file exists
-      const fileInfo = await FileSystem.getInfoAsync(destPath);
+
+      // Get the file info to verify it exists and get its size
+      const fileInfo = await FileSystem.getInfoAsync(uri, { size: true });
       if (!fileInfo.exists) {
-        throw new Error(`Failed to ${shouldCopy ? 'copy' : 'link'} model file`);
+        throw new Error('External file does not exist');
       }
 
-      // Refresh stored models list
-      await this.refreshStoredModels();
+      // For Android content:// URIs, we need to copy the file to our app's directory
+      // because native modules can't directly access content:// URIs
+      let finalPath = uri;
+      let isExternal = true;
       
-      console.log(`[ModelDownloader] Successfully ${shouldCopy ? 'copied' : 'linked'} external model: ${fileName}`);
+      if (Platform.OS === 'android' && uri.startsWith('content://')) {
+        console.log(`[ModelDownloader] Android content URI detected, copying file to app directory`);
+        
+        // Create a copy in our app's models directory
+        const appModelPath = `${this.baseDir}/${fileName}`;
+        
+        try {
+          // Ensure the models directory exists
+          const dirInfo = await FileSystem.getInfoAsync(this.baseDir);
+          if (!dirInfo.exists) {
+            await FileSystem.makeDirectoryAsync(this.baseDir, { intermediates: true });
+          }
+          
+          // Copy the file to our app's directory
+          await FileSystem.copyAsync({
+            from: uri,
+            to: appModelPath
+          });
+          
+          // Use the app path instead of the content URI
+          finalPath = appModelPath;
+          isExternal = false; // It's now a local file
+          
+          console.log(`[ModelDownloader] Successfully copied model to: ${appModelPath}`);
+        } catch (error) {
+          console.error(`[ModelDownloader] Error copying file:`, error);
+          throw new Error('Failed to copy the model file to the app directory');
+        }
+      }
+
+      // If we're not copying (non-Android or non-content URI), just store the reference
+      if (isExternal) {
+        // Add to external models list with the URI
+        const newExternalModel: StoredModel = {
+          name: fileName,
+          path: finalPath,
+          size: (fileInfo as any).size || 0,
+          modified: new Date().toISOString(),
+          isExternal: true
+        };
+
+        this.externalModels.push(newExternalModel);
+        await this.saveExternalModels();
+      }
+      
+      // Emit event to notify listeners
+      this.emit('modelsChanged');
+      
+      console.log(`[ModelDownloader] Successfully linked model: ${fileName} at path: ${finalPath}`);
     } catch (error) {
-      console.error(`[ModelDownloader] Error ${shouldCopy ? 'copying' : 'linking'} external model: ${fileName}`, error);
+      console.error(`[ModelDownloader] Error linking model: ${fileName}`, error);
       throw error;
+    }
+  }
+
+  private async loadExternalModels() {
+    try {
+      const externalModelsJson = await AsyncStorage.getItem(this.EXTERNAL_MODELS_KEY);
+      if (externalModelsJson) {
+        this.externalModels = JSON.parse(externalModelsJson);
+        console.log('[ModelDownloader] Loaded external models:', this.externalModels);
+      }
+    } catch (error) {
+      console.error('[ModelDownloader] Error loading external models:', error);
+      this.externalModels = [];
+    }
+  }
+
+  private async saveExternalModels() {
+    try {
+      await AsyncStorage.setItem(this.EXTERNAL_MODELS_KEY, JSON.stringify(this.externalModels));
+      console.log('[ModelDownloader] Saved external models:', this.externalModels);
+    } catch (error) {
+      console.error('[ModelDownloader] Error saving external models:', error);
     }
   }
 }

@@ -39,9 +39,31 @@ class LlamaManager {
 
   async initializeModel(modelPath: string) {
     try {
+      console.log('[LlamaManager] Initializing model from path:', modelPath);
+
+      // For external models, we need to handle the URI format
+      let finalModelPath = modelPath;
+      
+      // If it's a file:// URI, we need to extract the actual path for native modules
+      if (finalModelPath.startsWith('file://')) {
+        // On iOS, we can just remove the file:// prefix
+        if (Platform.OS === 'ios') {
+          finalModelPath = finalModelPath.replace('file://', '');
+        } 
+        // On Android, we need to handle the path differently
+        else if (Platform.OS === 'android') {
+          // For Android, we need to use a different format
+          // The native module expects a path without the file:// prefix
+          // but with the leading slash
+          finalModelPath = finalModelPath.replace('file://', '');
+        }
+      }
+      
+      console.log('[LlamaManager] Using final model path:', finalModelPath);
+
       // First load model info to validate the model
-      const modelInfo = await loadLlamaModelInfo(modelPath);
-      console.log('Model Info:', modelInfo);
+      const modelInfo = await loadLlamaModelInfo(finalModelPath);
+      console.log('[LlamaManager] Model Info:', modelInfo);
 
       // Release existing context if any
       if (this.context) {
@@ -49,14 +71,14 @@ class LlamaManager {
         this.context = null;
       }
 
-      this.modelPath = modelPath;
+      this.modelPath = finalModelPath;
       
       // Load settings
       await this.loadSettings();
       
       // Initialize with recommended settings
       this.context = await initLlama({
-        model: modelPath,
+        model: finalModelPath,
         use_mlock: true,
         n_ctx: 6144,
         n_batch: 512,
@@ -67,9 +89,10 @@ class LlamaManager {
         rope_freq_scale: 1,
       });
 
+      console.log('[LlamaManager] Model initialized successfully');
       return this.context;
     } catch (error) {
-      console.error('Model initialization error:', error);
+      console.error('[LlamaManager] Model initialization error:', error);
       throw new Error(`Failed to initialize model: ${error}`);
     }
   }

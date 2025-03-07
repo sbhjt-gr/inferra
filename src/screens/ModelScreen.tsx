@@ -38,6 +38,7 @@ import {
   AndroidNotificationVisibility,
 } from 'expo-notifications';
 import * as Notifications from 'expo-notifications';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 
 type ModelScreenProps = {
   navigation: CompositeNavigationProp<
@@ -229,6 +230,8 @@ const registerBackgroundTask = async () => {
   }
 };
 
+const Tab = createBottomTabNavigator();
+
 export default function ModelScreen({ navigation }: ModelScreenProps) {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
@@ -243,20 +246,30 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
   const [isDownloadsVisible, setIsDownloadsVisible] = useState(false);
   const buttonScale = useRef(new Animated.Value(1)).current;
   const buttonProcessingRef = useRef(new Set<string>());
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleLinkModel = async () => {
     try {
+      // Use DocumentPicker to get a file URI that can be used directly
       const result = await DocumentPicker.getDocumentAsync({
         type: '*/*',
-        copyToCacheDirectory: false,
+        copyToCacheDirectory: false, // Don't copy to cache to save space
       });
 
       if (result.canceled) {
+        console.log('[ModelScreen] Document picking canceled');
         return;
       }
 
       const file = result.assets[0];
       const fileName = file.name.toLowerCase();
+      
+      console.log('[ModelScreen] Selected file:', {
+        name: file.name,
+        uri: file.uri,
+        type: file.mimeType,
+        size: file.size
+      });
 
       // Check if file is a GGUF model
       if (!fileName.endsWith('.gguf')) {
@@ -267,61 +280,71 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         return;
       }
 
-      // Ask user whether to copy or link
-      Alert.alert(
-        'Link Model',
-        'Do you want to copy the model file or create a link to it?',
-        [
-          {
-            text: 'Copy',
-            onPress: async () => {
-              try {
-                await modelDownloader.linkExternalModel(file.uri, file.name, true);
-                Alert.alert(
-                  'Model Added',
-                  'The model has been successfully copied to the app.'
-                );
-                await loadStoredModels();
-              } catch (error) {
-                console.error('Error copying model:', error);
-                Alert.alert(
-                  'Error',
-                  'Failed to copy the model. Please try again.'
-                );
+      // Show loading indicator
+      setIsLoading(true);
+      
+      try {
+        // For Android content:// URIs, we need to copy the file
+        const isAndroidContentUri = Platform.OS === 'android' && file.uri.startsWith('content://');
+        
+        if (isAndroidContentUri) {
+          Alert.alert(
+            'Importing Model',
+            'The model file needs to be copied to the app directory to work properly. This may take a while for large models.',
+            [
+              {
+                text: 'Continue',
+                onPress: async () => {
+                  try {
+                    // Link the model - this will copy it for Android content URIs
+                    await modelDownloader.linkExternalModel(file.uri, file.name);
+                    setIsLoading(false);
+                    Alert.alert(
+                      'Model Imported',
+                      'The model has been successfully imported. Consider deleting the original file from your device to save space.'
+                    );
+                    await loadStoredModels();
+                  } catch (error) {
+                    setIsLoading(false);
+                    console.error('[ModelScreen] Error importing model:', error);
+                    Alert.alert(
+                      'Error',
+                      `Failed to import the model: ${error instanceof Error ? error.message : 'Unknown error'}`
+                    );
+                  }
+                }
+              },
+              {
+                text: 'Cancel',
+                style: 'cancel',
+                onPress: () => setIsLoading(false)
               }
-            }
-          },
-          {
-            text: 'Link',
-            onPress: async () => {
-              try {
-                await modelDownloader.linkExternalModel(file.uri, file.name, false);
-                Alert.alert(
-                  'Model Linked',
-                  'The model has been successfully linked to the app.'
-                );
-                await loadStoredModels();
-              } catch (error) {
-                console.error('Error linking model:', error);
-                Alert.alert(
-                  'Error',
-                  'Failed to link the model. Please try again.'
-                );
-              }
-            }
-          },
-          {
-            text: 'Cancel',
-            style: 'cancel'
-          }
-        ]
-      );
-
+            ]
+          );
+        } else {
+          // For non-Android or file:// URIs, we can link directly
+          await modelDownloader.linkExternalModel(file.uri, file.name);
+          setIsLoading(false);
+          Alert.alert(
+            'Model Linked',
+            'The model has been successfully linked to the app. It will remain in its original location.'
+          );
+          await loadStoredModels();
+        }
+      } catch (error) {
+        setIsLoading(false);
+        console.error('[ModelScreen] Error linking model:', error);
+        Alert.alert(
+          'Error',
+          `Failed to link the model: ${error instanceof Error ? error.message : 'Unknown error'}`
+        );
+      }
     } catch (error) {
-      console.error('Error linking model:', error);
+      setIsLoading(false);
+      console.error('[ModelScreen] Error picking document:', error);
       Alert.alert(
         'Error',
-        'Failed to link the model. Please try again.'
+        'Failed to access the file. Please try again or choose a different file.'
       );
     }
   };
@@ -860,26 +883,20 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       await registerBackgroundTask();
     };
 
-    setupNotifications();
-    modelDownloader.on('downloadProgress', handleProgress);
-
-    return () => {
-      modelDownloader.removeListener('downloadProgress', handleProgress);
-    };
-  }, []);
-
-  // Add this effect for initial loading and periodic refresh
-  useEffect(() => {
-    // Initial load
     loadStoredModels();
-
-    // Set up periodic refresh
-    const refreshInterval = setInterval(() => {
-      loadStoredModels();
-    }, 2000); // Refresh every 2 seconds
-
+    
+    // Listen for download progress events
+    modelDownloader.on('downloadProgress', handleProgress);
+    
+    // Listen for model changes
+    modelDownloader.on('modelsChanged', loadStoredModels);
+    
+    // Set up notifications
+    setupNotifications();
+    
     return () => {
-      clearInterval(refreshInterval);
+      modelDownloader.off('downloadProgress', handleProgress);
+      modelDownloader.off('modelsChanged', loadStoredModels);
     };
   }, []);
 
@@ -905,31 +922,44 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
   const handleDelete = (model: StoredModel) => {
     console.log(`[ModelScreen] Attempting to delete model: ${model.name}, path: ${model.path}`);
     
-    Alert.alert(
-      'Delete Model',
-      `Are you sure you want to delete ${model.name}?`,
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              console.log(`[ModelScreen] User confirmed deletion of model: ${model.name}`);
-              await modelDownloader.deleteModel(model.path);
-              console.log(`[ModelScreen] Model deleted, refreshing stored models list`);
-              await loadStoredModels();
-            } catch (error) {
-              console.error(`[ModelScreen] Error deleting model ${model.name}:`, error);
-              Alert.alert('Error', 'Failed to delete model');
-            }
+    if (model.isExternal) {
+      // For imported models, just remove the linkage without confirmation
+      try {
+        console.log(`[ModelScreen] Removing linkage for external model: ${model.name}`);
+        modelDownloader.deleteModel(model.path);
+        loadStoredModels();
+      } catch (error) {
+        console.error(`[ModelScreen] Error removing linkage for model ${model.name}:`, error);
+        Alert.alert('Error', 'Failed to remove model linkage');
+      }
+    } else {
+      // For downloaded models, show confirmation dialog
+      Alert.alert(
+        'Delete Model',
+        `Are you sure you want to delete ${model.name}?`,
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
           },
-        },
-      ]
-    );
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                console.log(`[ModelScreen] User confirmed deletion of model: ${model.name}`);
+                await modelDownloader.deleteModel(model.path);
+                console.log(`[ModelScreen] Model deleted, refreshing stored models list`);
+                await loadStoredModels();
+              } catch (error) {
+                console.error(`[ModelScreen] Error deleting model ${model.name}:`, error);
+                Alert.alert('Error', 'Failed to delete model');
+              }
+            },
+          },
+        ]
+      );
+    }
   };
 
   const getDisplayName = (filename: string) => {
@@ -1035,7 +1065,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
           </View>
           <View style={styles.customUrlTextContainer}>
             <Text style={[styles.customUrlButtonTitle, { color: themeColors.text }]}>
-              Link Local Model
+              Import Model
             </Text>
             <Text style={[styles.customUrlButtonSubtitle, { color: themeColors.secondaryText }]}>
               Import a model from your device
@@ -1053,72 +1083,48 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
   );
 
   const renderItem = ({ item }: { item: StoredModel }) => {
-    const downloadInfo = downloadProgress[item.name];
-    const showDownloadInfo = !!downloadInfo && 
-                           downloadInfo.status !== 'completed' && 
-                           downloadInfo.status !== 'failed' &&
-                           downloadInfo.progress < 100;
+    const displayName = getDisplayName(item.name);
+    const formattedSize = formatBytes(item.size);
     
     return (
-      <TouchableOpacity
-        style={[styles.modelItem, { backgroundColor: themeColors.borderColor }]}
-      >
-        <View style={styles.modelInfo}>
-          <Text style={[styles.modelName, { color: themeColors.text }]} numberOfLines={1}>
-            {getDisplayName(item.name)}
-          </Text>
-          <Text style={[styles.modelDetails, { color: themeColors.secondaryText }]}>
-            {formatBytes(item.size)}
-          </Text>
-          {showDownloadInfo && (
-            <View style={styles.downloadProgress}>
-              <View style={styles.downloadStatusRow}>
-                <Text style={[styles.modelDetails, { color: themeColors.secondaryText }]}>
-                  {downloadInfo.isPaused ? 'Paused • ' : ''}
-                  {`${downloadInfo.progress}% • ${formatBytes(downloadInfo.bytesDownloaded)} / ${formatBytes(downloadInfo.totalBytes)}`}
-                </Text>
-                <View style={styles.downloadActions}>
-                  <TouchableOpacity
-                    style={styles.actionButton}
-                    onPress={() => handlePauseResume(downloadInfo.downloadId, item.name, !!downloadInfo.isPaused)}
-                  >
-                    <Ionicons 
-                      name={downloadInfo.isPaused ? "play-circle" : "pause-circle"} 
-                      size={24} 
-                      color={themeColors.primary} 
-                    />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.actionButton}
-                    onPress={() => handleCancel(downloadInfo.downloadId, item.name)}
-                  >
-                    <Ionicons name="close-circle" size={24} color="#ff4444" />
-                  </TouchableOpacity>
-                </View>
-              </View>
-              <View style={[styles.progressBar, { backgroundColor: themeColors.background }]}>
-                <View 
-                  style={[
-                    styles.progressFill, 
-                    { 
-                      width: `${downloadInfo.progress}%`, 
-                      backgroundColor: downloadInfo.isPaused ? '#888888' : '#4a0660'
-                    }
-                  ]} 
-                />
-              </View>
-            </View>
-          )}
+      <View style={[styles.modelItem, { backgroundColor: themeColors.borderColor }]}>
+        <View style={styles.modelIconContainer}>
+          <Ionicons 
+            name={item.isExternal ? "link" : "folder"} 
+            size={24} 
+            color={item.isExternal ? "#4a90e2" : "#4a0660"}
+          />
         </View>
-        {!showDownloadInfo && (
-          <TouchableOpacity
-            style={styles.deleteButton}
-            onPress={() => handleDelete(item)}
-          >
-            <Ionicons name="trash-outline" size={20} color="#ff4444" />
-          </TouchableOpacity>
-        )}
-      </TouchableOpacity>
+        <View style={styles.modelInfo}>
+          <View style={styles.modelHeader}>
+            <Text style={[styles.modelName, { color: themeColors.text }]} numberOfLines={1}>
+              {displayName}
+            </Text>
+            {item.isExternal ? (
+              <View style={styles.externalBadgeContainer}>
+                <Ionicons name="link-outline" size={12} color="white" style={{ marginRight: 4 }} />
+                <Text style={styles.externalBadgeText}>External</Text>
+              </View>
+            ) : ( 
+            <></>
+            )}
+          </View>
+          <View style={styles.modelMetaInfo}>
+            <View style={styles.metaItem}>
+              <Ionicons name="disc-outline" size={14} color={themeColors.secondaryText} />
+              <Text style={[styles.metaText, { color: themeColors.secondaryText }]}>
+                {formattedSize}
+              </Text>
+            </View>
+          </View>
+        </View>
+        <TouchableOpacity
+          style={[styles.deleteButton, { backgroundColor: 'transparent' }]}
+          onPress={() => handleDelete(item)}
+        >
+          <Ionicons name="trash-outline" size={20} color="#ff4444" />
+        </TouchableOpacity>
+      </View>
     );
   };
 
@@ -1292,6 +1298,21 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         downloads={downloadProgress}
         setDownloadProgress={setDownloadProgress}
       />
+
+      {/* Loading overlay */}
+      {isLoading && (
+        <View style={styles.loadingOverlay}>
+          <View style={[styles.loadingContainer, { backgroundColor: themeColors.borderColor }]}>
+            <ActivityIndicator size="large" color="#4a0660" />
+            <Text style={[styles.loadingText, { color: themeColors.text }]}>
+              Importing model...
+            </Text>
+            <Text style={[styles.loadingSubtext, { color: themeColors.secondaryText }]}>
+              This may take a while for large models
+            </Text>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -1302,16 +1323,16 @@ const styles = StyleSheet.create({
   },
   header: {
     padding: 16,
-    paddingTop: 20,
-    paddingBottom: 8,
+    paddingTop: 8,
+    paddingBottom: 16,
   },
   title: {
     fontSize: 24,
     fontWeight: '600',
   },
   subtitle: {
-    fontSize: 14,
-    marginTop: 4,
+    fontSize: 16,
+    marginTop: 8,
   },
   list: {
     padding: 16,
@@ -1698,31 +1719,89 @@ const styles = StyleSheet.create({
   },
   modelItem: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     padding: 16,
     borderRadius: 12,
     marginBottom: 8,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
   },
-  modelTag: {
+  modelIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(74, 6, 96, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  modelInfo: {
+    flex: 1,
+    marginRight: 8,
+  },
+  modelHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  modelName: {
+    fontSize: 16,
+    fontWeight: '600',
+    flex: 1,
+    marginRight: 8,
+  },
+  modelMetaInfo: {
+    gap: 4,
+  },
+  metaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  metaText: {
+    fontSize: 12,
+    marginLeft: 4,
+  },
+  modelPath: {
+    fontSize: 11,
+    opacity: 0.7,
+    marginTop: 2,
+  },
+  externalBadgeContainer: {
+    backgroundColor: '#4a90e2',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 16,
+    borderRadius: 12,
   },
-  modelTagText: {
-    color: '#fff',
-    fontSize: 12,
+  externalBadgeText: {
+    color: 'white',
+    fontSize: 11,
     fontWeight: '600',
   },
-  progressBar: {
-    height: 4,
-    borderRadius: 2,
-    overflow: 'hidden',
+  localBadgeContainer: {
+    backgroundColor: '#4a0660',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
-  progressFill: {
-    height: '100%',
-    borderRadius: 2,
+  localBadgeText: {
+    color: 'white',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  deleteButton: {
+    padding: 8,
+    borderRadius: 20,
   },
   refreshButtonContainer: {
     padding: 10,
@@ -1748,5 +1827,56 @@ const styles = StyleSheet.create({
   refreshIconButton: {
     padding: 8,
     marginRight: -8,
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  loadingContainer: {
+    padding: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    width: '80%',
+  },
+  loadingText: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginTop: 16,
+  },
+  loadingSubtext: {
+    fontSize: 14,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  modelTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginRight: 8,
+  },
+  modelTagText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  progressBar: {
+    height: 8,
+    borderRadius: 4,
+    width: '100%',
+    marginTop: 8,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 4,
   },
 }); 
