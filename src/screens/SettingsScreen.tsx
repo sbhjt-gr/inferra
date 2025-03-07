@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, Switch, Platform, ScrollView, TouchableOpacity, Linking } from 'react-native';
+import { StyleSheet, Text, View, Switch, Platform, ScrollView, TouchableOpacity, Linking, TextInput, Alert } from 'react-native';
 import { CompositeNavigationProp } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -11,6 +11,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import AppHeader from '../components/AppHeader';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
+import { llamaManager } from '../utils/LlamaManager';
+import SettingSlider from '../components/SettingSlider';
+import ModelSettingDialog from '../components/ModelSettingDialog';
+import StopWordsDialog from '../components/StopWordsDialog';
 
 type SettingsScreenProps = {
   navigation: CompositeNavigationProp<
@@ -25,6 +29,15 @@ type SettingsSectionProps = {
 };
 
 type ThemeOption = 'system' | 'light' | 'dark';
+
+const DEFAULT_SETTINGS = {
+  maxTokens: 1200,
+  temperature: 0.7,
+  topK: 40,
+  topP: 0.9,
+  minP: 0.05,
+  stopWords: ['</s>', '<|end|>', '<|im_end|>', '<|endoftext|>', '<｜end_of_sentence｜>'],
+};
 
 const SettingsSection = ({ title, children }: SettingsSectionProps) => {
   const { theme: currentTheme } = useTheme();
@@ -46,6 +59,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
   const { theme: currentTheme, selectedTheme, toggleTheme } = useTheme();
   const themeColors = theme[currentTheme];
   const [showSystemInfo, setShowSystemInfo] = useState(false);
+  const [showModelSettings, setShowModelSettings] = useState(false);
   const [systemInfo, setSystemInfo] = useState({
     totalMemory: 'Unknown',
     deviceName: Device.deviceName || 'Unknown Device',
@@ -53,6 +67,23 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     cpuCores: 'Unknown',
     gpu: 'Unknown'
   });
+  const [modelSettings, setModelSettings] = useState(llamaManager.getSettings());
+  const [error, setError] = useState<string | null>(null);
+  const [dialogConfig, setDialogConfig] = useState<{
+    visible: boolean;
+    setting?: {
+      key: keyof typeof modelSettings;
+      label: string;
+      value: number;
+      minimumValue: number;
+      maximumValue: number;
+      step: number;
+      description: string;
+    };
+  }>({
+    visible: false
+  });
+  const [showStopWordsDialog, setShowStopWordsDialog] = useState(false);
 
   useEffect(() => {
     const getSystemInfo = async () => {
@@ -86,15 +117,65 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     }
   };
 
+  const handleSettingsChange = async (newSettings: Partial<typeof modelSettings>) => {
+    const updatedSettings = { ...modelSettings, ...newSettings };
+    if ('maxTokens' in newSettings) {
+      const tokens = updatedSettings.maxTokens;
+      if (tokens < 1 || tokens > 4096) {
+        setError('Max tokens must be between 1 and 4096');
+        return;
+      }
+    }
+    setError(null);
+    setModelSettings(updatedSettings);
+    await llamaManager.updateSettings(updatedSettings);
+  };
+
+  const handleSettingsReset = async () => {
+    await llamaManager.resetSettings();
+    setModelSettings(llamaManager.getSettings());
+    setError(null);
+  };
+
+  const updateMaxTokens = (value: string) => {
+    const tokens = parseInt(value, 10);
+    if (!isNaN(tokens)) {
+      handleSettingsChange({ maxTokens: tokens });
+    }
+  };
+
   const openLink = (url: string) => {
     Linking.openURL(url);
+  };
+
+  const handleOpenDialog = (config: typeof dialogConfig.setting) => {
+    setDialogConfig({
+      visible: true,
+      setting: config
+    });
+  };
+
+  const handleCloseDialog = () => {
+    setDialogConfig({ visible: false });
+  };
+
+  const handleMaxTokensPress = () => {
+    handleOpenDialog({
+      key: 'maxTokens',
+      label: 'Max Response Tokens',
+      value: modelSettings.maxTokens,
+      minimumValue: 1,
+      maximumValue: 4096,
+      step: 1,
+      description: "Maximum number of tokens in model responses. More tokens = longer responses but slower generation."
+    });
   };
 
   const ThemeOption = ({ title, description, value, icon }: {
     title: string;
     description: string;
     value: ThemeOption;
-    icon: string;
+    icon: keyof typeof Ionicons.glyphMap;
   }) => (
     <TouchableOpacity 
       style={[
@@ -133,7 +214,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     <View style={[styles.container, { backgroundColor: themeColors.background }]}>
       <AppHeader />
       <ScrollView contentContainerStyle={styles.contentContainer}>
-
+        
         <SettingsSection title="APPEARANCE">
           <ThemeOption
             title="System Default"
@@ -156,8 +237,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
         </SettingsSection>
 
         <SettingsSection title="SUPPORT">
-          
-        <TouchableOpacity 
+          <TouchableOpacity 
             style={[styles.settingItem]}
             onPress={() => openLink('https://play.google.com/store/apps/details?id=com.gorai.ragionare')}
           >
@@ -217,6 +297,164 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
             <Ionicons name="chevron-forward" size={20} color={themeColors.secondaryText} />
           </TouchableOpacity>
         </SettingsSection>
+
+        <SettingsSection title="MODEL SETTINGS">
+        <TouchableOpacity 
+            style={[styles.settingItem, styles.settingItemBorder]}
+            onPress={handleMaxTokensPress}
+          >
+            <View style={styles.settingLeft}>
+              <View style={[styles.iconContainer, { backgroundColor: themeColors.primary + '20' }]}>
+                <Ionicons name="text-outline" size={22} color={themeColors.primary} />
+              </View>
+              <View style={styles.settingTextContainer}>
+                <View style={styles.labelRow}>
+                  <Text style={[styles.settingText, { color: themeColors.text }]}>
+                    Max Response Tokens
+                  </Text>
+                  <Text style={[styles.valueText, { color: themeColors.text }]}>
+                    {modelSettings.maxTokens}
+                  </Text>
+                </View>
+                <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
+                  Maximum number of tokens in model responses. More tokens = longer responses but slower generation.
+                </Text>
+                {modelSettings.maxTokens !== DEFAULT_SETTINGS.maxTokens && (
+                  <TouchableOpacity
+                    onPress={() => handleSettingsChange({ maxTokens: DEFAULT_SETTINGS.maxTokens })}
+                    style={styles.resetButton}
+                  >
+                    <Ionicons name="refresh-outline" size={14} color={themeColors.primary} />
+                    <Text style={[styles.resetText, { color: themeColors.primary }]}>Reset to Default</Text>
+                  </TouchableOpacity>
+                )}
+                {error && (
+                  <Text style={[styles.errorText, { color: '#FF3B30' }]}>
+                    {error}
+                  </Text>
+                )}
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={themeColors.secondaryText} />
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={[styles.settingItem, styles.settingItemBorder]}
+            onPress={() => setShowStopWordsDialog(true)}
+          >
+            <View style={styles.settingLeft}>
+              <View style={[styles.iconContainer, { backgroundColor: themeColors.primary + '20' }]}>
+                <Ionicons name="stop-circle-outline" size={22} color={themeColors.primary} />
+              </View>
+              <View style={styles.settingTextContainer}>
+                <View style={styles.labelRow}>
+                  <Text style={[styles.settingText, { color: themeColors.text }]}>
+                    Stop Words
+                  </Text>
+                  <Text style={[styles.valueText, { color: themeColors.text }]}>
+                    {modelSettings.stopWords.length}
+                  </Text>
+                </View>
+                <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
+                  Words that will cause the model to stop generating. One word per line.
+                </Text>
+                {JSON.stringify(modelSettings.stopWords) !== JSON.stringify(DEFAULT_SETTINGS.stopWords) && (
+                  <TouchableOpacity
+                    onPress={() => handleSettingsChange({ stopWords: DEFAULT_SETTINGS.stopWords })}
+                    style={styles.resetButton}
+                  >
+                    <Ionicons name="refresh-outline" size={14} color={themeColors.primary} />
+                    <Text style={[styles.resetText, { color: themeColors.primary }]}>Reset to Default</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={themeColors.secondaryText} />
+          </TouchableOpacity>
+
+          <SettingSlider
+            label="Temperature"
+            value={modelSettings.temperature}
+            defaultValue={DEFAULT_SETTINGS.temperature}
+            onValueChange={(value) => handleSettingsChange({ temperature: value })}
+            minimumValue={0}
+            maximumValue={2}
+            step={0.01}
+            description="Controls randomness in responses. Higher values make the output more creative but less focused."
+            onPressChange={() => handleOpenDialog({
+              key: 'temperature',
+              label: 'Temperature',
+              value: modelSettings.temperature,
+              minimumValue: 0,
+              maximumValue: 2,
+              step: 0.01,
+              description: "Controls randomness in responses. Higher values make the output more creative but less focused."
+            })}
+          />
+
+          <SettingSlider
+            label="Top K"
+            value={modelSettings.topK}
+            defaultValue={DEFAULT_SETTINGS.topK}
+            onValueChange={(value) => handleSettingsChange({ topK: value })}
+            minimumValue={1}
+            maximumValue={100}
+            step={1}
+            description="Limits the cumulative probability of tokens considered for each step of text generation."
+            onPressChange={() => handleOpenDialog({
+              key: 'topK',
+              label: 'Top K',
+              value: modelSettings.topK,
+              minimumValue: 1,
+              maximumValue: 100,
+              step: 1,
+              description: "Limits the cumulative probability of tokens considered for each step of text generation."
+            })}
+          />
+
+          <SettingSlider
+            label="Top P"
+            value={modelSettings.topP}
+            defaultValue={DEFAULT_SETTINGS.topP}
+            onValueChange={(value) => handleSettingsChange({ topP: value })}
+            minimumValue={0}
+            maximumValue={1}
+            step={0.01}
+            description="Controls diversity of responses. Higher values = more diverse but potentially less focused."
+            onPressChange={() => handleOpenDialog({
+              key: 'topP',
+              label: 'Top P',
+              value: modelSettings.topP,
+              minimumValue: 0,
+              maximumValue: 1,
+              step: 0.01,
+              description: "Controls diversity of responses. Higher values = more diverse but potentially less focused."
+            })}
+          />
+
+          <SettingSlider
+            label="Min P"
+            value={modelSettings.minP}
+            defaultValue={DEFAULT_SETTINGS.minP}
+            onValueChange={(value) => handleSettingsChange({ minP: value })}
+            minimumValue={0}
+            maximumValue={1}
+            step={0.01}
+            description="Minimum probability threshold. Higher values = more focused on likely tokens."
+            onPressChange={() => handleOpenDialog({
+              key: 'minP',
+              label: 'Min P',
+              value: modelSettings.minP,
+              minimumValue: 0,
+              maximumValue: 1,
+              step: 0.01,
+              description: "Minimum probability threshold. Higher values = more focused on likely tokens."
+            })}
+          />
+
+          
+        </SettingsSection>
+
 
         <SettingsSection title="SYSTEM INFO">
           <TouchableOpacity 
@@ -327,6 +565,37 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
             </>
           )}
         </SettingsSection>
+
+        {dialogConfig.setting && (
+          <ModelSettingDialog
+            key={dialogConfig.setting.key}
+            visible={dialogConfig.visible}
+            onClose={handleCloseDialog}
+            onSave={(value) => {
+              handleSettingsChange({ [dialogConfig.setting!.key]: value });
+              handleCloseDialog();
+            }}
+            defaultValue={DEFAULT_SETTINGS[dialogConfig.setting.key] as number}
+            label={dialogConfig.setting.label}
+            value={dialogConfig.setting.value}
+            minimumValue={dialogConfig.setting.minimumValue}
+            maximumValue={dialogConfig.setting.maximumValue}
+            step={dialogConfig.setting.step}
+            description={dialogConfig.setting.description}
+          />
+        )}
+
+        <StopWordsDialog
+          visible={showStopWordsDialog}
+          onClose={() => setShowStopWordsDialog(false)}
+          onSave={(stopWords) => {
+            handleSettingsChange({ stopWords });
+            setShowStopWordsDialog(false);
+          }}
+          value={modelSettings.stopWords}
+          defaultValue={DEFAULT_SETTINGS.stopWords}
+          description="Enter words that will cause the model to stop generating. Each word should be on a new line. The model will stop when it generates any of these words."
+        />
       </ScrollView>
     </View>
   );
@@ -421,5 +690,164 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
+  },
+  tokenInput: {
+    width: 60,
+    height: 36,
+    borderWidth: 1,
+    borderRadius: 8,
+    textAlign: 'center',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  tokenExplanation: {
+    fontSize: 12,
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  settingGroup: {
+    marginBottom: 24,
+    padding: 16,
+  },
+  settingLabel: {
+    fontSize: 16,
+    fontWeight: '500',
+    marginBottom: 8,
+  },
+  input: {
+    width: '100%',
+    height: 48,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    fontSize: 16,
+    marginBottom: 8,
+  },
+  error: {
+    fontSize: 12,
+    marginTop: 8,
+    color: '#FF3B30',
+  },
+  sliderContainer: {
+    marginBottom: 24,
+    padding: 16,
+  },
+  sliderHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  sliderLabel: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  sliderValue: {
+    fontSize: 14,
+  },
+  slider: {
+    width: '100%',
+    height: 40,
+  },
+  sliderDescription: {
+    fontSize: 12,
+    fontStyle: 'italic',
+    marginTop: 4,
+  },
+  resetButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    alignSelf: 'flex-start',
+    padding: 4,
+    borderRadius: 4,
+    backgroundColor: 'rgba(0, 122, 255, 0.1)',
+  },
+  resetText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  modelSettingGroup: {
+    marginBottom: 24,
+    padding: 16,
+  },
+  modelSettingLabel: {
+    fontSize: 16,
+    fontWeight: '500',
+    marginBottom: 8,
+  },
+  modelSettingInput: {
+    width: '100%',
+    height: 48,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    fontSize: 16,
+    marginBottom: 8,
+  },
+  modelSettingDescription: {
+    fontSize: 12,
+    fontStyle: 'italic',
+    marginTop: 4,
+  },
+  modelSettingError: {
+    fontSize: 12,
+    marginTop: 8,
+    color: '#FF3B30',
+  },
+  modelResetButton: {
+    marginTop: 8,
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  modelResetButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  modelSettingReset: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+  modelSettingDefaultValue: {
+    fontSize: 12,
+  },
+  modelSettingResetButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    padding: 4,
+    borderRadius: 4,
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+  },
+  modelSettingResetText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  labelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  settingFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+  settingMeta: {
+    fontSize: 12,
+  },
+  errorText: {
+    fontSize: 12,
+    marginTop: 8,
+    color: '#FF3B30',
+  },
+  valueText: {
+    fontSize: 16,
+    fontWeight: '500',
   },
 }); 

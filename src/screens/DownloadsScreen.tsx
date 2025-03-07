@@ -112,31 +112,120 @@ export default function DownloadsScreen() {
   // Update the loadSavedDownloadStates function
   const loadSavedDownloadStates = async () => {
     try {
-      const savedProgress = await AsyncStorage.getItem('download_progress');
-      if (savedProgress) {
-        const parsedProgress = JSON.parse(savedProgress) as DownloadProgress;
+      console.log('[DownloadsScreen] Loading saved download states...');
+      
+      // Load saved download states from AsyncStorage
+      const savedStates = await AsyncStorage.getItem('active_downloads');
+      if (savedStates) {
+        const parsedStates = JSON.parse(savedStates);
         
-        // Filter out completed downloads and verify file existence
-        const filteredProgress: DownloadProgress = {};
-        
-        for (const [key, value] of Object.entries(parsedProgress)) {
-          if (!value || value.status === 'completed' || value.status === 'failed' || value.progress >= 100) {
-            continue;
+        // Check each download state
+        for (const [modelName, state] of Object.entries(parsedStates)) {
+          const downloadState = state as DownloadState;
+          
+          // Check if the model exists in the models directory
+          const modelPath = `${FileSystem.documentDirectory}models/${modelName}`;
+          let fileSize = 0;
+          try {
+            const fileInfo = await FileSystem.getInfoAsync(modelPath, { size: true });
+            if (fileInfo.exists) {
+              fileSize = (fileInfo as any).size || 0;
+            }
+          } catch (error) {
+            console.error(`[DownloadsScreen] Error getting file size for ${modelName}:`, error);
           }
           
-          // Check if file exists in models directory
-          const modelPath = `${FileSystem.documentDirectory}models/${key}`;
-          const fileInfo = await FileSystem.getInfoAsync(modelPath);
-          
-          if (!fileInfo.exists) {
-            filteredProgress[key] = value;
+          if (fileSize > 0) {
+            // Model exists, mark as completed
+            console.log(`[DownloadsScreen] Found completed model: ${modelName}`);
+            
+            // Update download progress
+            setDownloadProgress(prev => ({
+              ...prev,
+              [modelName]: {
+                progress: 100,
+                bytesDownloaded: fileSize,
+                totalBytes: fileSize,
+                status: 'completed',
+                downloadId: downloadState.downloadId
+              }
+            }));
+            
+            // Remove from active downloads
+            const updatedStates = { ...parsedStates };
+            delete updatedStates[modelName];
+            await AsyncStorage.setItem('active_downloads', JSON.stringify(updatedStates));
+          } else {
+            // Check temp directory
+            const tempPath = `${FileSystem.documentDirectory}temp/${modelName}`;
+            const tempInfo = await FileSystem.getInfoAsync(tempPath);
+            
+            if (tempInfo.exists) {
+              // Temp file exists, try to move it
+              try {
+                const destPath = `${FileSystem.documentDirectory}models/${modelName}`;
+                await FileSystem.makeDirectoryAsync(
+                  `${FileSystem.documentDirectory}models`, 
+                  { intermediates: true }
+                ).catch(() => {});
+                
+                await FileSystem.moveAsync({
+                  from: tempPath,
+                  to: destPath
+                });
+                
+                console.log(`[DownloadsScreen] Moved completed download: ${modelName}`);
+                
+                // Get file size safely
+                let fileSize = 0;
+                try {
+                  const fileInfo = await FileSystem.getInfoAsync(destPath, { size: true });
+                  if (fileInfo.exists) {
+                    fileSize = (fileInfo as any).size || 0;
+                  }
+                } catch (error) {
+                  console.error(`[DownloadsScreen] Error getting file size for ${modelName}:`, error);
+                }
+                
+                // Update download progress
+                setDownloadProgress(prev => ({
+                  ...prev,
+                  [modelName]: {
+                    progress: 100,
+                    bytesDownloaded: fileSize,
+                    totalBytes: fileSize,
+                    status: 'completed',
+                    downloadId: downloadState.downloadId
+                  }
+                }));
+                
+                // Remove from active downloads
+                const updatedStates = { ...parsedStates };
+                delete updatedStates[modelName];
+                await AsyncStorage.setItem('active_downloads', JSON.stringify(updatedStates));
+              } catch (error) {
+                console.error(`[DownloadsScreen] Error moving temp file for ${modelName}:`, error);
+              }
+            } else {
+              // Add to download progress if not already there
+              if (!downloadProgress[modelName]) {
+                setDownloadProgress(prev => ({
+                  ...prev,
+                  [modelName]: {
+                    progress: 0,
+                    bytesDownloaded: 0,
+                    totalBytes: 0,
+                    status: downloadState.status || 'unknown',
+                    downloadId: downloadState.downloadId
+                  }
+                }));
+              }
+            }
           }
         }
-        
-        setDownloadProgress(filteredProgress);
       }
     } catch (error) {
-      console.error('Error loading download states:', error);
+      console.error('[DownloadsScreen] Error loading saved download states:', error);
     }
   };
 

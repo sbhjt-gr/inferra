@@ -8,6 +8,7 @@ interface DownloadProgress {
     totalBytes: number;
     status: string;
     downloadId: number;
+    isPaused?: boolean;
   };
 }
 
@@ -31,8 +32,18 @@ export const DownloadProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           
           // Keep all downloads that are not completed or failed
           const filteredProgress = Object.entries(parsedProgress).reduce((acc, [key, value]) => {
-            if (value.status !== 'completed' && value.status !== 'failed') {
-              acc[key] = value;
+            if (value && typeof value === 'object' && 
+                'status' in value && 
+                value.status !== 'completed' && 
+                value.status !== 'failed') {
+              acc[key] = value as {
+                progress: number;
+                bytesDownloaded: number;
+                totalBytes: number;
+                status: string;
+                downloadId: number;
+                isPaused?: boolean;
+              };
             }
             return acc;
           }, {} as DownloadProgress);
@@ -40,7 +51,7 @@ export const DownloadProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           setDownloadProgress(filteredProgress);
         }
       } catch (error) {
-        console.error('Error loading download states:', error);
+        console.error('Error loading saved download states:', error);
       }
     };
     loadSavedStates();

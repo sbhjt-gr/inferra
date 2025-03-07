@@ -15,7 +15,7 @@ import {
   Animated,
   Platform,
 } from 'react-native';
-import { CompositeNavigationProp } from '@react-navigation/native';
+import { CompositeNavigationProp, useFocusEffect } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList, TabParamList } from '../types/navigation';
@@ -29,6 +29,7 @@ import DownloadsDialog from '../components/DownloadsDialog';
 import { useDownloads } from '../context/DownloadContext';
 import * as BackgroundFetch from 'expo-background-fetch';
 import * as TaskManager from 'expo-task-manager';
+import * as DocumentPicker from 'expo-document-picker';
 import {
   AndroidNotificationPriority,
   AndroidImportance,
@@ -242,6 +243,88 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
   const [isDownloadsVisible, setIsDownloadsVisible] = useState(false);
   const buttonScale = useRef(new Animated.Value(1)).current;
   const buttonProcessingRef = useRef(new Set<string>());
+
+  const handleLinkModel = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: '*/*',
+        copyToCacheDirectory: false,
+      });
+
+      if (result.canceled) {
+        return;
+      }
+
+      const file = result.assets[0];
+      const fileName = file.name.toLowerCase();
+
+      // Check if file is a GGUF model
+      if (!fileName.endsWith('.gguf')) {
+        Alert.alert(
+          'Invalid File',
+          'Please select a valid GGUF model file (with .gguf extension)'
+        );
+        return;
+      }
+
+      // Ask user whether to copy or link
+      Alert.alert(
+        'Link Model',
+        'Do you want to copy the model file or create a link to it?',
+        [
+          {
+            text: 'Copy',
+            onPress: async () => {
+              try {
+                await modelDownloader.linkExternalModel(file.uri, file.name, true);
+                Alert.alert(
+                  'Model Added',
+                  'The model has been successfully copied to the app.'
+                );
+                await loadStoredModels();
+              } catch (error) {
+                console.error('Error copying model:', error);
+                Alert.alert(
+                  'Error',
+                  'Failed to copy the model. Please try again.'
+                );
+              }
+            }
+          },
+          {
+            text: 'Link',
+            onPress: async () => {
+              try {
+                await modelDownloader.linkExternalModel(file.uri, file.name, false);
+                Alert.alert(
+                  'Model Linked',
+                  'The model has been successfully linked to the app.'
+                );
+                await loadStoredModels();
+              } catch (error) {
+                console.error('Error linking model:', error);
+                Alert.alert(
+                  'Error',
+                  'Failed to link the model. Please try again.'
+                );
+              }
+            }
+          },
+          {
+            text: 'Cancel',
+            style: 'cancel'
+          }
+        ]
+      );
+
+    } catch (error) {
+      console.error('Error linking model:', error);
+      Alert.alert(
+        'Error',
+        'Failed to link the model. Please try again.'
+      );
+    }
+  };
 
   const validateModelUrl = (url: string) => {
     setCustomUrl(url);
@@ -598,11 +681,28 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
   };
 
   const loadStoredModels = async () => {
+    console.log('[ModelScreen] Loading stored models...');
     try {
+      // First try to process any completed downloads that might be in temp
+      try {
+        console.log('[ModelScreen] Checking for background downloads...');
+        await modelDownloader.checkBackgroundDownloads();
+        console.log('[ModelScreen] Background downloads check completed');
+      } catch (checkError) {
+        console.error('[ModelScreen] Error checking background downloads:', checkError);
+      }
+      
+      // Then get the stored models
+      console.log('[ModelScreen] Getting stored models from modelDownloader...');
       const models = await modelDownloader.getStoredModels();
+      console.log(`[ModelScreen] Found ${models.length} stored models:`, models.map(m => m.name));
       setStoredModels(models);
     } catch (error) {
-      console.error('Error loading stored models:', error);
+      console.error('[ModelScreen] Error loading stored models:', error);
+      Alert.alert(
+        'Error Loading Models',
+        'There was a problem loading your stored models. Please try again.'
+      );
     }
   };
 
@@ -803,6 +903,8 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
   }, [downloadProgress]);
 
   const handleDelete = (model: StoredModel) => {
+    console.log(`[ModelScreen] Attempting to delete model: ${model.name}, path: ${model.path}`);
+    
     Alert.alert(
       'Delete Model',
       `Are you sure you want to delete ${model.name}?`,
@@ -816,10 +918,12 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
           style: 'destructive',
           onPress: async () => {
             try {
+              console.log(`[ModelScreen] User confirmed deletion of model: ${model.name}`);
               await modelDownloader.deleteModel(model.path);
-              loadStoredModels();
+              console.log(`[ModelScreen] Model deleted, refreshing stored models list`);
+              await loadStoredModels();
             } catch (error) {
-              console.error('Error deleting model:', error);
+              console.error(`[ModelScreen] Error deleting model ${model.name}:`, error);
               Alert.alert('Error', 'Failed to delete model');
             }
           },
@@ -832,7 +936,34 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     return filename.split('.')[0];
   };
 
-  // Update the renderDownloadableList function
+  // Update the handleManualRefresh function
+  const handleManualRefresh = async () => {
+    console.log('[ModelScreen] Manual refresh requested');
+    
+    try {
+      // First check for any completed downloads in temp directory
+      await modelDownloader.processCompletedDownloads();
+      
+      // Then reload the stored models list
+      await loadStoredModels();
+      
+      // Show success message
+      Alert.alert(
+        'Refresh Complete',
+        'The stored models list has been refreshed.'
+      );
+    } catch (err) {
+      console.error('[ModelScreen] Error during manual refresh:', err);
+      
+      // Show error message
+      Alert.alert(
+        'Refresh Failed',
+        'There was an error refreshing the stored models list. Please try again.'
+      );
+    }
+  };
+
+  // First remove the button from renderDownloadableList
   const renderDownloadableList = () => (
     <View style={styles.downloadableContainer}>
       <ScrollView 
@@ -840,27 +971,43 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         contentContainerStyle={{ padding: 16 }}
         showsVerticalScrollIndicator={false}
       >
-        <TouchableOpacity
-          style={[styles.customUrlButton, { backgroundColor: themeColors.borderColor }]}
-          onPress={() => setCustomUrlDialogVisible(true)}
-        >
-          <View style={styles.customUrlButtonContent}>
-            <View style={styles.customUrlIconContainer}>
-              <Ionicons name="add-circle-outline" size={24} color="#4a0660" />
-            </View>
-            <View style={styles.customUrlTextContainer}>
-              <Text style={[styles.customUrlButtonTitle, { color: themeColors.text }]}>
-                Download from URL
+        {activeTab === 'stored' && (
+          <View style={styles.refreshButtonContainer}>
+            <TouchableOpacity
+              style={styles.refreshButton}
+              onPress={handleManualRefresh}
+            >
+              <Ionicons name="refresh-outline" size={20} color={themeColors.text} />
+              <Text style={[styles.refreshButtonText, { color: themeColors.text }]}>
+                Refresh Models
               </Text>
-              <Text style={[styles.customUrlButtonSubtitle, { color: themeColors.secondaryText }]}>
-                Import a custom GGUF model
-              </Text>
-            </View>
+            </TouchableOpacity>
           </View>
-          <Ionicons name="chevron-forward" size={20} color={themeColors.secondaryText} />
-        </TouchableOpacity>
-
-        <DownloadableModelList
+        )}
+        
+        {activeTab === 'downloadable' && (
+          <TouchableOpacity
+            style={[styles.customUrlButton, { backgroundColor: themeColors.borderColor }]}
+            onPress={() => setCustomUrlDialogVisible(true)}
+          >
+            <View style={styles.customUrlButtonContent}>
+              <View style={styles.customUrlIconContainer}>
+                <Ionicons name="add-circle-outline" size={24} color="#4a0660" />
+              </View>
+              <View style={styles.customUrlTextContainer}>
+                <Text style={[styles.customUrlButtonTitle, { color: themeColors.text }]}>
+                  Download from URL
+                </Text>
+                <Text style={[styles.customUrlButtonSubtitle, { color: themeColors.secondaryText }]}>
+                  Import a custom GGUF model
+                </Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={themeColors.secondaryText} />
+          </TouchableOpacity>
+        )}
+        
+        <DownloadableModelList 
           downloadProgress={downloadProgress}
           setDownloadProgress={setDownloadProgress}
         />
@@ -872,6 +1019,36 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
           navigation={navigation}
         />
       </ScrollView>
+    </View>
+  );
+
+  // Add header component for the stored models list
+  const StoredModelsHeader = () => (
+    <View style={styles.storedModelsHeader}>
+      <TouchableOpacity
+        style={[styles.customUrlButton, { backgroundColor: themeColors.borderColor }]}
+        onPress={handleLinkModel}
+      >
+        <View style={styles.customUrlButtonContent}>
+          <View style={styles.customUrlIconContainer}>
+            <Ionicons name="link-outline" size={24} color="#4a0660" />
+          </View>
+          <View style={styles.customUrlTextContainer}>
+            <Text style={[styles.customUrlButtonTitle, { color: themeColors.text }]}>
+              Link Local Model
+            </Text>
+            <Text style={[styles.customUrlButtonSubtitle, { color: themeColors.secondaryText }]}>
+              Import a model from your device
+            </Text>
+          </View>
+        </View>
+        <TouchableOpacity
+          onPress={handleManualRefresh}
+          style={styles.refreshIconButton}
+        >
+          <Ionicons name="refresh-outline" size={24} color={themeColors.secondaryText} />
+        </TouchableOpacity>
+      </TouchableOpacity>
     </View>
   );
 
@@ -970,6 +1147,64 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     );
   };
 
+  // Add focus effect to reload models when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log('[ModelScreen] Screen focused, refreshing models');
+      
+      // Force a check for completed downloads and refresh models
+      const refreshModels = async () => {
+        try {
+          // First check for any completed downloads in temp directory
+          await modelDownloader.processCompletedDownloads();
+          
+          // Then reload the stored models list
+          await loadStoredModels();
+        } catch (error) {
+          console.error('[ModelScreen] Error refreshing models on focus:', error);
+        }
+      };
+      
+      refreshModels();
+      
+      return () => {
+        console.log('[ModelScreen] Screen unfocused');
+      };
+    }, [])
+  );
+
+  // Add effect to reload models when active tab changes to 'stored'
+  useEffect(() => {
+    if (activeTab === 'stored') {
+      console.log('[ModelScreen] Tab changed to stored, refreshing models');
+      loadStoredModels();
+    }
+  }, [activeTab]);
+
+  // Add effect to periodically check for new models
+  useEffect(() => {
+    if (activeTab === 'stored') {
+      console.log('[ModelScreen] Setting up periodic refresh for stored models');
+      
+      // Check every 3 seconds for new models
+      const intervalId = setInterval(async () => {
+        try {
+          console.log('[ModelScreen] Periodic refresh checking for new models');
+          await modelDownloader.processCompletedDownloads();
+          await loadStoredModels();
+        } catch (error) {
+          console.error('[ModelScreen] Error in periodic refresh:', error);
+        }
+      }, 3000);
+      
+      // Clean up interval on unmount
+      return () => {
+        console.log('[ModelScreen] Clearing periodic refresh interval');
+        clearInterval(intervalId);
+      };
+    }
+  }, [activeTab]);
+
   return (
     <View style={[styles.container, { backgroundColor: themeColors.background }]}>
       <AppHeader />
@@ -1030,6 +1265,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
               renderItem={renderItem}
               keyExtractor={item => item.path}
               contentContainerStyle={styles.list}
+              ListHeaderComponent={StoredModelsHeader}
               ListEmptyComponent={
                 <View style={styles.emptyContainer}>
                   <Ionicons 
@@ -1487,5 +1723,30 @@ const styles = StyleSheet.create({
   progressFill: {
     height: '100%',
     borderRadius: 2,
+  },
+  refreshButtonContainer: {
+    padding: 10,
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  refreshButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 10,
+    backgroundColor: 'rgba(0, 0, 0, 0.1)',
+    borderRadius: 8,
+  },
+  refreshButtonText: {
+    marginLeft: 5,
+    fontSize: 14,
+  },
+  storedModelsHeader: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 16,
+  },
+  refreshIconButton: {
+    padding: 8,
+    marginRight: -8,
   },
 }); 
