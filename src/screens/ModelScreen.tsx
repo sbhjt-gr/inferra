@@ -30,15 +30,8 @@ import { useDownloads } from '../context/DownloadContext';
 import * as BackgroundFetch from 'expo-background-fetch';
 import * as TaskManager from 'expo-task-manager';
 import * as DocumentPicker from 'expo-document-picker';
-import {
-  AndroidNotificationPriority,
-  AndroidImportance,
-  setNotificationChannelAsync,
-  scheduleNotificationAsync,
-  AndroidNotificationVisibility,
-} from 'expo-notifications';
-import * as Notifications from 'expo-notifications';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { downloadNotificationService } from '../services/DownloadNotificationService';
 
 type ModelScreenProps = {
   navigation: CompositeNavigationProp<
@@ -231,6 +224,12 @@ const registerBackgroundTask = async () => {
 };
 
 const Tab = createBottomTabNavigator();
+
+const setupNotifications = async () => {
+  if (Platform.OS === 'android') {
+    await downloadNotificationService.requestPermissions();
+  }
+};
 
 export default function ModelScreen({ navigation }: ModelScreenProps) {
   const { theme: currentTheme } = useTheme();
@@ -747,27 +746,17 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       const totalBytes = typeof progress.totalBytes === 'number' ? progress.totalBytes : 0;
       const progressValue = typeof progress.progress === 'number' ? progress.progress : 0;
 
-      // Use downloadId as the notification identifier
-      const notificationId = `download_${progress.downloadId}`;
-
       if (progress.status === 'completed') {
         console.log(`Download completed for ${filename}`);
         
-        // Show completion notification with the same ID to replace progress notification
-        await scheduleNotificationAsync({
-          identifier: notificationId,
-          content: {
-            title: `Download Complete`,
-            body: `${filename} has been downloaded successfully`,
-            data: { downloadId: progress.downloadId },
-            badge: 1,
-            autoDismiss: true // Auto dismiss after a few seconds
-          },
-          trigger: {
-            seconds: 0,
-            channelId: 'downloads'
-          }
-        });
+        // Show completion notification
+        if (Platform.OS === 'android') {
+          await downloadNotificationService.showNotification(
+            filename,
+            progress.downloadId,
+            100
+          );
+        }
         
         setDownloadProgress(prev => ({
           ...prev,
@@ -794,21 +783,10 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       } else if (progress.status === 'failed') {
         console.log(`Download failed for ${filename}`);
         
-        // Show failure notification with the same ID
-        await scheduleNotificationAsync({
-          identifier: notificationId,
-          content: {
-            title: `Download Failed`,
-            body: `Failed to download ${filename}`,
-            data: { downloadId: progress.downloadId },
-            badge: 1,
-            autoDismiss: true
-          },
-          trigger: {
-            seconds: 0,
-            channelId: 'downloads'
-          }
-        });
+        // Cancel notification on failure
+        if (Platform.OS === 'android') {
+          await downloadNotificationService.cancelNotification(progress.downloadId);
+        }
         
         setDownloadProgress(prev => ({
           ...prev,
@@ -832,27 +810,12 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
 
       } else {
         // Update ongoing download notification
-        await scheduleNotificationAsync({
-          identifier: notificationId,
-          content: {
-            title: `Downloading ${filename}`,
-            body: `${progressValue}% • ${formatBytes(bytesDownloaded)} / ${formatBytes(totalBytes)}`,
-            data: { 
-              downloadId: progress.downloadId,
-              progress: progressValue,
-              maxProgress: 100,
-              ongoing: true,
-              showProgress: true
-            },
-            sound: false,
-            priority: AndroidNotificationPriority.HIGH,
-            badge: 1
-          },
-          trigger: {
-            seconds: 0,
-            channelId: 'downloads'
-          }
-        });
+        if (Platform.OS === 'android') {
+          await downloadNotificationService.updateProgress(
+            progress.downloadId,
+            progressValue
+          );
+        }
 
         setDownloadProgress(prev => {
           return {
@@ -871,15 +834,9 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
 
     // Set up notifications
     const setupNotifications = async () => {
-      await setNotificationChannelAsync('downloads', {
-        name: 'Downloads',
-        importance: AndroidImportance.HIGH,
-        enableVibrate: false,
-        enableLights: false,
-        showBadge: true,
-        lockscreenVisibility: AndroidNotificationVisibility.PUBLIC,
-      });
-
+      if (Platform.OS === 'android') {
+        await downloadNotificationService.requestPermissions();
+      }
       await registerBackgroundTask();
     };
 
@@ -966,33 +923,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     return filename.split('.')[0];
   };
 
-  // Update the handleManualRefresh function
-  const handleManualRefresh = async () => {
-    console.log('[ModelScreen] Manual refresh requested');
-    
-    try {
-      // First check for any completed downloads in temp directory
-      await modelDownloader.processCompletedDownloads();
-      
-      // Then reload the stored models list
-      await loadStoredModels();
-      
-      // Show success message
-      Alert.alert(
-        'Refresh Complete',
-        'The stored models list has been refreshed.'
-      );
-    } catch (err) {
-      console.error('[ModelScreen] Error during manual refresh:', err);
-      
-      // Show error message
-      Alert.alert(
-        'Refresh Failed',
-        'There was an error refreshing the stored models list. Please try again.'
-      );
-    }
-  };
-
   // First remove the button from renderDownloadableList
   const renderDownloadableList = () => (
     <View style={styles.downloadableContainer}>
@@ -1001,41 +931,25 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         contentContainerStyle={{ padding: 16 }}
         showsVerticalScrollIndicator={false}
       >
-        {activeTab === 'stored' && (
-          <View style={styles.refreshButtonContainer}>
-            <TouchableOpacity
-              style={styles.refreshButton}
-              onPress={handleManualRefresh}
-            >
-              <Ionicons name="refresh-outline" size={20} color={themeColors.text} />
-              <Text style={[styles.refreshButtonText, { color: themeColors.text }]}>
-                Refresh Models
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
-        
-        {activeTab === 'downloadable' && (
-          <TouchableOpacity
-            style={[styles.customUrlButton, { backgroundColor: themeColors.borderColor }]}
-            onPress={() => setCustomUrlDialogVisible(true)}
-          >
-            <View style={styles.customUrlButtonContent}>
-              <View style={styles.customUrlIconContainer}>
-                <Ionicons name="add-circle-outline" size={24} color="#4a0660" />
-              </View>
-              <View style={styles.customUrlTextContainer}>
-                <Text style={[styles.customUrlButtonTitle, { color: themeColors.text }]}>
-                  Download from URL
-                </Text>
-                <Text style={[styles.customUrlButtonSubtitle, { color: themeColors.secondaryText }]}>
-                  Import a custom GGUF model
-                </Text>
-              </View>
+        <TouchableOpacity
+          style={[styles.customUrlButton, { backgroundColor: themeColors.borderColor }]}
+          onPress={() => setCustomUrlDialogVisible(true)}
+        >
+          <View style={styles.customUrlButtonContent}>
+            <View style={styles.customUrlIconContainer}>
+              <Ionicons name="add-circle-outline" size={24} color="#4a0660" />
             </View>
-            <Ionicons name="chevron-forward" size={20} color={themeColors.secondaryText} />
-          </TouchableOpacity>
-        )}
+            <View style={styles.customUrlTextContainer}>
+              <Text style={[styles.customUrlButtonTitle, { color: themeColors.text }]}>
+                Download from URL
+              </Text>
+              <Text style={[styles.customUrlButtonSubtitle, { color: themeColors.secondaryText }]}>
+                Download a custom GGUF model from a URL
+              </Text>
+            </View>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={themeColors.secondaryText} />
+        </TouchableOpacity>
         
         <DownloadableModelList 
           downloadProgress={downloadProgress}
@@ -1068,16 +982,10 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
               Import Model
             </Text>
             <Text style={[styles.customUrlButtonSubtitle, { color: themeColors.secondaryText }]}>
-              Import a model from your device
+              Import a GGUF model from the storage
             </Text>
           </View>
         </View>
-        <TouchableOpacity
-          onPress={handleManualRefresh}
-          style={styles.refreshIconButton}
-        >
-          <Ionicons name="refresh-outline" size={24} color={themeColors.secondaryText} />
-        </TouchableOpacity>
       </TouchableOpacity>
     </View>
   );
@@ -1823,10 +1731,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 16,
-  },
-  refreshIconButton: {
-    padding: 8,
-    marginRight: -8,
   },
   loadingOverlay: {
     position: 'absolute',

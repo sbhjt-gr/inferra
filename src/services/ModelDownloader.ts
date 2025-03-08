@@ -2,8 +2,9 @@ import RNBackgroundDownloader from '@kesha-antonov/react-native-background-downl
 import * as FileSystem from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform, AppState, AppStateStatus, NativeModules } from 'react-native';
-import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
+import { downloadNotificationService } from './DownloadNotificationService';
+import { notificationService } from './NotificationService';
 
 type Listener = (...args: any[]) => void;
 
@@ -146,9 +147,6 @@ class ModelDownloader extends EventEmitter {
       try {
         console.log('[ModelDownloader] Checking for existing background downloads...');
         
-        // Import the library dynamically to avoid TypeScript errors
-        const RNBackgroundDownloader = require('@kesha-antonov/react-native-background-downloader').default;
-        
         const existingTasks = await RNBackgroundDownloader.checkForExistingDownloads();
         console.log(`[ModelDownloader] Found ${existingTasks.length} existing background downloads`);
         
@@ -204,46 +202,18 @@ class ModelDownloader extends EventEmitter {
 
   private async setupNotifications() {
     if (Platform.OS === 'android') {
-      await Notifications.setNotificationChannelAsync('downloads', {
-        name: 'Downloads',
-        importance: Notifications.AndroidImportance.HIGH,
-        vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#FF231F7C',
-      });
+      await downloadNotificationService.requestPermissions();
     }
-
-    Notifications.setNotificationHandler({
-      handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: false,
-        shouldSetBadge: false,
-        shouldHandleInForeground: false,
-      }),
-    });
-
-    // Set up notification response handler
-    const subscription = Notifications.addNotificationResponseReceivedListener(response => {
-      // Set the flag when notification is clicked
-      this.wasOpenedViaNotification = true;
-    });
-
-    this._notificationSubscription = subscription;
   }
 
   private async requestNotificationPermissions(): Promise<boolean> {
     if (Device.isDevice) {
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
-      let finalStatus = existingStatus;
-      
-      if (existingStatus !== 'granted') {
-        const { status } = await Notifications.requestPermissionsAsync();
-        finalStatus = status;
+      if (Platform.OS === 'android') {
+        const granted = await downloadNotificationService.requestPermissions();
+        this.hasNotificationPermission = granted;
+        return granted;
       }
-      
-      this.hasNotificationPermission = finalStatus === 'granted';
-      return this.hasNotificationPermission;
     }
-    
     return false;
   }
 
@@ -446,23 +416,29 @@ class ModelDownloader extends EventEmitter {
   }
 
   private async showNotification(title: string, body: string, data?: any) {
-    if (!this.hasNotificationPermission) {
-      return;
-    }
-
-    try {
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title,
-          body,
-          data,
-          sound: true,
-          priority: Notifications.AndroidNotificationPriority.HIGH
-        },
-        trigger: null
-      });
-    } catch (error) {
-      console.error('Error showing notification:', error);
+    // Only show notifications on Android through native notification service
+    if (Platform.OS === 'android') {
+      try {
+        if (data && data.modelName && data.downloadId) {
+          if (data.action === 'download_complete') {
+            await downloadNotificationService.showNotification(
+              data.modelName,
+              data.downloadId,
+              100
+            );
+          } else if (data.action === 'download_started') {
+            await downloadNotificationService.showNotification(
+              data.modelName,
+              data.downloadId,
+              0
+            );
+          } else if (data.action === 'download_cancelled') {
+            await downloadNotificationService.cancelNotification(data.downloadId);
+          }
+        }
+      } catch (error) {
+        console.error('[ModelDownloader] Error showing notification:', error);
+      }
     }
   }
 
@@ -494,6 +470,20 @@ class ModelDownloader extends EventEmitter {
         status: 'downloading',
         downloadId: downloadInfo.downloadId
       });
+
+      // Show notification based on platform
+      if (Platform.OS === 'android') {
+        downloadNotificationService.showNotification(
+          downloadInfo.modelName,
+          downloadInfo.downloadId,
+          0
+        );
+      } else {
+        notificationService.showDownloadStartedNotification(
+          downloadInfo.modelName,
+          downloadInfo.downloadId
+        );
+      }
     });
     
     // Progress event - fired periodically during download
@@ -506,18 +496,34 @@ class ModelDownloader extends EventEmitter {
       
       // Update download info
       downloadInfo.progress = progress;
-        downloadInfo.bytesDownloaded = bytesDownloaded;
+      downloadInfo.bytesDownloaded = bytesDownloaded;
       downloadInfo.totalBytes = bytesTotal;
 
       // Emit progress event
-        this.emit('downloadProgress', {
+      this.emit('downloadProgress', {
         modelName: downloadInfo.modelName,
         progress,
-          bytesDownloaded,
+        bytesDownloaded,
         totalBytes: bytesTotal,
-          status: 'downloading',
-          downloadId: downloadInfo.downloadId
-        });
+        status: 'downloading',
+        downloadId: downloadInfo.downloadId
+      });
+
+      // Update notification based on platform
+      if (Platform.OS === 'android') {
+        downloadNotificationService.updateProgress(
+          downloadInfo.downloadId,
+          progress
+        );
+      } else {
+        notificationService.updateDownloadProgressNotification(
+          downloadInfo.modelName,
+          downloadInfo.downloadId,
+          progress,
+          bytesDownloaded,
+          bytesTotal
+        );
+      }
     });
     
     // Done event - fired when download completes successfully
@@ -539,21 +545,28 @@ class ModelDownloader extends EventEmitter {
           console.log(`[ModelDownloader] Moved ${downloadInfo.modelName} from temp to models directory`);
           
           // Emit completion event
-        this.emit('downloadProgress', {
+          this.emit('downloadProgress', {
             modelName: downloadInfo.modelName,
-          progress: 100,
+            progress: 100,
             bytesDownloaded: tempSize,
             totalBytes: tempSize,
-          status: 'completed',
-          downloadId: downloadInfo.downloadId
-        });
+            status: 'completed',
+            downloadId: downloadInfo.downloadId
+          });
 
-          // Show notification
-          await this.showNotification(
-            'Download Complete',
-            `${downloadInfo.modelName} has been downloaded successfully.`,
-            { modelName: downloadInfo.modelName, action: 'download_complete' }
-          );
+          // Show completion notification based on platform
+          if (Platform.OS === 'android') {
+            downloadNotificationService.showNotification(
+              downloadInfo.modelName,
+              downloadInfo.downloadId,
+              100
+            );
+          } else {
+            notificationService.showDownloadCompletedNotification(
+              downloadInfo.modelName,
+              downloadInfo.downloadId
+            );
+          }
           
           // Clean up download info
           await this.cleanupDownload(downloadInfo.modelName, downloadInfo);
@@ -573,6 +586,16 @@ class ModelDownloader extends EventEmitter {
             downloadId: downloadInfo.downloadId,
             error: 'Temp file not found'
           });
+
+          // Show error notification based on platform
+          if (Platform.OS === 'android') {
+            downloadNotificationService.cancelNotification(downloadInfo.downloadId);
+          } else {
+            notificationService.showDownloadFailedNotification(
+              downloadInfo.modelName,
+              downloadInfo.downloadId
+            );
+          }
         }
       } catch (error) {
         console.error(`[ModelDownloader] Error handling download completion for ${downloadInfo.modelName}:`, error);
@@ -587,6 +610,16 @@ class ModelDownloader extends EventEmitter {
           downloadId: downloadInfo.downloadId,
           error: 'Error handling download completion'
         });
+
+        // Show error notification based on platform
+        if (Platform.OS === 'android') {
+          downloadNotificationService.cancelNotification(downloadInfo.downloadId);
+        } else {
+          notificationService.showDownloadFailedNotification(
+            downloadInfo.modelName,
+            downloadInfo.downloadId
+          );
+        }
       }
     });
     
@@ -607,6 +640,16 @@ class ModelDownloader extends EventEmitter {
         downloadId: downloadInfo.downloadId,
         error: error
       });
+      
+      // Show error notification based on platform
+      if (Platform.OS === 'android') {
+        downloadNotificationService.cancelNotification(downloadInfo.downloadId);
+      } else {
+        notificationService.showDownloadFailedNotification(
+          downloadInfo.modelName,
+          downloadInfo.downloadId
+        );
+      }
       
       // Clean up download info
       this.cleanupDownload(downloadInfo.modelName, downloadInfo);
@@ -682,6 +725,15 @@ class ModelDownloader extends EventEmitter {
     }
 
     try {
+      // Request notification permissions
+      if (Platform.OS === 'android') {
+        // For Android, request permissions for native notifications
+        await downloadNotificationService.requestPermissions();
+      } else {
+        // For iOS, use the existing method
+        await this.requestNotificationPermissions();
+      }
+      
       // Generate a unique download ID
       const downloadId = this.nextDownloadId++;
       await AsyncStorage.setItem('next_download_id', this.nextDownloadId.toString());
@@ -690,9 +742,6 @@ class ModelDownloader extends EventEmitter {
       const destination = `${this.downloadDir}/${modelName}`;
       
       console.log(`[ModelDownloader] Starting download for ${modelName} from ${url}`);
-      
-      // Import the library dynamically to avoid TypeScript errors
-      const RNBackgroundDownloader = require('@kesha-antonov/react-native-background-downloader').default;
       
       // Create download task with type assertion to avoid TypeScript errors
       const task = RNBackgroundDownloader.download({
@@ -731,40 +780,48 @@ class ModelDownloader extends EventEmitter {
   }
 
   async pauseDownload(downloadId: number): Promise<void> {
+    console.log(`[ModelDownloader] Attempting to pause download with ID ${downloadId}`);
+    
     try {
-      console.log('Attempting to pause download:', downloadId);
-      
       // Find the download entry
-      let foundEntry = null;
+      let foundEntry: DownloadTaskInfo | undefined;
       let foundModelName = '';
       
-      for (const [modelName, entry] of this.activeDownloads.entries()) {
+      for (const [taskId, entry] of this.activeDownloads.entries()) {
         if (entry.downloadId === downloadId) {
           foundEntry = entry;
-          foundModelName = modelName;
+          foundModelName = entry.modelName;
           break;
         }
       }
-
+      
       if (!foundEntry) {
-        console.warn('No active download found for ID:', downloadId);
+        console.warn(`[ModelDownloader] No active download found with ID ${downloadId}`);
         return;
       }
-
-      console.log('Found task to pause:', { modelName: foundModelName, downloadId });
       
       // Check if platform supports pause
       if (Platform.OS === 'ios' && typeof foundEntry.task.pause === 'function') {
         // Pause the download task
         foundEntry.task.pause();
-      } else {
-        // On Android, show a notification that pause isn't available
-        await this.showNotification(
-          'Pause Not Available',
-          'Pausing downloads is only available on iOS devices.',
-          { modelName: foundModelName }
-        );
+        
+        // Show notification on iOS only
+        if (Platform.OS === 'ios') {
+          notificationService.showDownloadPausedNotification(
+            foundModelName,
+            downloadId
+          );
+        }
+      } else if (Platform.OS === 'ios') {
+        // On iOS but pause not supported
+        if (Platform.OS === 'ios') {
+          notificationService.showDownloadPauseUnavailableNotification(
+            foundModelName,
+            downloadId
+          );
+        }
       }
+      // No notifications on Android - we're using native notifications
       
       // Always emit the status update for UI consistency
       this.emit('downloadProgress', {
@@ -772,52 +829,58 @@ class ModelDownloader extends EventEmitter {
         progress: foundEntry.progress || 0,
         bytesDownloaded: foundEntry.bytesDownloaded || 0,
         totalBytes: foundEntry.totalBytes || 0,
-        status: Platform.OS === 'ios' ? 'paused' : 'downloading',
+        status: 'downloading',
         downloadId,
-        isPaused: Platform.OS === 'ios'
+        isPaused: true
       });
-
     } catch (error) {
-      console.error('Error pausing download:', error);
-      throw error;
+      console.error(`[ModelDownloader] Error pausing download:`, error);
     }
   }
 
   async resumeDownload(downloadId: number): Promise<void> {
+    console.log(`[ModelDownloader] Attempting to resume download with ID ${downloadId}`);
+    
     try {
-      console.log('Attempting to resume download:', downloadId);
-      
       // Find the download entry
-      let foundEntry = null;
+      let foundEntry: DownloadTaskInfo | undefined;
       let foundModelName = '';
       
-      for (const [modelName, entry] of this.activeDownloads.entries()) {
+      for (const [taskId, entry] of this.activeDownloads.entries()) {
         if (entry.downloadId === downloadId) {
           foundEntry = entry;
-          foundModelName = modelName;
+          foundModelName = entry.modelName;
           break;
         }
       }
-
+      
       if (!foundEntry) {
-        console.warn('No active download found for ID:', downloadId);
+        console.warn(`[ModelDownloader] No active download found with ID ${downloadId}`);
         return;
       }
-
-      console.log('Found task to resume:', { modelName: foundModelName, downloadId });
       
       // Check if platform supports resume
       if (Platform.OS === 'ios' && typeof foundEntry.task.resume === 'function') {
         // Resume the download task
         foundEntry.task.resume();
-      } else {
-        // On Android, show a notification that resume isn't available
-        await this.showNotification(
-          'Resume Not Available',
-          'Resuming downloads is only available on iOS devices.',
-          { modelName: foundModelName }
-        );
+        
+        // Show notification on iOS only
+        if (Platform.OS === 'ios') {
+          notificationService.showDownloadResumedNotification(
+            foundModelName,
+            downloadId
+          );
+        }
+      } else if (Platform.OS === 'ios') {
+        // On iOS but resume not supported
+        if (Platform.OS === 'ios') {
+          notificationService.showDownloadResumeUnavailableNotification(
+            foundModelName,
+            downloadId
+          );
+        }
       }
+      // No notifications on Android - we're using native notifications
       
       // Always emit the status update for UI consistency
       this.emit('downloadProgress', {
@@ -829,10 +892,8 @@ class ModelDownloader extends EventEmitter {
         downloadId,
         isPaused: false
       });
-
-          } catch (error) {
-      console.error('Error resuming download:', error);
-      throw error;
+    } catch (error) {
+      console.error(`[ModelDownloader] Error resuming download:`, error);
     }
   }
 
@@ -851,6 +912,11 @@ class ModelDownloader extends EventEmitter {
 
       // IMPORTANT: Do NOT delete the file in the models directory
       // This would delete successfully downloaded models
+      
+      // Cancel notification on Android
+      if (Platform.OS === 'android' && downloadInfo.downloadId) {
+        downloadNotificationService.cancelNotification(downloadInfo.downloadId);
+      }
       
       // Remove from active downloads
       this.activeDownloads.delete(modelName);
@@ -907,12 +973,13 @@ class ModelDownloader extends EventEmitter {
         error: 'Download cancelled'
       });
 
-      // Show cancellation notification
-      await this.showNotification(
-        'Download Cancelled',
-        `${foundModelName} download has been cancelled.`,
-        { modelName: foundModelName, action: 'download_cancelled' }
-      );
+      // Only show cancellation notification on iOS
+      if (Platform.OS === 'ios') {
+        notificationService.showDownloadCancelledNotification(
+          foundModelName,
+          downloadId
+        );
+      }
     } catch (error) {
       console.error('Error cancelling download:', error);
       throw error;
@@ -1199,8 +1266,9 @@ class ModelDownloader extends EventEmitter {
 
   async processCompletedDownloads() {
     console.log('[ModelDownloader] Processing completed downloads from temp directory...');
+    
     try {
-      // First ensure both directories exist
+      // Check if temp directory exists
       const tempDirInfo = await FileSystem.getInfoAsync(this.downloadDir);
       if (!tempDirInfo.exists) {
         console.log('[ModelDownloader] Temp directory does not exist, creating it');
@@ -1208,40 +1276,19 @@ class ModelDownloader extends EventEmitter {
         return;
       }
       
-      const modelsDirInfo = await FileSystem.getInfoAsync(this.baseDir);
-      if (!modelsDirInfo.exists) {
-        console.log('[ModelDownloader] Models directory does not exist, creating it');
-        await FileSystem.makeDirectoryAsync(this.baseDir, { intermediates: true });
-      }
+      // Get list of files in temp directory
+      const files = await FileSystem.readDirectoryAsync(this.downloadDir);
+      console.log(`[ModelDownloader] Found ${files.length} files in temp directory`);
       
-      // Get all files from temp directory
-      const tempFiles = await FileSystem.readDirectoryAsync(this.downloadDir);
-      
-      if (tempFiles.length === 0) {
-        console.log('[ModelDownloader] No files found in temp directory');
-        return;
-      }
-      
-      console.log(`[ModelDownloader] Found ${tempFiles.length} files in temp directory:`, tempFiles);
-      
-      // Process each file in temp directory
-      for (const filename of tempFiles) {
+      // Process each file
+      for (const filename of files) {
+        // Skip hidden files
+        if (filename.startsWith('.')) continue;
+        
         const tempPath = `${this.downloadDir}/${filename}`;
         const modelPath = `${this.baseDir}/${filename}`;
         
-        // Check if file already exists in models directory
-        const modelExists = (await FileSystem.getInfoAsync(modelPath)).exists;
-        if (modelExists) {
-          console.log(`[ModelDownloader] Model ${filename} already exists in final location, removing temp file`);
-          try {
-            await FileSystem.deleteAsync(tempPath, { idempotent: true });
-          } catch (e) {
-            console.error(`[ModelDownloader] Error removing temp file for ${filename}:`, e);
-          }
-          continue;
-        }
-        
-        // Check temp file
+        // Check if file exists in temp directory
         const tempInfo = await FileSystem.getInfoAsync(tempPath, { size: true });
         
         if (tempInfo.exists && (tempInfo as any).size && (tempInfo as any).size > 0) {
@@ -1273,23 +1320,36 @@ class ModelDownloader extends EventEmitter {
               downloadId
             });
             
-            // Show notification
-            await this.showNotification(
-              'Download Complete',
-              `${filename} has been downloaded successfully and is ready to use.`,
-              { modelName: filename, action: 'download_complete' }
-            );
+            // Show completion notification based on platform
+            if (Platform.OS === 'android') {
+              downloadNotificationService.showNotification(
+                filename,
+                downloadId,
+                100
+              );
+            } else {
+              notificationService.showDownloadCompletedNotification(
+                filename,
+                downloadId
+              );
+            }
           } catch (error) {
             console.error(`[ModelDownloader] Error processing completed download for ${filename}:`, error);
+            
+            // Show error notification based on platform
+            if (Platform.OS === 'android') {
+              downloadNotificationService.cancelNotification(downloadId);
+            } else {
+              notificationService.showDownloadFailedNotification(
+                filename,
+                downloadId
+              );
+            }
           }
         } else {
           console.log(`[ModelDownloader] File ${filename} in temp directory is empty or invalid`);
         }
       }
-      
-      // Refresh stored models list
-      await this.refreshStoredModels();
-      
     } catch (error) {
       console.error('[ModelDownloader] Error processing completed downloads:', error);
     }
