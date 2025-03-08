@@ -246,6 +246,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
   const buttonScale = useRef(new Animated.Value(1)).current;
   const buttonProcessingRef = useRef(new Set<string>());
   const [isLoading, setIsLoading] = useState(false);
+  const [importingModelName, setImportingModelName] = useState<string | null>(null);
 
   const handleLinkModel = async () => {
     try {
@@ -737,17 +738,18 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       totalBytes: number;
       status: string;
       downloadId: number;
+      error?: string;
     }) => {
       const filename = modelName.split('/').pop() || modelName;
       
-      console.log(`Download progress for ${filename}:`, progress.status, progress.progress);
+      console.log(`[ModelScreen] Download progress for ${filename}:`, progress.status, progress.progress);
       
       const bytesDownloaded = typeof progress.bytesDownloaded === 'number' ? progress.bytesDownloaded : 0;
       const totalBytes = typeof progress.totalBytes === 'number' ? progress.totalBytes : 0;
       const progressValue = typeof progress.progress === 'number' ? progress.progress : 0;
 
       if (progress.status === 'completed') {
-        console.log(`Download completed for ${filename}`);
+        console.log(`[ModelScreen] Download completed for ${filename}`);
         
         // Show completion notification
         if (Platform.OS === 'android') {
@@ -779,9 +781,8 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
             return newProgress;
           });
         }, 1000);
-
       } else if (progress.status === 'failed') {
-        console.log(`Download failed for ${filename}`);
+        console.log(`[ModelScreen] Download failed for ${filename}:`, progress.error);
         
         // Cancel notification on failure
         if (Platform.OS === 'android') {
@@ -791,14 +792,16 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         setDownloadProgress(prev => ({
           ...prev,
           [filename]: {
-            progress: progressValue,
-            bytesDownloaded,
-            totalBytes,
+            progress: 0,
+            bytesDownloaded: 0,
+            totalBytes: 0,
             status: 'failed',
-            downloadId: progress.downloadId
+            downloadId: progress.downloadId,
+            error: progress.error
           }
         }));
         
+        // Show error alert
         // Remove from progress tracking after a delay
         setTimeout(() => {
           setDownloadProgress(prev => {
@@ -807,7 +810,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
             return newProgress;
           });
         }, 1000);
-
       } else {
         // Update ongoing download notification
         if (Platform.OS === 'android') {
@@ -817,18 +819,16 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
           );
         }
 
-        setDownloadProgress(prev => {
-          return {
-            ...prev,
-            [filename]: {
-              progress: progressValue,
-              bytesDownloaded,
-              totalBytes,
-              status: progress.status,
-              downloadId: progress.downloadId
-            }
-          };
-        });
+        setDownloadProgress(prev => ({
+          ...prev,
+          [filename]: {
+            progress: progressValue,
+            bytesDownloaded,
+            totalBytes,
+            status: progress.status,
+            downloadId: progress.downloadId
+          }
+        }));
       }
     };
 
@@ -928,11 +928,11 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     <View style={styles.downloadableContainer}>
       <ScrollView 
         style={{ flex: 1 }}
-        contentContainerStyle={{ padding: 16 }}
+        contentContainerStyle={{ padding: 16, paddingTop: 8 }}
         showsVerticalScrollIndicator={false}
       >
         <TouchableOpacity
-          style={[styles.customUrlButton, { backgroundColor: themeColors.borderColor }]}
+          style={[styles.customUrlButton, { backgroundColor: themeColors.borderColor }, { marginBottom: 25 }]}
           onPress={() => setCustomUrlDialogVisible(true)}
         >
           <View style={styles.customUrlButtonContent}>
@@ -948,7 +948,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
               </Text>
             </View>
           </View>
-          <Ionicons name="chevron-forward" size={20} color={themeColors.secondaryText} />
         </TouchableOpacity>
         
         <DownloadableModelList 
@@ -1119,6 +1118,31 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     }
   }, [activeTab]);
 
+  // Add effect to handle model importing progress
+  useEffect(() => {
+    const handleImportProgress = (progress: { 
+      modelName: string; 
+      status: 'importing' | 'completed' | 'error';
+      error?: string;
+    }) => {
+      console.log('[ModelScreen] Import progress:', progress);
+      if (progress.status === 'importing') {
+        setImportingModelName(progress.modelName);
+      } else {
+        setImportingModelName(null);
+        if (progress.status === 'error' && progress.error) {
+          Alert.alert('Error', `Failed to import model: ${progress.error}`);
+        }
+      }
+    };
+
+    modelDownloader.on('importProgress', handleImportProgress);
+
+    return () => {
+      modelDownloader.off('importProgress', handleImportProgress);
+    };
+  }, []);
+
   return (
     <View style={[styles.container, { backgroundColor: themeColors.background }]}>
       <AppHeader />
@@ -1208,15 +1232,15 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       />
 
       {/* Loading overlay */}
-      {isLoading && (
+      {(isLoading || importingModelName) && (
         <View style={styles.loadingOverlay}>
           <View style={[styles.loadingContainer, { backgroundColor: themeColors.borderColor }]}>
             <ActivityIndicator size="large" color="#4a0660" />
             <Text style={[styles.loadingText, { color: themeColors.text }]}>
-              Importing model...
+              {importingModelName ? `Importing ${importingModelName}...` : 'Importing model...'}
             </Text>
             <Text style={[styles.loadingSubtext, { color: themeColors.secondaryText }]}>
-              This may take a while for large models
+              {importingModelName ? 'Moving model to app storage' : 'This may take a while for large models'}
             </Text>
           </View>
         </View>
@@ -1408,74 +1432,49 @@ const styles = StyleSheet.create({
   viewMoreButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    padding: 8,
+    borderRadius: 8,
   },
-  viewMoreText: {
-    fontSize: 13,
-    fontWeight: '600',
-    marginRight: 4,
-  },
-  downloadHeader: {
-    paddingBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  sectionSubtitle: {
+  viewMoreButtonText: {
     fontSize: 14,
-    lineHeight: 20,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: 'rgba(150, 150, 150, 0.1)',
-    marginBottom: 24,
-  },
-  downloadableContainer: {
-    flex: 1,
-  },
-  content: {
-    flex: 1,
+    marginLeft: 4,
   },
   downloadProgress: {
-    flex: 1,
-    marginTop: 4,
+    marginTop: 12,
   },
-  downloadProgressBar: {
-    height: 4,
-    borderRadius: 2,
+  progressBar: {
+    height: 8,
+    borderRadius: 4,
+    width: '100%',
+    marginTop: 8,
     overflow: 'hidden',
   },
-  downloadProgressFill: {
+  progressFill: {
     height: '100%',
-    borderRadius: 2,
+    borderRadius: 4,
   },
   modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
   },
   modalContent: {
-    width: '100%',
+    width: '90%',
     maxWidth: 400,
     borderRadius: 16,
     padding: 20,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   modalTitle: {
     fontSize: 20,
@@ -1488,12 +1487,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 8,
   },
   downloadItemName: {
     fontSize: 16,
     fontWeight: '500',
-    marginBottom: 4,
   },
   downloadItemProgress: {
     fontSize: 14,
@@ -1502,47 +1500,15 @@ const styles = StyleSheet.create({
   cancelDownloadButton: {
     padding: 4,
   },
-  customUrlCard: {
-    padding: 16,
-    borderRadius: 16,
-    marginBottom: 16,
-  },
-  customUrlInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginTop: 12,
-  },
-  customUrlInput: {
-    flex: 1,
-    height: 44,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    borderWidth: 1,
-    fontSize: 15,
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
-  },
   customUrlButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     padding: 16,
     borderRadius: 12,
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 2,
   },
   customUrlButtonContent: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
   },
   customUrlIconContainer: {
     width: 40,
@@ -1551,6 +1517,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(74, 6, 96, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: 12,
   },
   customUrlTextContainer: {
     flex: 1,
@@ -1558,65 +1525,48 @@ const styles = StyleSheet.create({
   customUrlButtonTitle: {
     fontSize: 16,
     fontWeight: '600',
-    marginBottom: 2,
   },
   customUrlButtonSubtitle: {
-    fontSize: 13,
+    fontSize: 14,
+    marginTop: 2,
   },
-  floatingButton: {
+  loadingOverlay: {
     position: 'absolute',
-    right: 16,
-    bottom: 16,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
     zIndex: 1000,
   },
-  floatingButtonContent: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+  loadingContainer: {
+    padding: 20,
+    borderRadius: 10,
     alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    width: '80%',
   },
-  downloadCount: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    backgroundColor: '#ff4444',
-    borderRadius: 12,
-    minWidth: 24,
-    height: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 6,
+  loadingText: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginTop: 16,
   },
-  downloadCountText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: 'bold',
+  loadingSubtext: {
+    fontSize: 14,
+    marginTop: 8,
+    textAlign: 'center',
   },
-  downloadStatusRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
+  downloadableContainer: {
+    flex: 1,
   },
-  downloadActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  content: {
+    flex: 1,
   },
-  actionButton: {
-    padding: 4,
-    marginLeft: 8,
-  },
-  cancelButton: {
-    padding: 4,
+  storedModelsHeader: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 16,
   },
   modelDescription: {
     marginTop: 4,
@@ -1649,38 +1599,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: 12,
   },
-  modelInfo: {
-    flex: 1,
-    marginRight: 8,
-  },
-  modelHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  modelName: {
-    fontSize: 16,
-    fontWeight: '600',
-    flex: 1,
-    marginRight: 8,
-  },
-  modelMetaInfo: {
-    gap: 4,
-  },
-  metaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: 16,
-  },
-  metaText: {
-    fontSize: 12,
-    marginLeft: 4,
-  },
-  modelPath: {
-    fontSize: 11,
-    opacity: 0.7,
-    marginTop: 2,
-  },
   externalBadgeContainer: {
     backgroundColor: '#4a90e2',
     flexDirection: 'row',
@@ -1694,70 +1612,48 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
   },
-  localBadgeContainer: {
-    backgroundColor: '#4a0660',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  localBadgeText: {
-    color: 'white',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  deleteButton: {
-    padding: 8,
-    borderRadius: 20,
-  },
-  refreshButtonContainer: {
-    padding: 10,
-    flexDirection: 'row',
-    justifyContent: 'center',
-  },
-  refreshButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 10,
-    backgroundColor: 'rgba(0, 0, 0, 0.1)',
-    borderRadius: 8,
-  },
-  refreshButtonText: {
-    marginLeft: 5,
-    fontSize: 14,
-  },
-  storedModelsHeader: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 16,
-  },
-  loadingOverlay: {
+  floatingButton: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    bottom: 20,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#4a0660',
+    alignItems: 'center',
     justifyContent: 'center',
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  downloadCount: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: '#ff4444',
+    borderRadius: 12,
+    minWidth: 24,
+    height: 24,
     alignItems: 'center',
-    zIndex: 1000,
+    justifyContent: 'center',
+    paddingHorizontal: 6,
   },
-  loadingContainer: {
-    padding: 20,
-    borderRadius: 10,
+  downloadCountText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  floatingButtonContent: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     alignItems: 'center',
-    width: '80%',
-  },
-  loadingText: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginTop: 16,
-  },
-  loadingSubtext: {
-    fontSize: 14,
-    marginTop: 8,
-    textAlign: 'center',
+    justifyContent: 'center',
   },
   modelTag: {
     flexDirection: 'row',
@@ -1771,16 +1667,5 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 12,
     fontWeight: '500',
-  },
-  progressBar: {
-    height: 8,
-    borderRadius: 4,
-    width: '100%',
-    marginTop: 8,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 4,
   },
 }); 

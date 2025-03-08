@@ -1,7 +1,7 @@
 import RNBackgroundDownloader from '@kesha-antonov/react-native-background-downloader';
 import * as FileSystem from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform, AppState, AppStateStatus, NativeModules } from 'react-native';
+import { Platform, AppState, AppStateStatus, NativeModules, Alert } from 'react-native';
 import * as Device from 'expo-device';
 import { downloadNotificationService } from './DownloadNotificationService';
 import { notificationService } from './NotificationService';
@@ -115,6 +115,7 @@ class ModelDownloader extends EventEmitter {
   private wasOpenedViaNotification: boolean = false;
   private externalModels: StoredModel[] = [];
   private readonly EXTERNAL_MODELS_KEY = 'external_models';
+  private readonly DOWNLOAD_PROGRESS_KEY = 'download_progress_state';
 
   constructor() {
     super();
@@ -128,9 +129,6 @@ class ModelDownloader extends EventEmitter {
       // Initialize directories
       await this.initializeDirectory();
       
-      // Set up notifications
-      await this.setupNotifications();
-      
       // Load next download ID
       const savedId = await AsyncStorage.getItem('next_download_id');
       if (savedId) {
@@ -139,6 +137,9 @@ class ModelDownloader extends EventEmitter {
 
       // Load external models
       await this.loadExternalModels();
+
+      // Load saved download progress
+      await this.loadDownloadProgress();
 
       // Set up app state change listener
       AppState.addEventListener('change', this.handleAppStateChange);
@@ -264,85 +265,54 @@ class ModelDownloader extends EventEmitter {
 
   private async checkForExistingDownloads() {
     try {
-      console.log('Checking for existing downloads...');
-      
-      // First, load saved downloads from storage
-      const savedDownloadsJson = await AsyncStorage.getItem('active_downloads');
-      const savedDownloads = savedDownloadsJson ? JSON.parse(savedDownloadsJson) : {};
-      
-      // Then check for existing background downloads
-      const tasks = await RNBackgroundDownloader.checkForExistingDownloads();
-      console.log(`Found ${tasks.length} existing background downloads`);
+      const savedDownloads = await AsyncStorage.getItem('active_downloads');
+      if (savedDownloads) {
+        const downloads = JSON.parse(savedDownloads);
+        console.log('[ModelDownloader] Found saved downloads:', downloads);
 
-      // Map of model names to their tasks
-      const taskMap = new Map(tasks.map(task => [task.id, task]));
-
-      // Process all saved downloads
-      for (const [modelName, savedInfo] of Object.entries(savedDownloads)) {
-        const downloadInfo = savedInfo as ActiveDownload;
-        const existingTask = taskMap.get(modelName);
-
-        if (existingTask) {
-          // Download exists in background downloader, reattach to it
-          console.log(`Reattaching to existing download: ${modelName}`);
-          this.activeDownloads.set(modelName, {
-            task: existingTask,
-            downloadId: downloadInfo.downloadId,
-            modelName,
-            progress: downloadInfo.progress,
-            bytesDownloaded: downloadInfo.bytesDownloaded,
-            totalBytes: downloadInfo.totalBytes,
-            destination: downloadInfo.destination,
-            url: downloadInfo.url
-          });
+        for (const [modelName, downloadState] of Object.entries(downloads)) {
+          const { downloadId, destination, url, progress, bytesDownloaded, totalBytes, status } = downloadState as any;
           
-          this.attachDownloadHandlers(existingTask);
-        } else {
-          // Download was saved but not in background downloader, try to resume
-          console.log(`Attempting to resume interrupted download: ${modelName}`);
-          try {
-            const task = RNBackgroundDownloader.download({
-              id: modelName,
-              url: downloadInfo.url,
-              destination: downloadInfo.destination || `${this.downloadDir}/${modelName}`,
-              headers: {
-                'Accept-Ranges': 'bytes',
-                'Range': `bytes=${downloadInfo.bytesDownloaded}-`
-              }
-            });
-
-            this.activeDownloads.set(modelName, {
-              task,
-              downloadId: downloadInfo.downloadId,
+          // Check if the file exists in temp directory
+          const fileInfo = await FileSystem.getInfoAsync(destination);
+          if (fileInfo.exists) {
+            console.log(`[ModelDownloader] Found existing download for ${modelName}`);
+            
+            // Re-emit progress event
+            this.emit('downloadProgress', {
               modelName,
-              progress: downloadInfo.progress,
-              bytesDownloaded: downloadInfo.bytesDownloaded,
-              totalBytes: downloadInfo.totalBytes,
-              destination: downloadInfo.destination,
-              url: downloadInfo.url
+              progress,
+              bytesDownloaded,
+              totalBytes,
+              status,
+              downloadId
             });
-
-            this.attachDownloadHandlers(task);
-          } catch (error) {
-            console.error(`Failed to resume download for ${modelName}:`, error);
+          } else {
+            console.log(`[ModelDownloader] Temp file not found for ${modelName}, cleaning up state`);
+            // File doesn't exist, emit failed status
+            this.emit('downloadProgress', {
+              modelName,
+              progress: 0,
+              bytesDownloaded: 0,
+              totalBytes: 0,
+              status: 'failed',
+              downloadId,
+              error: 'Download file not found'
+            });
+            
+            // Clean up the download state
+            const downloadInfo = {
+              downloadId,
+              destination,
+              modelName,
+              url
+            };
+            await this.cleanupDownload(modelName, downloadInfo as DownloadTaskInfo);
           }
         }
-
-        // Emit initial progress to update UI
-        this.emit('downloadProgress', {
-          modelName,
-          progress: downloadInfo.progress,
-          bytesDownloaded: downloadInfo.bytesDownloaded,
-          totalBytes: downloadInfo.totalBytes,
-          status: 'downloading',
-          downloadId: downloadInfo.downloadId
-        });
       }
-
-      // Check for completed downloads
-      await this.checkBackgroundDownloads();
     } catch (error) {
-      console.error('Error checking existing downloads:', error);
+      console.error('[ModelDownloader] Error checking for existing downloads:', error);
     }
   }
 
@@ -358,60 +328,55 @@ class ModelDownloader extends EventEmitter {
   }
 
   private handleAppStateChange = async (nextAppState: AppStateStatus) => {
-    console.log('[ModelDownloader] App state changed:', { previous: this.appState, next: nextAppState });
+    console.log('[ModelDownloader] App state changed to:', nextAppState);
     
-    // When app comes to foreground
-    if (nextAppState === 'active' && (this.appState === 'background' || this.appState === 'inactive')) {
-      console.log('[ModelDownloader] App came to foreground, checking for background downloads...');
+    // Only cancel downloads when app is closed (removed from recents)
+    // 'inactive' means the app is being closed/removed from recents
+    if (nextAppState === 'inactive') {
+      console.log('[ModelDownloader] App is being closed, cancelling all downloads');
       
-      try {
-        // Process any completed downloads from temp directory
-        await this.processCompletedDownloads();
-        
-        // Check for any downloads completed in the background
-        await this.checkBackgroundDownloads();
-        
-        // Ensure we have latest stored models list
-        await this.refreshStoredModels();
-        
-        // Make sure any active downloads are still running
-        await this.ensureDownloadsAreRunning();
-    } catch (error) {
-        console.error('[ModelDownloader] Error handling app state change:', error);
+      // Cancel all active downloads
+      for (const [modelName, download] of Object.entries(this.activeDownloads)) {
+        try {
+          await this.cancelDownload(download.downloadId);
+          this.emit('downloadProgress', {
+            modelName,
+            progress: 0,
+            bytesDownloaded: 0,
+            totalBytes: 0,
+            status: 'failed',
+            downloadId: download.downloadId,
+            error: 'Download cancelled - app was closed'
+          });
+        } catch (error) {
+          console.error(`[ModelDownloader] Error cancelling download for ${modelName}:`, error);
         }
+      }
+      
+      // Clear active downloads
+      this.activeDownloads = {};
     }
-    
-    // When app goes to background
-    if (nextAppState === 'background' && this.appState === 'active') {
-      console.log('[ModelDownloader] App went to background, persisting active downloads...');
-      await this.persistActiveDownloads();
-    }
-    
-    this.appState = nextAppState;
   };
 
   private async persistActiveDownloads() {
     try {
-      const downloads: Record<string, ActiveDownload> = {};
-      
-      for (const [filename, downloadInfo] of this.activeDownloads.entries()) {
-        downloads[filename] = {
-          downloadId: downloadInfo.downloadId,
-          filename,
-          url: downloadInfo.url || '',
-          progress: downloadInfo.progress || 0,
-          bytesDownloaded: downloadInfo.bytesDownloaded || 0,
-          totalBytes: downloadInfo.totalBytes || 0,
-          status: 'downloading',
-          timestamp: Date.now(),
-          destination: downloadInfo.destination
+      const downloadsToSave = Array.from(this.activeDownloads.entries()).reduce((acc, [modelName, info]) => {
+        acc[modelName] = {
+          downloadId: info.downloadId,
+          destination: info.destination,
+          url: info.url,
+          progress: info.progress || 0,
+          bytesDownloaded: info.bytesDownloaded || 0,
+          totalBytes: info.totalBytes || 0,
+          status: info.status || 'downloading'
         };
-      }
+        return acc;
+      }, {} as Record<string, any>);
 
-      await AsyncStorage.setItem('active_downloads', JSON.stringify(downloads));
-      await AsyncStorage.setItem('next_download_id', this.nextDownloadId.toString());
+      await AsyncStorage.setItem('active_downloads', JSON.stringify(downloadsToSave));
+      console.log('[ModelDownloader] Persisted active downloads:', downloadsToSave);
     } catch (error) {
-      console.error('Failed to persist active downloads:', error);
+      console.error('[ModelDownloader] Error persisting active downloads:', error);
     }
   }
 
@@ -461,14 +426,21 @@ class ModelDownloader extends EventEmitter {
       // Update download info
       downloadInfo.totalBytes = expectedBytes;
       
-      // Emit progress event
-      this.emit('downloadProgress', {
-        modelName: downloadInfo.modelName,
+      const progressData = {
         progress: 0,
         bytesDownloaded: 0,
         totalBytes: expectedBytes,
         status: 'downloading',
         downloadId: downloadInfo.downloadId
+      };
+
+      // Save progress state
+      this.saveDownloadProgress(downloadInfo.modelName, progressData);
+      
+      // Emit progress event
+      this.emit('downloadProgress', {
+        modelName: downloadInfo.modelName,
+        ...progressData
       });
 
       // Show notification based on platform
@@ -499,14 +471,21 @@ class ModelDownloader extends EventEmitter {
       downloadInfo.bytesDownloaded = bytesDownloaded;
       downloadInfo.totalBytes = bytesTotal;
 
-      // Emit progress event
-      this.emit('downloadProgress', {
-        modelName: downloadInfo.modelName,
+      const progressData = {
         progress,
         bytesDownloaded,
         totalBytes: bytesTotal,
         status: 'downloading',
         downloadId: downloadInfo.downloadId
+      };
+
+      // Save progress state
+      this.saveDownloadProgress(downloadInfo.modelName, progressData);
+
+      // Emit progress event
+      this.emit('downloadProgress', {
+        modelName: downloadInfo.modelName,
+        ...progressData
       });
 
       // Update notification based on platform
@@ -544,14 +523,21 @@ class ModelDownloader extends EventEmitter {
           await this.moveFile(tempPath, modelPath);
           console.log(`[ModelDownloader] Moved ${downloadInfo.modelName} from temp to models directory`);
           
-          // Emit completion event
-          this.emit('downloadProgress', {
-            modelName: downloadInfo.modelName,
+          const progressData = {
             progress: 100,
             bytesDownloaded: tempSize,
             totalBytes: tempSize,
             status: 'completed',
             downloadId: downloadInfo.downloadId
+          };
+
+          // Clear progress state since download is complete
+          await this.clearDownloadProgress(downloadInfo.modelName);
+
+          // Emit completion event
+          this.emit('downloadProgress', {
+            modelName: downloadInfo.modelName,
+            ...progressData
           });
 
           // Show completion notification based on platform
@@ -576,15 +562,22 @@ class ModelDownloader extends EventEmitter {
         } else {
           console.error(`[ModelDownloader] Temp file not found for ${downloadInfo.modelName}`);
           
-          // Emit error event
-          this.emit('downloadProgress', {
-            modelName: downloadInfo.modelName,
+          const progressData = {
             progress: 0,
             bytesDownloaded: 0,
             totalBytes: 0,
             status: 'failed',
             downloadId: downloadInfo.downloadId,
             error: 'Temp file not found'
+          };
+
+          // Clear progress state since download failed
+          await this.clearDownloadProgress(downloadInfo.modelName);
+
+          // Emit error event
+          this.emit('downloadProgress', {
+            modelName: downloadInfo.modelName,
+            ...progressData
           });
 
           // Show error notification based on platform
@@ -600,15 +593,22 @@ class ModelDownloader extends EventEmitter {
       } catch (error) {
         console.error(`[ModelDownloader] Error handling download completion for ${downloadInfo.modelName}:`, error);
         
-        // Emit error event
-        this.emit('downloadProgress', {
-          modelName: downloadInfo.modelName,
+        const progressData = {
           progress: 0,
           bytesDownloaded: 0,
           totalBytes: 0,
           status: 'failed',
           downloadId: downloadInfo.downloadId,
           error: 'Error handling download completion'
+        };
+
+        // Clear progress state since download failed
+        await this.clearDownloadProgress(downloadInfo.modelName);
+
+        // Emit error event
+        this.emit('downloadProgress', {
+          modelName: downloadInfo.modelName,
+          ...progressData
         });
 
         // Show error notification based on platform
@@ -630,15 +630,22 @@ class ModelDownloader extends EventEmitter {
       
       console.error(`[ModelDownloader] Download error for ${task.id}:`, error, errorCode);
       
-      // Emit error event
-      this.emit('downloadProgress', {
-        modelName: downloadInfo.modelName,
+      const progressData = {
         progress: 0,
         bytesDownloaded: 0,
         totalBytes: 0,
         status: 'failed',
         downloadId: downloadInfo.downloadId,
         error: error
+      };
+
+      // Clear progress state since download failed
+      this.clearDownloadProgress(downloadInfo.modelName);
+
+      // Emit error event
+      this.emit('downloadProgress', {
+        modelName: downloadInfo.modelName,
+        ...progressData
       });
       
       // Show error notification based on platform
@@ -660,6 +667,15 @@ class ModelDownloader extends EventEmitter {
     console.log(`[ModelDownloader] Moving file from ${sourcePath} to ${destPath}`);
     
     try {
+      const modelName = destPath.split('/').pop() || 'model';
+      console.log(`[ModelDownloader] Emitting importProgress event for ${modelName} (importing)`);
+      
+      // Emit event to show importing dialog
+      this.emit('importProgress', {
+        modelName,
+        status: 'importing'
+      });
+
       // Check if source file exists
       const sourceInfo = await FileSystem.getInfoAsync(sourcePath);
       if (!sourceInfo.exists) {
@@ -693,9 +709,25 @@ class ModelDownloader extends EventEmitter {
       if (!newDestInfo.exists) {
         throw new Error(`File was not moved successfully to ${destPath}`);
       }
+
+      console.log(`[ModelDownloader] Emitting importProgress event for ${modelName} (completed)`);
+      // Emit event to hide importing dialog
+      this.emit('importProgress', {
+        modelName,
+        status: 'completed'
+      });
       
       console.log(`[ModelDownloader] File successfully moved to ${destPath}`);
     } catch (error) {
+      const modelName = destPath.split('/').pop() || 'model';
+      console.log(`[ModelDownloader] Emitting importProgress event for ${modelName} (error)`);
+      // Emit event to hide importing dialog with error
+      this.emit('importProgress', {
+        modelName,
+        status: 'error',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+
       console.error(`[ModelDownloader] Error moving file from ${sourcePath} to ${destPath}:`, error);
       throw error;
     }
@@ -725,13 +757,15 @@ class ModelDownloader extends EventEmitter {
     }
 
     try {
-      // Request notification permissions
-      if (Platform.OS === 'android') {
-        // For Android, request permissions for native notifications
-        await downloadNotificationService.requestPermissions();
-      } else {
-        // For iOS, use the existing method
-        await this.requestNotificationPermissions();
+      // Request notification permissions only when starting a download
+      if (!this.hasNotificationPermission) {
+        if (Platform.OS === 'android') {
+          // For Android, request permissions for native notifications
+          this.hasNotificationPermission = await downloadNotificationService.requestPermissions();
+        } else {
+          // For iOS, use the existing method
+          this.hasNotificationPermission = await this.requestNotificationPermissions();
+        }
       }
       
       // Generate a unique download ID
@@ -770,6 +804,13 @@ class ModelDownloader extends EventEmitter {
 
       // Save active downloads
       await this.persistActiveDownloads();
+
+      // Show alert about not removing app from recents
+      Alert.alert(
+        'Download Started',
+        'Please do not remove the app from your recent menu while downloading. Doing so will interrupt the download.',
+        [{ text: 'OK', style: 'default' }]
+      );
       
       // Return download ID
       return { downloadId };
@@ -910,16 +951,16 @@ class ModelDownloader extends EventEmitter {
         }
       }
 
-      // IMPORTANT: Do NOT delete the file in the models directory
-      // This would delete successfully downloaded models
-      
       // Cancel notification on Android
       if (Platform.OS === 'android' && downloadInfo.downloadId) {
-        downloadNotificationService.cancelNotification(downloadInfo.downloadId);
+        await downloadNotificationService.cancelNotification(downloadInfo.downloadId);
       }
       
       // Remove from active downloads
       this.activeDownloads.delete(modelName);
+      
+      // Clear progress state
+      await this.clearDownloadProgress(modelName);
       
       // Update persisted active downloads
       await this.persistActiveDownloads();
@@ -932,9 +973,10 @@ class ModelDownloader extends EventEmitter {
 
   async cancelDownload(downloadId: number): Promise<void> {
     try {
-      console.log('Attempting to cancel download:', downloadId);
+      console.log('[ModelDownloader] Attempting to cancel download:', downloadId);
       
-      let foundEntry = null;
+      // Find the download entry
+      let foundEntry: DownloadTaskInfo | undefined;
       let foundModelName = '';
       
       for (const [modelName, entry] of this.activeDownloads.entries()) {
@@ -946,21 +988,30 @@ class ModelDownloader extends EventEmitter {
       }
 
       if (!foundEntry) {
-        console.warn('No active download found for ID:', downloadId);
+        console.warn('[ModelDownloader] No active download found for ID:', downloadId);
         return;
       }
 
-      console.log('Found task to cancel:', { modelName: foundModelName, downloadId });
-      
-      try {
-        // Stop the download task
-        await foundEntry.task.stop();
-      } catch (stopError) {
-        console.error('Error stopping task:', stopError);
+      console.log('[ModelDownloader] Found task to cancel:', { modelName: foundModelName, downloadId });
+
+      // Stop the download task using the task.stop() method
+      if (foundEntry.task) {
+        console.log('[ModelDownloader] Stopping download task');
+        foundEntry.task.stop();
       }
-      
-      // Clean up the download and any residual files
-      await this.cleanupDownload(foundModelName, foundEntry);
+
+      // Remove from active downloads map first
+      this.activeDownloads.delete(foundModelName);
+
+      // Delete the temporary file if it exists
+      if (foundEntry.destination) {
+        console.log('[ModelDownloader] Checking for temporary file:', foundEntry.destination);
+        const fileInfo = await FileSystem.getInfoAsync(foundEntry.destination);
+        if (fileInfo.exists) {
+          console.log('[ModelDownloader] Deleting temporary file');
+          await FileSystem.deleteAsync(foundEntry.destination, { idempotent: true });
+        }
+      }
 
       // Emit cancellation event
       this.emit('downloadProgress', {
@@ -970,18 +1021,29 @@ class ModelDownloader extends EventEmitter {
         totalBytes: 0,
         status: 'failed',
         downloadId,
-        error: 'Download cancelled'
+        error: 'Download cancelled by user'
       });
 
-      // Only show cancellation notification on iOS
-      if (Platform.OS === 'ios') {
+      // Show cancellation notification based on platform
+      if (Platform.OS === 'android') {
+        await downloadNotificationService.cancelNotification(downloadId);
+      } else {
         notificationService.showDownloadCancelledNotification(
           foundModelName,
           downloadId
         );
       }
+
+      // Clean up the download state
+      await this.cleanupDownload(foundModelName, foundEntry);
+
+      // Update persisted downloads
+      await this.persistActiveDownloads();
+
+      console.log('[ModelDownloader] Successfully cancelled download:', downloadId);
+
     } catch (error) {
-      console.error('Error cancelling download:', error);
+      console.error('[ModelDownloader] Error cancelling download:', error);
       throw error;
     }
   }
@@ -1458,6 +1520,51 @@ class ModelDownloader extends EventEmitter {
       console.log('[ModelDownloader] Saved external models:', this.externalModels);
     } catch (error) {
       console.error('[ModelDownloader] Error saving external models:', error);
+    }
+  }
+
+  private async saveDownloadProgress(modelName: string, progress: any) {
+    try {
+      const savedProgress = await AsyncStorage.getItem(this.DOWNLOAD_PROGRESS_KEY);
+      const progressData = savedProgress ? JSON.parse(savedProgress) : {};
+      
+      progressData[modelName] = progress;
+      
+      await AsyncStorage.setItem(this.DOWNLOAD_PROGRESS_KEY, JSON.stringify(progressData));
+    } catch (error) {
+      console.error('[ModelDownloader] Error saving download progress:', error);
+    }
+  }
+
+  private async loadDownloadProgress() {
+    try {
+      const savedProgress = await AsyncStorage.getItem(this.DOWNLOAD_PROGRESS_KEY);
+      if (savedProgress) {
+        const progressData = JSON.parse(savedProgress);
+        
+        // Emit progress events for each saved download
+        Object.entries(progressData).forEach(([modelName, progress]) => {
+          this.emit('downloadProgress', {
+            modelName,
+            ...progress
+          });
+        });
+      }
+    } catch (error) {
+      console.error('[ModelDownloader] Error loading download progress:', error);
+    }
+  }
+
+  private async clearDownloadProgress(modelName: string) {
+    try {
+      const savedProgress = await AsyncStorage.getItem(this.DOWNLOAD_PROGRESS_KEY);
+      if (savedProgress) {
+        const progressData = JSON.parse(savedProgress);
+        delete progressData[modelName];
+        await AsyncStorage.setItem(this.DOWNLOAD_PROGRESS_KEY, JSON.stringify(progressData));
+      }
+    } catch (error) {
+      console.error('[ModelDownloader] Error clearing download progress:', error);
     }
   }
 }
