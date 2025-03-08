@@ -7,7 +7,9 @@ import {
   TouchableOpacity,
   Platform,
   Alert,
+  StatusBar,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import { Ionicons } from '@expo/vector-icons';
@@ -35,12 +37,24 @@ export default function ChatHistoryScreen() {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const insets = useSafeAreaInsets();
 
   const [histories, setHistories] = useState<ChatHistoryItem[]>([]);
 
   // Get navigation params
   const route = useRoute();
   const params = route.params as NavigationParams;
+
+  // Force status bar update
+  useEffect(() => {
+    StatusBar.setBarStyle('light-content');
+    StatusBar.setBackgroundColor(themeColors.headerBackground);
+    return () => {
+      // Reset to default when unmounting
+      StatusBar.setBarStyle(themeColors.statusBarStyle === 'light' ? 'light-content' : 'dark-content');
+      StatusBar.setBackgroundColor(themeColors.statusBarBg);
+    };
+  }, [currentTheme]);
 
   useEffect(() => {
     loadHistories();
@@ -187,8 +201,19 @@ export default function ChatHistoryScreen() {
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: themeColors.background }]}>
-      <View style={[styles.header, { backgroundColor: themeColors.headerBackground }]}>
+    <View style={{ flex: 1, backgroundColor: themeColors.headerBackground }}>
+      <StatusBar
+        backgroundColor="transparent"
+        barStyle="light-content"
+        translucent={true}
+      />
+      <View style={[
+        styles.header, 
+        { 
+          backgroundColor: themeColors.headerBackground,
+          paddingTop: insets.top + 10, // Add status bar height plus padding
+        }
+      ]}>
         <TouchableOpacity 
           style={styles.backButton}
           onPress={() => navigation.goBack()}
@@ -206,19 +231,21 @@ export default function ChatHistoryScreen() {
         )}
       </View>
       
-      <FlatList
-        data={sortedHistories}
-        renderItem={renderItem}
-        keyExtractor={item => item.id}
-        contentContainerStyle={styles.listContent}
-        ListEmptyComponent={() => (
-          <View style={styles.emptyContainer}>
-            <Text style={[styles.emptyText, { color: themeColors.secondaryText }]}>
-              No chat history yet
-            </Text>
-          </View>
-        )}
-      />
+      <View style={[styles.container, { backgroundColor: themeColors.background }]}>
+        <FlatList
+          data={sortedHistories}
+          renderItem={renderItem}
+          keyExtractor={item => item.id}
+          contentContainerStyle={styles.listContent}
+          ListEmptyComponent={() => (
+            <View style={styles.emptyContainer}>
+              <Text style={[styles.emptyText, { color: themeColors.secondaryText }]}>
+                No chat history yet
+              </Text>
+            </View>
+          )}
+        />
+      </View>
     </View>
   );
 }
@@ -231,7 +258,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
-    paddingTop: Platform.OS === 'ios' ? 60 : 16,
   },
   backButton: {
     marginRight: 16,

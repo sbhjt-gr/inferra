@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,8 @@ import {
   Platform,
   Alert,
   AppState,
-  AppStateStatus
+  AppStateStatus,
+  StatusBar,
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
@@ -22,6 +23,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { DownloadProgress } from '../services/ModelDownloader';
 import type { DownloadTask } from '@kesha-antonov/react-native-background-downloader';
 import * as FileSystem from 'expo-file-system';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const formatBytes = (bytes: number) => {
   if (bytes === undefined || bytes === null || isNaN(bytes) || bytes === 0) return '0 B';
@@ -71,6 +73,7 @@ export default function DownloadsScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { downloadProgress, setDownloadProgress } = useDownloads();
   const buttonProcessingRef = useRef<Set<string>>(new Set());
+  const insets = useSafeAreaInsets();
 
   // Convert downloadProgress object to array for FlatList and filter out completed downloads
   const downloads: DownloadItem[] = Object.entries(downloadProgress)
@@ -313,8 +316,19 @@ export default function DownloadsScreen() {
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: themeColors.background }]}>
-      <View style={[styles.header, { backgroundColor: themeColors.headerBackground }]}>
+    <View style={{ flex: 1, backgroundColor: themeColors.headerBackground }}>
+      <StatusBar
+        backgroundColor="transparent"
+        barStyle="light-content"
+        translucent={true}
+      />
+      <View style={[
+        styles.header, 
+        { 
+          backgroundColor: themeColors.headerBackground,
+          paddingTop: insets.top + 10, // Add status bar height plus padding
+        }
+      ]}>
         <TouchableOpacity 
           style={styles.backButton}
           onPress={() => navigation.goBack()}
@@ -324,19 +338,21 @@ export default function DownloadsScreen() {
         <Text style={styles.headerTitle}>Active Downloads</Text>
       </View>
       
-      <FlatList
-        data={downloads}
-        renderItem={renderItem}
-        keyExtractor={item => `download-${item.id || item.name}`}
-        contentContainerStyle={styles.listContent}
-        ListEmptyComponent={() => (
-          <View style={styles.emptyContainer}>
-            <Text style={[styles.emptyText, { color: themeColors.secondaryText }]}>
-              No active downloads
-            </Text>
-          </View>
-        )}
-      />
+      <View style={[styles.container, { backgroundColor: themeColors.background }]}>
+        <FlatList
+          data={downloads}
+          renderItem={renderItem}
+          keyExtractor={item => `download-${item.id || item.name}`}
+          contentContainerStyle={styles.listContent}
+          ListEmptyComponent={() => (
+            <View style={styles.emptyContainer}>
+              <Text style={[styles.emptyText, { color: themeColors.secondaryText }]}>
+                No active downloads
+              </Text>
+            </View>
+          )}
+        />
+      </View>
     </View>
   );
 }
@@ -349,7 +365,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
-    paddingTop: Platform.OS === 'ios' ? 60 : 16,
   },
   backButton: {
     marginRight: 16,

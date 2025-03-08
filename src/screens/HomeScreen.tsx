@@ -14,6 +14,7 @@ import {
   ToastAndroid,
   Modal,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import { Ionicons } from '@expo/vector-icons';
@@ -899,8 +900,11 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: themeColors.background }]}>
-      <AppHeader />
+    <SafeAreaView 
+      style={[styles.container, { backgroundColor: themeColors.background }]}
+      edges={['right', 'left', 'bottom']}
+    >
+      <AppHeader onNewChat={startNewChat} />
       
       {/* iOS Copy Toast */}
       {showCopyToast && (
@@ -908,25 +912,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
           <Text style={styles.copyToastText}>{copyToastMessageRef.current}</Text>
         </View>
       )}
-      
-      <View style={styles.headerButtons}>
-        <TouchableOpacity
-          style={[styles.headerButton, { backgroundColor: themeColors.headerBackground }]}
-          onPress={startNewChat}
-        >
-          <Ionicons name="add-outline" size={22} color="#fff" />
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[styles.headerButton, { backgroundColor: themeColors.headerBackground }]}
-          onPress={() => navigation.navigate('ChatHistory', {
-            onChatDeleted: handleChatDeleted,
-            onAllChatsDeleted: handleAllChatsDeleted,
-          })}
-        >
-          <Ionicons name="time-outline" size={22} color="#fff" />
-        </TouchableOpacity>
-      </View>
 
       {/* Memory Warning Modal */}
       <Modal
@@ -1077,7 +1062,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
           </View>
         </View>
       </KeyboardAvoidingView>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -1092,6 +1077,7 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 16,
     paddingTop: 20,
+    paddingBottom: Platform.OS === 'android' ? 16 : 0,
   },
   chatContainer: {
     flex: 1,
@@ -1200,6 +1186,7 @@ const styles = StyleSheet.create({
     padding: 8,
     borderRadius: 24,
     marginTop: 8,
+    marginBottom: Platform.OS === 'android' ? 8 : 0,
   },
   input: {
     flex: 1,
@@ -1242,24 +1229,9 @@ const styles = StyleSheet.create({
   activeButton: {
     backgroundColor: '#4a0660',
   },
-  headerButtons: {
-    position: 'absolute',
-    top: Platform.OS === 'ios' ? 60 : 16,
-    right: 16,
-    flexDirection: 'row',
-    gap: 8,
-    zIndex: 1,
-  },
-  headerButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   copyToast: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 100 : 60,
+    top: Platform.OS === 'ios' ? 60 : 20,
     alignSelf: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
     paddingHorizontal: 16,
