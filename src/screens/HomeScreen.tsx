@@ -138,6 +138,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const flatListRef = useRef<FlatList>(null);
+  const inputRef = useRef<TextInput>(null);
   const [streamingMessage, setStreamingMessage] = useState<string>('');
   const modelSelectorRef = useRef<{ refreshModels: () => void }>(null);
   const [menuVisible, setMenuVisible] = useState(false);
@@ -154,6 +155,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   const [showMemoryWarning, setShowMemoryWarning] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [shouldMaintainFocus, setShouldMaintainFocus] = useState(true);
 
   useFocusEffect(
     useCallback(() => {
@@ -234,6 +236,10 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       () => {
         setKeyboardVisible(false);
         setKeyboardHeight(0);
+        // Only refocus if we should maintain focus
+        if (shouldMaintainFocus && !isLoading) {
+          setTimeout(() => inputRef.current?.focus(), 100);
+        }
       }
     );
 
@@ -241,7 +247,14 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       keyboardDidShowListener.remove();
       keyboardDidHideListener.remove();
     };
-  }, []);
+  }, [shouldMaintainFocus, isLoading]);
+
+  // Focus management
+  useEffect(() => {
+    if (shouldMaintainFocus && !isLoading) {
+      inputRef.current?.focus();
+    }
+  }, [shouldMaintainFocus, isLoading]);
 
   const loadMessages = async () => {
     try {
@@ -285,7 +298,11 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
           [
             {
               text: 'Cancel',
-              style: 'cancel'
+              style: 'cancel',
+              onPress: () => {
+                // Refocus the input after canceling
+                inputRef.current?.focus();
+              }
             },
             {
               text: 'Continue Anyway',
@@ -309,6 +326,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       } else {
         alert('Failed to generate response');
       }
+      // Refocus the input after error
+      inputRef.current?.focus();
     }
   };
 
@@ -926,9 +945,21 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     }
   };
 
-  const dismissKeyboard = () => {
+  const dismissKeyboard = useCallback(() => {
+    setShouldMaintainFocus(false);
     Keyboard.dismiss();
-  };
+  }, []);
+
+  const handleInputFocus = useCallback(() => {
+    setShouldMaintainFocus(true);
+  }, []);
+
+  const handleInputBlur = useCallback(() => {
+    // Only refocus if we should maintain focus and not during loading state changes
+    if (shouldMaintainFocus) {
+      setTimeout(() => inputRef.current?.focus(), 100);
+    }
+  }, [shouldMaintainFocus]);
 
   return (
     <SafeAreaView 
@@ -1030,8 +1061,22 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                 inverted={true}
                 maintainVisibleContentPosition={{
                   minIndexForVisible: 0,
+                  autoscrollToTopThreshold: 10,
                 }}
                 keyboardShouldPersistTaps="handled"
+                onScrollBeginDrag={() => {
+                  setShouldMaintainFocus(false);
+                  Keyboard.dismiss();
+                }}
+                scrollEventThrottle={16}
+                showsVerticalScrollIndicator={true}
+                automaticallyAdjustKeyboardInsets={false}
+                removeClippedSubviews={true}
+                windowSize={10}
+                maxToRenderPerBatch={10}
+                updateCellsBatchingPeriod={50}
+                onEndReachedThreshold={0.5}
+                scrollIndicatorInsets={{ right: 1 }}
               />
             )}
           </TouchableOpacity>
@@ -1041,12 +1086,13 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
               styles.inputContainer,
               { 
                 backgroundColor: themeColors.borderColor,
-                marginBottom: keyboardVisible ? 0 : 0
-              },
-              isLoading && styles.inputContainerDisabled
+                marginBottom: keyboardVisible ? 0 : 0,
+                opacity: isLoading ? 0.7 : 1
+              }
             ]}
           >
             <TextInput
+              ref={inputRef}
               style={[
                 styles.input,
                 { 
@@ -1056,16 +1102,23 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
               ]}
               value={message}
               onChangeText={setMessage}
-              placeholder={isLoading ? "Model is processing..." : "Type a message..."}
+              placeholder="Type a message..."
               placeholderTextColor={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.6)'}
               multiline
-              editable={!isLoading}
+              editable={true}
+              keyboardType="default"
+              textAlignVertical="center"
+              returnKeyType="default"
+              onFocus={handleInputFocus}
+              onBlur={handleInputBlur}
+              autoFocus={true}
+              blurOnSubmit={false}
             />
             {isLoading ? (
               <View style={styles.loadingButtonsContainer}>
-              <ActivityIndicator
-                size="small"
-                color={themeColors.headerBackground}
+                <ActivityIndicator
+                  size="small"
+                  color={themeColors.headerBackground}
                   style={styles.loadingIndicator}
                 />
                 <TouchableOpacity
@@ -1127,6 +1180,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 8,
     width: '100%',
+    flexGrow: 1,
   },
   messageCard: {
     width: '100%',
@@ -1227,6 +1281,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     marginTop: 8,
     marginBottom: 0,
+    minHeight: 56,
   },
   input: {
     flex: 1,
@@ -1234,6 +1289,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     marginRight: 8,
+    minHeight: 40,
   },
   sendButton: {
     width: 36,
@@ -1294,6 +1350,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    minWidth: 80,
+    height: 40,
   },
   loadingIndicator: {
     marginRight: 8,
