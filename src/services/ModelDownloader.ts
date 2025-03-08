@@ -808,7 +808,7 @@ class ModelDownloader extends EventEmitter {
       // Show alert about not removing app from recents
       Alert.alert(
         'Download Started',
-        'Please do not remove the app from your recent menu while downloading. Doing so will interrupt the download.',
+        'Please do not remove the app from your recents screen while downloading. Doing so will interrupt the download.',
         [{ text: 'OK', style: 'default' }]
       );
       

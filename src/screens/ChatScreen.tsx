@@ -16,10 +16,11 @@ export default function ChatScreen() {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
+    const settings = llamaManager.getSettings();
     setMessages([
       {
         role: 'system',
-        content: 'You are a helpful, respectful and honest assistant. Always answer as helpfully as possible, while being safe. Your answers should not include any harmful, unethical, racist, sexist, toxic, dangerous, or illegal content. Please ensure that your responses are socially unbiased and positive in nature.\n\nIf a question is unclear or lacks specific details, you should ask clarifying questions to better understand the user\'s needs. If you don\'t know the answer to a question, please don\'t share false information. With the increased context window, you can now handle longer conversations and provide more detailed responses when appropriate.'
+        content: settings.systemPrompt
       },
     ]);
   }, []);

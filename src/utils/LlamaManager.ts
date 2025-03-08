@@ -18,6 +18,7 @@ interface ModelSettings {
   topP: number;
   minP: number;
   stopWords: string[];
+  systemPrompt: string;
 }
 
 const DEFAULT_SETTINGS: ModelSettings = {
@@ -27,6 +28,7 @@ const DEFAULT_SETTINGS: ModelSettings = {
   topP: 0.9,
   minP: 0.05,
   stopWords: ['</s>', '<|end|>', '<|im_end|>', '<|endoftext|>', '<｜end_of_sentence｜>'],
+  systemPrompt: 'You are a helpful, respectful and honest assistant. Answer helpfully while being safe and ethical. If a question is unclear, ask for clarification. If you don\'t know the answer, say so instead of making up information.'
 };
 
 // Type assertion for the native module
@@ -36,6 +38,13 @@ class LlamaManager {
   private context: LlamaContext | null = null;
   private modelPath: string | null = null;
   private settings: ModelSettings = { ...DEFAULT_SETTINGS };
+
+  constructor() {
+    // Load settings when LlamaManager is instantiated
+    this.loadSettings().catch(error => {
+      console.error('Error loading settings:', error);
+    });
+  }
 
   async initializeModel(modelPath: string) {
     try {
@@ -73,9 +82,6 @@ class LlamaManager {
 
       this.modelPath = finalModelPath;
       
-      // Load settings
-      await this.loadSettings();
-      
       // Initialize with recommended settings
       this.context = await initLlama({
         model: finalModelPath,
@@ -101,24 +107,40 @@ class LlamaManager {
     try {
       const savedSettings = await AsyncStorage.getItem('@model_settings');
       if (savedSettings) {
-        this.settings = { ...DEFAULT_SETTINGS, ...JSON.parse(savedSettings) };
+        const parsedSettings = JSON.parse(savedSettings);
+        // Merge with default settings to ensure all properties exist
+        this.settings = {
+          ...DEFAULT_SETTINGS,
+          ...parsedSettings
+        };
+        console.log('[LlamaManager] Loaded settings:', this.settings);
+      } else {
+        // If no settings found, use defaults and save them
+        this.settings = { ...DEFAULT_SETTINGS };
+        await this.saveSettings();
+        console.log('[LlamaManager] No saved settings found, using defaults');
       }
     } catch (error) {
-      console.error('Error loading settings:', error);
+      console.error('[LlamaManager] Error loading settings:', error);
+      // On error, use default settings
+      this.settings = { ...DEFAULT_SETTINGS };
     }
   }
 
   async saveSettings() {
     try {
       await AsyncStorage.setItem('@model_settings', JSON.stringify(this.settings));
+      console.log('[LlamaManager] Settings saved successfully');
     } catch (error) {
-      console.error('Error saving settings:', error);
+      console.error('[LlamaManager] Error saving settings:', error);
+      throw error;
     }
   }
 
   async resetSettings() {
     this.settings = { ...DEFAULT_SETTINGS };
     await this.saveSettings();
+    console.log('[LlamaManager] Settings reset to defaults');
   }
 
   // Settings getters and setters
@@ -129,6 +151,7 @@ class LlamaManager {
   async updateSettings(newSettings: Partial<ModelSettings>) {
     this.settings = { ...this.settings, ...newSettings };
     await this.saveSettings();
+    console.log('[LlamaManager] Settings updated:', this.settings);
   }
 
   // Individual setting getters for backward compatibility

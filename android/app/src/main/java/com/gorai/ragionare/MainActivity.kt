@@ -1,16 +1,22 @@
 package com.gorai.ragionare
 import expo.modules.splashscreen.SplashScreenManager
 
+import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
 import android.view.View
 import androidx.core.view.WindowCompat
+import android.content.Intent
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
+import com.facebook.react.ReactApplication
+import com.facebook.react.ReactInstanceManager
+import com.facebook.react.bridge.ReactContext
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled
 import com.facebook.react.defaults.DefaultReactActivityDelegate
+import com.facebook.react.modules.core.DeviceEventManagerModule
 
 import expo.modules.ReactActivityDelegateWrapper
 
@@ -39,6 +45,30 @@ class MainActivity : ReactActivity() {
    * rendering of the component.
    */
   override fun getMainComponentName(): String = "main"
+
+  /**
+   * Handle configuration changes including UI mode changes (dark/light theme)
+   */
+  override fun onConfigurationChanged(newConfig: Configuration) {
+    super.onConfigurationChanged(newConfig)
+    
+    // Get ReactInstanceManager from the ReactApplication
+    val reactApplication = application as ReactApplication
+    val reactInstanceManager = reactApplication.reactNativeHost.reactInstanceManager
+    val currentReactContext = reactInstanceManager.currentReactContext
+
+    // Emit event to JavaScript to notify theme change
+    currentReactContext?.let { reactContext ->
+      // Determine if dark mode is enabled
+      val isDarkMode = newConfig.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+      val uiMode = if (isDarkMode) "dark" else "light"
+      
+      // Emit appearance change event to match React Native's Appearance API
+      reactContext
+        .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+        .emit("appearanceChanged", uiMode)
+    }
+  }
 
   /**
    * Returns the instance of the [ReactActivityDelegate]. We use [DefaultReactActivityDelegate]

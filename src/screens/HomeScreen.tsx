@@ -31,6 +31,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList, TabParamList } from '../types/navigation';
 import { useModel } from '../context/ModelContext';
 import * as Device from 'expo-device';
+import chatManager, { Chat, ChatMessage } from '../utils/ChatManager';
 
 type Message = {
   id: string;
@@ -131,19 +132,111 @@ const hasMarkdownFormatting = (content: string): boolean => {
   return markdownPatterns.some(pattern => pattern.test(content));
 };
 
+// Add generateRandomId function at the top level
+const generateRandomId = () => {
+  return Math.random().toString(36).substring(2) + Date.now().toString(36);
+};
+
+// Update ChatInput component usage
+const ChatInput = ({ 
+  onSend, 
+  disabled = false,
+  isLoading = false,
+  onCancel = () => {},
+  style = {},
+  placeholderColor = 'rgba(0, 0, 0, 0.6)'
+}: { 
+  onSend: (text: string) => void,
+  disabled?: boolean,
+  isLoading?: boolean,
+  onCancel?: () => void,
+  style?: any,
+  placeholderColor?: string
+}) => {
+  const [text, setText] = useState('');
+  const inputRef = useRef<TextInput>(null);
+  const { theme: currentTheme } = useTheme();
+  const isDark = currentTheme === 'dark';
+
+  const handleSend = () => {
+    if (!text.trim()) return;
+    onSend(text);
+    setText('');
+  };
+
+  return (
+    <View style={[inpStyles.container, style]}>
+      <View style={[
+        inpStyles.inputWrapper,
+        isDark && { backgroundColor: 'rgba(255, 255, 255, 0.1)' }
+      ]}>
+        <TextInput
+          ref={inputRef}
+          style={[
+            inpStyles.input,
+            isDark && { color: '#fff' }
+          ]}
+          value={text}
+          onChangeText={setText}
+          placeholder="Send a message..."
+          placeholderTextColor={placeholderColor}
+          multiline
+          editable={!disabled}
+          textAlignVertical="center"
+          returnKeyType="default"
+          blurOnSubmit={false}
+          onSubmitEditing={handleSend}
+        />
+      </View>
+      
+      {isLoading ? (
+        <View style={inpStyles.loadingContainer}>
+          <ActivityIndicator
+            size="small"
+            color="#0084ff"
+            style={inpStyles.loadingIndicator}
+          />
+          <TouchableOpacity
+            onPress={onCancel}
+            style={inpStyles.cancelButton}
+          >
+            <Ionicons name="close" size={24} color="#fff" />
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <TouchableOpacity 
+          style={[
+            inpStyles.sendButton,
+            !text.trim() && inpStyles.sendButtonDisabled
+          ]} 
+          onPress={handleSend}
+          disabled={!text.trim() || disabled}
+        >
+          <Ionicons 
+            name="send" 
+            size={24} 
+            color={text.trim() ? '#660880' : isDark ? '#666' : '#999'} 
+          />
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+};
+
 export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
   const [message, setMessage] = useState('');
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [chat, setChat] = useState<Chat | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const flatListRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
   const [streamingMessage, setStreamingMessage] = useState<string>('');
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
   const modelSelectorRef = useRef<{ refreshModels: () => void }>(null);
   const [menuVisible, setMenuVisible] = useState(false);
-  const [chatHistories, setChatHistories] = useState<{ id: string, messages: Message[], timestamp: number }[]>([]);
-  const [currentChatId, setCurrentChatId] = useState<string>(Date.now().toString());
   const [shouldOpenModelSelector, setShouldOpenModelSelector] = useState(false);
   const [preselectedModelPath, setPreselectedModelPath] = useState<string | null>(null);
   const { isModelLoading, unloadModel } = useModel();
@@ -155,7 +248,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   const [showMemoryWarning, setShowMemoryWarning] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
-  const [shouldMaintainFocus, setShouldMaintainFocus] = useState(true);
+  const [streamingThinking, setStreamingThinking] = useState<string>('');
 
   useFocusEffect(
     useCallback(() => {
@@ -164,30 +257,23 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   );
 
   useEffect(() => {
-    loadMessages();
-    loadChatHistories();
+    loadCurrentChat();
+    
+    const unsubscribe = chatManager.addListener(() => {
+      loadCurrentChat();
+    });
+    
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
-    if (route.params?.chatId) {
-      const selectedChat = chatHistories.find(chat => chat.id === route.params.chatId);
-      if (selectedChat) {
-        setCurrentChatId(route.params.chatId);
-        setMessages(selectedChat.messages);
-        saveMessages(selectedChat.messages);
-      }
-    }
-  }, [route.params?.chatId, chatHistories]);
-
-  useEffect(() => {
-    if (route.params?.openModelSelector) {
+    if (route.params?.modelPath) {
       setShouldOpenModelSelector(true);
-      if (route.params?.preselectedModelPath) {
-        setPreselectedModelPath(route.params.preselectedModelPath);
-      }
-      navigation.setParams({ openModelSelector: undefined, preselectedModelPath: undefined });
+      setPreselectedModelPath(route.params.modelPath);
     }
-  }, [route.params?.openModelSelector]);
+  }, [route.params]);
 
   useEffect(() => {
     return () => {
@@ -222,7 +308,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     checkSystemMemory();
   }, []);
 
-  // Add keyboard listeners
+  // Update keyboard listeners
   useEffect(() => {
     const keyboardDidShowListener = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
@@ -236,10 +322,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       () => {
         setKeyboardVisible(false);
         setKeyboardHeight(0);
-        // Only refocus if we should maintain focus
-        if (shouldMaintainFocus && !isLoading) {
-          setTimeout(() => inputRef.current?.focus(), 100);
-        }
       }
     );
 
@@ -247,147 +329,136 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       keyboardDidShowListener.remove();
       keyboardDidHideListener.remove();
     };
-  }, [shouldMaintainFocus, isLoading]);
+  }, []);
 
-  // Focus management
-  useEffect(() => {
-    if (shouldMaintainFocus && !isLoading) {
-      inputRef.current?.focus();
+  const loadCurrentChat = useCallback(async () => {
+    const currentChat = chatManager.getCurrentChat();
+    if (currentChat) {
+      setChat(currentChat);
+      setMessages(currentChat.messages);
+    } else {
+      // Create a new chat if none exists
+      const newChat = await chatManager.createNewChat();
+      setChat(newChat);
+      setMessages(newChat.messages);
     }
-  }, [shouldMaintainFocus, isLoading]);
+  }, []);
 
-  const loadMessages = async () => {
-    try {
-      const savedMessages = await AsyncStorage.getItem('chatMessages');
-      if (savedMessages) {
-        setMessages(JSON.parse(savedMessages));
-      }
-    } catch (error) {
-      console.error('Error loading messages:', error);
+  const saveMessages = useCallback(async (newMessages: ChatMessage[]) => {
+    if (chat) {
+      await chatManager.updateChatMessages(chat.id, newMessages);
     }
-  };
+  }, [chat]);
 
-  const saveMessages = async (newMessages: Message[]) => {
-    try {
-      await AsyncStorage.setItem('chatMessages', JSON.stringify(newMessages));
-    } catch (error) {
-      console.error('Error saving messages:', error);
-    }
-  };
-
-  const handleSend = async () => {
-    if (!message.trim()) return;
+  const handleSend = async (text: string) => {
+    const messageText = text.trim();
+    if (!messageText) return;
+    
     if (!llamaManager.getModelPath()) {
-      alert('Please select a model first');
+      setShouldOpenModelSelector(true);
       return;
     }
 
     try {
-      // Check memory before proceeding
-      const memoryInfo = await llamaManager.checkMemoryRequirements();
+      setIsLoading(true);
+      Keyboard.dismiss();
       
-      // Only show memory warning if we have valid memory info
-      if (memoryInfo.requiredMemory > 0 && memoryInfo.availableMemory > 0 && 
-          memoryInfo.availableMemory < memoryInfo.requiredMemory) {
-        const requiredGB = (memoryInfo.requiredMemory / 1024 / 1024 / 1024).toFixed(1);
-        const availableGB = (memoryInfo.availableMemory / 1024 / 1024 / 1024).toFixed(1);
-        
-        Alert.alert(
-          'Insufficient Memory',
-          `This model requires ${requiredGB}GB of RAM but only ${availableGB}GB is available. The app might crash or perform poorly. Do you want to continue?`,
-          [
-            {
-              text: 'Cancel',
-              style: 'cancel',
-              onPress: () => {
-                // Refocus the input after canceling
-                inputRef.current?.focus();
-              }
-            },
-            {
-              text: 'Continue Anyway',
-              onPress: () => processMessage(),
-              style: 'destructive'
-            }
-          ]
-        );
+      const userMessage: Omit<ChatMessage, 'id'> = {
+        content: messageText,
+        role: 'user',
+      };
+      
+      // Add to current chat and wait for confirmation
+      const success = await chatManager.addMessage(userMessage);
+      if (!success) {
+        Alert.alert('Error', 'Failed to add message to chat');
         return;
       }
-
+      
+      // Process the response
       await processMessage();
-
     } catch (error) {
-      console.error('Error:', error);
-      if (error instanceof Error && error.message.includes('memory')) {
-        Alert.alert(
-          'Out of Memory',
-          'Your device ran out of memory while processing. Try using a smaller model or closing other apps.'
-        );
-      } else {
-        alert('Failed to generate response');
-      }
-      // Refocus the input after error
-      inputRef.current?.focus();
+      console.error('Error sending message:', error);
+      Alert.alert('Error', 'Failed to send message');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleCancelGeneration = useCallback(() => {
-    unloadModel();
-  }, [unloadModel]);
+    // Access the context directly from llamaManager
+    if (llamaManager.context) {
+      llamaManager.context.stopCompletion();
+    }
+    
+    // Save the current partial response before canceling
+    if (streamingMessageId && (streamingMessage || streamingThinking)) {
+      const currentChat = chatManager.getCurrentChat();
+      if (currentChat) {
+        chatManager.updateMessageContent(
+          streamingMessageId,
+          streamingMessage || '',  // Keep the current response
+          streamingThinking || '', // Keep the current thinking
+          {
+            duration: 0,
+            tokens: 0,
+          }
+        );
+      }
+    }
+    
+    // Reset streaming and loading states but keep the message content
+    setIsStreaming(false);
+    setStreamingMessageId(null);
+    setIsLoading(false);
+    setIsRegenerating(false);
+    cancelGenerationRef.current = true;
+  }, [streamingMessage, streamingThinking, streamingMessageId]);
 
   const processMessage = async () => {
-    if (!message.trim()) return;
-
-    // Reset cancellation flag at the start of new generation
-    cancelGenerationRef.current = false;
-
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      content: message.trim(),
-      role: 'user',
-    };
-
-    const assistantMessage: Message = {
-      id: (Date.now() + 1).toString(),
-      content: '',
-      role: 'assistant',
-      stats: {
-        duration: 0,
-        tokens: 0,
-      },
-    };
-
-    const newMessages = [...messages, userMessage, assistantMessage];
-    setMessages(newMessages);
-    await saveMessages(newMessages);
-    setMessage('');
-    setIsLoading(true);
-    cancelGenerationRef.current = false;
-
-    const startTime = Date.now();
-    let tokenCount = 0;
-    let fullResponse = '';
-    let thinking = '';
-    let isThinking = false;
+    const currentChat = chatManager.getCurrentChat();
+    if (!currentChat) return;
 
     try {
+      const currentMessages = currentChat.messages;
+      const settings = llamaManager.getSettings();
+      
+      const processedMessages = currentMessages.some(msg => msg.role === 'system')
+        ? currentMessages
+        : [{ role: 'system', content: settings.systemPrompt, id: 'system-prompt' }, ...currentMessages];
+      
+      const assistantMessage: Omit<ChatMessage, 'id'> = {
+        role: 'assistant',
+        content: '',
+        stats: {
+          duration: 0,
+          tokens: 0,
+        }
+      };
+      
+      await chatManager.addMessage(assistantMessage);
+      const messageId = currentChat.messages[currentChat.messages.length - 1].id;
+      
+      setStreamingMessageId(messageId);
+      setStreamingMessage('');
+      setStreamingThinking('');
+      setIsStreaming(true);
+      
+      const startTime = Date.now();
+      let tokenCount = 0;
+      let fullResponse = '';
+      let thinking = '';
+      let isThinking = false;
+      cancelGenerationRef.current = false;  // Reset cancel flag
+
       await llamaManager.generateResponse(
-        [
-          {
-            role: 'system',
-            content: 'You are a helpful AI assistant.',
-          },
-          ...messages,
-          userMessage,
-        ].map(msg => ({ role: msg.role, content: msg.content })),
-        (token) => {
-          // Check if cancellation was requested
+        processedMessages.map(msg => ({ role: msg.role, content: msg.content })),
+        async (token) => {
           if (cancelGenerationRef.current) {
-            return false; // Return false to stop generation instead of throwing error
+            // Don't clear the response when canceling
+            return false;
           }
-
-          tokenCount++;
-
+          
           if (token.includes('<think>')) {
             isThinking = true;
             return true;
@@ -396,82 +467,47 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             isThinking = false;
             return true;
           }
-
+          
+          tokenCount++;
           if (isThinking) {
             thinking += token;
+            setStreamingThinking(thinking.trim());
           } else {
             fullResponse += token;
+            setStreamingMessage(fullResponse);
           }
-
-          // Update message with current content and thinking
-          setMessages(prev => {
-            const updated = [...prev];
-            const lastMessage = updated[updated.length - 1];
-            if (lastMessage.role === 'assistant') {
-              updated[updated.length - 1] = {
-                ...lastMessage,
-                content: fullResponse,
-                thinking: thinking.trim(),
-                stats: {
-                  duration: (Date.now() - startTime) / 1000,
-                  tokens: tokenCount,
-                },
-              };
-            }
-            return updated;
-          });
-
-          return true;
+          
+          return !cancelGenerationRef.current;
         }
       );
-
-      // Final message update
-      setMessages(prev => {
-        const updated = [...prev];
-        const lastMessage = updated[updated.length - 1];
-        if (lastMessage.role === 'assistant') {
-          updated[updated.length - 1] = {
-            ...lastMessage,
-            content: fullResponse,
-            thinking: thinking.trim(),
-            stats: {
-              duration: (Date.now() - startTime) / 1000,
-              tokens: tokenCount,
-            },
-          };
-        }
-        return updated;
-      });
-
-      await saveMessages(messages);
-    } catch (error) {
-      console.error('Error generating response:', error);
       
-      // Handle any errors that aren't cancellation
-      if (error instanceof Error && !error.message.includes('cancelled')) {
-        Alert.alert('Error', 'Failed to generate response');
+      // Only update if not cancelled
+      if (!cancelGenerationRef.current) {
+        await chatManager.updateMessageContent(
+          messageId,
+          fullResponse,
+          thinking.trim(),
+          {
+            duration: (Date.now() - startTime) / 1000,
+            tokens: tokenCount,
+          }
+        );
       }
       
-      // Always update the message for any error case
-      setMessages(prev => {
-        const updated = [...prev];
-        const lastMessage = updated[updated.length - 1];
-        if (lastMessage.role === 'assistant') {
-          updated[updated.length - 1] = {
-            ...lastMessage,
-            content: fullResponse + (cancelGenerationRef.current ? " [Cancelled]" : ""),
-            thinking: thinking.trim(),
-            stats: {
-              duration: (Date.now() - startTime) / 1000,
-              tokens: tokenCount,
-            },
-          };
-        }
-        return updated;
-      });
-    } finally {
-      setIsLoading(false);
-      cancelGenerationRef.current = false;
+      setIsStreaming(false);
+      setStreamingMessageId(null);
+      setStreamingThinking('');
+      
+      if (!cancelGenerationRef.current) {
+        await chatManager.saveAllChats();
+      }
+      
+    } catch (error) {
+      console.error('Error processing message:', error);
+      Alert.alert('Error', 'Failed to generate response');
+      setIsStreaming(false);
+      setStreamingMessageId(null);
+      setStreamingThinking('');
     }
   };
 
@@ -556,9 +592,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     // Remove the last assistant message
     const newMessages = messages.slice(0, -1);
     
-  
     const assistantMessage: Message = {
-      id: Date.now().toString(),
+      id: generateRandomId(),
       content: '',
       role: 'assistant',
       stats: {
@@ -573,6 +608,11 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     setIsRegenerating(true);
     cancelGenerationRef.current = false;
     
+    // Set up streaming state
+    setStreamingMessageId(assistantMessage.id);
+    setStreamingMessage('');
+    setIsStreaming(true);
+    
     const startTime = Date.now();
     let tokenCount = 0;
     let fullResponse = '';
@@ -581,20 +621,11 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     
     try {
       await llamaManager.generateResponse(
-        [
-          {
-            role: 'system',
-            content: 'You are a helpful AI assistant.',
-          },
-          ...newMessages,
-        ].map(msg => ({ role: msg.role, content: msg.content })),
+        [...newMessages].map(msg => ({ role: msg.role, content: msg.content })),
         (token) => {
-          // Check if cancellation was requested
           if (cancelGenerationRef.current) {
-            return false;
+            return false;  // Return false to stop generation
           }
-          
-          tokenCount++;
           
           if (token.includes('<think>')) {
             isThinking = true;
@@ -605,88 +636,55 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             return true;
           }
           
+          tokenCount++;
           if (isThinking) {
             thinking += token;
+            setStreamingThinking(thinking.trim());
           } else {
             fullResponse += token;
+            setStreamingMessage(fullResponse);
           }
           
-          setMessages(prev => {
-            const updated = [...prev];
-            const lastMessage = updated[updated.length - 1];
-            if (lastMessage.role === 'assistant') {
-              updated[updated.length - 1] = {
-                ...lastMessage,
-                content: fullResponse,
-                thinking: thinking.trim(),
-                stats: {
-                  duration: (Date.now() - startTime) / 1000,
-                  tokens: tokenCount,
-                },
-              };
-            }
-            return updated;
-          });
-
-          return true;
+          return !cancelGenerationRef.current;  // Return false if cancelled
         }
       );
       
-      // Final message update
-      setMessages(prev => {
-        const updated = [...prev];
-        const lastMessage = updated[updated.length - 1];
-        if (lastMessage.role === 'assistant') {
-          updated[updated.length - 1] = {
-            ...lastMessage,
-            content: fullResponse,
-            thinking: thinking.trim(),
-            stats: {
-              duration: (Date.now() - startTime) / 1000,
-              tokens: tokenCount,
-            },
-          };
+      // Update the message with final content
+      const finalMessages = [...newMessages, {
+        ...assistantMessage,
+        content: fullResponse,
+        thinking: thinking.trim(),
+        stats: {
+          duration: (Date.now() - startTime) / 1000,
+          tokens: tokenCount
         }
-        return updated;
-      });
+      }];
       
-      await saveMessages(messages);
+      setMessages(finalMessages);
+      await saveMessages(finalMessages);
     } catch (error) {
-      console.error('Error regenerating response:', error);
-      
-      // Only show alert if it wasn't a cancellation
-      if (!cancelGenerationRef.current) {
-        Alert.alert('Error', 'Failed to regenerate response');
-      } else {
-        // If cancelled, update the last message to indicate cancellation
-        setMessages(prev => {
-          const updated = [...prev];
-          const lastMessage = updated[updated.length - 1];
-          if (lastMessage.role === 'assistant') {
-            updated[updated.length - 1] = {
-              ...lastMessage,
-              content: fullResponse + " [Cancelled]",
-              thinking: thinking.trim(),
-              stats: {
-                duration: (Date.now() - startTime) / 1000,
-                tokens: tokenCount,
-              },
-            };
-          }
-          return updated;
-        });
-      }
+      console.error('Regeneration error:', error);
+      Alert.alert('Error', 'Failed to regenerate response');
     } finally {
       setIsRegenerating(false);
+      setIsStreaming(false);
+      setStreamingMessageId(null);
       cancelGenerationRef.current = false;
     }
   };
 
   const renderMessage = useCallback(({ item }: { item: Message }) => {
+    const messageContent = (isStreaming && item.id === streamingMessageId) 
+      ? streamingMessage 
+      : item.content;
+      
+    const thinkingContent = (isStreaming && item.id === streamingMessageId)
+      ? streamingThinking
+      : item.thinking;
+      
     const messageElements = [];
 
-    // Add thinking card first if it exists
-    if (item.role === 'assistant' && item.thinking) {
+    if (item.role === 'assistant' && thinkingContent) {
       messageElements.push(
         <View key="thinking" style={styles.thinkingContainer}>
           <View style={styles.thinkingHeader}>
@@ -701,7 +699,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             </Text>
             <TouchableOpacity 
               style={styles.copyButton} 
-              onPress={() => copyToClipboard(item.thinking || '')}
+              onPress={() => copyToClipboard(thinkingContent)}
               hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
             >
               <Ionicons 
@@ -715,7 +713,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             style={[styles.thinkingText, { color: themeColors.secondaryText }]} 
             selectable={true}
           >
-            {item.thinking}
+            {thinkingContent}
           </Text>
         </View>
       );
@@ -753,7 +751,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
               ]}
               selectable={true}
             >
-              {item.content}
+              {messageContent}
             </Text>
           </View>
         ) : (
@@ -794,7 +792,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                 }
               }}
             >
-              {item.content}
+              {messageContent}
             </Markdown>
           </View>
         )}
@@ -840,100 +838,22 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         {messageElements}
       </View>
     );
-  }, [themeColors, messages, isLoading, isRegenerating, handleRegenerate, copyToClipboard]);
+  }, [themeColors, messages, isLoading, isRegenerating, handleRegenerate, copyToClipboard, isStreaming, streamingMessageId, streamingMessage, streamingThinking]);
 
   const startNewChat = async () => {
-    const newChatId = Date.now().toString();
-    
     try {
-      // Save current chat if it has messages
-      if (messages.length > 0) {
-        const updatedHistories = [...chatHistories, {
-          id: currentChatId,
-          messages,
-          timestamp: Date.now()
-        }];
-        
-        // Update AsyncStorage first
-        await AsyncStorage.setItem('chatHistories', JSON.stringify(updatedHistories));
-        // Then update state
-        setChatHistories(updatedHistories);
-        
-        // Clear current chat messages
-        setMessages([]);
-        await AsyncStorage.setItem('chatMessages', JSON.stringify([]));
-      }
-      
-      setCurrentChatId(newChatId);
+      await chatManager.createNewChat();
     } catch (error) {
       console.error('Error starting new chat:', error);
     }
   };
 
-  const loadChatHistories = async () => {
-    try {
-      const savedHistories = await AsyncStorage.getItem('chatHistories');
-      if (savedHistories) {
-        const parsed = JSON.parse(savedHistories);
-        if (Array.isArray(parsed)) {
-          setChatHistories(parsed);
-        } else {
-          setChatHistories([]);
-        }
-      } else {
-        setChatHistories([]);
-      }
-    } catch (error) {
-      console.error('Error loading chat histories:', error);
-      setChatHistories([]);
-    }
-  };
-
   const loadChat = async (chatId: string) => {
-    const selectedChat = chatHistories.find(chat => chat.id === chatId);
-    if (selectedChat) {
-      // Save current chat if it has messages and is different from the one being loaded
-      if (messages.length > 0 && currentChatId !== chatId) {
-        const updatedHistories = chatHistories.map(chat => 
-          chat.id === currentChatId 
-            ? { id: currentChatId, messages, timestamp: Date.now() } 
-            : chat
-        );
-        
-        if (!updatedHistories.some(chat => chat.id === currentChatId)) {
-          updatedHistories.push({ 
-            id: currentChatId, 
-            messages, 
-            timestamp: Date.now() 
-          });
-        }
-        
-        setChatHistories(updatedHistories);
-        await AsyncStorage.setItem('chatHistories', JSON.stringify(updatedHistories));
-      }
-      
-      // Load the selected chat
-      setCurrentChatId(chatId);
-      setMessages(selectedChat.messages);
-      await AsyncStorage.setItem('chatMessages', JSON.stringify(selectedChat.messages));
+    try {
+      await chatManager.setCurrentChat(chatId);
+    } catch (error) {
+      console.error('Error loading chat:', error);
     }
-  };
-
-  const handleChatDeleted = (deletedChatId: string) => {
-    if (currentChatId === deletedChatId) {
-      setCurrentChatId(Date.now().toString());
-      setMessages([]);
-      saveMessages([]);
-    }
-    // Also update chat histories
-    loadChatHistories();
-  };
-
-  const handleAllChatsDeleted = () => {
-    setCurrentChatId(Date.now().toString());
-    setMessages([]);
-    saveMessages([]);
-    setChatHistories([]);
   };
 
   const handleMemoryWarningClose = async () => {
@@ -946,241 +866,227 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   };
 
   const dismissKeyboard = useCallback(() => {
-    setShouldMaintainFocus(false);
     Keyboard.dismiss();
   }, []);
 
-  const handleInputFocus = useCallback(() => {
-    setShouldMaintainFocus(true);
-  }, []);
-
-  const handleInputBlur = useCallback(() => {
-    // Only refocus if we should maintain focus and not during loading state changes
-    if (shouldMaintainFocus) {
-      setTimeout(() => inputRef.current?.focus(), 100);
-    }
-  }, [shouldMaintainFocus]);
-
   return (
-    <SafeAreaView 
-      style={[styles.container, { backgroundColor: themeColors.background }]}
-      edges={['right', 'left', 'bottom']}
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      style={{ flex: 1 }}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
     >
-      <AppHeader onNewChat={startNewChat} />
-      
-      {/* iOS Copy Toast */}
-      {showCopyToast && (
-        <View style={styles.copyToast}>
-          <Text style={styles.copyToastText}>{copyToastMessageRef.current}</Text>
-        </View>
-      )}
-
-      {/* Memory Warning Modal */}
-      <Modal
-        visible={showMemoryWarning}
-        transparent
-        animationType="fade"
-        onRequestClose={handleMemoryWarningClose}
+      <SafeAreaView 
+        style={[styles.container, { backgroundColor: themeColors.background }]}
+        edges={['right', 'left', 'bottom']}
       >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: themeColors.borderColor }]}>
-            <View style={styles.modalHeader}>
-              <Ionicons name="warning-outline" size={32} color="#FFA726" />
-              <Text style={[styles.modalTitle, { color: themeColors.text }]}>
-                Low Memory Warning
-              </Text>
-            </View>
-            
-            <Text style={[styles.modalText, { color: themeColors.text }]}>
-              Your device has less than 8GB of RAM. Large language models require significant memory to run efficiently. You may experience:
-            </Text>
-            
-            <View style={styles.bulletPoints}>
-              <Text style={[styles.bulletPoint, { color: themeColors.text }]}>• Slower response times</Text>
-              <Text style={[styles.bulletPoint, { color: themeColors.text }]}>• Potential app crashes</Text>
-              <Text style={[styles.bulletPoint, { color: themeColors.text }]}>• Limited model size support</Text>
-            </View>
-            
-            <Text style={[styles.modalText, { color: themeColors.text, marginTop: 8 }]}>
-              Although, you can still continue using this app, but optimal performance, consider using a phone with more RAM.
-            </Text>
-
-            <TouchableOpacity
-              style={[styles.modalButton, { backgroundColor: themeColors.headerBackground }]}
-              onPress={handleMemoryWarningClose}
-            >
-              <Text style={styles.modalButtonText}>I Understand</Text>
-            </TouchableOpacity>
+        <AppHeader 
+          onNewChat={startNewChat}
+        />
+        
+        {/* iOS Copy Toast */}
+        {showCopyToast && (
+          <View style={styles.copyToast}>
+            <Text style={styles.copyToastText}>{copyToastMessageRef.current}</Text>
           </View>
-        </View>
-      </Modal>
+        )}
 
-      <View style={styles.container}>
-        <View 
-          style={[
-            styles.content, 
+        {/* Memory Warning Modal */}
+        <Modal
+          visible={showMemoryWarning}
+          transparent
+          animationType="fade"
+          onRequestClose={handleMemoryWarningClose}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { backgroundColor: themeColors.borderColor }]}>
+              <View style={styles.modalHeader}>
+                <Ionicons name="warning-outline" size={32} color="#FFA726" />
+                <Text style={[styles.modalTitle, { color: themeColors.text }]}>
+                  Low Memory Warning
+                </Text>
+              </View>
+              
+              <Text style={[styles.modalText, { color: themeColors.text }]}>
+                Your device has less than 8GB of RAM. Large language models require significant memory to run efficiently. You may experience:
+              </Text>
+              
+              <View style={styles.bulletPoints}>
+                <Text style={[styles.bulletPoint, { color: themeColors.text }]}>• Slower response times</Text>
+                <Text style={[styles.bulletPoint, { color: themeColors.text }]}>• Potential app crashes</Text>
+                <Text style={[styles.bulletPoint, { color: themeColors.text }]}>• Limited model size support</Text>
+              </View>
+              
+              <Text style={[styles.modalText, { color: themeColors.text, marginTop: 8 }]}>
+                Although, you can still continue using this app, but optimal performance, consider using a phone with more RAM.
+              </Text>
+
+              <TouchableOpacity
+                style={[styles.modalButton, { backgroundColor: themeColors.headerBackground }]}
+                onPress={handleMemoryWarningClose}
+              >
+                <Text style={styles.modalButtonText}>I Understand</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+        <View style={styles.container}>
+          <View style={[
+            styles.content,
             { 
               paddingBottom: keyboardVisible ? 
                 (Platform.OS === 'ios' ? keyboardHeight - 50 : keyboardHeight - 50) : 0 
             }
-          ]}
-        >
-          <View style={styles.modelSelectorWrapper}>
-            <ModelSelector 
-              ref={modelSelectorRef}
-              isOpen={shouldOpenModelSelector}
-              onClose={() => setShouldOpenModelSelector(false)}
-              preselectedModelPath={preselectedModelPath}
-              isGenerating={isLoading || isRegenerating}
-            />
-          </View>
-
-          <TouchableOpacity 
-            style={styles.chatContainer} 
-            activeOpacity={1} 
-            onPress={dismissKeyboard}
-          >
-            {messages.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Ionicons 
-                  name="chatbubble-ellipses-outline" 
-                  size={48} 
-                  color={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.75)'} 
-                />
-                <Text style={[styles.emptyStateText, { color: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.75)' }]}>
-                  Select a model and start chatting
-                </Text>
-              </View>
-            ) : (
-              <FlatList
-                ref={flatListRef}
-                data={[...messages].reverse()}
-                renderItem={renderMessage}
-                keyExtractor={item => item.id}
-                contentContainerStyle={styles.messageList}
-                inverted={true}
-                maintainVisibleContentPosition={{
-                  minIndexForVisible: 0,
-                  autoscrollToTopThreshold: 10,
-                }}
-                keyboardShouldPersistTaps="handled"
-                onScrollBeginDrag={() => {
-                  setShouldMaintainFocus(false);
-                  Keyboard.dismiss();
-                }}
-                scrollEventThrottle={16}
-                showsVerticalScrollIndicator={true}
-                automaticallyAdjustKeyboardInsets={false}
-                removeClippedSubviews={true}
-                windowSize={10}
-                maxToRenderPerBatch={10}
-                updateCellsBatchingPeriod={50}
-                onEndReachedThreshold={0.5}
-                scrollIndicatorInsets={{ right: 1 }}
+          ]}>
+            <View style={styles.modelSelectorWrapper}>
+              <ModelSelector 
+                ref={modelSelectorRef}
+                isOpen={shouldOpenModelSelector}
+                onClose={() => setShouldOpenModelSelector(false)}
+                preselectedModelPath={preselectedModelPath}
+                isGenerating={isLoading || isRegenerating}
               />
-            )}
-          </TouchableOpacity>
+            </View>
 
-          <View
-            style={[
-              styles.inputContainer,
-              { 
-                backgroundColor: themeColors.borderColor,
-                marginBottom: keyboardVisible ? 0 : 0,
-                opacity: isLoading ? 0.7 : 1
-              }
-            ]}
-          >
-            <TextInput
-              ref={inputRef}
-              style={[
-                styles.input,
-                { 
-                  color: themeColors.text,
-                  maxHeight: 100
-                }
-              ]}
-              value={message}
-              onChangeText={setMessage}
-              placeholder="Type a message..."
-              placeholderTextColor={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.6)'}
-              multiline
-              editable={true}
-              keyboardType="default"
-              textAlignVertical="center"
-              returnKeyType="default"
-              onFocus={handleInputFocus}
-              onBlur={handleInputBlur}
-              autoFocus={true}
-              blurOnSubmit={false}
-            />
-            {isLoading ? (
-              <View style={styles.loadingButtonsContainer}>
-                <ActivityIndicator
-                  size="small"
-                  color={themeColors.headerBackground}
-                  style={styles.loadingIndicator}
-                />
-                <TouchableOpacity
-                  onPress={handleCancelGeneration}
-                  style={[
-                    styles.cancelButton,
-                    { backgroundColor: '#d32f2f' }
-                  ]}
-                >
-                  <Ionicons
-                    name="close"
-                    size={20}
-                    color="#fff"
+            <View style={styles.chatContainer}>
+              {messages.length === 0 ? (
+                <View style={styles.emptyState}>
+                  <Ionicons 
+                    name="chatbubble-ellipses-outline" 
+                    size={48} 
+                    color={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.75)'} 
                   />
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <TouchableOpacity
-                onPress={handleSend}
-                style={[
-                  styles.sendButton,
-                  {
-                    backgroundColor: message.trim()
-                      ? themeColors.headerBackground
-                      : themeColors.borderColor,
-                  },
-                ]}
-                disabled={!message.trim() || isLoading}
-              >
-                <Ionicons
-                  name="send"
-                  size={20}
-                  color={message.trim() ? '#fff' : currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.6)'}
+                  <Text style={[styles.emptyStateText, { color: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.75)' }]}>
+                    Select a model and start chatting
+                  </Text>
+                </View>
+              ) : (
+                <FlatList
+                  ref={flatListRef}
+                  data={[...messages].reverse()}
+                  renderItem={renderMessage}
+                  keyExtractor={item => item.id}
+                  contentContainerStyle={styles.messageList}
+                  inverted={true}
+                  maintainVisibleContentPosition={{
+                    minIndexForVisible: 0,
+                    autoscrollToTopThreshold: 10,
+                  }}
+                  keyboardShouldPersistTaps="handled"
+                  onScrollBeginDrag={dismissKeyboard}
+                  scrollEventThrottle={16}
+                  showsVerticalScrollIndicator={true}
+                  automaticallyAdjustKeyboardInsets={false}
+                  removeClippedSubviews={true}
+                  windowSize={10}
+                  maxToRenderPerBatch={10}
+                  updateCellsBatchingPeriod={50}
+                  onEndReachedThreshold={0.5}
+                  scrollIndicatorInsets={{ right: 1 }}
+                  style={{ flex: 1 }}
                 />
-              </TouchableOpacity>
-            )}
+              )}
+            </View>
+
+            <ChatInput
+              onSend={handleSend}
+              disabled={isLoading || isStreaming}
+              isLoading={isLoading || isStreaming}
+              onCancel={handleCancelGeneration}
+              placeholderColor={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.4)'}
+              style={{ 
+                borderTopWidth: 1,
+                borderTopColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+                backgroundColor: themeColors.background,
+                paddingHorizontal: 4,
+              }}
+            />
           </View>
         </View>
-      </View>
-    </SafeAreaView>
+      </SafeAreaView>
+    </KeyboardAvoidingView>
   );
 }
+
+const inpStyles = StyleSheet.create({
+  container: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    paddingHorizontal: 4,
+    paddingTop: 13,
+    marginBottom: -10,
+    backgroundColor: 'transparent',
+    marginHorizontal: -20,
+  },
+  inputWrapper: {
+    flex: 1,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 24,
+    marginRight: 8,
+    paddingHorizontal: 20,
+    minHeight: 48,
+    justifyContent: 'center',
+    marginHorizontal: 12,
+  },
+  input: {
+    fontSize: 16,
+    maxHeight: 120,
+    paddingTop: 12,
+    paddingBottom: 12,
+    color: '#000',
+  },
+  sendButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+    marginRight: 8,
+  },
+  sendButtonDisabled: {
+    opacity: 0.6,
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  loadingIndicator: {
+    marginRight: 12,
+  },
+  cancelButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#d32f2f',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+});
+
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: 'transparent',
   },
   content: {
     flex: 1,
-    padding: 16,
-    paddingTop: 20,
-    paddingBottom: 0,
+    paddingHorizontal: 16,
   },
   chatContainer: {
     flex: 1,
     marginTop: 8,
   },
   messageList: {
+    flexGrow: 1,
     paddingVertical: 16,
     paddingHorizontal: 8,
+  },
+  messageContainer: {
+    marginVertical: 4,
     width: '100%',
-    flexGrow: 1,
   },
   messageCard: {
     width: '100%',
@@ -1191,7 +1097,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
-    overflow: 'visible',
   },
   messageHeader: {
     flexDirection: 'row',
@@ -1259,9 +1164,10 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   modelSelectorWrapper: {
-    marginBottom: 16,
+    marginBottom: 2,
     borderRadius: 12,
     overflow: 'hidden',
+    marginTop: 15
   },
   emptyState: {
     flex: 1,
@@ -1349,17 +1255,15 @@ const styles = StyleSheet.create({
   loadingButtonsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: 80,
-    height: 40,
   },
   loadingIndicator: {
-    marginRight: 8,
+    marginRight: 10,
   },
   cancelButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    backgroundColor: '#d32f2f',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1385,9 +1289,6 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     opacity: 0.9,
     marginLeft: 18,
-  },
-  messageContainer: {
-    marginVertical: 4,
   },
   modalOverlay: {
     flex: 1,

@@ -6,7 +6,7 @@
     "downlevelIteration": true,
     "jsx": "react-native",
     "esModuleInterop": true,
-    "moduleResolution": "node",
+    "moduleResolution": "node16",
     "baseUrl": ".",
     "paths": {
       "*": [

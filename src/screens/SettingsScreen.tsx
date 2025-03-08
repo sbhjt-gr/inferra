@@ -15,6 +15,7 @@ import { llamaManager } from '../utils/LlamaManager';
 import SettingSlider from '../components/SettingSlider';
 import ModelSettingDialog from '../components/ModelSettingDialog';
 import StopWordsDialog from '../components/StopWordsDialog';
+import SystemPromptDialog from '../components/SystemPromptDialog';
 import * as FileSystem from 'expo-file-system';
 import { useFocusEffect } from '@react-navigation/native';
 import { modelDownloader } from '../services/ModelDownloader';
@@ -40,6 +41,7 @@ const DEFAULT_SETTINGS = {
   topP: 0.9,
   minP: 0.05,
   stopWords: ['</s>', '<|end|>', '<|im_end|>', '<|endoftext|>', '<｜end_of_sentence｜>'],
+  systemPrompt: 'You are a helpful, respectful and honest assistant. Answer helpfully while being safe and ethical. If a question is unclear, ask for clarification. If you don\'t know the answer, say so instead of making up information.'
 };
 
 const SettingsSection = ({ title, children }: SettingsSectionProps) => {
@@ -61,13 +63,17 @@ const SettingsSection = ({ title, children }: SettingsSectionProps) => {
 export default function SettingsScreen({ navigation }: SettingsScreenProps) {
   const { theme: currentTheme, selectedTheme, toggleTheme } = useTheme();
   const themeColors = theme[currentTheme];
+  const iconColor = currentTheme === 'dark' ? '#FFFFFF' : themeColors.primary;
   const [showSystemInfo, setShowSystemInfo] = useState(false);
   const [showModelSettings, setShowModelSettings] = useState(false);
   const [systemInfo, setSystemInfo] = useState({
-    totalMemory: 'Unknown',
-    deviceName: Device.deviceName || 'Unknown Device',
-    osVersion: Device.osVersion || 'Unknown',
-    cpuCores: 'Unknown',
+    os: Platform.OS,
+    osVersion: Platform.Version,
+    device: Device.modelName || 'Unknown',
+    deviceType: Device.deviceType || 'Unknown',
+    appVersion: Constants.expoConfig?.version || 'Unknown',
+    cpu: 'Unknown',
+    memory: 'Unknown',
     gpu: 'Unknown'
   });
   const [modelSettings, setModelSettings] = useState(llamaManager.getSettings());
@@ -87,12 +93,20 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     visible: false
   });
   const [showStopWordsDialog, setShowStopWordsDialog] = useState(false);
+  const [showSystemPromptDialog, setShowSystemPromptDialog] = useState(false);
   const [storageInfo, setStorageInfo] = useState({
     tempSize: '0 B',
     modelsSize: '0 B',
     cacheSize: '0 B'
   });
   const [isClearing, setIsClearing] = useState(false);
+
+  // Load settings when screen is focused
+  useFocusEffect(
+    React.useCallback(() => {
+      setModelSettings(llamaManager.getSettings());
+    }, [])
+  );
 
   useEffect(() => {
     const getSystemInfo = async () => {
@@ -127,23 +141,33 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
   };
 
   const handleSettingsChange = async (newSettings: Partial<typeof modelSettings>) => {
-    const updatedSettings = { ...modelSettings, ...newSettings };
-    if ('maxTokens' in newSettings) {
-      const tokens = updatedSettings.maxTokens;
-      if (tokens < 1 || tokens > 4096) {
-        setError('Max tokens must be between 1 and 4096');
-        return;
+    try {
+      const updatedSettings = { ...modelSettings, ...newSettings };
+      if ('maxTokens' in newSettings) {
+        const tokens = updatedSettings.maxTokens;
+        if (tokens < 1 || tokens > 4096) {
+          setError('Max tokens must be between 1 and 4096');
+          return;
+        }
       }
+      setError(null);
+      setModelSettings(updatedSettings);
+      await llamaManager.updateSettings(updatedSettings);
+    } catch (error) {
+      console.error('Error updating settings:', error);
+      Alert.alert('Error', 'Failed to save settings');
     }
-    setError(null);
-    setModelSettings(updatedSettings);
-    await llamaManager.updateSettings(updatedSettings);
   };
 
   const handleSettingsReset = async () => {
-    await llamaManager.resetSettings();
-    setModelSettings(llamaManager.getSettings());
-    setError(null);
+    try {
+      await llamaManager.resetSettings();
+      setModelSettings(llamaManager.getSettings());
+      setError(null);
+    } catch (error) {
+      console.error('Error resetting settings:', error);
+      Alert.alert('Error', 'Failed to reset settings');
+    }
   };
 
   const updateMaxTokens = (value: string) => {
@@ -194,8 +218,8 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
       onPress={() => handleThemeChange(value)}
     >
       <View style={styles.settingLeft}>
-        <View style={[styles.iconContainer, { backgroundColor: themeColors.primary + '20' }]}>
-          <Ionicons name={icon} size={22} color={themeColors.primary} />
+        <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
+          <Ionicons name={icon} size={22} color={iconColor} />
         </View>
         <View style={styles.settingTextContainer}>
           <Text style={[styles.settingText, { color: themeColors.text }]}>
@@ -372,6 +396,37 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
       <AppHeader />
       <ScrollView contentContainerStyle={styles.contentContainer}>
         
+        <SettingsSection title="CHAT SETTINGS">
+          <TouchableOpacity 
+            style={[styles.settingItem]}
+            onPress={() => setShowSystemPromptDialog(true)}
+          >
+            <View style={styles.settingLeft}>
+              <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
+                <Ionicons name="chatbubble-ellipses-outline" size={22} color={iconColor} />
+              </View>
+              <View style={styles.settingTextContainer}>
+                <Text style={[styles.settingText, { color: themeColors.text }]}>
+                  System Prompt
+                </Text>
+                <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
+                  Define the AI assistant's behavior and personality
+                </Text>
+                {modelSettings.systemPrompt !== DEFAULT_SETTINGS.systemPrompt && (
+                  <TouchableOpacity
+                    onPress={() => handleSettingsChange({ systemPrompt: DEFAULT_SETTINGS.systemPrompt })}
+                    style={[styles.resetButton, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}
+                  >
+                    <Ionicons name="refresh-outline" size={14} color={iconColor} />
+                    <Text style={[styles.resetText, { color: iconColor }]}>Reset to Default</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={themeColors.secondaryText} />
+          </TouchableOpacity>
+        </SettingsSection>
+
         <SettingsSection title="APPEARANCE">
           <ThemeOption
             title="System Default"
@@ -399,8 +454,8 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
             onPress={() => openLink('https://play.google.com/store/apps/details?id=com.gorai.ragionare')}
           >
             <View style={styles.settingLeft}>
-              <View style={[styles.iconContainer, { backgroundColor: themeColors.primary + '20' }]}>
-                <Ionicons name="logo-google-playstore" size={22} color={themeColors.primary} />
+              <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
+                <Ionicons name="logo-google-playstore" size={22} color={iconColor} />
               </View>
               <View style={styles.settingTextContainer}>
                 <Text style={[styles.settingText, { color: themeColors.text }]}>
@@ -416,11 +471,31 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
 
           <TouchableOpacity 
             style={[styles.settingItem, styles.settingItemBorder]}
+            onPress={() => openLink('https://ko-fi.com/subhajitgorai')}
+          >
+            <View style={styles.settingLeft}>
+              <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
+                <Ionicons name="cafe-outline" size={22} color={iconColor} />
+              </View>
+              <View style={styles.settingTextContainer}>
+                <Text style={[styles.settingText, { color: themeColors.text }]}>
+                  Support Development
+                </Text>
+                <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
+                  Buy me a coffee on Ko-fi by donating
+                </Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={themeColors.secondaryText} />
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={[styles.settingItem, styles.settingItemBorder]}
             onPress={() => openLink('https://github.com/ggerganov/llama.cpp')}
           >
             <View style={styles.settingLeft}>
-              <View style={[styles.iconContainer, { backgroundColor: themeColors.primary + '20' }]}>
-                <Ionicons name="logo-github" size={22} color={themeColors.primary} />
+              <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
+                <Ionicons name="logo-github" size={22} color={iconColor} />
               </View>
               <View style={styles.settingTextContainer}>
                 <Text style={[styles.settingText, { color: themeColors.text }]}>
@@ -439,8 +514,8 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
             onPress={() => openLink('https://ragionare.ct.ws/privacy-policy')}
           >
             <View style={styles.settingLeft}>
-              <View style={[styles.iconContainer, { backgroundColor: themeColors.primary + '20' }]}>
-                <Ionicons name="shield-checkmark-outline" size={22} color={themeColors.primary} />
+              <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
+                <Ionicons name="shield-checkmark-outline" size={22} color={iconColor} />
               </View>
               <View style={styles.settingTextContainer}>
                 <Text style={[styles.settingText, { color: themeColors.text }]}>
@@ -461,8 +536,8 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
             onPress={handleMaxTokensPress}
           >
             <View style={styles.settingLeft}>
-              <View style={[styles.iconContainer, { backgroundColor: themeColors.primary + '20' }]}>
-                <Ionicons name="text-outline" size={22} color={themeColors.primary} />
+              <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
+                <Ionicons name="text-outline" size={22} color={iconColor} />
               </View>
               <View style={styles.settingTextContainer}>
                 <View style={styles.labelRow}>
@@ -479,10 +554,10 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
                 {modelSettings.maxTokens !== DEFAULT_SETTINGS.maxTokens && (
                   <TouchableOpacity
                     onPress={() => handleSettingsChange({ maxTokens: DEFAULT_SETTINGS.maxTokens })}
-                    style={styles.resetButton}
+                    style={[styles.resetButton, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}
                   >
-                    <Ionicons name="refresh-outline" size={14} color={themeColors.primary} />
-                    <Text style={[styles.resetText, { color: themeColors.primary }]}>Reset to Default</Text>
+                    <Ionicons name="refresh-outline" size={14} color={iconColor} />
+                    <Text style={[styles.resetText, { color: iconColor }]}>Reset to Default</Text>
                   </TouchableOpacity>
                 )}
                 {error && (
@@ -500,8 +575,8 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
             onPress={() => setShowStopWordsDialog(true)}
           >
             <View style={styles.settingLeft}>
-              <View style={[styles.iconContainer, { backgroundColor: themeColors.primary + '20' }]}>
-                <Ionicons name="stop-circle-outline" size={22} color={themeColors.primary} />
+              <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
+                <Ionicons name="stop-circle-outline" size={22} color={iconColor} />
               </View>
               <View style={styles.settingTextContainer}>
                 <View style={styles.labelRow}>
@@ -518,10 +593,10 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
                 {JSON.stringify(modelSettings.stopWords) !== JSON.stringify(DEFAULT_SETTINGS.stopWords) && (
                   <TouchableOpacity
                     onPress={() => handleSettingsChange({ stopWords: DEFAULT_SETTINGS.stopWords })}
-                    style={styles.resetButton}
+                    style={[styles.resetButton, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}
                   >
-                    <Ionicons name="refresh-outline" size={14} color={themeColors.primary} />
-                    <Text style={[styles.resetText, { color: themeColors.primary }]}>Reset to Default</Text>
+                    <Ionicons name="refresh-outline" size={14} color={iconColor} />
+                    <Text style={[styles.resetText, { color: iconColor }]}>Reset to Default</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -619,8 +694,8 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
             onPress={() => setShowSystemInfo(!showSystemInfo)}
           >
             <View style={styles.settingLeft}>
-              <View style={[styles.iconContainer, { backgroundColor: themeColors.primary + '20' }]}>
-                <Ionicons name="information-circle-outline" size={22} color={themeColors.primary} />
+              <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
+                <Ionicons name="information-circle-outline" size={22} color={iconColor} />
               </View>
               <View style={styles.settingTextContainer}>
                 <Text style={[styles.settingText, { color: themeColors.text }]}>
@@ -642,8 +717,8 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
             <>
               <View style={[styles.settingItem, styles.settingItemBorder]}>
                 <View style={styles.settingLeft}>
-                  <View style={[styles.iconContainer, { backgroundColor: themeColors.primary + '20' }]}>
-                    <Ionicons name="phone-portrait-outline" size={22} color={themeColors.primary} />
+                  <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
+                    <Ionicons name="phone-portrait-outline" size={22} color={iconColor} />
                   </View>
                   <View style={styles.settingTextContainer}>
                     <Text style={[styles.settingText, { color: themeColors.text }]}>
@@ -658,15 +733,15 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
 
               <View style={[styles.settingItem, styles.settingItemBorder]}>
                 <View style={styles.settingLeft}>
-                  <View style={[styles.iconContainer, { backgroundColor: themeColors.primary + '20' }]}>
-                    <Ionicons name="hardware-chip-outline" size={22} color={themeColors.primary} />
+                  <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
+                    <Ionicons name="hardware-chip-outline" size={22} color={iconColor} />
                   </View>
                   <View style={styles.settingTextContainer}>
                     <Text style={[styles.settingText, { color: themeColors.text }]}>
                       CPU
                     </Text>
                     <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
-                      {systemInfo.cpuCores}
+                      {systemInfo.cpu}
                     </Text>
                   </View>
                 </View>
@@ -674,15 +749,15 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
 
               <View style={[styles.settingItem, styles.settingItemBorder]}>
                 <View style={styles.settingLeft}>
-                  <View style={[styles.iconContainer, { backgroundColor: themeColors.primary + '20' }]}>
-                    <Ionicons name="save-outline" size={22} color={themeColors.primary} />
+                  <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
+                    <Ionicons name="save-outline" size={22} color={iconColor} />
                   </View>
                   <View style={styles.settingTextContainer}>
                     <Text style={[styles.settingText, { color: themeColors.text }]}>
                       Memory
                     </Text>
                     <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
-                      {systemInfo.totalMemory}
+                      {systemInfo.memory}
                     </Text>
                   </View>
                 </View>
@@ -690,15 +765,15 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
 
               <View style={[styles.settingItem, styles.settingItemBorder]}>
                 <View style={styles.settingLeft}>
-                  <View style={[styles.iconContainer, { backgroundColor: themeColors.primary + '20' }]}>
-                    <Ionicons name="phone-portrait-outline" size={22} color={themeColors.primary} />
+                  <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
+                    <Ionicons name="phone-portrait-outline" size={22} color={iconColor} />
                   </View>
                   <View style={styles.settingTextContainer}>
                     <Text style={[styles.settingText, { color: themeColors.text }]}>
                       Device
                     </Text>
                     <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
-                      {systemInfo.deviceName}
+                      {systemInfo.device}
                     </Text>
                   </View>
                 </View>
@@ -706,8 +781,8 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
 
               <View style={[styles.settingItem, styles.settingItemBorder]}>
                 <View style={styles.settingLeft}>
-                  <View style={[styles.iconContainer, { backgroundColor: themeColors.primary + '20' }]}>
-                    <Ionicons name="apps-outline" size={22} color={themeColors.primary} />
+                  <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
+                    <Ionicons name="apps-outline" size={22} color={iconColor} />
                   </View>
                   <View style={styles.settingTextContainer}>
                     <Text style={[styles.settingText, { color: themeColors.text }]}>
@@ -730,8 +805,8 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
             disabled={isClearing}
           >
             <View style={styles.settingLeft}>
-              <View style={[styles.iconContainer, { backgroundColor: themeColors.primary + '20' }]}>
-                <Ionicons name="trash-outline" size={22} color={themeColors.primary} />
+              <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
+                <Ionicons name="trash-outline" size={22} color={iconColor} />
               </View>
               <View style={styles.settingTextContainer}>
                 <Text style={[styles.settingText, { color: themeColors.text }]}>
@@ -755,8 +830,8 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
             disabled={isClearing}
           >
             <View style={styles.settingLeft}>
-              <View style={[styles.iconContainer, { backgroundColor: themeColors.primary + '20' }]}>
-                <Ionicons name="folder-outline" size={22} color={themeColors.primary} />
+              <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
+                <Ionicons name="folder-outline" size={22} color={iconColor} />
               </View>
               <View style={styles.settingTextContainer}>
                 <Text style={[styles.settingText, { color: themeColors.text }]}>
@@ -829,6 +904,18 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           value={modelSettings.stopWords}
           defaultValue={DEFAULT_SETTINGS.stopWords}
           description="Enter words that will cause the model to stop generating. Each word should be on a new line. The model will stop when it generates any of these words."
+        />
+
+        <SystemPromptDialog
+          visible={showSystemPromptDialog}
+          onClose={() => setShowSystemPromptDialog(false)}
+          onSave={(systemPrompt) => {
+            handleSettingsChange({ systemPrompt });
+            setShowSystemPromptDialog(false);
+          }}
+          value={modelSettings.systemPrompt}
+          defaultValue={DEFAULT_SETTINGS.systemPrompt}
+          description="Define how the AI assistant should behave. This prompt sets the personality, capabilities, and limitations of the assistant."
         />
       </ScrollView>
     </View>
@@ -995,7 +1082,6 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     padding: 4,
     borderRadius: 4,
-    backgroundColor: 'rgba(0, 122, 255, 0.1)',
   },
   resetText: {
     fontSize: 12,

@@ -29,6 +29,7 @@ export default function SettingSlider({
 }: SettingSliderProps) {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme];
+  const iconColor = currentTheme === 'dark' ? '#FFFFFF' : themeColors.primary;
 
   const handleReset = () => {
     onValueChange(defaultValue);
@@ -42,8 +43,8 @@ export default function SettingSlider({
       onPress={onPressChange}
     >
       <View style={styles.settingLeft}>
-        <View style={[styles.iconContainer, { backgroundColor: themeColors.primary + '20' }]}>
-          <Ionicons name="options-outline" size={22} color={themeColors.primary} />
+        <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
+          <Ionicons name="options-outline" size={22} color={iconColor} />
         </View>
         <View style={styles.settingTextContainer}>
           <View style={styles.labelRow}>
@@ -60,10 +61,10 @@ export default function SettingSlider({
           {!isDefaultValue && (
             <TouchableOpacity
               onPress={handleReset}
-              style={styles.resetButton}
+              style={[styles.resetButton, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}
             >
-              <Ionicons name="refresh-outline" size={14} color={themeColors.primary} />
-              <Text style={[styles.resetText, { color: themeColors.primary }]}>Reset to Default</Text>
+              <Ionicons name="refresh-outline" size={14} color={iconColor} />
+              <Text style={[styles.resetText, { color: iconColor }]}>Reset to Default</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -126,7 +127,6 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     padding: 4,
     borderRadius: 4,
-    backgroundColor: 'rgba(0, 122, 255, 0.1)',
   },
   resetText: {
     fontSize: 12,

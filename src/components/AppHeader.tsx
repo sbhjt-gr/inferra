@@ -1,19 +1,38 @@
 import React from 'react';
-import { View, Text, StyleSheet, Image, Platform, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../types/navigation';
+import chatManager from '../utils/ChatManager';
 
-export default function AppHeader({ onNewChat }: { onNewChat?: () => void }) {
+type AppHeaderProps = {
+  onNewChat?: () => void;
+};
+
+export default function AppHeader({ onNewChat }: AppHeaderProps) {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme];
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute();
 
   const isHomeScreen = route.name === 'HomeTab';
+
+  const handleNewChat = async () => {
+    if (onNewChat) {
+      onNewChat();
+    } else {
+      await chatManager.createNewChat();
+    }
+  };
+
+  const handleOpenChatHistory = () => {
+    navigation.navigate('ChatHistory');
+  };
 
   return (
     <View 
@@ -40,7 +59,7 @@ export default function AppHeader({ onNewChat }: { onNewChat?: () => void }) {
         {isHomeScreen && (
           <TouchableOpacity
             style={styles.headerButton}
-            onPress={onNewChat}
+            onPress={handleNewChat}
           >
             <Ionicons name="add-outline" size={24} color="#fff" />
           </TouchableOpacity>
@@ -48,7 +67,7 @@ export default function AppHeader({ onNewChat }: { onNewChat?: () => void }) {
         
         <TouchableOpacity
           style={styles.headerButton}
-          onPress={() => navigation.navigate('ChatHistory' as never)}
+          onPress={handleOpenChatHistory}
         >
           <Ionicons name="time-outline" size={24} color="#fff" />
         </TouchableOpacity>
@@ -62,8 +81,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 16,
-    borderBottomWidth: 1,
+    paddingBottom: 15,
+    padding: 20,
     borderBottomColor: 'rgba(0, 0, 0, 0.1)',
   },
   leftSection: {

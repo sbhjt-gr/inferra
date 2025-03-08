@@ -2,28 +2,22 @@ export type RootStackParamList = {
   MainTabs: {
     screen: string;
     params?: {
-      chatId?: string;
       modelPath?: string;
     };
   };
   Home: undefined;
   Settings: undefined;
   Model: undefined;
-  ChatHistory: {
-    onChatDeleted?: (chatId: string) => void;
-    onAllChatsDeleted?: () => void;
-  };
+  ChatHistory: undefined;
   Downloads: undefined;
 };
 
 export type TabParamList = {
   HomeTab: {
-    chatId?: string;
     modelPath?: string;
-    openModelSelector?: boolean;
-    preselectedModelPath?: string;
   };
-  Model: undefined;
-  Downloads: undefined;
-  Settings: undefined;
+  SettingsTab: undefined;
+  ModelTab: undefined;
+  NotificationsTab: undefined;
+  SearchTab: undefined;
 }; 
