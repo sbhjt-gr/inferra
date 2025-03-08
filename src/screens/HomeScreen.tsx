@@ -13,6 +13,8 @@ import {
   Clipboard,
   ToastAndroid,
   Modal,
+  Keyboard,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
@@ -150,6 +152,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   const [isRegenerating, setIsRegenerating] = useState(false);
   const cancelGenerationRef = useRef<boolean>(false);
   const [showMemoryWarning, setShowMemoryWarning] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -214,6 +218,29 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     };
 
     checkSystemMemory();
+  }, []);
+
+  // Add keyboard listeners
+  useEffect(() => {
+    const keyboardDidShowListener = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        setKeyboardVisible(true);
+        setKeyboardHeight(Platform.OS === 'ios' ? e.endCoordinates.height : e.endCoordinates.height - 20);
+      }
+    );
+    const keyboardDidHideListener = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardVisible(false);
+        setKeyboardHeight(0);
+      }
+    );
+
+    return () => {
+      keyboardDidShowListener.remove();
+      keyboardDidHideListener.remove();
+    };
   }, []);
 
   const loadMessages = async () => {
@@ -899,6 +926,10 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     }
   };
 
+  const dismissKeyboard = () => {
+    Keyboard.dismiss();
+  };
+
   return (
     <SafeAreaView 
       style={[styles.container, { backgroundColor: themeColors.background }]}
@@ -953,12 +984,16 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         </View>
       </Modal>
 
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.keyboardAvoidingView}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-      >
-        <View style={styles.content}>
+      <View style={styles.container}>
+        <View 
+          style={[
+            styles.content, 
+            { 
+              paddingBottom: keyboardVisible ? 
+                (Platform.OS === 'ios' ? keyboardHeight - 50 : keyboardHeight - 50) : 0 
+            }
+          ]}
+        >
           <View style={styles.modelSelectorWrapper}>
             <ModelSelector 
               ref={modelSelectorRef}
@@ -969,7 +1004,11 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             />
           </View>
 
-          <View style={styles.chatContainer}>
+          <TouchableOpacity 
+            style={styles.chatContainer} 
+            activeOpacity={1} 
+            onPress={dismissKeyboard}
+          >
             {messages.length === 0 ? (
               <View style={styles.emptyState}>
                 <Ionicons 
@@ -992,14 +1031,18 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                 maintainVisibleContentPosition={{
                   minIndexForVisible: 0,
                 }}
+                keyboardShouldPersistTaps="handled"
               />
             )}
-          </View>
+          </TouchableOpacity>
 
           <View
             style={[
               styles.inputContainer,
-              { backgroundColor: themeColors.borderColor },
+              { 
+                backgroundColor: themeColors.borderColor,
+                marginBottom: keyboardVisible ? 0 : 0
+              },
               isLoading && styles.inputContainerDisabled
             ]}
           >
@@ -1061,7 +1104,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             )}
           </View>
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </SafeAreaView>
   );
 }
@@ -1070,14 +1113,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  keyboardAvoidingView: {
-    flex: 1,
-  },
   content: {
     flex: 1,
     padding: 16,
     paddingTop: 20,
-    paddingBottom: Platform.OS === 'android' ? 16 : 0,
+    paddingBottom: 0,
   },
   chatContainer: {
     flex: 1,
@@ -1186,7 +1226,7 @@ const styles = StyleSheet.create({
     padding: 8,
     borderRadius: 24,
     marginTop: 8,
-    marginBottom: Platform.OS === 'android' ? 8 : 0,
+    marginBottom: 0,
   },
   input: {
     flex: 1,
