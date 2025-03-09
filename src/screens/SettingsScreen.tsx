@@ -41,7 +41,7 @@ const DEFAULT_SETTINGS = {
   topP: 0.9,
   minP: 0.05,
   stopWords: ['', '<|end|>', '<|im_end|>', '<|endoftext|>', '<｜end_of_sentence｜>'],
-  systemPrompt: 'My name is John Doe. I am a 25 year old from Mumbai. I am a software engineer and I love to travel.'
+  systemPrompt: 'My name is John Doe. I am a 25 year old software engineer from Mumbai and I love to travel.'
 };
 
 const SettingsSection = ({ title, children }: SettingsSectionProps) => {
