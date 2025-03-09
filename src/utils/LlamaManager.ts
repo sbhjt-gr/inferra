@@ -28,7 +28,7 @@ const DEFAULT_SETTINGS: ModelSettings = {
   topP: 0.9,
   minP: 0.05,
   stopWords: ['</s>', '<|end|>', '<|im_end|>', '<|endoftext|>', '<｜end_of_sentence｜>'],
-  systemPrompt: 'You are a helpful, respectful and honest assistant. Answer helpfully while being safe and ethical. If a question is unclear, ask for clarification. If you don\'t know the answer, say so instead of making up information.'
+  systemPrompt: 'My name is John Doe. I am a 25 year old from Mumbai. I am a software engineer and I love to travel.'
 };
 
 // Type assertion for the native module

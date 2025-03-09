@@ -15,6 +15,7 @@ import {
   Modal,
   Keyboard,
   Dimensions,
+  AppState,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
@@ -249,6 +250,11 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [streamingThinking, setStreamingThinking] = useState<string>('');
+  const [streamingStats, setStreamingStats] = useState<{ tokens: number; duration: number } | null>(null);
+  const appStateRef = useRef(AppState.currentState);
+  const [appState, setAppState] = useState(appStateRef.current);
+  // Track if this is the first launch
+  const isFirstLaunchRef = useRef(true);
 
   useFocusEffect(
     useCallback(() => {
@@ -257,7 +263,14 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   );
 
   useEffect(() => {
-    loadCurrentChat();
+    // Create a new chat only on first launch
+    if (isFirstLaunchRef.current) {
+      startNewChat();
+      isFirstLaunchRef.current = false;
+    } else {
+      // Otherwise load the current chat
+      loadCurrentChat();
+    }
     
     const unsubscribe = chatManager.addListener(() => {
       loadCurrentChat();
@@ -272,6 +285,13 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     if (route.params?.modelPath) {
       setShouldOpenModelSelector(true);
       setPreselectedModelPath(route.params.modelPath);
+    }
+    
+    // Handle loadChatId parameter from ChatHistoryScreen
+    if (route.params?.loadChatId) {
+      loadChat(route.params.loadChatId);
+      // Clear the parameter to prevent reloading on future renders
+      navigation.setParams({ loadChatId: undefined });
     }
   }, [route.params]);
 
@@ -330,6 +350,34 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       keyboardDidHideListener.remove();
     };
   }, []);
+
+  // Add AppState change handler
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      if (
+        appStateRef.current.match(/inactive|background/) && 
+        nextAppState === 'active'
+      ) {
+        // App has come to foreground - just load the current chat
+        loadCurrentChat();
+      } else if (
+        appStateRef.current === 'active' &&
+        nextAppState.match(/inactive|background/)
+      ) {
+        // App is going to background, save current chat only if it has messages
+        if (chat && messages.some(msg => msg.role === 'user' || msg.role === 'assistant')) {
+          chatManager.saveAllChats();
+        }
+      }
+      
+      appStateRef.current = nextAppState;
+      setAppState(nextAppState);
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [chat, messages]);
 
   const loadCurrentChat = useCallback(async () => {
     const currentChat = chatManager.getCurrentChat();
@@ -442,6 +490,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       setStreamingMessageId(messageId);
       setStreamingMessage('');
       setStreamingThinking('');
+      setStreamingStats({ tokens: 0, duration: 0 });
       setIsStreaming(true);
       
       const startTime = Date.now();
@@ -449,13 +498,12 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       let fullResponse = '';
       let thinking = '';
       let isThinking = false;
-      cancelGenerationRef.current = false;  // Reset cancel flag
+      cancelGenerationRef.current = false;
 
       await llamaManager.generateResponse(
         processedMessages.map(msg => ({ role: msg.role, content: msg.content })),
         async (token) => {
           if (cancelGenerationRef.current) {
-            // Don't clear the response when canceling
             return false;
           }
           
@@ -474,7 +522,28 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             setStreamingThinking(thinking.trim());
           } else {
             fullResponse += token;
+            
+            // Update the streaming message immediately to show real-time formatting
             setStreamingMessage(fullResponse);
+          }
+          
+          // Update streaming stats in real-time
+          setStreamingStats({
+            tokens: tokenCount,
+            duration: (Date.now() - startTime) / 1000
+          });
+          
+          // Update message content in real-time (this will now save to AsyncStorage)
+          if (tokenCount % 10 === 0) { // Update every 10 tokens to reduce overhead
+            await chatManager.updateMessageContent(
+              messageId,
+              fullResponse,
+              thinking.trim(),
+              {
+                duration: (Date.now() - startTime) / 1000,
+                tokens: tokenCount,
+              }
+            );
           }
           
           return !cancelGenerationRef.current;
@@ -497,10 +566,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       setIsStreaming(false);
       setStreamingMessageId(null);
       setStreamingThinking('');
-      
-      if (!cancelGenerationRef.current) {
-        await chatManager.saveAllChats();
-      }
+      setStreamingStats(null);
       
     } catch (error) {
       console.error('Error processing message:', error);
@@ -508,6 +574,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       setIsStreaming(false);
       setStreamingMessageId(null);
       setStreamingThinking('');
+      setStreamingStats(null);
     }
   };
 
@@ -611,6 +678,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     // Set up streaming state
     setStreamingMessageId(assistantMessage.id);
     setStreamingMessage('');
+    setStreamingThinking('');
+    setStreamingStats({ tokens: 0, duration: 0 });
     setIsStreaming(true);
     
     const startTime = Date.now();
@@ -642,34 +711,64 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             setStreamingThinking(thinking.trim());
           } else {
             fullResponse += token;
+            
+            // Update the streaming message immediately to show real-time formatting
             setStreamingMessage(fullResponse);
           }
           
-          return !cancelGenerationRef.current;  // Return false if cancelled
+          // Update streaming stats in real-time
+          setStreamingStats({
+            tokens: tokenCount,
+            duration: (Date.now() - startTime) / 1000
+          });
+          
+          // Update message content in real-time (this will now save to AsyncStorage)
+          if (tokenCount % 10 === 0) { // Update every 10 tokens to reduce overhead
+            const finalMessage: Message = {
+              ...assistantMessage,
+              content: fullResponse,
+              thinking: thinking.trim(),
+              stats: {
+                duration: (Date.now() - startTime) / 1000,
+                tokens: tokenCount,
+              }
+            };
+            
+            const finalMessages = [...newMessages, finalMessage];
+            setMessages(finalMessages);
+            saveMessages(finalMessages);
+          }
+          
+          return !cancelGenerationRef.current;
         }
       );
       
-      // Update the message with final content
-      const finalMessages = [...newMessages, {
-        ...assistantMessage,
-        content: fullResponse,
-        thinking: thinking.trim(),
-        stats: {
-          duration: (Date.now() - startTime) / 1000,
-          tokens: tokenCount
-        }
-      }];
+      // Only update if not cancelled
+      if (!cancelGenerationRef.current) {
+        const finalMessage: Message = {
+          ...assistantMessage,
+          content: fullResponse,
+          thinking: thinking.trim(),
+          stats: {
+            duration: (Date.now() - startTime) / 1000,
+            tokens: tokenCount,
+          }
+        };
+        
+        const finalMessages = [...newMessages, finalMessage];
+        setMessages(finalMessages);
+        await saveMessages(finalMessages);
+      }
       
-      setMessages(finalMessages);
-      await saveMessages(finalMessages);
     } catch (error) {
-      console.error('Regeneration error:', error);
+      console.error('Error regenerating response:', error);
       Alert.alert('Error', 'Failed to regenerate response');
     } finally {
       setIsRegenerating(false);
       setIsStreaming(false);
       setStreamingMessageId(null);
-      cancelGenerationRef.current = false;
+      setStreamingThinking('');
+      setStreamingStats(null);
     }
   };
 
@@ -681,6 +780,10 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     const thinkingContent = (isStreaming && item.id === streamingMessageId)
       ? streamingThinking
       : item.thinking;
+
+    const stats = (isStreaming && item.id === streamingMessageId)
+      ? streamingStats
+      : item.stats;
       
     const messageElements = [];
 
@@ -742,7 +845,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
           </TouchableOpacity>
         </View>
 
-        {!hasMarkdownFormatting(item.content) ? (
+        {!hasMarkdownFormatting(messageContent) ? (
           <View style={styles.messageContent}>
             <Text 
               style={[
@@ -767,20 +870,24 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                   marginVertical: 0,
                 },
                 code_block: {
-                  backgroundColor: '#1e1e1e',
+                  backgroundColor: '#000',
                   borderRadius: 8,
                   padding: 12,
-                  marginVertical: 4,
+                  marginVertical: 8,
+                  position: 'relative',
+                  fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
                 },
                 fence: {
-                  backgroundColor: '#1e1e1e',
+                  backgroundColor: '#000',
                   borderRadius: 8,
                   padding: 12,
-                  marginVertical: 4,
+                  marginVertical: 8,
+                  position: 'relative',
+                  fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
                 },
                 code_inline: {
                   color: '#fff',
-                  backgroundColor: '#1e1e1e',
+                  backgroundColor: '#000',
                   borderRadius: 4,
                   paddingHorizontal: 4,
                   paddingVertical: 2,
@@ -789,6 +896,56 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                 },
                 text: {
                   color: item.role === 'user' ? '#fff' : themeColors.text,
+                },
+                fence_text: {
+                  color: '#fff',
+                },
+                code_block_text: {
+                  color: '#fff',
+                }
+              }}
+              rules={{
+                fence: (node, children, parent, styles) => {
+                  const codeContent = node.content;
+                  return (
+                    <View style={[styles.fence, { position: 'relative' }]} key={node.key}>
+                      <Text style={styles.fence_text} selectable={true}>
+                        {codeContent}
+                      </Text>
+                      <TouchableOpacity 
+                        style={styles.codeBlockCopyButton}
+                        onPress={() => copyToClipboard(codeContent)}
+                        hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+                      >
+                        <Ionicons 
+                          name="copy-outline" 
+                          size={14} 
+                          color="#fff" 
+                        />
+                      </TouchableOpacity>
+                    </View>
+                  );
+                },
+                code_block: (node, children, parent, styles) => {
+                  const codeContent = node.content;
+                  return (
+                    <View style={[styles.code_block, { position: 'relative' }]} key={node.key}>
+                      <Text style={styles.code_block_text} selectable={true}>
+                        {codeContent}
+                      </Text>
+                      <TouchableOpacity 
+                        style={styles.codeBlockCopyButton}
+                        onPress={() => copyToClipboard(codeContent)}
+                        hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+                      >
+                        <Ionicons 
+                          name="copy-outline" 
+                          size={14} 
+                          color="#fff" 
+                        />
+                      </TouchableOpacity>
+                    </View>
+                  );
                 }
               }}
             >
@@ -797,10 +954,10 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
           </View>
         )}
 
-        {item.role === 'assistant' && item.stats && (
+        {item.role === 'assistant' && stats && (
           <View style={styles.statsContainer}>
             <Text style={[styles.statsText, { color: themeColors.secondaryText }]}>
-              {`${item.stats.tokens.toLocaleString()} tokens generated`}
+              {`${stats.tokens.toLocaleString()} tokens`}
             </Text>
             
             {item === messages[messages.length - 1] && (
@@ -838,11 +995,28 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         {messageElements}
       </View>
     );
-  }, [themeColors, messages, isLoading, isRegenerating, handleRegenerate, copyToClipboard, isStreaming, streamingMessageId, streamingMessage, streamingThinking]);
+  }, [themeColors, messages, isLoading, isRegenerating, handleRegenerate, copyToClipboard, isStreaming, streamingMessageId, streamingMessage, streamingThinking, streamingStats]);
 
   const startNewChat = async () => {
     try {
-      await chatManager.createNewChat();
+      // Before creating a new chat, save the current chat if it has messages
+      if (chat && messages.some(msg => msg.role === 'user' || msg.role === 'assistant')) {
+        await chatManager.saveAllChats();
+      }
+      
+      // Create a new chat and set it as current
+      const newChat = await chatManager.createNewChat();
+      setChat(newChat);
+      setMessages(newChat.messages);
+      
+      // Reset any streaming or loading states
+      setIsStreaming(false);
+      setStreamingMessageId(null);
+      setStreamingMessage('');
+      setStreamingThinking('');
+      setStreamingStats(null);
+      setIsLoading(false);
+      setIsRegenerating(false);
     } catch (error) {
       console.error('Error starting new chat:', error);
     }
@@ -850,9 +1024,29 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
 
   const loadChat = async (chatId: string) => {
     try {
-      await chatManager.setCurrentChat(chatId);
+      // Set the current chat in the chat manager
+      const success = await chatManager.setCurrentChat(chatId);
+      
+      if (success) {
+        // Get the updated current chat
+        const currentChat = chatManager.getCurrentChat();
+        
+        // Update the UI state
+        if (currentChat) {
+          setChat(currentChat);
+          setMessages(currentChat.messages);
+          
+          // Reset streaming states
+          setIsStreaming(false);
+          setStreamingMessageId(null);
+          setStreamingMessage('');
+          setStreamingThinking('');
+          setStreamingStats(null);
+        }
+      }
     } catch (error) {
       console.error('Error loading chat:', error);
+      Alert.alert('Error', 'Failed to load chat');
     }
   };
 
@@ -956,7 +1150,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                     size={48} 
                     color={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.75)'} 
                   />
-                  <Text style={[styles.emptyStateText, { color: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.75)' }]}>
+                  <Text style={[{ color: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.75)' }]}>
                     Select a model and start chatting
                   </Text>
                 </View>
@@ -1224,9 +1418,10 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 8,
     right: 8,
-    padding: 4,
+    padding: 6,
     borderRadius: 4,
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    zIndex: 1,
   },
   activeButton: {
     backgroundColor: '#4a0660',
@@ -1246,11 +1441,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   codeBlock: {
-    backgroundColor: '#1e1e1e',
+    backgroundColor: '#000',
     borderRadius: 8,
     padding: 12,
     marginVertical: 4,
     position: 'relative',
+    minHeight: 40,
   },
   loadingButtonsContainer: {
     flexDirection: 'row',

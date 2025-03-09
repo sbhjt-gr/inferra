@@ -52,21 +52,21 @@ interface DownloadableModel {
 
 const DOWNLOADABLE_MODELS: DownloadableModel[] = [
   {
-    "name": "Phi-3 Mini Instruct",
-    "description": "Microsoft's compact instruction-tuned model with strong reasoning capabilities despite its small size.",
-    "size": "2.2 GB  ",
-    "huggingFaceLink": "https://huggingface.co/bartowski/Phi-3-mini-4k-instruct-GGUF/resolve/main/Phi-3-mini-4k-instruct-Q4_K_M.gguf",
-    "modelFamily": "3.8 Billion",
-    "quantization": "Q4_K_M",
-    "tags": ["fastest"]
-  },
-  {
     "name": "Qwen 2.5 Coder Instruct",
     "description": "Alibaba's specialized coding model with excellent code completion and explanation abilities.",
     "size": "2.27 GB  ",
     "huggingFaceLink": "https://huggingface.co/Qwen/Qwen2.5-Coder-3B-Instruct-GGUF/resolve/main/qwen2.5-coder-3b-instruct-q5_k_m.gguf",
     "modelFamily": "7 Billion",
     "quantization": "Q5_K_M",
+    "tags": ["fastest"]
+  },
+  {
+    "name": "Phi-3 Mini Instruct",
+    "description": "Microsoft's compact instruction-tuned model with strong reasoning capabilities despite its small size.",
+    "size": "2.2 GB  ",
+    "huggingFaceLink": "https://huggingface.co/bartowski/Phi-3-mini-4k-instruct-GGUF/resolve/main/Phi-3-mini-4k-instruct-Q4_K_M.gguf",
+    "modelFamily": "3.8 Billion",
+    "quantization": "Q4_K_M",
     "tags": ["fastest"]
   },
   {

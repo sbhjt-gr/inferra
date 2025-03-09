@@ -67,29 +67,45 @@ class ChatManager {
         this.chats = [];
       }
 
+      // Load the current chat ID from storage
       const currentId = await AsyncStorage.getItem(CURRENT_CHAT_ID_KEY);
       this.currentChatId = currentId;
-
-      // If no current chat, create one
-      if (!this.currentChatId || !this.getChatById(this.currentChatId)) {
-        await this.createNewChat();
-      }
-
+      
+      // If no current chat or it doesn't exist, don't create one automatically
+      // Let the UI handle this decision
+      
       this.notifyListeners();
     } catch (error) {
       console.error('Error loading chats:', error);
       this.chats = [];
-      await this.createNewChat();
     }
   }
 
   // Save all chats to storage
   private async saveAllChats() {
     try {
-      await AsyncStorage.setItem(CHATS_STORAGE_KEY, JSON.stringify(this.chats));
+      // Filter out empty chats (chats with no messages or only system messages)
+      const nonEmptyChats = this.chats.filter(chat => {
+        // Check if the chat has any user or assistant messages
+        return chat.messages.some(msg => msg.role === 'user' || msg.role === 'assistant');
+      });
+      
+      // Save only non-empty chats
+      await AsyncStorage.setItem(CHATS_STORAGE_KEY, JSON.stringify(nonEmptyChats));
+      
+      // Update the in-memory chats list to match what was saved
+      this.chats = nonEmptyChats;
+      
+      // If current chat was filtered out (because it was empty), reset currentChatId
+      if (this.currentChatId && !this.getChatById(this.currentChatId)) {
+        this.currentChatId = null;
+      }
+      
       this.notifyListeners();
+      return true;
     } catch (error) {
       console.error('Error saving chats:', error);
+      return false;
     }
   }
 
@@ -118,9 +134,33 @@ class ChatManager {
 
   // Create a new chat
   async createNewChat(initialMessages: ChatMessage[] = []): Promise<Chat> {
-    // Save current chat if it exists
-    await this.saveCurrentChat();
+    // Save current chat if it exists and has messages
+    if (this.currentChatId) {
+      const currentChat = this.getChatById(this.currentChatId);
+      if (currentChat && currentChat.messages.some(msg => msg.role === 'user' || msg.role === 'assistant')) {
+        currentChat.timestamp = Date.now();
+        await this.saveAllChats();
+      }
+    }
 
+    // Check if there's already an empty chat we can reuse
+    const existingEmptyChat = this.chats.find(chat => 
+      !chat.messages.some(msg => msg.role === 'user' || msg.role === 'assistant')
+    );
+
+    if (existingEmptyChat) {
+      // Reuse the existing empty chat
+      this.currentChatId = existingEmptyChat.id;
+      existingEmptyChat.timestamp = Date.now();
+      existingEmptyChat.messages = initialMessages;
+      
+      await this.saveCurrentChatId();
+      this.notifyListeners();
+      
+      return existingEmptyChat;
+    }
+
+    // Create a new chat if no empty chat exists
     const newChat: Chat = {
       id: generateRandomId(),
       title: 'New Chat', // Default title
@@ -131,8 +171,8 @@ class ChatManager {
     this.chats.unshift(newChat);
     this.currentChatId = newChat.id;
 
-    await this.saveAllChats();
     await this.saveCurrentChatId();
+    this.notifyListeners();
     
     return newChat;
   }
@@ -147,6 +187,10 @@ class ChatManager {
 
     this.currentChatId = chatId;
     await this.saveCurrentChatId();
+    
+    // Make sure to save all chats to ensure the current chat ID is persisted
+    await this.saveAllChats();
+    
     this.notifyListeners();
     
     return true;
@@ -266,12 +310,15 @@ class ChatManager {
     if (thinking !== undefined) message.thinking = thinking;
     if (stats) message.stats = stats;
 
-    // Only notify listeners for UI update, don't save to AsyncStorage yet
+    // Save to AsyncStorage in real-time
+    this.debouncedSaveAllChats();
+    
+    // Notify listeners for UI update
     this.notifyListeners();
     return true;
   }
 
-  // Save all chats with debounce
+  // Debounced save to avoid too many AsyncStorage writes
   private saveDebounceTimeout: NodeJS.Timeout | null = null;
   private async debouncedSaveAllChats() {
     if (this.saveDebounceTimeout) {
@@ -280,7 +327,8 @@ class ChatManager {
     
     this.saveDebounceTimeout = setTimeout(async () => {
       await this.saveAllChats();
-    }, 1000); // Save at most once per second
+      this.saveDebounceTimeout = null;
+    }, 500); // Debounce for 500ms
   }
 }
 

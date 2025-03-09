@@ -68,10 +68,20 @@ export default function ChatHistoryScreen() {
   }, [currentTheme]);
 
   const handleSelectChat = async (chatId: string) => {
-    await chatManager.setCurrentChat(chatId);
-    navigation.navigate('MainTabs', {
-      screen: 'HomeTab',
-    });
+    try {
+      // First set the current chat
+      await chatManager.setCurrentChat(chatId);
+      
+      // Then navigate back to the home screen
+      // The HomeScreen will load the current chat in its useEffect
+      navigation.navigate('MainTabs', {
+        screen: 'HomeTab',
+        params: { loadChatId: chatId }  // Pass the chat ID as a parameter
+      });
+    } catch (error) {
+      console.error('Error selecting chat:', error);
+      Alert.alert('Error', 'Failed to load selected chat');
+    }
   };
 
   const getPreviewText = (chat: Chat) => {

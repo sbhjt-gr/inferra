@@ -40,8 +40,8 @@ const DEFAULT_SETTINGS = {
   topK: 40,
   topP: 0.9,
   minP: 0.05,
-  stopWords: ['</s>', '<|end|>', '<|im_end|>', '<|endoftext|>', '<｜end_of_sentence｜>'],
-  systemPrompt: 'You are a helpful, respectful and honest assistant. Answer helpfully while being safe and ethical. If a question is unclear, ask for clarification. If you don\'t know the answer, say so instead of making up information.'
+  stopWords: ['', '<|end|>', '<|im_end|>', '<|endoftext|>', '<｜end_of_sentence｜>'],
+  systemPrompt: 'My name is John Doe. I am a 25 year old from Mumbai. I am a software engineer and I love to travel.'
 };
 
 const SettingsSection = ({ title, children }: SettingsSectionProps) => {
@@ -68,7 +68,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
   const [showModelSettings, setShowModelSettings] = useState(false);
   const [systemInfo, setSystemInfo] = useState({
     os: Platform.OS,
-    osVersion: Platform.Version,
+    osVersion: Device.osVersion,
     device: Device.modelName || 'Unknown',
     deviceType: Device.deviceType || 'Unknown',
     appVersion: Constants.expoConfig?.version || 'Unknown',
@@ -118,9 +118,13 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
         const cpuCores = Device.supportedCpuArchitectures?.join(', ') || 'Unknown';
         
         setSystemInfo(prev => ({
-          ...prev,
-          totalMemory: `${memoryGB} GB`,
-          cpuCores,
+          os: Platform.OS,
+          osVersion: Device.osVersion || Platform.Version.toString(),
+          device: Device.modelName || 'Unknown',
+          deviceType: Device.deviceType || 'Unknown',
+          appVersion: Constants.expoConfig?.version || 'Unknown',
+          cpu: cpuCores,
+          memory: `${memoryGB} GB`,
           gpu: Device.modelName || 'Unknown' // Best approximation for GPU in mobile devices
         }));
       } catch (error) {
@@ -410,7 +414,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
                   System Prompt
                 </Text>
                 <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
-                  Define the AI assistant's behavior and personality
+                  Define what should the AI know about you and your preferences
                 </Text>
                 {modelSettings.systemPrompt !== DEFAULT_SETTINGS.systemPrompt && (
                   <TouchableOpacity
@@ -522,7 +526,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
                   Privacy Policy
                 </Text>
                 <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
-                  View the privacy policy
+                  View the app's privacy policy page
                 </Text>
               </View>
             </View>
@@ -725,7 +729,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
                       Platform
                     </Text>
                     <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
-                      {Device.osName} {systemInfo.osVersion}
+                      {systemInfo.os.charAt(0).toUpperCase() + systemInfo.os.slice(1)} {systemInfo.osVersion}
                     </Text>
                   </View>
                 </View>
@@ -773,7 +777,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
                       Device
                     </Text>
                     <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
-                      {systemInfo.device}
+                      {systemInfo.device} ({systemInfo.deviceType})
                     </Text>
                   </View>
                 </View>
@@ -789,7 +793,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
                       App Version
                     </Text>
                     <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
-                      {Constants.expoConfig?.version || '1.0.0'}
+                      {systemInfo.appVersion}
                     </Text>
                   </View>
                 </View>

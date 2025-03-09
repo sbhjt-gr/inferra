@@ -1,7 +1,7 @@
 {
   "name": "ragionare",
   "main": "index.tsx",
-  "version": "1.6.7",
+  "version": "1.6.8",
   "scripts": {
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
@@ -47,6 +47,7 @@
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "react-native": "0.76.7",
+    "react-native-fs": "^2.20.0",
     "react-native-gesture-handler": "~2.20.2",
     "react-native-get-random-values": "^1.11.0",
     "react-native-markdown-display": "^7.0.2",
