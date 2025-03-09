@@ -40,8 +40,8 @@ const DEFAULT_SETTINGS = {
   topK: 40,
   topP: 0.9,
   minP: 0.05,
-  stopWords: ['', '<|end|>', '<|im_end|>', '<|endoftext|>', '<｜end_of_sentence｜>'],
-  systemPrompt: 'My name is John Doe. I am a 25 year old software engineer from Mumbai and I love to travel.'
+  stopWords: ['', '<|end|>', '<|im_end|>', '<|endoftext|>', '<｜end_of_sentence｜>','<｜end▁of▁sentence｜>'],
+  systemPrompt: 'You are an AI assistant.'
 };
 
 const SettingsSection = ({ title, children }: SettingsSectionProps) => {

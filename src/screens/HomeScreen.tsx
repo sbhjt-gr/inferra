@@ -1464,8 +1464,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   thinkingContainer: {
-    marginBottom: 8,
+    marginBottom: 4,
     paddingHorizontal: 12,
+    marginTop: -4,
   },
   thinkingHeader: {
     flexDirection: 'row',

@@ -101,14 +101,6 @@ export default function SystemPromptDialog({
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.defaultValueContainer}>
-            <Text style={[styles.defaultValueLabel, { color: themeColors.secondaryText }]}>
-              Default System Prompt:
-            </Text>
-            <Text style={[styles.defaultValueText, { color: themeColors.text }]}>
-              {defaultValue}
-            </Text>
-          </ScrollView>
         </View>
       </View>
     </Modal>
