@@ -13,7 +13,6 @@ import { modelDownloader } from './src/services/ModelDownloader';
 import * as TaskManager from 'expo-task-manager';
 import * as BackgroundFetch from 'expo-background-fetch';
 import { ThemeColors } from './src/types/theme';
-import { notificationService } from './src/services/NotificationService';
 
 // Define a background task for checking downloads
 const BACKGROUND_DOWNLOAD_TASK = 'background-download-check';
@@ -120,18 +119,7 @@ function Navigation() {
   }, []);
 
   useEffect(() => {
-    // Initialize the notification service
-    async function initializeNotifications() {
-      try {
-        await notificationService.initialize();
-        console.log('Notification service initialized');
-      } catch (error) {
-        console.error('Error initializing notifications:', error);
-      }
-    }
-
-    initializeNotifications();
-
+    // Remove notification service initialization
     return () => {
       // Cleanup when component unmounts
       try {

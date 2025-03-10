@@ -26,6 +26,8 @@ class MainApplication : Application(), ReactApplication {
             // Packages that cannot be autolinked yet can be added manually here, for example:
             // packages.add(new MyReactNativePackage());
             packages.add(DownloadNotificationPackage())
+            packages.add(ModelDownloaderPackage())
+            packages.add(FileSystemPackage())
             
             return packages
           }

@@ -5,7 +5,6 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  Platform,
   Alert,
   AppState,
   AppStateStatus,
@@ -20,7 +19,6 @@ import { RootStackParamList } from '../types/navigation';
 import { modelDownloader } from '../services/ModelDownloader';
 import { useDownloads } from '../context/DownloadContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { DownloadProgress } from '../services/ModelDownloader';
 import type { DownloadTask } from '@kesha-antonov/react-native-background-downloader';
 import * as FileSystem from 'expo-file-system';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -78,25 +76,37 @@ export default function DownloadsScreen() {
   // Convert downloadProgress object to array for FlatList and filter out completed downloads
   const downloads: DownloadItem[] = Object.entries(downloadProgress)
     .filter(([_, data]) => {
-      // Filter out completed, failed, or 100% progress downloads
-      return data.status !== 'completed' && 
-             data.status !== 'failed' && 
-             data.progress < 100;
+      // Only show active downloads
+      const isActive = data && 
+        data.status === 'downloading' && 
+        data.progress < 100 &&
+        typeof data.downloadId === 'number';
+        
+      return isActive;
     })
-    .map(([name, data]) => ({
-      id: data.downloadId || 0,  // Ensure id is never undefined
-      name,
-      progress: data.progress || 0,
-      bytesDownloaded: data.bytesDownloaded || 0,
-      totalBytes: data.totalBytes || 0,
-      status: data.status || 'unknown'
-    }));
+    .map(([name, data]) => {
+      // Normalize the name - remove any path components
+      const normalizedName = name.split(/[\/\\]/).pop() || name;
+      
+      return {
+        id: data.downloadId || 0,
+        name: normalizedName,
+        progress: data.progress || 0,
+        bytesDownloaded: data.bytesDownloaded || 0,
+        totalBytes: data.totalBytes || 0,
+        status: data.status || 'unknown'
+      };
+    })
+    // Remove any potential duplicates based on name
+    .filter((item, index, self) => 
+      index === self.findIndex((t) => t.name === item.name)
+    );
 
   // Load saved state on mount
   useEffect(() => {
     const handleAppStateChange = async (nextAppState: AppStateStatus) => {
       if (nextAppState === 'active') {
-        // Reload download states when app comes to foreground
+        // Only reload states when app comes to foreground
         await loadSavedDownloadStates();
       }
     };
@@ -122,9 +132,19 @@ export default function DownloadsScreen() {
       if (savedStates) {
         const parsedStates = JSON.parse(savedStates);
         
+        // Create a new object to store updated states
+        const updatedDownloadProgress = { ...downloadProgress };
+        
         // Check each download state
         for (const [modelName, state] of Object.entries(parsedStates)) {
           const downloadState = state as DownloadState;
+          
+          // Skip if this download is already in progress
+          if (downloadProgress[modelName] && 
+              downloadProgress[modelName].status !== 'completed' && 
+              downloadProgress[modelName].status !== 'failed') {
+            continue;
+          }
           
           // Check if the model exists in the models directory
           const modelPath = `${FileSystem.documentDirectory}models/${modelName}`;
@@ -143,16 +163,13 @@ export default function DownloadsScreen() {
             console.log(`[DownloadsScreen] Found completed model: ${modelName}`);
             
             // Update download progress
-            setDownloadProgress(prev => ({
-              ...prev,
-              [modelName]: {
-                progress: 100,
-                bytesDownloaded: fileSize,
-                totalBytes: fileSize,
-                status: 'completed',
-                downloadId: downloadState.downloadId
-              }
-            }));
+            updatedDownloadProgress[modelName] = {
+              progress: 100,
+              bytesDownloaded: fileSize,
+              totalBytes: fileSize,
+              status: 'completed',
+              downloadId: downloadState.downloadId
+            };
             
             // Remove from active downloads
             const updatedStates = { ...parsedStates };
@@ -191,16 +208,13 @@ export default function DownloadsScreen() {
                 }
                 
                 // Update download progress
-                setDownloadProgress(prev => ({
-                  ...prev,
-                  [modelName]: {
-                    progress: 100,
-                    bytesDownloaded: fileSize,
-                    totalBytes: fileSize,
-                    status: 'completed',
-                    downloadId: downloadState.downloadId
-                  }
-                }));
+                updatedDownloadProgress[modelName] = {
+                  progress: 100,
+                  bytesDownloaded: fileSize,
+                  totalBytes: fileSize,
+                  status: 'completed',
+                  downloadId: downloadState.downloadId
+                };
                 
                 // Remove from active downloads
                 const updatedStates = { ...parsedStates };
@@ -212,30 +226,25 @@ export default function DownloadsScreen() {
             } else {
               // Add to download progress if not already there
               if (!downloadProgress[modelName]) {
-                setDownloadProgress(prev => ({
-                  ...prev,
-                  [modelName]: {
-                    progress: 0,
-                    bytesDownloaded: 0,
-                    totalBytes: 0,
-                    status: downloadState.status || 'unknown',
-                    downloadId: downloadState.downloadId
-                  }
-                }));
+                updatedDownloadProgress[modelName] = {
+                  progress: 0,
+                  bytesDownloaded: 0,
+                  totalBytes: 0,
+                  status: downloadState.status || 'unknown',
+                  downloadId: downloadState.downloadId
+                };
               }
             }
           }
         }
+        
+        // Update state with all changes at once
+        setDownloadProgress(updatedDownloadProgress);
       }
     } catch (error) {
       console.error('[DownloadsScreen] Error loading saved download states:', error);
     }
   };
-
-  // Add this effect to load saved state on mount
-  useEffect(() => {
-    loadSavedDownloadStates();
-  }, []);
 
   // Add this effect to save state whenever it changes
   useEffect(() => {
@@ -342,7 +351,7 @@ export default function DownloadsScreen() {
         <FlatList
           data={downloads}
           renderItem={renderItem}
-          keyExtractor={item => `download-${item.id || item.name}`}
+          keyExtractor={item => `${item.name}-${item.id}`}
           contentContainerStyle={styles.listContent}
           ListEmptyComponent={() => (
             <View style={styles.emptyContainer}>

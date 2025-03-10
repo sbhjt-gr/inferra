@@ -31,7 +31,6 @@ import * as BackgroundFetch from 'expo-background-fetch';
 import * as TaskManager from 'expo-task-manager';
 import * as DocumentPicker from 'expo-document-picker';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { downloadNotificationService } from '../services/DownloadNotificationService';
 
 type ModelScreenProps = {
   navigation: CompositeNavigationProp<
@@ -233,12 +232,6 @@ const registerBackgroundTask = async () => {
 };
 
 const Tab = createBottomTabNavigator();
-
-const setupNotifications = async () => {
-  if (Platform.OS === 'android') {
-    await downloadNotificationService.requestPermissions();
-  }
-};
 
 export default function ModelScreen({ navigation }: ModelScreenProps) {
   const { theme: currentTheme } = useTheme();
@@ -727,7 +720,17 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       // Then get the stored models
       console.log('[ModelScreen] Getting stored models from modelDownloader...');
       const models = await modelDownloader.getStoredModels();
-      console.log(`[ModelScreen] Found ${models.length} stored models:`, models.map(m => m.name));
+      console.log('[ModelScreen] Models directory path:', await modelDownloader.getModelsDirectory());
+      
+      // Get existence info for all models in parallel
+      const modelsWithExistence = await Promise.all(models.map(async m => ({
+        name: m.name,
+        path: m.path,
+        size: m.size,
+        exists: await modelDownloader.checkFileExists(m.path)
+      })));
+      
+      console.log('[ModelScreen] Found models:', modelsWithExistence);
       setStoredModels(models);
     } catch (error) {
       console.error('[ModelScreen] Error loading stored models:', error);
@@ -760,15 +763,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       if (progress.status === 'completed') {
         console.log(`[ModelScreen] Download completed for ${filename}`);
         
-        // Show completion notification
-        if (Platform.OS === 'android') {
-          await downloadNotificationService.showNotification(
-            filename,
-            progress.downloadId,
-            100
-          );
-        }
-        
         setDownloadProgress(prev => ({
           ...prev,
           [filename]: {
@@ -793,11 +787,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       } else if (progress.status === 'failed') {
         console.log(`[ModelScreen] Download failed for ${filename}:`, progress.error);
         
-        // Cancel notification on failure
-        if (Platform.OS === 'android') {
-          await downloadNotificationService.cancelNotification(progress.downloadId);
-        }
-        
         setDownloadProgress(prev => ({
           ...prev,
           [filename]: {
@@ -810,7 +799,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
           }
         }));
         
-        // Show error alert
         // Remove from progress tracking after a delay
         setTimeout(() => {
           setDownloadProgress(prev => {
@@ -820,14 +808,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
           });
         }, 1000);
       } else {
-        // Update ongoing download notification
-        if (Platform.OS === 'android') {
-          await downloadNotificationService.updateProgress(
-            progress.downloadId,
-            progressValue
-          );
-        }
-
         setDownloadProgress(prev => ({
           ...prev,
           [filename]: {
@@ -841,15 +821,11 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       }
     };
 
-    // Set up notifications
-    const setupNotifications = async () => {
-      if (Platform.OS === 'android') {
-        await downloadNotificationService.requestPermissions();
-      }
-      await registerBackgroundTask();
-    };
-
     loadStoredModels();
+    
+    // Remove any existing listeners before adding new ones
+    modelDownloader.removeAllListeners('downloadProgress');
+    modelDownloader.removeAllListeners('modelsChanged');
     
     // Listen for download progress events
     modelDownloader.on('downloadProgress', handleProgress);
@@ -857,12 +833,13 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     // Listen for model changes
     modelDownloader.on('modelsChanged', loadStoredModels);
     
-    // Set up notifications
-    setupNotifications();
+    // Set up background task
+    registerBackgroundTask();
     
     return () => {
-      modelDownloader.off('downloadProgress', handleProgress);
-      modelDownloader.off('modelsChanged', loadStoredModels);
+      // Clean up all listeners
+      modelDownloader.removeAllListeners('downloadProgress');
+      modelDownloader.removeAllListeners('modelsChanged');
     };
   }, []);
 
