@@ -2,6 +2,7 @@ package com.gorai.ragionare
 
 import android.app.DownloadManager
 import android.content.Context
+import android.content.Intent
 import android.database.Cursor
 import android.net.Uri
 import android.os.Environment
@@ -84,14 +85,10 @@ class ModelDownloaderModule(reactContext: ReactApplicationContext) : ReactContex
             val id = downloadId.toLong()
             val downloadInfo = activeDownloads[id] ?: throw Exception("Download not found")
             
-            // Remove the current download
+            // Since DownloadManager has no direct pause API, we cancel and store state
             downloadManager.remove(id)
             
-            // Save download info to paused downloads
-            downloadInfo.bytesDownloaded = getDownloadedBytes(id)
-            downloadInfo.totalBytes = getTotalBytes(id)
-            downloadInfo.progress = calculateProgress(downloadInfo.bytesDownloaded, downloadInfo.totalBytes)
-            
+            // Store download info for resuming later
             pausedDownloads[id] = downloadInfo
             activeDownloads.remove(id)
             
@@ -105,7 +102,7 @@ class ModelDownloaderModule(reactContext: ReactApplicationContext) : ReactContex
                 putDouble("totalBytes", downloadInfo.totalBytes.toDouble())
                 putBoolean("isPaused", true)
             }
-            sendEvent("downloadProgress", params)
+            sendEventFromBackground("downloadProgress", params)
             
             promise.resolve(null)
         } catch (e: Exception) {
@@ -119,7 +116,7 @@ class ModelDownloaderModule(reactContext: ReactApplicationContext) : ReactContex
             val id = downloadId.toLong()
             val downloadInfo = pausedDownloads[id] ?: throw Exception("Paused download not found")
             
-            // Create new download request with range
+            // Create a new download request with Range header to continue from where we left off
             val request = DownloadManager.Request(Uri.parse(downloadInfo.url))
                 .setTitle("Downloading ${downloadInfo.modelName}")
                 .setDescription("Downloading model file")
@@ -127,11 +124,25 @@ class ModelDownloaderModule(reactContext: ReactApplicationContext) : ReactContex
                 .setDestinationInExternalFilesDir(reactApplicationContext, null, "temp_${downloadInfo.modelName}")
                 .setAllowedOverMetered(true)
                 .setAllowedOverRoaming(true)
-                .addRequestHeader("Range", "bytes=${downloadInfo.bytesDownloaded}-")
-
+            
+            // Add range header only if we've downloaded some bytes
+            if (downloadInfo.bytesDownloaded > 0) {
+                request.addRequestHeader("Range", "bytes=${downloadInfo.bytesDownloaded}-")
+            }
+            
             // Start new download
             val newDownloadId = downloadManager.enqueue(request)
-            val newDownloadInfo = downloadInfo.copy(downloadId = newDownloadId.toString())
+            
+            // Update tracking with new download ID
+            val newDownloadInfo = DownloadInfo(
+                modelName = downloadInfo.modelName,
+                downloadId = newDownloadId.toString(),
+                destination = downloadInfo.destination,
+                url = downloadInfo.url,
+                bytesDownloaded = downloadInfo.bytesDownloaded,
+                totalBytes = downloadInfo.totalBytes,
+                progress = downloadInfo.progress
+            )
             
             activeDownloads[newDownloadId] = newDownloadInfo
             pausedDownloads.remove(id)
@@ -141,17 +152,19 @@ class ModelDownloaderModule(reactContext: ReactApplicationContext) : ReactContex
             
             // Emit resumed status
             val params = Arguments.createMap().apply {
-                putString("modelName", downloadInfo.modelName)
+                putString("modelName", newDownloadInfo.modelName)
                 putString("downloadId", newDownloadId.toString())
-                putInt("progress", downloadInfo.progress)
+                putInt("progress", newDownloadInfo.progress)
                 putBoolean("isCompleted", false)
-                putDouble("bytesDownloaded", downloadInfo.bytesDownloaded.toDouble())
-                putDouble("totalBytes", downloadInfo.totalBytes.toDouble())
+                putDouble("bytesDownloaded", newDownloadInfo.bytesDownloaded.toDouble())
+                putDouble("totalBytes", newDownloadInfo.totalBytes.toDouble())
                 putBoolean("isPaused", false)
             }
-            sendEvent("downloadProgress", params)
+            sendEventFromBackground("downloadProgress", params)
             
-            promise.resolve(null)
+            promise.resolve(Arguments.createMap().apply {
+                putString("downloadId", newDownloadId.toString())
+            })
         } catch (e: Exception) {
             promise.reject("RESUME_ERROR", "Failed to resume download: ${e.message}")
         }
@@ -178,9 +191,10 @@ class ModelDownloaderModule(reactContext: ReactApplicationContext) : ReactContex
                 val cursor = downloadManager.query(query)
 
                 if (cursor.moveToFirst()) {
-                    val downloadInfo = activeDownloads[downloadId] ?: continue
+                    val status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
+                    val downloadInfo = activeDownloads[downloadId] ?: pausedDownloads[downloadId] ?: continue
 
-                    when (cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))) {
+                    when (status) {
                         DownloadManager.STATUS_SUCCESSFUL -> {
                             val bytesTotal = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES))
                             val finalTotal = if (bytesTotal < 0) 0L else bytesTotal
@@ -198,20 +212,26 @@ class ModelDownloaderModule(reactContext: ReactApplicationContext) : ReactContex
                             emitDownloadProgress(downloadInfo.modelName, downloadInfo.downloadId, 100, true, finalTotal, finalTotal)
                             downloading = false
                             activeDownloads.remove(downloadId)
+                            pausedDownloads.remove(downloadId)
                         }
                         DownloadManager.STATUS_FAILED -> {
                             emitDownloadError(downloadInfo.modelName, downloadInfo.downloadId, "Download failed")
                             downloading = false
                             activeDownloads.remove(downloadId)
+                            pausedDownloads.remove(downloadId)
                         }
                         DownloadManager.STATUS_RUNNING -> {
+                            if (pausedDownloads.containsKey(downloadId)) {
+                                // Skip progress update if download is paused
+                                continue
+                            }
+                            
                             val bytesDownloaded = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR))
                             val bytesTotal = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES))
                             val finalDownloaded = if (bytesDownloaded < 0) 0L else bytesDownloaded
                             val finalTotal = if (bytesTotal < 0) 0L else bytesTotal
-                            val progress = if (finalTotal > 0) ((finalDownloaded * 100) / finalTotal).toInt() else 0
+                            val progress = calculateProgress(finalDownloaded, finalTotal)
                             
-                            // Update download info
                             downloadInfo.bytesDownloaded = finalDownloaded
                             downloadInfo.totalBytes = finalTotal
                             downloadInfo.progress = progress
@@ -219,16 +239,24 @@ class ModelDownloaderModule(reactContext: ReactApplicationContext) : ReactContex
                             emitDownloadProgress(downloadInfo.modelName, downloadInfo.downloadId, progress, false, finalDownloaded, finalTotal)
                         }
                         DownloadManager.STATUS_PAUSED -> {
-                            // Handle paused state if needed
-                            val bytesDownloaded = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR))
-                            val bytesTotal = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES))
-                            val finalDownloaded = if (bytesDownloaded < 0) 0L else bytesDownloaded
-                            val finalTotal = if (bytesTotal < 0) 0L else bytesTotal
-                            val progress = if (finalTotal > 0) ((finalDownloaded * 100) / finalTotal).toInt() else 0
-                            
-                            downloadInfo.bytesDownloaded = finalDownloaded
-                            downloadInfo.totalBytes = finalTotal
-                            downloadInfo.progress = progress
+                            if (!pausedDownloads.containsKey(downloadId)) {
+                                // Move to paused downloads if not already there
+                                val info = activeDownloads[downloadId] ?: continue
+                                pausedDownloads[downloadId] = info
+                                activeDownloads.remove(downloadId)
+                                
+                                // Emit paused status
+                                val params = Arguments.createMap().apply {
+                                    putString("modelName", info.modelName)
+                                    putString("downloadId", info.downloadId)
+                                    putInt("progress", info.progress)
+                                    putBoolean("isCompleted", false)
+                                    putDouble("bytesDownloaded", info.bytesDownloaded.toDouble())
+                                    putDouble("totalBytes", info.totalBytes.toDouble())
+                                    putBoolean("isPaused", true)
+                                }
+                                sendEventFromBackground("downloadProgress", params)
+                            }
                         }
                     }
                 }
@@ -279,7 +307,7 @@ class ModelDownloaderModule(reactContext: ReactApplicationContext) : ReactContex
             putDouble("bytesDownloaded", bytesDownloaded.toDouble())
             putDouble("totalBytes", totalBytes.toDouble())
         }
-        sendEvent("downloadProgress", params)
+        sendEventFromBackground("downloadProgress", params)
     }
 
     private fun emitDownloadError(modelName: String, downloadId: String, error: String) {
@@ -288,10 +316,10 @@ class ModelDownloaderModule(reactContext: ReactApplicationContext) : ReactContex
             putString("downloadId", downloadId)
             putString("error", error)
         }
-        sendEvent("downloadError", params)
+        sendEventFromBackground("downloadError", params)
     }
 
-    private fun sendEvent(eventName: String, params: WritableMap) {
+    private fun sendEventFromBackground(eventName: String, params: WritableMap) {
         reactApplicationContext
             .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
             .emit(eventName, params)

@@ -1,17 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  Alert,
-  AppState,
-  AppStateStatus,
-  StatusBar,
-  ActivityIndicator,
-  Animated,
-} from 'react-native';
+import * as RN from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import { Ionicons } from '@expo/vector-icons';
@@ -30,9 +18,10 @@ interface DownloadItem {
   progress: number;
   bytesDownloaded: number;
   totalBytes: number;
-  status: string;
+  status: 'queued' | 'downloading' | 'paused' | 'completed' | 'failed';
   isPaused?: boolean;
   error?: string;
+  lastUpdated: number;
 }
 
 const formatBytes = (bytes: number) => {
@@ -47,59 +36,103 @@ export default function DownloadsScreen() {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { downloadProgress, setDownloadProgress } = useDownloads();
+  const { downloadProgress, updateDownload, removeDownload } = useDownloads();
   const insets = useSafeAreaInsets();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const fadeAnim = useRef(new RN.Animated.Value(1)).current;
 
   // Memoize the downloads array to prevent unnecessary re-renders
   const downloads = React.useMemo<DownloadItem[]>(() => {
-    return Object.entries(downloadProgress)
-      .filter(([_, data]) => {
-        if (!data) return false;
-        
-        // Show downloads that are in progress or paused
-        const isActive = data.status === 'downloading' || 
-                        data.status === 'paused' ||
-                        (data.status === 'starting' && data.progress < 100);
-        
-        return isActive && typeof data.downloadId === 'number';
-      })
-      .map(([name, data]) => {
-        // Normalize the name - remove any path components
-        const normalizedName = name.split(/[\/\\]/).pop() || name;
-        
-        return {
-          id: data.downloadId || 0,
+    const downloadMap = new Map<string, DownloadItem>();
+    
+    Object.entries(downloadProgress).forEach(([name, data]) => {
+      // Normalize the name to handle path separators
+      const normalizedName = name.split(/[\/\\]/).pop() || name;
+      
+      // Check if this is an active download
+      const isActive = data.status === 'downloading' || 
+                      data.status === 'paused' ||
+                      data.status === 'queued';
+      
+      if (isActive) {
+        // Create download item
+        const downloadItem: DownloadItem = {
+          id: data.downloadId,
           name: normalizedName,
-          progress: data.progress || 0,
-          bytesDownloaded: data.bytesDownloaded || 0,
-          totalBytes: data.totalBytes || 0,
-          status: data.status || 'unknown',
-          isPaused: data.isPaused || false,
-          error: data.error
+          progress: data.progress,
+          bytesDownloaded: data.bytesDownloaded,
+          totalBytes: data.totalBytes,
+          status: data.status,
+          isPaused: data.isPaused,
+          error: data.error,
+          lastUpdated: data.lastUpdated
         };
-      })
-      // Remove duplicates based on name
-      .filter((item, index, self) => 
-        index === self.findIndex((t) => t.name === item.name)
-      );
+        
+        // Only update if this is a newer version of the same download
+        const existing = downloadMap.get(normalizedName);
+        if (!existing || data.lastUpdated > existing.lastUpdated) {
+          // For paused downloads, preserve the pause state
+          if (existing?.isPaused && data.status === 'downloading') {
+            downloadItem.isPaused = true;
+            downloadItem.status = 'paused';
+          }
+          downloadMap.set(normalizedName, downloadItem);
+        }
+      }
+    });
+    
+    // Convert map to array and sort by name
+    return Array.from(downloadMap.values())
+      .sort((a, b) => a.name.localeCompare(b.name));
   }, [downloadProgress]);
 
   // Handle app state changes
   useEffect(() => {
-    const handleAppStateChange = async (nextAppState: AppStateStatus) => {
+    const handleAppStateChange = async (nextAppState: RN.AppStateStatus) => {
       if (nextAppState === 'active') {
         await refreshDownloads();
       }
     };
 
-    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    const subscription = RN.AppState.addEventListener('change', handleAppStateChange);
     return () => {
       subscription.remove();
     };
   }, []);
+
+  // Subscribe to download events
+  useEffect(() => {
+    const handleDownloadProgress = (data: any) => {
+      updateDownload(data.modelName, {
+        progress: data.progress,
+        bytesDownloaded: data.bytesDownloaded,
+        totalBytes: data.totalBytes,
+        status: data.isCompleted ? 'completed' : (data.isPaused ? 'paused' : 'downloading'),
+        downloadId: data.downloadId,
+        isPaused: data.isPaused,
+        error: data.error
+      });
+    };
+    
+    const handleDownloadIdChanged = (data: any) => {
+      console.log(`[DownloadsScreen] Download ID changed from ${data.oldDownloadId} to ${data.newDownloadId}`);
+      
+      updateDownload(data.modelName, {
+        downloadId: data.newDownloadId,
+        isPaused: false,
+        status: 'downloading'
+      });
+    };
+    
+    modelDownloader.on('downloadProgress', handleDownloadProgress);
+    modelDownloader.on('downloadIdChanged', handleDownloadIdChanged);
+    
+    return () => {
+      modelDownloader.off('downloadProgress', handleDownloadProgress);
+      modelDownloader.off('downloadIdChanged', handleDownloadIdChanged);
+    };
+  }, [updateDownload]);
 
   // Refresh downloads status
   const refreshDownloads = async () => {
@@ -107,7 +140,7 @@ export default function DownloadsScreen() {
       setIsRefreshing(true);
       
       // Animate fade out
-      Animated.timing(fadeAnim, {
+      RN.Animated.timing(fadeAnim, {
         toValue: 0.5,
         duration: 200,
         useNativeDriver: true,
@@ -139,16 +172,13 @@ export default function DownloadsScreen() {
             
             if (modelInfo.exists) {
               // Model exists in final location
-              setDownloadProgress(prev => ({
-                ...prev,
-                [modelName]: {
-                  progress: 100,
-                  bytesDownloaded: (modelInfo as any).size || 0,
-                  totalBytes: (modelInfo as any).size || 0,
-                  status: 'completed',
-                  downloadId: downloadState.downloadId
-                }
-              }));
+              updateDownload(modelName, {
+                progress: 100,
+                bytesDownloaded: (modelInfo as any).size || 0,
+                totalBytes: (modelInfo as any).size || 0,
+                status: 'completed',
+                downloadId: downloadState.downloadId
+              });
               
               // Remove from active downloads
               const updatedStates = { ...parsedStates };
@@ -175,16 +205,13 @@ export default function DownloadsScreen() {
                   
                   // Update progress
                   const finalInfo = await FileSystem.getInfoAsync(destPath, { size: true });
-                  setDownloadProgress(prev => ({
-                    ...prev,
-                    [modelName]: {
-                      progress: 100,
-                      bytesDownloaded: (finalInfo as any).size || 0,
-                      totalBytes: (finalInfo as any).size || 0,
-                      status: 'completed',
-                      downloadId: downloadState.downloadId
-                    }
-                  }));
+                  updateDownload(modelName, {
+                    progress: 100,
+                    bytesDownloaded: (finalInfo as any).size || 0,
+                    totalBytes: (finalInfo as any).size || 0,
+                    status: 'completed',
+                    downloadId: downloadState.downloadId
+                  });
                   
                   // Remove from active downloads
                   const updatedStates = { ...parsedStates };
@@ -192,14 +219,11 @@ export default function DownloadsScreen() {
                   await AsyncStorage.setItem('active_downloads', JSON.stringify(updatedStates));
                 } catch (error) {
                   console.error(`Error moving temp file for ${modelName}:`, error);
-                  setDownloadProgress(prev => ({
-                    ...prev,
-                    [modelName]: {
-                      ...prev[modelName],
-                      status: 'failed',
-                      error: 'Failed to move downloaded file'
-                    }
-                  }));
+                  updateDownload(modelName, {
+                    ...downloadProgress[modelName],
+                    status: 'failed',
+                    error: 'Failed to move downloaded file'
+                  });
                 }
               }
             }
@@ -214,7 +238,7 @@ export default function DownloadsScreen() {
       setIsRefreshing(false);
       
       // Animate fade in
-      Animated.timing(fadeAnim, {
+      RN.Animated.timing(fadeAnim, {
         toValue: 1,
         duration: 200,
         useNativeDriver: true,
@@ -222,15 +246,18 @@ export default function DownloadsScreen() {
     }
   };
 
-  // Handle download cancellation
+  // Handle cancel
   const handleCancel = useCallback(async (downloadId: number, modelName: string) => {
     if (isProcessing) return;
     
-    Alert.alert(
+    RN.Alert.alert(
       'Cancel Download',
       'Are you sure you want to cancel this download?',
       [
-        { text: 'No', style: 'cancel' },
+        {
+          text: 'No',
+          style: 'cancel'
+        },
         {
           text: 'Yes',
           style: 'destructive',
@@ -238,23 +265,10 @@ export default function DownloadsScreen() {
             try {
               setIsProcessing(true);
               await modelDownloader.cancelDownload(downloadId);
-              
-              setDownloadProgress(prev => {
-                const newProgress = { ...prev };
-                delete newProgress[modelName];
-                return newProgress;
-              });
-              
-              // Remove from saved states
-              const savedStates = await AsyncStorage.getItem('active_downloads');
-              if (savedStates) {
-                const parsedStates = JSON.parse(savedStates);
-                delete parsedStates[modelName];
-                await AsyncStorage.setItem('active_downloads', JSON.stringify(parsedStates));
-              }
+              removeDownload(modelName);
             } catch (error) {
               console.error('Error canceling download:', error);
-              Alert.alert('Error', 'Failed to cancel download');
+              RN.Alert.alert('Error', 'Failed to cancel download');
             } finally {
               setIsProcessing(false);
             }
@@ -262,7 +276,7 @@ export default function DownloadsScreen() {
         }
       ]
     );
-  }, [isProcessing, setDownloadProgress]);
+  }, [isProcessing, removeDownload]);
 
   // Handle pause/resume
   const handlePauseResume = useCallback(async (downloadId: number, modelName: string, isPaused: boolean) => {
@@ -272,37 +286,43 @@ export default function DownloadsScreen() {
       setIsProcessing(true);
       
       if (isPaused) {
-        await modelDownloader.resumeDownload(downloadId);
-        setDownloadProgress(prev => ({
-          ...prev,
-          [modelName]: {
-            ...prev[modelName],
+        const result = await modelDownloader.resumeDownload(downloadId);
+        
+        // Update state with new download ID if provided
+        if (result?.downloadId) {
+          updateDownload(modelName, {
+            downloadId: result.downloadId,
             isPaused: false,
-            status: 'downloading'
-          }
-        }));
+            status: 'downloading',
+            lastUpdated: Date.now()
+          });
+        } else {
+          // Just update pause state if no new ID
+          updateDownload(modelName, {
+            isPaused: false,
+            status: 'downloading',
+            lastUpdated: Date.now()
+          });
+        }
       } else {
         await modelDownloader.pauseDownload(downloadId);
-        setDownloadProgress(prev => ({
-          ...prev,
-          [modelName]: {
-            ...prev[modelName],
-            isPaused: true,
-            status: 'paused'
-          }
-        }));
+        updateDownload(modelName, {
+          isPaused: true,
+          status: 'paused',
+          lastUpdated: Date.now()
+        });
       }
     } catch (error) {
       console.error('Error pausing/resuming download:', error);
-      Alert.alert('Error', 'Failed to pause/resume download');
+      RN.Alert.alert('Error', 'Failed to pause/resume download');
     } finally {
       setIsProcessing(false);
     }
-  }, [isProcessing, setDownloadProgress]);
+  }, [isProcessing, updateDownload]);
 
   // Render download item
   const renderItem = useCallback(({ item }: { item: DownloadItem }) => (
-    <Animated.View 
+    <RN.Animated.View 
       style={[
         styles.downloadItem, 
         { 
@@ -311,23 +331,12 @@ export default function DownloadsScreen() {
         }
       ]}
     >
-      <View style={styles.downloadHeader}>
-        <Text style={[styles.downloadName, { color: themeColors.text }]}>
+      <RN.View style={styles.downloadHeader}>
+        <RN.Text style={[styles.downloadName, { color: themeColors.text }]}>
           {item.name}
-        </Text>
-        <View style={styles.downloadActions}>
-          <TouchableOpacity
-            style={[styles.actionButton, { marginRight: 8 }]}
-            onPress={() => handlePauseResume(item.id, item.name, item.isPaused || false)}
-            disabled={isProcessing}
-          >
-            <Ionicons 
-              name={item.isPaused ? "play" : "pause"} 
-              size={20} 
-              color={isProcessing ? themeColors.secondaryText : themeColors.text} 
-            />
-          </TouchableOpacity>
-          <TouchableOpacity
+        </RN.Text>
+        <RN.View style={styles.downloadActions}>
+          <RN.TouchableOpacity
             style={styles.actionButton}
             onPress={() => handleCancel(item.id, item.name)}
             disabled={isProcessing}
@@ -337,17 +346,17 @@ export default function DownloadsScreen() {
               size={24} 
               color={isProcessing ? "#ff444480" : "#ff4444"} 
             />
-          </TouchableOpacity>
-        </View>
-      </View>
+          </RN.TouchableOpacity>
+        </RN.View>
+      </RN.View>
       
-      <Text style={[styles.downloadProgress, { color: themeColors.secondaryText }]}>
+      <RN.Text style={[styles.downloadProgress, { color: themeColors.secondaryText }]}>
         {item.isPaused ? 'Paused • ' : ''}
         {`${item.progress}% • ${formatBytes(item.bytesDownloaded)} / ${formatBytes(item.totalBytes)}`}
-      </Text>
+      </RN.Text>
       
-      <View style={[styles.progressBar, { backgroundColor: themeColors.background }]}>
-        <View 
+      <RN.View style={[styles.progressBar, { backgroundColor: themeColors.background }]}>
+        <RN.View 
           style={[
             styles.progressFill, 
             { 
@@ -356,32 +365,32 @@ export default function DownloadsScreen() {
             }
           ]} 
         />
-      </View>
+      </RN.View>
       
       {item.error && (
-        <Text style={styles.errorText}>
+        <RN.Text style={styles.errorText}>
           Error: {item.error}
-        </Text>
+        </RN.Text>
       )}
-    </Animated.View>
-  ), [themeColors, isProcessing, handleCancel, handlePauseResume, fadeAnim]);
+    </RN.Animated.View>
+  ), [themeColors, isProcessing, handleCancel, fadeAnim]);
 
   return (
-    <View style={[styles.container, { backgroundColor: themeColors.headerBackground }]}>
-      <StatusBar
+    <RN.View style={[styles.container, { backgroundColor: themeColors.headerBackground }]}>
+      <RN.StatusBar
         backgroundColor="transparent"
         barStyle="light-content"
         translucent={true}
       />
       
-      <View style={[
+      <RN.View style={[
         styles.header, 
         { 
           backgroundColor: themeColors.headerBackground,
           paddingTop: insets.top + 10,
         }
       ]}>
-        <TouchableOpacity 
+        <RN.TouchableOpacity 
           style={styles.backButton}
           onPress={() => navigation.goBack()}
           disabled={isProcessing}
@@ -391,9 +400,9 @@ export default function DownloadsScreen() {
             size={24} 
             color={isProcessing ? "rgba(255,255,255,0.5)" : "#fff"} 
           />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Active Downloads</Text>
-        <TouchableOpacity 
+        </RN.TouchableOpacity>
+        <RN.Text style={styles.headerTitle}>Active Downloads</RN.Text>
+        <RN.TouchableOpacity 
           style={styles.refreshButton}
           onPress={refreshDownloads}
           disabled={isRefreshing || isProcessing}
@@ -403,40 +412,42 @@ export default function DownloadsScreen() {
             size={24} 
             color={isRefreshing || isProcessing ? "rgba(255,255,255,0.5)" : "#fff"} 
           />
-        </TouchableOpacity>
-      </View>
+        </RN.TouchableOpacity>
+      </RN.View>
       
-      <View style={[styles.content, { backgroundColor: themeColors.background }]}>
-        <FlatList
+      <RN.View style={[styles.content, { backgroundColor: themeColors.background }]}>
+        <RN.FlatList
           data={downloads}
           renderItem={renderItem}
           keyExtractor={item => `${item.name}-${item.id}`}
           contentContainerStyle={styles.listContent}
           ListEmptyComponent={() => (
-            <View style={styles.emptyContainer}>
+            <RN.View style={styles.emptyContainer}>
               <Ionicons 
                 name="cloud-download-outline" 
                 size={48} 
                 color={themeColors.secondaryText}
               />
-              <Text style={[styles.emptyText, { color: themeColors.secondaryText }]}>
+              <RN.Text style={[styles.emptyText, { color: themeColors.secondaryText }]}>
                 No active downloads
-              </Text>
-            </View>
+              </RN.Text>
+            </RN.View>
           )}
         />
-      </View>
+      </RN.View>
       
       {isProcessing && (
-        <View style={styles.processingOverlay}>
-          <ActivityIndicator size="large" color="#fff" />
-        </View>
+        <RN.View style={styles.processingOverlay}>
+          <RN.View style={styles.loadingIndicator}>
+            <Ionicons name="refresh" size={24} color="#fff" />
+          </RN.View>
+        </RN.View>
       )}
-    </View>
+    </RN.View>
   );
 }
 
-const styles = StyleSheet.create({
+const styles = RN.StyleSheet.create({
   container: {
     flex: 1,
   },
@@ -527,5 +538,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.3)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  loadingIndicator: {
+    backgroundColor: '#4a0660',
+    padding: 16,
+    borderRadius: 12,
   },
 }); 
