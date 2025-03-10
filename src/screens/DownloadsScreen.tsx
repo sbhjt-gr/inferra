@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import {
   AppState,
   AppStateStatus,
   StatusBar,
+  ActivityIndicator,
+  Animated,
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
@@ -19,9 +21,19 @@ import { RootStackParamList } from '../types/navigation';
 import { modelDownloader } from '../services/ModelDownloader';
 import { useDownloads } from '../context/DownloadContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { DownloadTask } from '@kesha-antonov/react-native-background-downloader';
 import * as FileSystem from 'expo-file-system';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+interface DownloadItem {
+  id: number;
+  name: string;
+  progress: number;
+  bytesDownloaded: number;
+  totalBytes: number;
+  status: string;
+  isPaused?: boolean;
+  error?: string;
+}
 
 const formatBytes = (bytes: number) => {
   if (bytes === undefined || bytes === null || isNaN(bytes) || bytes === 0) return '0 B';
@@ -31,323 +43,370 @@ const formatBytes = (bytes: number) => {
   return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
 };
 
-interface DownloadItem {
-  id: number;
-  name: string;
-  progress: number;
-  bytesDownloaded: number;
-  totalBytes: number;
-  status: string;
-}
-
-interface DownloadState {
-  downloadId: number;
-  status: string;
-  modelName: string;
-}
-
-interface StoredDownloadProgress {
-  downloadId: number;
-  progress: number;
-  bytesDownloaded: number;
-  totalBytes: number;
-  status: string;
-}
-
-interface DownloadTaskInfo {
-  task: DownloadTask;
-  downloadId: number;
-  modelName: string;
-  progress?: number;
-  bytesDownloaded?: number;
-  totalBytes?: number;
-  destination?: string;
-  url?: string;
-}
-
 export default function DownloadsScreen() {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { downloadProgress, setDownloadProgress } = useDownloads();
-  const buttonProcessingRef = useRef<Set<string>>(new Set());
   const insets = useSafeAreaInsets();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const fadeAnim = useRef(new Animated.Value(1)).current;
 
-  // Convert downloadProgress object to array for FlatList and filter out completed downloads
-  const downloads: DownloadItem[] = Object.entries(downloadProgress)
-    .filter(([_, data]) => {
-      // Only show active downloads
-      const isActive = data && 
-        data.status === 'downloading' && 
-        data.progress < 100 &&
-        typeof data.downloadId === 'number';
+  // Memoize the downloads array to prevent unnecessary re-renders
+  const downloads = React.useMemo<DownloadItem[]>(() => {
+    return Object.entries(downloadProgress)
+      .filter(([_, data]) => {
+        if (!data) return false;
         
-      return isActive;
-    })
-    .map(([name, data]) => {
-      // Normalize the name - remove any path components
-      const normalizedName = name.split(/[\/\\]/).pop() || name;
-      
-      return {
-        id: data.downloadId || 0,
-        name: normalizedName,
-        progress: data.progress || 0,
-        bytesDownloaded: data.bytesDownloaded || 0,
-        totalBytes: data.totalBytes || 0,
-        status: data.status || 'unknown'
-      };
-    })
-    // Remove any potential duplicates based on name
-    .filter((item, index, self) => 
-      index === self.findIndex((t) => t.name === item.name)
-    );
+        // Show downloads that are in progress or paused
+        const isActive = data.status === 'downloading' || 
+                        data.status === 'paused' ||
+                        (data.status === 'starting' && data.progress < 100);
+        
+        return isActive && typeof data.downloadId === 'number';
+      })
+      .map(([name, data]) => {
+        // Normalize the name - remove any path components
+        const normalizedName = name.split(/[\/\\]/).pop() || name;
+        
+        return {
+          id: data.downloadId || 0,
+          name: normalizedName,
+          progress: data.progress || 0,
+          bytesDownloaded: data.bytesDownloaded || 0,
+          totalBytes: data.totalBytes || 0,
+          status: data.status || 'unknown',
+          isPaused: data.isPaused || false,
+          error: data.error
+        };
+      })
+      // Remove duplicates based on name
+      .filter((item, index, self) => 
+        index === self.findIndex((t) => t.name === item.name)
+      );
+  }, [downloadProgress]);
 
-  // Load saved state on mount
+  // Handle app state changes
   useEffect(() => {
     const handleAppStateChange = async (nextAppState: AppStateStatus) => {
       if (nextAppState === 'active') {
-        // Only reload states when app comes to foreground
-        await loadSavedDownloadStates();
+        await refreshDownloads();
       }
     };
 
-    // Subscribe to app state changes
     const subscription = AppState.addEventListener('change', handleAppStateChange);
-
-    // Initial load
-    loadSavedDownloadStates();
-
     return () => {
       subscription.remove();
     };
   }, []);
 
-  // Update the loadSavedDownloadStates function
-  const loadSavedDownloadStates = async () => {
+  // Refresh downloads status
+  const refreshDownloads = async () => {
     try {
-      console.log('[DownloadsScreen] Loading saved download states...');
+      setIsRefreshing(true);
       
-      // Load saved download states from AsyncStorage
+      // Animate fade out
+      Animated.timing(fadeAnim, {
+        toValue: 0.5,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+
+      // Check for completed downloads
+      await modelDownloader.checkBackgroundDownloads();
+      
+      // Load saved states
       const savedStates = await AsyncStorage.getItem('active_downloads');
       if (savedStates) {
         const parsedStates = JSON.parse(savedStates);
         
-        // Create a new object to store updated states
-        const updatedDownloadProgress = { ...downloadProgress };
-        
-        // Check each download state
+        // Process each download state
         for (const [modelName, state] of Object.entries(parsedStates)) {
-          const downloadState = state as DownloadState;
+          const downloadState = state as any;
           
-          // Skip if this download is already in progress
+          // Skip if already being tracked
           if (downloadProgress[modelName] && 
               downloadProgress[modelName].status !== 'completed' && 
               downloadProgress[modelName].status !== 'failed') {
             continue;
           }
           
-          // Check if the model exists in the models directory
-          const modelPath = `${FileSystem.documentDirectory}models/${modelName}`;
-          let fileSize = 0;
           try {
-            const fileInfo = await FileSystem.getInfoAsync(modelPath, { size: true });
-            if (fileInfo.exists) {
-              fileSize = (fileInfo as any).size || 0;
-            }
-          } catch (error) {
-            console.error(`[DownloadsScreen] Error getting file size for ${modelName}:`, error);
-          }
-          
-          if (fileSize > 0) {
-            // Model exists, mark as completed
-            console.log(`[DownloadsScreen] Found completed model: ${modelName}`);
+            // Check model existence
+            const modelPath = `${FileSystem.documentDirectory}models/${modelName}`;
+            const modelInfo = await FileSystem.getInfoAsync(modelPath, { size: true });
             
-            // Update download progress
-            updatedDownloadProgress[modelName] = {
-              progress: 100,
-              bytesDownloaded: fileSize,
-              totalBytes: fileSize,
-              status: 'completed',
-              downloadId: downloadState.downloadId
-            };
-            
-            // Remove from active downloads
-            const updatedStates = { ...parsedStates };
-            delete updatedStates[modelName];
-            await AsyncStorage.setItem('active_downloads', JSON.stringify(updatedStates));
-          } else {
-            // Check temp directory
-            const tempPath = `${FileSystem.documentDirectory}temp/${modelName}`;
-            const tempInfo = await FileSystem.getInfoAsync(tempPath);
-            
-            if (tempInfo.exists) {
-              // Temp file exists, try to move it
-              try {
-                const destPath = `${FileSystem.documentDirectory}models/${modelName}`;
-                await FileSystem.makeDirectoryAsync(
-                  `${FileSystem.documentDirectory}models`, 
-                  { intermediates: true }
-                ).catch(() => {});
-                
-                await FileSystem.moveAsync({
-                  from: tempPath,
-                  to: destPath
-                });
-                
-                console.log(`[DownloadsScreen] Moved completed download: ${modelName}`);
-                
-                // Get file size safely
-                let fileSize = 0;
-                try {
-                  const fileInfo = await FileSystem.getInfoAsync(destPath, { size: true });
-                  if (fileInfo.exists) {
-                    fileSize = (fileInfo as any).size || 0;
-                  }
-                } catch (error) {
-                  console.error(`[DownloadsScreen] Error getting file size for ${modelName}:`, error);
-                }
-                
-                // Update download progress
-                updatedDownloadProgress[modelName] = {
+            if (modelInfo.exists) {
+              // Model exists in final location
+              setDownloadProgress(prev => ({
+                ...prev,
+                [modelName]: {
                   progress: 100,
-                  bytesDownloaded: fileSize,
-                  totalBytes: fileSize,
+                  bytesDownloaded: (modelInfo as any).size || 0,
+                  totalBytes: (modelInfo as any).size || 0,
                   status: 'completed',
                   downloadId: downloadState.downloadId
-                };
-                
-                // Remove from active downloads
-                const updatedStates = { ...parsedStates };
-                delete updatedStates[modelName];
-                await AsyncStorage.setItem('active_downloads', JSON.stringify(updatedStates));
-              } catch (error) {
-                console.error(`[DownloadsScreen] Error moving temp file for ${modelName}:`, error);
-              }
+                }
+              }));
+              
+              // Remove from active downloads
+              const updatedStates = { ...parsedStates };
+              delete updatedStates[modelName];
+              await AsyncStorage.setItem('active_downloads', JSON.stringify(updatedStates));
             } else {
-              // Add to download progress if not already there
-              if (!downloadProgress[modelName]) {
-                updatedDownloadProgress[modelName] = {
-                  progress: 0,
-                  bytesDownloaded: 0,
-                  totalBytes: 0,
-                  status: downloadState.status || 'unknown',
-                  downloadId: downloadState.downloadId
-                };
+              // Check temp directory
+              const tempPath = `${FileSystem.documentDirectory}temp/${modelName}`;
+              const tempInfo = await FileSystem.getInfoAsync(tempPath);
+              
+              if (tempInfo.exists) {
+                try {
+                  // Move from temp to final location
+                  const destPath = `${FileSystem.documentDirectory}models/${modelName}`;
+                  await FileSystem.makeDirectoryAsync(
+                    `${FileSystem.documentDirectory}models`, 
+                    { intermediates: true }
+                  );
+                  
+                  await FileSystem.moveAsync({
+                    from: tempPath,
+                    to: destPath
+                  });
+                  
+                  // Update progress
+                  const finalInfo = await FileSystem.getInfoAsync(destPath, { size: true });
+                  setDownloadProgress(prev => ({
+                    ...prev,
+                    [modelName]: {
+                      progress: 100,
+                      bytesDownloaded: (finalInfo as any).size || 0,
+                      totalBytes: (finalInfo as any).size || 0,
+                      status: 'completed',
+                      downloadId: downloadState.downloadId
+                    }
+                  }));
+                  
+                  // Remove from active downloads
+                  const updatedStates = { ...parsedStates };
+                  delete updatedStates[modelName];
+                  await AsyncStorage.setItem('active_downloads', JSON.stringify(updatedStates));
+                } catch (error) {
+                  console.error(`Error moving temp file for ${modelName}:`, error);
+                  setDownloadProgress(prev => ({
+                    ...prev,
+                    [modelName]: {
+                      ...prev[modelName],
+                      status: 'failed',
+                      error: 'Failed to move downloaded file'
+                    }
+                  }));
+                }
               }
             }
+          } catch (error) {
+            console.error(`Error processing download state for ${modelName}:`, error);
           }
         }
-        
-        // Update state with all changes at once
-        setDownloadProgress(updatedDownloadProgress);
       }
     } catch (error) {
-      console.error('[DownloadsScreen] Error loading saved download states:', error);
+      console.error('Error refreshing downloads:', error);
+    } finally {
+      setIsRefreshing(false);
+      
+      // Animate fade in
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
     }
   };
 
-  // Add this effect to save state whenever it changes
-  useEffect(() => {
-    const saveDownloadProgress = async () => {
-      try {
-        if (Object.keys(downloadProgress).length > 0) {
-          await AsyncStorage.setItem('download_progress', JSON.stringify(downloadProgress));
-        } else {
-          await AsyncStorage.removeItem('download_progress');
-        }
-      } catch (error) {
-        console.error('Error saving download progress:', error);
-      }
-    };
-
-    saveDownloadProgress();
-  }, [downloadProgress]);
-
-  const handleCancel = async (downloadId: number, modelName: string) => {
+  // Handle download cancellation
+  const handleCancel = useCallback(async (downloadId: number, modelName: string) => {
+    if (isProcessing) return;
+    
     Alert.alert(
       'Cancel Download',
       'Are you sure you want to cancel this download?',
       [
-        {
-          text: 'No',
-          style: 'cancel'
-        },
+        { text: 'No', style: 'cancel' },
         {
           text: 'Yes',
           style: 'destructive',
           onPress: async () => {
             try {
+              setIsProcessing(true);
               await modelDownloader.cancelDownload(downloadId);
+              
               setDownloadProgress(prev => {
                 const newProgress = { ...prev };
                 delete newProgress[modelName];
                 return newProgress;
               });
+              
+              // Remove from saved states
+              const savedStates = await AsyncStorage.getItem('active_downloads');
+              if (savedStates) {
+                const parsedStates = JSON.parse(savedStates);
+                delete parsedStates[modelName];
+                await AsyncStorage.setItem('active_downloads', JSON.stringify(parsedStates));
+              }
             } catch (error) {
               console.error('Error canceling download:', error);
               Alert.alert('Error', 'Failed to cancel download');
+            } finally {
+              setIsProcessing(false);
             }
           }
         }
       ]
     );
-  };
+  }, [isProcessing, setDownloadProgress]);
 
-  const renderItem = ({ item }: { item: DownloadItem }) => (
-    <View style={[styles.downloadItem, { backgroundColor: themeColors.borderColor }]}>
+  // Handle pause/resume
+  const handlePauseResume = useCallback(async (downloadId: number, modelName: string, isPaused: boolean) => {
+    if (isProcessing) return;
+    
+    try {
+      setIsProcessing(true);
+      
+      if (isPaused) {
+        await modelDownloader.resumeDownload(downloadId);
+        setDownloadProgress(prev => ({
+          ...prev,
+          [modelName]: {
+            ...prev[modelName],
+            isPaused: false,
+            status: 'downloading'
+          }
+        }));
+      } else {
+        await modelDownloader.pauseDownload(downloadId);
+        setDownloadProgress(prev => ({
+          ...prev,
+          [modelName]: {
+            ...prev[modelName],
+            isPaused: true,
+            status: 'paused'
+          }
+        }));
+      }
+    } catch (error) {
+      console.error('Error pausing/resuming download:', error);
+      Alert.alert('Error', 'Failed to pause/resume download');
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [isProcessing, setDownloadProgress]);
+
+  // Render download item
+  const renderItem = useCallback(({ item }: { item: DownloadItem }) => (
+    <Animated.View 
+      style={[
+        styles.downloadItem, 
+        { 
+          backgroundColor: themeColors.borderColor,
+          opacity: fadeAnim 
+        }
+      ]}
+    >
       <View style={styles.downloadHeader}>
         <Text style={[styles.downloadName, { color: themeColors.text }]}>
           {item.name}
         </Text>
         <View style={styles.downloadActions}>
           <TouchableOpacity
-            style={styles.cancelButton}
-            onPress={() => handleCancel(item.id, item.name)}
+            style={[styles.actionButton, { marginRight: 8 }]}
+            onPress={() => handlePauseResume(item.id, item.name, item.isPaused || false)}
+            disabled={isProcessing}
           >
-            <Ionicons name="close-circle" size={24} color="#ff4444" />
+            <Ionicons 
+              name={item.isPaused ? "play" : "pause"} 
+              size={20} 
+              color={isProcessing ? themeColors.secondaryText : themeColors.text} 
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => handleCancel(item.id, item.name)}
+            disabled={isProcessing}
+          >
+            <Ionicons 
+              name="close-circle" 
+              size={24} 
+              color={isProcessing ? "#ff444480" : "#ff4444"} 
+            />
           </TouchableOpacity>
         </View>
       </View>
       
       <Text style={[styles.downloadProgress, { color: themeColors.secondaryText }]}>
-        {`${item.progress || 0}% • ${formatBytes(item.bytesDownloaded || 0)} / ${formatBytes(item.totalBytes || 0)}`}
+        {item.isPaused ? 'Paused • ' : ''}
+        {`${item.progress}% • ${formatBytes(item.bytesDownloaded)} / ${formatBytes(item.totalBytes)}`}
       </Text>
       
       <View style={[styles.progressBar, { backgroundColor: themeColors.background }]}>
         <View 
           style={[
             styles.progressFill, 
-            { width: `${item.progress}%`, backgroundColor: '#4a0660' }
+            { 
+              width: `${item.progress}%`, 
+              backgroundColor: item.isPaused ? '#888888' : '#4a0660' 
+            }
           ]} 
         />
       </View>
-    </View>
-  );
+      
+      {item.error && (
+        <Text style={styles.errorText}>
+          Error: {item.error}
+        </Text>
+      )}
+    </Animated.View>
+  ), [themeColors, isProcessing, handleCancel, handlePauseResume, fadeAnim]);
 
   return (
-    <View style={{ flex: 1, backgroundColor: themeColors.headerBackground }}>
+    <View style={[styles.container, { backgroundColor: themeColors.headerBackground }]}>
       <StatusBar
         backgroundColor="transparent"
         barStyle="light-content"
         translucent={true}
       />
+      
       <View style={[
         styles.header, 
         { 
           backgroundColor: themeColors.headerBackground,
-          paddingTop: insets.top + 10, // Add status bar height plus padding
+          paddingTop: insets.top + 10,
         }
       ]}>
         <TouchableOpacity 
           style={styles.backButton}
           onPress={() => navigation.goBack()}
+          disabled={isProcessing}
         >
-          <Ionicons name="arrow-back" size={24} color="#fff" />
+          <Ionicons 
+            name="arrow-back" 
+            size={24} 
+            color={isProcessing ? "rgba(255,255,255,0.5)" : "#fff"} 
+          />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Active Downloads</Text>
+        <TouchableOpacity 
+          style={styles.refreshButton}
+          onPress={refreshDownloads}
+          disabled={isRefreshing || isProcessing}
+        >
+          <Ionicons 
+            name="refresh" 
+            size={24} 
+            color={isRefreshing || isProcessing ? "rgba(255,255,255,0.5)" : "#fff"} 
+          />
+        </TouchableOpacity>
       </View>
       
-      <View style={[styles.container, { backgroundColor: themeColors.background }]}>
+      <View style={[styles.content, { backgroundColor: themeColors.background }]}>
         <FlatList
           data={downloads}
           renderItem={renderItem}
@@ -355,6 +414,11 @@ export default function DownloadsScreen() {
           contentContainerStyle={styles.listContent}
           ListEmptyComponent={() => (
             <View style={styles.emptyContainer}>
+              <Ionicons 
+                name="cloud-download-outline" 
+                size={48} 
+                color={themeColors.secondaryText}
+              />
               <Text style={[styles.emptyText, { color: themeColors.secondaryText }]}>
                 No active downloads
               </Text>
@@ -362,6 +426,12 @@ export default function DownloadsScreen() {
           )}
         />
       </View>
+      
+      {isProcessing && (
+        <View style={styles.processingOverlay}>
+          <ActivityIndicator size="large" color="#fff" />
+        </View>
+      )}
     </View>
   );
 }
@@ -370,13 +440,22 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  content: {
+    flex: 1,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
+    paddingBottom: 12,
   },
   backButton: {
+    padding: 8,
     marginRight: 16,
+  },
+  refreshButton: {
+    padding: 8,
+    marginLeft: 'auto',
   },
   headerTitle: {
     fontSize: 20,
@@ -400,12 +479,15 @@ const styles = StyleSheet.create({
   downloadName: {
     fontSize: 16,
     fontWeight: '500',
-    marginBottom: 4,
+    flex: 1,
+    marginRight: 16,
   },
   downloadActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+  },
+  actionButton: {
+    padding: 4,
   },
   downloadProgress: {
     fontSize: 14,
@@ -428,8 +510,22 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
+    marginTop: 16,
+    textAlign: 'center',
   },
-  cancelButton: {
-    padding: 4,
+  errorText: {
+    color: '#ff4444',
+    fontSize: 14,
+    marginTop: 8,
+  },
+  processingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 }); 

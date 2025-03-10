@@ -236,6 +236,11 @@ const Tab = createBottomTabNavigator();
 export default function ModelScreen({ navigation }: ModelScreenProps) {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
+  
+  // Add console log to debug theme values
+  console.log('[ModelScreen] Current theme:', currentTheme);
+  console.log('[ModelScreen] Theme colors:', themeColors);
+
   const [activeTab, setActiveTab] = useState<'stored' | 'downloadable'>('stored');
   const [storedModels, setStoredModels] = useState<StoredModel[]>([]);
   const { downloadProgress, setDownloadProgress } = useDownloads();
@@ -249,6 +254,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
   const buttonProcessingRef = useRef(new Set<string>());
   const [isLoading, setIsLoading] = useState(false);
   const [importingModelName, setImportingModelName] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   const handleLinkModel = async () => {
     try {
@@ -717,21 +723,48 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         console.error('[ModelScreen] Error checking background downloads:', checkError);
       }
       
+      // Get and log the models directory path for debugging
+      const modelsDir = await modelDownloader.getModelsDirectory();
+      console.log('[ModelScreen] Models directory path:', modelsDir);
+      
       // Then get the stored models
       console.log('[ModelScreen] Getting stored models from modelDownloader...');
       const models = await modelDownloader.getStoredModels();
-      console.log('[ModelScreen] Models directory path:', await modelDownloader.getModelsDirectory());
+      console.log('[ModelScreen] Raw models list:', models);
+      
+      // Filter out any invalid models without a path
+      const validModels = models.filter(m => m.path && m.path.trim() !== '');
+      if (validModels.length !== models.length) {
+        console.warn(`[ModelScreen] Filtered out ${models.length - validModels.length} invalid models`);
+      }
+      
+      // Log each model for debugging
+      validModels.forEach((model, index) => {
+        console.log(`[ModelScreen] Model ${index + 1}:`, {
+          name: model.name,
+          path: model.path,
+          size: model.size,
+          isExternal: model.isExternal
+        });
+      });
       
       // Get existence info for all models in parallel
-      const modelsWithExistence = await Promise.all(models.map(async m => ({
+      const modelsWithExistence = await Promise.all(validModels.map(async m => ({
         name: m.name,
         path: m.path,
         size: m.size,
+        modified: m.modified,
+        isExternal: m.isExternal,
         exists: await modelDownloader.checkFileExists(m.path)
       })));
       
-      console.log('[ModelScreen] Found models:', modelsWithExistence);
-      setStoredModels(models);
+      console.log('[ModelScreen] Models with existence info:', modelsWithExistence);
+      
+      // Only show models that actually exist
+      const existingModels = validModels.filter((_, index) => modelsWithExistence[index].exists);
+      console.log('[ModelScreen] Final models list (existing only):', existingModels);
+      
+      setStoredModels(existingModels);
     } catch (error) {
       console.error('[ModelScreen] Error loading stored models:', error);
       Alert.alert(
@@ -863,46 +896,36 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
   }, [downloadProgress]);
 
   const handleDelete = (model: StoredModel) => {
-    console.log(`[ModelScreen] Attempting to delete model: ${model.name}, path: ${model.path}`);
-    
-    if (model.isExternal) {
-      // For imported models, just remove the linkage without confirmation
-      try {
-        console.log(`[ModelScreen] Removing linkage for external model: ${model.name}`);
-        modelDownloader.deleteModel(model.path);
-        loadStoredModels();
-      } catch (error) {
-        console.error(`[ModelScreen] Error removing linkage for model ${model.name}:`, error);
-        Alert.alert('Error', 'Failed to remove model linkage');
-      }
-    } else {
-      // For downloaded models, show confirmation dialog
-      Alert.alert(
-        'Delete Model',
-        `Are you sure you want to delete ${model.name}?`,
-        [
-          {
-            text: 'Cancel',
-            style: 'cancel',
-          },
-          {
-            text: 'Delete',
-            style: 'destructive',
-            onPress: async () => {
-              try {
-                console.log(`[ModelScreen] User confirmed deletion of model: ${model.name}`);
-                await modelDownloader.deleteModel(model.path);
-                console.log(`[ModelScreen] Model deleted, refreshing stored models list`);
-                await loadStoredModels();
-              } catch (error) {
-                console.error(`[ModelScreen] Error deleting model ${model.name}:`, error);
-                Alert.alert('Error', 'Failed to delete model');
-              }
-            },
-          },
-        ]
-      );
-    }
+    Alert.alert(
+      'Delete Model',
+      `Are you sure you want to delete ${getDisplayName(model.name)}?`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel'
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              console.log('[ModelScreen] Attempting to delete model:', {
+                name: model.name,
+                path: model.path,
+                isExternal: model.isExternal
+              });
+              
+              await modelDownloader.deleteModel(model.path);
+              console.log('[ModelScreen] Model deleted successfully');
+              await loadStoredModels(); // Refresh the list after deletion
+            } catch (error) {
+              console.error('[ModelScreen] Error deleting model:', error);
+              Alert.alert('Error', 'Failed to delete model');
+            }
+          }
+        }
+      ]
+    );
   };
 
   const getDisplayName = (filename: string) => {
@@ -953,21 +976,29 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
 
   // Add header component for the stored models list
   const StoredModelsHeader = () => (
-    <View style={styles.storedModelsHeader}>
-      <TouchableOpacity
-        style={[styles.customUrlButton, { backgroundColor: themeColors.borderColor }]}
+    <View style={styles.sectionHeader}>
+      <View style={styles.headingContainer}>
+        <Text style={[styles.sectionHeading, { color: themeColors.text }]}>Stored Models</Text>
+      </View>
+      
+      <Text style={[styles.sectionSubheading, { color: themeColors.secondaryText }]}>
+        Models stored on your device
+      </Text>
+      
+      <TouchableOpacity 
+        style={[styles.customUrlButton, { backgroundColor: themeColors.borderColor, marginTop: 12 }]}
         onPress={handleLinkModel}
       >
         <View style={styles.customUrlButtonContent}>
           <View style={styles.customUrlIconContainer}>
-            <Ionicons name="link-outline" size={24} color="#4a0660" />
+            <Ionicons name="link-outline" size={24} color={themeColors.primary} />
           </View>
           <View style={styles.customUrlTextContainer}>
             <Text style={[styles.customUrlButtonTitle, { color: themeColors.text }]}>
               Import Model
             </Text>
             <Text style={[styles.customUrlButtonSubtitle, { color: themeColors.secondaryText }]}>
-              Import a GGUF model from the storage
+              Import a GGUF model from storage
             </Text>
           </View>
         </View>
@@ -1002,6 +1033,9 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
             <></>
             )}
           </View>
+          <Text style={[styles.modelPath, { color: themeColors.secondaryText }]}>
+            {item.path}
+          </Text>
           <View style={styles.modelMetaInfo}>
             <View style={styles.metaItem}>
               <Ionicons name="disc-outline" size={14} color={themeColors.secondaryText} />
@@ -1054,11 +1088,22 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       // Force a check for completed downloads and refresh models
       const refreshModels = async () => {
         try {
+          console.log('[ModelScreen] Screen focused, refreshing models...');
+          
           // First check for any completed downloads in temp directory
           await modelDownloader.processCompletedDownloads();
           
+          // Force a refresh of the ModelDownloader's stored models cache
+          try {
+            await modelDownloader.refreshStoredModels();
+            console.log('[ModelScreen] Refreshed model downloader cache');
+          } catch (refreshError) {
+            console.error('[ModelScreen] Error refreshing model cache:', refreshError);
+          }
+          
           // Then reload the stored models list
           await loadStoredModels();
+          console.log('[ModelScreen] Models refreshed successfully');
         } catch (error) {
           console.error('[ModelScreen] Error refreshing models on focus:', error);
         }
@@ -1077,30 +1122,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     if (activeTab === 'stored') {
       console.log('[ModelScreen] Tab changed to stored, refreshing models');
       loadStoredModels();
-    }
-  }, [activeTab]);
-
-  // Add effect to periodically check for new models
-  useEffect(() => {
-    if (activeTab === 'stored') {
-      console.log('[ModelScreen] Setting up periodic refresh for stored models');
-      
-      // Check every 3 seconds for new models
-      const intervalId = setInterval(async () => {
-        try {
-          console.log('[ModelScreen] Periodic refresh checking for new models');
-          await modelDownloader.processCompletedDownloads();
-          await loadStoredModels();
-        } catch (error) {
-          console.error('[ModelScreen] Error in periodic refresh:', error);
-        }
-      }, 3000);
-      
-      // Clean up interval on unmount
-      return () => {
-        console.log('[ModelScreen] Clearing periodic refresh interval');
-        clearInterval(intervalId);
-      };
     }
   }, [activeTab]);
 
@@ -1549,17 +1570,23 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
   },
-  storedModelsHeader: {
-    paddingHorizontal: 16,
+  sectionHeader: {
+    padding: 16,
     paddingTop: 8,
     paddingBottom: 16,
   },
-  modelDescription: {
-    marginTop: 4,
-    marginBottom: 6,
+  headingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  sectionHeading: {
+    fontSize: 20,
+    fontWeight: '600',
+  },
+  sectionSubheading: {
     fontSize: 14,
-    lineHeight: 20,
-    color: 'rgba(255, 255, 255, 0.7)',
+    marginTop: 8,
   },
   modelItem: {
     flexDirection: 'row',
@@ -1653,5 +1680,13 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 12,
     fontWeight: '500',
+  },
+  modelPath: {
+    fontSize: 12,
+    marginTop: 2,
+    marginBottom: 4,
+    flexWrap: 'wrap',
+    flex: 1,
+    lineHeight: 16,
   },
 }); 

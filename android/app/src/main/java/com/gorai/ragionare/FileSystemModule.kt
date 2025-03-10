@@ -20,6 +20,7 @@ class FileSystemModule(reactContext: ReactApplicationContext) : ReactContextBase
     fun makeDirectoryAsync(path: String, options: ReadableMap, promise: Promise) {
         try {
             val intermediates = options.getBoolean("intermediates")
+            // Use internal storage for all files including models
             val file = File(context.filesDir, path)
 
             if (file.exists()) {
@@ -37,6 +38,7 @@ class FileSystemModule(reactContext: ReactApplicationContext) : ReactContextBase
             } else {
                 file.mkdir()
             }
+            Log.d(TAG, "Created directory at: ${file.absolutePath}")
             promise.resolve(null)
         } catch (e: Exception) {
             Log.e(TAG, "Error making directory: ${e.message}")
@@ -47,14 +49,27 @@ class FileSystemModule(reactContext: ReactApplicationContext) : ReactContextBase
     @ReactMethod
     fun readDirectoryAsync(path: String, promise: Promise) {
         try {
+            // Use internal storage for all files including models
             val directory = File(context.filesDir, path)
+            
+            Log.d(TAG, "Reading directory at: ${directory.absolutePath}")
+            
             if (!directory.exists() || !directory.isDirectory) {
+                Log.e(TAG, "Directory does not exist: ${directory.absolutePath}")
+                // Try to create it if it doesn't exist
+                try {
+                    directory.mkdirs()
+                    Log.d(TAG, "Created directory: ${directory.absolutePath}")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to create directory: ${e.message}")
+                }
                 promise.reject("ERR_FILESYSTEM", "Directory does not exist")
                 return
             }
 
             val files = directory.listFiles()
             if (files == null) {
+                Log.d(TAG, "Directory is empty or cannot be read: ${directory.absolutePath}")
                 promise.resolve(WritableNativeArray())
                 return
             }
@@ -62,7 +77,10 @@ class FileSystemModule(reactContext: ReactApplicationContext) : ReactContextBase
             val result = WritableNativeArray()
             files.forEach { file ->
                 result.pushString(file.name)
+                Log.d(TAG, "File found: ${file.name}, Size: ${file.length()} bytes, Path: ${file.absolutePath}")
             }
+            
+            Log.d(TAG, "Total files found: ${files.size}")
             promise.resolve(result)
         } catch (e: Exception) {
             Log.e(TAG, "Error reading directory: ${e.message}")
@@ -73,16 +91,41 @@ class FileSystemModule(reactContext: ReactApplicationContext) : ReactContextBase
     @ReactMethod
     fun getInfoAsync(path: String, options: ReadableMap, promise: Promise) {
         try {
+            // Use internal storage for all files including models
             val file = File(context.filesDir, path)
+            
+            Log.d(TAG, "Getting info for file at: ${file.absolutePath}")
+            
             val result = WritableNativeMap()
 
             result.putBoolean("exists", file.exists())
+            
+            // Log detailed information about the file
             if (file.exists()) {
+                Log.d(TAG, "File exists: ${file.absolutePath}")
+                Log.d(TAG, "File details - Name: ${file.name}, Size: ${file.length()} bytes, Directory: ${file.isDirectory}, Last Modified: ${file.lastModified()}")
+                
                 result.putBoolean("isDirectory", file.isDirectory)
                 if (options.getBoolean("size")) {
                     result.putDouble("size", file.length().toDouble())
                 }
                 result.putDouble("modificationTime", file.lastModified().toDouble())
+            } else {
+                Log.d(TAG, "File does not exist: ${file.absolutePath}")
+                
+                // Try to find similar files in the same directory
+                val parentDir = file.parentFile
+                if (parentDir != null && parentDir.exists() && parentDir.isDirectory) {
+                    val siblings = parentDir.listFiles()
+                    if (siblings != null && siblings.isNotEmpty()) {
+                        Log.d(TAG, "Files in the same directory:")
+                        siblings.forEach { sibling ->
+                            Log.d(TAG, "  - ${sibling.name} (${sibling.length()} bytes)")
+                        }
+                    } else {
+                        Log.d(TAG, "No other files found in the directory")
+                    }
+                }
             }
 
             promise.resolve(result)

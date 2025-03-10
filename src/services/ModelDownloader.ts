@@ -8,6 +8,17 @@ console.log('Available Native Modules:', Object.keys(NativeModules));
 console.log('ModelDownloaderModule:', NativeModules.ModelDownloaderModule);
 console.log('FileSystemModule:', NativeModules.FileSystemModule);
 
+// Extract modules with verification
+const ModelDownloaderModule = NativeModules.ModelDownloaderModule as ModelDownloaderModuleType;
+if (!ModelDownloaderModule) {
+  console.error('ModelDownloaderModule not found! App will have limited functionality.');
+}
+
+const FileSystemModule = NativeModules.FileSystemModule as FileSystemModuleType;
+if (!FileSystemModule) {
+  console.error('FileSystemModule not found! App will have limited functionality.');
+}
+
 // Define types for our native modules
 interface ModelDownloaderModuleType {
   downloadModel: (url: string, modelName: string) => Promise<{ downloadId: string }>;
@@ -35,8 +46,6 @@ interface DownloadNotificationModuleInterface {
 }
 
 // Get the native modules with proper typing
-const ModelDownloaderModule = NativeModules.ModelDownloaderModule as ModelDownloaderModuleType;
-const FileSystemModule = NativeModules.FileSystemModule as FileSystemModuleType;
 const DownloadNotificationModule = NativeModules.DownloadNotificationModule as DownloadNotificationModuleInterface;
 
 // Create event emitter for native module events
@@ -180,8 +189,12 @@ class ModelDownloader extends EventEmitter {
 
   constructor() {
     super();
-    this.baseDir = `${FileSystemModule.documentDirectory}/models/`;
-    this.downloadDir = `${FileSystemModule.cacheDirectory}/temp/`;
+    this.baseDir = 'models';  // Path relative to internal storage root
+    this.downloadDir = 'temp'; // Path for temporary downloads
+    
+    console.log('[ModelDownloader] Initializing with base directory:', this.baseDir);
+    console.log('[ModelDownloader] Platform:', Platform.OS);
+    
     this.nativeEventEmitter = new NativeEventEmitter(NativeModules.ModelDownloaderModule);
     this.initialize();
   }
@@ -877,6 +890,7 @@ class ModelDownloader extends EventEmitter {
   async getStoredModels(): Promise<StoredModel[]> {
     try {
       console.log('[ModelDownloader] Getting stored models from directory:', this.baseDir);
+      console.log('[ModelDownloader] Current platform:', Platform.OS);
       
       // First ensure the directory exists
       const dirInfo = await FileSystemModule.getInfoAsync(this.baseDir, { size: false });
@@ -910,11 +924,24 @@ class ModelDownloader extends EventEmitter {
               size = fileInfo.size || 0;
               console.log(`[ModelDownloader] File ${name} exists with size: ${size} bytes`);
             } else {
-              console.log(`[ModelDownloader] File ${name} does not exist`);
+              console.log(`[ModelDownloader] File ${name} does not exist, trying alternate path verification`);
+              try {
+                // Try additional path verification for Android internal storage
+                const alternatePath = `${this.baseDir}/${name.replace(/\s/g, '_')}`;
+                const alternateInfo = await FileSystemModule.getInfoAsync(alternatePath, { size: true });
+                if (alternateInfo.exists) {
+                  size = alternateInfo.size || 0;
+                  console.log(`[ModelDownloader] File found with alternate path: ${alternatePath}, size: ${size} bytes`);
+                }
+              } catch (e) {
+                console.log('[ModelDownloader] Error checking alternate path:', e);
+              }
             }
             
-            // Use current time as modification time
-            const modified = new Date().toISOString();
+            // Use current time as modification time if not available
+            const modified = fileInfo.modificationTime ? 
+              new Date(fileInfo.modificationTime).toISOString() : 
+              new Date().toISOString();
             
             const model = {
               name,
@@ -957,13 +984,54 @@ class ModelDownloader extends EventEmitter {
         return;
       }
       
-      // Otherwise it's a local model, delete the file
-      const fileInfo = await FileSystemModule.getInfoAsync(path, { size: false });
-      if (fileInfo.exists) {
-        await FileSystemModule.deleteAsync(path, { idempotent: true });
-        console.log('[ModelDownloader] Deleted model file:', path);
+      // Get just the filename from the path
+      const filename = path.split('/').pop() || path;
+      console.log('[ModelDownloader] Filename to delete:', filename);
+      
+      // For Android, try multiple possible paths
+      if (Platform.OS === 'android') {
+        // First try with just the filename (FileSystemModule prepends app's files directory)
+        let fileInfo = await FileSystemModule.getInfoAsync(filename, { size: false });
+        console.log('[ModelDownloader] Checking path (filename only):', filename, fileInfo);
+        
+        if (fileInfo.exists) {
+          await FileSystemModule.deleteAsync(filename, { idempotent: true });
+          console.log('[ModelDownloader] Successfully deleted model file:', filename);
+        } else {
+          // Try with the full path in the models directory
+          const fullPath = `${this.baseDir}/${filename}`;
+          fileInfo = await FileSystemModule.getInfoAsync(fullPath, { size: false });
+          console.log('[ModelDownloader] Checking path (full path):', fullPath, fileInfo);
+          
+          if (fileInfo.exists) {
+            await FileSystemModule.deleteAsync(fullPath, { idempotent: true });
+            console.log('[ModelDownloader] Successfully deleted model file using full path:', fullPath);
+          } else {
+            // Try with the original path
+            fileInfo = await FileSystemModule.getInfoAsync(path, { size: false });
+            console.log('[ModelDownloader] Checking path (original path):', path, fileInfo);
+            
+            if (fileInfo.exists) {
+              await FileSystemModule.deleteAsync(path, { idempotent: true });
+              console.log('[ModelDownloader] Successfully deleted model file using original path:', path);
+            } else {
+              console.log('[ModelDownloader] Model file not found at any path');
+              throw new Error('Model file not found');
+            }
+          }
+        }
       } else {
-        console.log('[ModelDownloader] Model file not found:', path);
+        // For other platforms, use the original path
+        const fileInfo = await FileSystemModule.getInfoAsync(path, { size: false });
+        console.log('[ModelDownloader] Checking path:', path, fileInfo);
+        
+        if (fileInfo.exists) {
+          await FileSystemModule.deleteAsync(path, { idempotent: true });
+          console.log('[ModelDownloader] Successfully deleted model file:', path);
+        } else {
+          console.log('[ModelDownloader] Model file not found');
+          throw new Error('Model file not found');
+        }
       }
       
       // Emit event to notify listeners
