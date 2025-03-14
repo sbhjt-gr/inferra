@@ -40,7 +40,31 @@ export default function DownloadsScreen() {
   const insets = useSafeAreaInsets();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(false);
+  const [isFetchingUrl, setIsFetchingUrl] = useState(false);
   const fadeAnim = useRef(new RN.Animated.Value(1)).current;
+  const spinAnim = useRef(new RN.Animated.Value(0)).current;
+
+  // Create spinning animation
+  useEffect(() => {
+    if (isProcessing || isInitializing || isFetchingUrl) {
+      const spin = RN.Animated.loop(
+        RN.Animated.timing(spinAnim, {
+          toValue: 1,
+          duration: 1500,
+          easing: RN.Easing.linear,
+          useNativeDriver: true,
+        })
+      );
+      spin.start();
+      return () => spin.stop();
+    }
+  }, [isProcessing, isInitializing, isFetchingUrl]);
+
+  const spin = spinAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
 
   // Memoize the downloads array to prevent unnecessary re-renders
   const downloads = React.useMemo<DownloadItem[]>(() => {
@@ -135,6 +159,12 @@ export default function DownloadsScreen() {
           );
         }, 500);
         
+        return;
+      }
+
+      // Handle URL fetched event
+      if (data.source === 'url_fetched') {
+        setIsFetchingUrl(false);
         return;
       }
       
@@ -368,6 +398,8 @@ export default function DownloadsScreen() {
     
     try {
       setIsProcessing(true);
+      setIsInitializing(!isPaused); // Show initializing dialog when resuming
+      setIsFetchingUrl(!isPaused); // Show URL fetching state when resuming
       
       if (isPaused) {
         const result = await modelDownloader.resumeDownload(downloadId);
@@ -401,6 +433,8 @@ export default function DownloadsScreen() {
       RN.Alert.alert('Error', 'Failed to pause/resume download');
     } finally {
       setIsProcessing(false);
+      setIsInitializing(false);
+      // Don't reset isFetchingUrl here - it will be reset when we receive the url_fetched event
     }
   }, [isProcessing, updateDownload]);
 
@@ -486,17 +520,6 @@ export default function DownloadsScreen() {
           />
         </RN.TouchableOpacity>
         <RN.Text style={styles.headerTitle}>Active Downloads</RN.Text>
-        <RN.TouchableOpacity 
-          style={styles.refreshButton}
-          onPress={refreshDownloads}
-          disabled={isRefreshing || isProcessing}
-        >
-          <Ionicons 
-            name="refresh" 
-            size={24} 
-            color={isRefreshing || isProcessing ? "rgba(255,255,255,0.5)" : "#fff"} 
-          />
-        </RN.TouchableOpacity>
       </RN.View>
       
       <RN.View style={[styles.content, { backgroundColor: themeColors.background }]}>
@@ -520,10 +543,17 @@ export default function DownloadsScreen() {
         />
       </RN.View>
       
-      {isProcessing && (
+      {(isProcessing || isInitializing || isFetchingUrl) && (
         <RN.View style={styles.processingOverlay}>
           <RN.View style={styles.loadingIndicator}>
-            <Ionicons name="refresh" size={24} color="#fff" />
+            <RN.Animated.View style={{ transform: [{ rotate: spin }] }}>
+              <Ionicons name="ellipsis-horizontal" size={28} color="#fff" />
+            </RN.Animated.View>
+            <RN.Text style={styles.loadingText}>
+              {isFetchingUrl ? 'Preparing' : 
+               isInitializing ? 'Starting' : 
+               'Processing'}
+            </RN.Text>
           </RN.View>
         </RN.View>
       )}
@@ -547,10 +577,6 @@ const styles = RN.StyleSheet.create({
   backButton: {
     padding: 8,
     marginRight: 16,
-  },
-  refreshButton: {
-    padding: 8,
-    marginLeft: 'auto',
   },
   headerTitle: {
     fontSize: 20,
@@ -624,8 +650,23 @@ const styles = RN.StyleSheet.create({
     alignItems: 'center',
   },
   loadingIndicator: {
-    backgroundColor: '#4a0660',
+    backgroundColor: 'rgba(0,0,0,0.7)',
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    minWidth: 140,
+    justifyContent: 'center',
   },
+  loadingText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '400',
+    textAlign: 'center',
+  },
+  loadingSpinner: {
+    width: 28,
+    height: 28,
+  }
 }); 

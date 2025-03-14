@@ -50,7 +50,10 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
 
     const loadModels = async () => {
       try {
+        console.log('[ModelSelector] Loading stored models...');
         const storedModels = await modelDownloader.getStoredModels();
+        console.log('[ModelSelector] Retrieved stored models:', storedModels);
+        
         // Filter out any models that are still being downloaded
         const downloadStates = await AsyncStorage.getItem('active_downloads');
         const activeDownloads = downloadStates ? JSON.parse(downloadStates) : {};
@@ -62,37 +65,34 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
               download.filename === model.name && 
               download.status !== 'completed'
           );
-          return !isDownloading;
+          const exists = model.path && model.path.trim() !== '';
+          return !isDownloading && exists;
         });
         
+        console.log('[ModelSelector] Filtered models:', completedModels);
         setModels(completedModels);
       } catch (error) {
-        console.error('Error loading models:', error);
+        console.error('[ModelSelector] Error loading models:', error);
       }
     };
 
+    // Add effect to listen for model changes
     useEffect(() => {
-      loadModels();
+      console.log('[ModelSelector] Setting up model change listener');
+      modelDownloader.on('modelsChanged', loadModels);
+      
+      return () => {
+        console.log('[ModelSelector] Cleaning up model change listener');
+        modelDownloader.removeListener('modelsChanged', loadModels);
+      };
     }, []);
 
-    // Add effect to refresh models when downloads change
+    // Initial load and periodic refresh
     useEffect(() => {
-      const checkDownloads = async () => {
-        const downloadStates = await AsyncStorage.getItem('active_downloads');
-        if (downloadStates) {
-          const downloads = JSON.parse(downloadStates);
-          // If any download just completed, refresh the model list
-          const hasCompletedDownload = Object.values(downloads).some(
-            (download: any) => download.status === 'completed'
-          );
-          if (hasCompletedDownload) {
-            loadModels();
-          }
-        }
-      };
-
-      // Check downloads every 2 seconds
-      const interval = setInterval(checkDownloads, 2000);
+      loadModels();
+      
+      // Refresh models list periodically
+      const interval = setInterval(loadModels, 5000);
       return () => clearInterval(interval);
     }, []);
 

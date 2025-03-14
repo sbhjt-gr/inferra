@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   StyleSheet,
   View,
@@ -14,6 +14,8 @@ import {
   ScrollView,
   Animated,
   Platform,
+  AppState,
+  AppStateStatus,
 } from 'react-native';
 import { CompositeNavigationProp, useFocusEffect } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
@@ -366,9 +368,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
   };
 
   const handleCustomDownload = async (downloadId: number, modelName: string) => {
-    // Navigate to Downloads screen immediately
-    navigation.navigate('Downloads');
-    
     // Add to download progress tracking with the full filename
     setDownloadProgress(prev => ({
       ...prev,
@@ -470,9 +469,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         );
         return;
       }
-
-      // Navigate to Downloads screen immediately
-      navigation.navigate('Downloads');
       
       try {
         setInitializingDownloads(prev => ({ ...prev, [model.name]: true }));
@@ -792,7 +788,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     }
   };
 
-  // Update the useEffect for download progress
+  // Update the effect that handles download progress
   useEffect(() => {
     const handleProgress = async ({ modelName, ...progress }: { 
       modelName: string;
@@ -802,14 +798,66 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       status: string;
       downloadId: number;
       error?: string;
+      source?: string; // Add source field to handle notification events
     }) => {
       const filename = modelName.split('/').pop() || modelName;
       
-      console.log(`[ModelScreen] Download progress for ${filename}:`, progress.status, progress.progress);
+      console.log(`[ModelScreen] Download progress for ${filename}:`, progress.status, progress.progress, progress.source || 'app');
       
       const bytesDownloaded = typeof progress.bytesDownloaded === 'number' ? progress.bytesDownloaded : 0;
       const totalBytes = typeof progress.totalBytes === 'number' ? progress.totalBytes : 0;
       const progressValue = typeof progress.progress === 'number' ? progress.progress : 0;
+
+      // Handle notification resume event
+      if (progress.source === 'notification_resume') {
+        console.log(`[ModelScreen] Handling notification resume for ${filename}`);
+        
+        setDownloadProgress(prev => ({
+          ...prev,
+          [filename]: {
+            progress: progressValue,
+            bytesDownloaded,
+            totalBytes,
+            status: 'downloading',
+            isPaused: false,
+            downloadId: progress.downloadId
+          }
+        }));
+        
+        return;
+      }
+      
+      // Handle notification pause event
+      if (progress.source === 'notification_pause') {
+        console.log(`[ModelScreen] Handling notification pause for ${filename}`);
+        
+        setDownloadProgress(prev => ({
+          ...prev,
+          [filename]: {
+            progress: progressValue,
+            bytesDownloaded,
+            totalBytes,
+            status: 'paused',
+            isPaused: true,
+            downloadId: progress.downloadId
+          }
+        }));
+        
+        return;
+      }
+      
+      // Handle notification cancel event
+      if (progress.source === 'notification_cancel') {
+        console.log(`[ModelScreen] Handling notification cancel for ${filename}`);
+        
+        setDownloadProgress(prev => {
+          const newProgress = { ...prev };
+          delete newProgress[filename];
+          return newProgress;
+        });
+        
+        return;
+      }
 
       if (progress.status === 'completed') {
         console.log(`[ModelScreen] Download completed for ${filename}`);
@@ -872,17 +920,42 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       }
     };
 
+    // Handle download ID changed events
+    const handleDownloadIdChanged = (data: any) => {
+      console.log(`[ModelScreen] Download ID changed from ${data.oldDownloadId} to ${data.newDownloadId} for ${data.modelName}`);
+      
+      const modelName = data.modelName.split('/').pop() || data.modelName;
+      
+      setDownloadProgress(prev => {
+        if (!prev[modelName]) return prev;
+        
+        return {
+          ...prev,
+          [modelName]: {
+            ...prev[modelName],
+            downloadId: parseInt(data.newDownloadId),
+            isPaused: false,
+            status: 'downloading'
+          }
+        };
+      });
+    };
+
     loadStoredModels();
     
     // Remove any existing listeners before adding new ones
     modelDownloader.removeAllListeners('downloadProgress');
     modelDownloader.removeAllListeners('modelsChanged');
+    modelDownloader.removeAllListeners('downloadIdChanged');
     
     // Listen for download progress events
     modelDownloader.on('downloadProgress', handleProgress);
     
     // Listen for model changes
     modelDownloader.on('modelsChanged', loadStoredModels);
+    
+    // Listen for download ID changed events
+    modelDownloader.on('downloadIdChanged', handleDownloadIdChanged);
     
     // Set up background task
     registerBackgroundTask();
@@ -891,6 +964,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       // Clean up all listeners
       modelDownloader.removeAllListeners('downloadProgress');
       modelDownloader.removeAllListeners('modelsChanged');
+      modelDownloader.removeAllListeners('downloadIdChanged');
     };
   }, []);
 
@@ -1712,6 +1786,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   actionButton: {
-    padding: 4,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
   },
 }); 

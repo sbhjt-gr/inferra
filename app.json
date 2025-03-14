@@ -13,8 +13,13 @@
       "infoPlist": {
         "UIBackgroundModes": [
           "fetch",
+          "remote-notification",
+          "fetch",
           "remote-notification"
         ]
+      },
+      "runtimeVersion": {
+        "policy": "appVersion"
       }
     },
     "android": {
@@ -26,8 +31,13 @@
         "NOTIFICATIONS",
         "BACKGROUND_FETCH",
         "WAKE_LOCK",
+        "FOREGROUND_SERVICE",
+        "NOTIFICATIONS",
+        "BACKGROUND_FETCH",
+        "WAKE_LOCK",
         "FOREGROUND_SERVICE"
-      ]
+      ],
+      "runtimeVersion": "1.0.0"
     },
     "web": {
       "bundler": "metro",
@@ -52,6 +62,9 @@
       "eas": {
         "projectId": "50d677ee-fa44-4d42-afa7-942b1e1223e7"
       }
+    },
+    "updates": {
+      "url": "https://u.expo.dev/50d677ee-fa44-4d42-afa7-942b1e1223e7"
     }
   }
 }
