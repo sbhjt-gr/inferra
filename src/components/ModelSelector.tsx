@@ -89,8 +89,8 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
 
     // Initial load and periodic refresh
     useEffect(() => {
-      loadModels();
-      
+            loadModels();
+
       // Refresh models list periodically
       const interval = setInterval(loadModels, 5000);
       return () => clearInterval(interval);
