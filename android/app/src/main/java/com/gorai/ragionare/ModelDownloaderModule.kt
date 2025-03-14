@@ -101,6 +101,7 @@ class ModelDownloaderModule(reactContext: ReactApplicationContext) : ReactContex
                 putDouble("bytesDownloaded", downloadInfo.bytesDownloaded.toDouble())
                 putDouble("totalBytes", downloadInfo.totalBytes.toDouble())
                 putBoolean("isPaused", true)
+                putString("source", "app") // Indicate source of action
             }
             sendEventFromBackground("downloadProgress", params)
             
@@ -113,6 +114,7 @@ class ModelDownloaderModule(reactContext: ReactApplicationContext) : ReactContex
     @ReactMethod
     fun resumeDownload(downloadId: String, promise: Promise) {
         try {
+            println("ModelDownloaderModule: Resuming download $downloadId")
             val id = downloadId.toLong()
             val downloadInfo = pausedDownloads[id] ?: throw Exception("Paused download not found")
             
@@ -132,6 +134,7 @@ class ModelDownloaderModule(reactContext: ReactApplicationContext) : ReactContex
             
             // Start new download
             val newDownloadId = downloadManager.enqueue(request)
+            println("ModelDownloaderModule: Created new download with ID $newDownloadId")
             
             // Update tracking with new download ID
             val newDownloadInfo = DownloadInfo(
@@ -150,6 +153,17 @@ class ModelDownloaderModule(reactContext: ReactApplicationContext) : ReactContex
             // Start progress monitoring
             startProgressMonitoring(newDownloadId)
             
+            // Always emit ID changed event if IDs are different
+            if (id != newDownloadId) {
+                val idChangeParams = Arguments.createMap().apply {
+                    putString("modelName", downloadInfo.modelName)
+                    putString("oldDownloadId", id.toString())
+                    putString("newDownloadId", newDownloadId.toString())
+                }
+                sendEventFromBackground("downloadIdChanged", idChangeParams)
+                println("ModelDownloaderModule: Emitted downloadIdChanged event from $id to $newDownloadId")
+            }
+            
             // Emit resumed status
             val params = Arguments.createMap().apply {
                 putString("modelName", newDownloadInfo.modelName)
@@ -159,27 +173,171 @@ class ModelDownloaderModule(reactContext: ReactApplicationContext) : ReactContex
                 putDouble("bytesDownloaded", newDownloadInfo.bytesDownloaded.toDouble())
                 putDouble("totalBytes", newDownloadInfo.totalBytes.toDouble())
                 putBoolean("isPaused", false)
+                putString("status", "downloading")
+                putString("source", "app")
             }
             sendEventFromBackground("downloadProgress", params)
+            println("ModelDownloaderModule: Emitted downloadProgress event for resumed download")
             
             promise.resolve(Arguments.createMap().apply {
                 putString("downloadId", newDownloadId.toString())
             })
         } catch (e: Exception) {
+            println("ModelDownloaderModule: Error resuming download: ${e.message}")
             promise.reject("RESUME_ERROR", "Failed to resume download: ${e.message}")
         }
+    }
+
+    // Method to resume download directly from notification
+    fun resumeDownloadFromNotification(downloadId: String, modelName: String): String {
+        println("ModelDownloaderModule: Resuming download $downloadId from notification")
+        val id = downloadId.toLong()
+        
+        // First check if this download is in our paused list
+        val downloadInfo = pausedDownloads[id] ?: run {
+            // If not in paused list, check if it's in active downloads
+            val activeInfo = activeDownloads.values.find { it.downloadId == downloadId }
+            if (activeInfo != null) {
+                // Already active, just emit an event to update UI
+                val params = Arguments.createMap().apply {
+                    putString("modelName", modelName)
+                    putString("downloadId", downloadId)
+                    putInt("progress", activeInfo.progress)
+                    putBoolean("isCompleted", false)
+                    putBoolean("isPaused", false)
+                    putString("source", "notification_resume")
+                    putString("status", "downloading")
+                }
+                sendEventFromBackground("downloadProgress", params)
+                return downloadId
+            }
+            
+            // Not found in either list, throw exception
+            throw Exception("Download not found for ID $downloadId")
+        }
+        
+        // Create a new download request with Range header to continue from where we left off
+        val request = DownloadManager.Request(Uri.parse(downloadInfo.url))
+            .setTitle("Downloading ${downloadInfo.modelName}")
+            .setDescription("Downloading model file")
+            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE)
+            .setDestinationInExternalFilesDir(reactApplicationContext, null, "temp_${downloadInfo.modelName}")
+            .setAllowedOverMetered(true)
+            .setAllowedOverRoaming(true)
+        
+        // Add range header only if we've downloaded some bytes
+        if (downloadInfo.bytesDownloaded > 0) {
+            request.addRequestHeader("Range", "bytes=${downloadInfo.bytesDownloaded}-")
+        }
+        
+        // Start new download
+        val newDownloadId = downloadManager.enqueue(request)
+        println("ModelDownloaderModule: Created new download with ID $newDownloadId from notification")
+        
+        // Update tracking with new download ID
+        val newDownloadInfo = DownloadInfo(
+            modelName = downloadInfo.modelName,
+            downloadId = newDownloadId.toString(),
+            destination = downloadInfo.destination,
+            url = downloadInfo.url,
+            bytesDownloaded = downloadInfo.bytesDownloaded,
+            totalBytes = downloadInfo.totalBytes,
+            progress = downloadInfo.progress
+        )
+        
+        activeDownloads[newDownloadId] = newDownloadInfo
+        pausedDownloads.remove(id)
+        
+        // Start progress monitoring
+        startProgressMonitoring(newDownloadId)
+        
+        // Always emit ID changed event if IDs are different
+        if (id != newDownloadId) {
+            val idChangeParams = Arguments.createMap().apply {
+                putString("modelName", downloadInfo.modelName)
+                putString("oldDownloadId", id.toString())
+                putString("newDownloadId", newDownloadId.toString())
+            }
+            sendEventFromBackground("downloadIdChanged", idChangeParams)
+            println("ModelDownloaderModule: Emitted downloadIdChanged event from $id to $newDownloadId")
+        }
+        
+        // Emit resumed status with notification source
+        val params = Arguments.createMap().apply {
+            putString("modelName", newDownloadInfo.modelName)
+            putString("downloadId", newDownloadId.toString())
+            putInt("progress", newDownloadInfo.progress)
+            putBoolean("isCompleted", false)
+            putDouble("bytesDownloaded", newDownloadInfo.bytesDownloaded.toDouble())
+            putDouble("totalBytes", newDownloadInfo.totalBytes.toDouble())
+            putBoolean("isPaused", false)
+            putString("status", "downloading")
+            putString("source", "notification_resume")
+        }
+        sendEventFromBackground("downloadProgress", params)
+        println("ModelDownloaderModule: Emitted downloadProgress event for resumed download from notification")
+        
+        return newDownloadId.toString()
     }
 
     @ReactMethod
     fun cancelDownload(downloadId: String, promise: Promise) {
         try {
             val id = downloadId.toLong()
+            val downloadInfo = activeDownloads[id] ?: pausedDownloads[id] ?: null
+            
+            // Always remove from download manager
             downloadManager.remove(id)
+            
+            // Clean up our tracking
             activeDownloads.remove(id)
             pausedDownloads.remove(id)
+            
+            // Emit canceled event if we have download info and it's from the app
+            // (notification cancels are handled separately)
+            if (downloadInfo != null) {
+                val params = Arguments.createMap().apply {
+                    putString("modelName", downloadInfo.modelName)
+                    putString("downloadId", downloadId)
+                    putString("source", "app") // Indicate source of action
+                }
+                sendEventFromBackground("downloadCanceled", params)
+            }
+            
             promise.resolve(true)
         } catch (e: Exception) {
             promise.reject("CANCEL_ERROR", "Failed to cancel download: ${e.message}")
+        }
+    }
+
+    // Add a method to handle notification actions
+    @ReactMethod
+    fun handleNotificationAction(action: String, downloadId: String, promise: Promise) {
+        when (action) {
+            "pause" -> pauseDownload(downloadId, promise)
+            "resume" -> resumeDownload(downloadId, promise)
+            "cancel" -> {
+                // For notification cancels, we need special handling
+                try {
+                    val id = downloadId.toLong()
+                    val downloadInfo = activeDownloads[id] ?: pausedDownloads[id] ?: null
+                    
+                    // First remove from download manager
+                    downloadManager.remove(id)
+                    
+                    // Clean up our tracking
+                    activeDownloads.remove(id)
+                    pausedDownloads.remove(id)
+                    
+                    // Unlike regular cancel, we DON'T emit an event here
+                    // because the notification receiver will handle that
+                    
+                    promise.resolve(true)
+                } catch (e: Exception) {
+                    promise.reject("CANCEL_ERROR", "Failed to handle notification cancel: ${e.message}")
+                }
+            }
+            else -> promise.reject("INVALID_ACTION", "Invalid notification action")
         }
     }
 
@@ -258,6 +416,49 @@ class ModelDownloaderModule(reactContext: ReactApplicationContext) : ReactContex
                                 sendEventFromBackground("downloadProgress", params)
                             }
                         }
+                        DownloadManager.STATUS_PENDING -> {
+                            // Do nothing for pending downloads, just wait
+                        }
+                        else -> {
+                            // Handle any other status - mostly just log it
+                            println("ModelDownloader: Unknown download status: $status for ${downloadInfo.modelName}")
+                        }
+                    }
+                } else {
+                    // If the cursor is empty, the download might have been removed
+                    // Check if this was our own cancellation or external
+                    activeDownloads[downloadId]?.let { info ->
+                        // Emit cancellation event for external cancellations
+                        val params = Arguments.createMap().apply {
+                            putString("modelName", info.modelName)
+                            putString("downloadId", downloadId.toString())
+                            putString("source", "system")
+                        }
+                        sendEventFromBackground("downloadCanceled", params)
+                        
+                        // Clean up our tracking
+                        activeDownloads.remove(downloadId)
+                        pausedDownloads.remove(downloadId)
+                        downloading = false
+                    }
+                    
+                    pausedDownloads[downloadId]?.let { info ->
+                        // Emit cancellation event for external cancellations
+                        val params = Arguments.createMap().apply {
+                            putString("modelName", info.modelName)
+                            putString("downloadId", downloadId.toString())
+                            putString("source", "system")
+                        }
+                        sendEventFromBackground("downloadCanceled", params)
+                        
+                        // Clean up our tracking
+                        pausedDownloads.remove(downloadId)
+                        downloading = false
+                    }
+                    
+                    if (activeDownloads[downloadId] == null && pausedDownloads[downloadId] == null) {
+                        // Download not found at all, stop monitoring
+                        downloading = false
                     }
                 }
                 cursor.close()

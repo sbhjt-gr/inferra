@@ -64,6 +64,7 @@ interface DownloadProgressEvent {
   isCompleted: boolean;
   isPaused?: boolean;
   error?: string;
+  source?: string; // Add source field for notification actions
 }
 
 interface DownloadErrorEvent {
@@ -186,6 +187,7 @@ class ModelDownloader extends EventEmitter {
   private readonly baseDir: string;
   private readonly downloadDir: string;
   private activeDownloads: Map<string, DownloadTaskInfo> = new Map();
+  private pausedDownloadIds: Set<number> = new Set(); // Track paused download IDs
   private nextDownloadId = 1;
   private appState: string = AppState.currentState;
   private isInitialized: boolean = false;
@@ -200,14 +202,49 @@ class ModelDownloader extends EventEmitter {
 
   constructor() {
     super();
-    this.baseDir = 'models';  // Path relative to internal storage root
-    this.downloadDir = 'temp'; // Path for temporary downloads
     
-    console.log('[ModelDownloader] Initializing with base directory:', this.baseDir);
-    console.log('[ModelDownloader] Platform:', Platform.OS);
+    // Initialize base paths
+    this.baseDir = Platform.OS === 'android' 
+      ? 'models' // Path relative to internal storage root
+      : 'Documents/models/';
+    this.downloadDir = Platform.OS === 'android'
+      ? 'temp' // Path for temporary downloads
+      : 'Documents/temp/';
     
-    this.nativeEventEmitter = new NativeEventEmitter(NativeModules.ModelDownloaderModule);
-    this.initialize();
+    // Setup event handlers for native events
+    this.setupNativeEventHandlers();
+    
+    // Initialize system
+    this.initialize().catch(error => 
+      console.error('Error initializing ModelDownloader:', error)
+    );
+  }
+
+  private setupNativeEventHandlers() {
+    try {
+      if (Platform.OS === 'android' || Platform.OS === 'ios') {
+        if (!this.nativeEventEmitter) {
+          this.nativeEventEmitter = new NativeEventEmitter(ModelDownloaderModule);
+        }
+        
+        // Listen for download progress events
+        this.nativeEventEmitter.addListener('downloadProgress', this.handleNativeDownloadProgress);
+        
+        // Listen for download error events
+        this.nativeEventEmitter.addListener('downloadError', this.handleNativeDownloadError);
+        
+        // Listen for download canceled events
+        this.nativeEventEmitter.addListener('downloadCanceled', this.handleNativeDownloadCanceled);
+        
+        // Listen for download ID changed events
+        this.nativeEventEmitter.addListener('downloadIdChanged', this.handleNativeDownloadIdChanged);
+        
+        // Log that we've set up event handlers
+        console.log('[ModelDownloader] Native event handlers set up successfully');
+      }
+    } catch (error) {
+      console.error('Error setting up native event handlers:', error);
+    }
   }
 
   private async initialize() {
@@ -250,17 +287,62 @@ class ModelDownloader extends EventEmitter {
   }
 
   private handleNativeDownloadProgress = (event: DownloadProgressEvent) => {
-    const { modelName, downloadId, progress, bytesDownloaded, totalBytes, isCompleted, isPaused, error } = event;
+    const { modelName, downloadId, progress, bytesDownloaded, totalBytes, isCompleted, isPaused, error, source } = event;
     const filename = modelName.split('/').pop() || modelName;
     const existingDownload = this.activeDownloads.get(filename);
     
+    // Add source check for notification actions
+    if (source && source.startsWith('notification_')) {
+      // Handle notification source events differently
+      const status = source === 'notification_pause' ? 'paused' :
+                    source === 'notification_resume' ? 'downloading' :
+                    source === 'notification_cancel' ? 'failed' :
+                    error ? 'failed' : 
+                    isCompleted ? 'completed' : 
+                    isPaused ? 'paused' : 'downloading';
+
+      const downloadInfo: DownloadTaskInfo = {
+        ...existingDownload,
+        downloadId: parseInt(downloadId.toString()),
+        modelName: filename,
+        progress: Math.min(100, Math.max(0, progress)),
+        bytesDownloaded: Math.max(0, bytesDownloaded),
+        totalBytes: Math.max(0, totalBytes),
+        status,
+        isPaused: status === 'paused',
+        error: status === 'failed' ? error || 'Cancelled from notification' : error,
+        lastUpdated: Date.now()
+      };
+
+      // For notification cancellations, clean up and emit events
+      if (source === 'notification_cancel') {
+        this.activeDownloads.delete(filename);
+        this.emit('downloadCanceled', {
+          modelName: filename,
+          downloadId: parseInt(downloadId),
+          source: 'notification'
+        });
+      } else {
+        this.activeDownloads.set(filename, downloadInfo);
+        
+        // Emit progress event with notification source
+        this.emit('downloadProgress', {
+          ...downloadInfo,
+          source: source // Include the notification source in the event
+        });
+      }
+      
+      return;
+    }
+
+    // Handle regular progress events
     const validProgress = Math.min(100, Math.max(0, progress));
     const validBytesDownloaded = Math.max(0, bytesDownloaded);
     const validTotalBytes = Math.max(0, totalBytes);
     
     const status = error ? 'failed' : 
-                  isCompleted ? 'completed' : 
-                  isPaused ? 'paused' : 'downloading';
+                 isCompleted ? 'completed' : 
+                 isPaused ? 'paused' : 'downloading';
 
     const downloadInfo: DownloadTaskInfo = {
       ...existingDownload,
@@ -284,7 +366,6 @@ class ModelDownloader extends EventEmitter {
 
     // Emit progress event
     this.emit('downloadProgress', {
-      modelName: filename,
       ...downloadInfo
     });
   };
@@ -303,6 +384,33 @@ class ModelDownloader extends EventEmitter {
     });
 
     this.activeDownloads.delete(modelName);
+  };
+
+  private handleNativeDownloadCanceled = (event: any) => {
+    const { modelName, downloadId, source } = event;
+    
+    this.emit('downloadProgress', {
+      modelName,
+      progress: 0,
+      bytesDownloaded: 0,
+      totalBytes: 0,
+      status: 'failed',
+      downloadId: parseInt(downloadId),
+      error: 'Download canceled',
+      source
+    });
+
+    this.activeDownloads.delete(modelName);
+  };
+
+  private handleNativeDownloadIdChanged = (event: any) => {
+    const { modelName, oldDownloadId, newDownloadId } = event;
+    
+    this.emit('downloadIdChanged', {
+      modelName,
+      oldDownloadId: parseInt(oldDownloadId),
+      newDownloadId: parseInt(newDownloadId)
+    });
   };
 
   private async setupNotifications() {
@@ -697,79 +805,89 @@ class ModelDownloader extends EventEmitter {
   }
 
   async pauseDownload(downloadId: number): Promise<void> {
-    console.log(`[ModelDownloader] Attempting to pause download with ID ${downloadId}`);
-    
     try {
-      // Find the download entry
-      let foundEntry: DownloadTaskInfo | undefined;
-      let foundModelName = '';
+      console.log(`[ModelDownloader] Pausing download ${downloadId}`);
+      await ModelDownloaderModule.pauseDownload(downloadId.toString());
       
-      for (const [taskId, entry] of this.activeDownloads.entries()) {
-        if (entry.downloadId === downloadId) {
-          foundEntry = entry;
-          foundModelName = entry.modelName;
+      // Track paused download
+      this.pausedDownloadIds.add(downloadId);
+      
+      // Find download by ID and update its state
+      for (const [modelName, downloadInfo] of this.activeDownloads.entries()) {
+        if (downloadInfo.downloadId === downloadId) {
+          const updatedInfo: DownloadTaskInfo = {
+            ...downloadInfo,
+            isPaused: true,
+            status: 'paused',
+            lastUpdated: Date.now()
+          };
+          this.activeDownloads.set(modelName, updatedInfo);
+          
+          // Emit progress event with paused state
+          this.emit('downloadProgress', updatedInfo);
           break;
         }
       }
-      
-      if (!foundEntry) {
-        console.warn(`[ModelDownloader] No active download found with ID ${downloadId}`);
-        return;
-      }
-      
-      // Check if platform supports pause
-      if (Platform.OS === 'ios' && typeof foundEntry.task.pause === 'function') {
-        // Pause the download task
-        foundEntry.task.pause();
-        
-        // Store notification for paused download
-        await this.storeNotification(
-          'Download Paused',
-          `${foundModelName} download has been paused`,
-          'download_paused',
-            downloadId
-          );
-      } else if (Platform.OS === 'ios') {
-        // Store notification for pause unavailable
-        await this.storeNotification(
-          'Pause Not Available',
-          `Pausing ${foundModelName} download is not supported`,
-          'download_pause_unavailable',
-            downloadId
-          );
-        }
-      
-      // Always emit the status update for UI consistency
-      this.emit('downloadProgress', {
-        modelName: foundModelName,
-        progress: foundEntry.progress || 0,
-        bytesDownloaded: foundEntry.bytesDownloaded || 0,
-        totalBytes: foundEntry.totalBytes || 0,
-        status: 'downloading',
-        downloadId,
-        isPaused: true
-      });
     } catch (error) {
-      console.error(`[ModelDownloader] Error pausing download:`, error);
+      console.error('Error pausing download:', error);
+      throw error;
     }
   }
 
   async resumeDownload(downloadId: number): Promise<{ downloadId: number }> {
     try {
+      console.log(`[ModelDownloader] Resuming download ${downloadId}`);
       const result = await ModelDownloaderModule.resumeDownload(downloadId.toString());
       const newDownloadId = parseInt(result.downloadId);
       
-      // Update active downloads with new ID if changed
-      for (const [modelName, info] of this.activeDownloads.entries()) {
-        if (info.downloadId === downloadId) {
-          this.activeDownloads.set(modelName, {
-            ...info,
-            downloadId: newDownloadId,
-            isPaused: false,
-            status: 'downloading',
-            lastUpdated: Date.now()
-          });
-          break;
+      // Remove from paused downloads tracking
+      this.pausedDownloadIds.delete(downloadId);
+      
+      // If ID changed, update tracking
+      if (newDownloadId !== downloadId) {
+        // Find and update the download with the new ID
+        for (const [modelName, info] of this.activeDownloads.entries()) {
+          if (info.downloadId === downloadId) {
+            const updatedInfo: DownloadTaskInfo = {
+              ...info,
+              downloadId: newDownloadId,
+              isPaused: false,
+              status: 'downloading',
+              lastUpdated: Date.now()
+            };
+            
+            // Update in active downloads with new ID
+            this.activeDownloads.set(modelName, updatedInfo);
+            
+            // Emit ID changed event for UI to update
+            this.emit('downloadIdChanged', {
+              modelName,
+              oldDownloadId: downloadId,
+              newDownloadId: newDownloadId
+            });
+            
+            break;
+          }
+        }
+      } else {
+        // No ID change, just update pause state
+        for (const [modelName, info] of this.activeDownloads.entries()) {
+          if (info.downloadId === downloadId) {
+            const updatedInfo: DownloadTaskInfo = {
+              ...info,
+              isPaused: false,
+              status: 'downloading',
+              lastUpdated: Date.now()
+            };
+            
+            // Update in active downloads
+            this.activeDownloads.set(modelName, updatedInfo);
+            
+            // Emit progress event with updated state
+            this.emit('downloadProgress', updatedInfo);
+            
+            break;
+          }
         }
       }
       
@@ -815,14 +933,48 @@ class ModelDownloader extends EventEmitter {
 
   async cancelDownload(downloadId: number): Promise<void> {
     try {
-      await ModelDownloaderModule.cancelDownload(downloadId.toString());
+      console.log(`[ModelDownloader] Canceling download ${downloadId}`);
       
-      // Find and remove the canceled download
+      // Find the download information before canceling
+      let canceledModelName: string | null = null;
+      
       for (const [modelName, info] of this.activeDownloads.entries()) {
         if (info.downloadId === downloadId) {
-          await this.cleanupDownload(modelName, info);
+          canceledModelName = modelName;
           break;
         }
+      }
+      
+      // Also check paused downloads if not found
+      if (!canceledModelName) {
+        for (const [modelName, info] of this.activeDownloads.entries()) {
+          if (info.downloadId === downloadId && this.pausedDownloadIds.has(downloadId)) {
+            canceledModelName = modelName;
+            break;
+          }
+        }
+      }
+      
+      // Now cancel the download in the native module
+      await ModelDownloaderModule.cancelDownload(downloadId.toString());
+      
+      // Clean up our internal state
+      if (canceledModelName) {
+        // Remove from active downloads
+        this.activeDownloads.delete(canceledModelName);
+        
+        // Remove from paused downloads tracking
+        this.pausedDownloadIds.delete(downloadId);
+        
+        // Clear from persistent storage
+        await this.clearDownloadProgress(canceledModelName);
+        
+        // Emit a specific canceled event so UI can update
+        this.emit('downloadCanceled', {
+          modelName: canceledModelName,
+          downloadId: downloadId,
+          source: 'app_cancel'
+        });
       }
     } catch (error) {
       console.error('Error canceling download:', error);
@@ -1462,4 +1614,4 @@ export const testNativeDownloader = async () => {
     console.error('Error testing native downloader:', error);
     throw error;
   }
-}; 
+};

@@ -554,29 +554,47 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
                       )}
                     </View>
                   </View>
-                  <TouchableOpacity
-                    style={[
-                      styles.downloadButton, 
-                      { backgroundColor: '#4a0660' },
-                      (downloadingModels[model.name] || downloadProgress[model.name] || initializingDownloads[model.name] || isDownloaded) && { opacity: 0.5 }
-                    ]}
-                    onPress={() => handleDownload(model)}
-                    disabled={Boolean(downloadingModels[model.name] || downloadProgress[model.name] || initializingDownloads[model.name] || isDownloaded)}
-                  >
-                    <Ionicons 
-                      name={
-                        isDownloaded
-                          ? "checkmark"
-                          : initializingDownloads[model.name] 
-                            ? "sync" 
-                            : downloadingModels[model.name] || downloadProgress[model.name] 
-                              ? "hourglass-outline" 
-                              : "cloud-download-outline"
-                      } 
-                      size={20} 
-                      color="#fff" 
-                    />
-                  </TouchableOpacity>
+                  <View style={styles.actionButtonsContainer}>
+                    {downloadProgress[model.name] && downloadProgress[model.name].status !== 'completed' && downloadProgress[model.name].status !== 'failed' && (
+                      <TouchableOpacity
+                        style={styles.actionButton}
+                        onPress={() => {
+                          if (downloadProgress[model.name]) {
+                            handleCancel(downloadProgress[model.name].downloadId, model.name);
+                          }
+                        }}
+                      >
+                        <Ionicons 
+                          name="close-circle" 
+                          size={24} 
+                          color="#ff4444" 
+                        />
+                      </TouchableOpacity>
+                    )}
+                    <TouchableOpacity
+                      style={[
+                        styles.downloadButton, 
+                        { backgroundColor: '#4a0660' },
+                        (downloadingModels[model.name] || downloadProgress[model.name] || initializingDownloads[model.name] || isDownloaded) && { opacity: 0.5 }
+                      ]}
+                      onPress={() => handleDownload(model)}
+                      disabled={Boolean(downloadingModels[model.name] || downloadProgress[model.name] || initializingDownloads[model.name] || isDownloaded)}
+                    >
+                      <Ionicons 
+                        name={
+                          isDownloaded
+                            ? "checkmark"
+                            : initializingDownloads[model.name] 
+                              ? "sync" 
+                              : downloadingModels[model.name] || downloadProgress[model.name] 
+                                ? "hourglass-outline" 
+                                : "cloud-download-outline"
+                        } 
+                        size={20} 
+                        color="#fff" 
+                      />
+                    </TouchableOpacity>
+                  </View>
                 </View>
                 <View style={styles.modelMetaInfo}>
                   <View style={styles.metaItem}>
@@ -1688,5 +1706,12 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     flex: 1,
     lineHeight: 16,
+  },
+  actionButtonsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  actionButton: {
+    padding: 4,
   },
 }); 

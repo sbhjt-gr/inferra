@@ -59,7 +59,7 @@ export default function DownloadsScreen() {
         // Create download item
         const downloadItem: DownloadItem = {
           id: data.downloadId,
-          name: normalizedName,
+        name: normalizedName,
           progress: data.progress,
           bytesDownloaded: data.bytesDownloaded,
           totalBytes: data.totalBytes,
@@ -104,14 +104,87 @@ export default function DownloadsScreen() {
   // Subscribe to download events
   useEffect(() => {
     const handleDownloadProgress = (data: any) => {
-      updateDownload(data.modelName, {
+      // Ignore non-download events
+      if (!data || !data.modelName) return;
+      
+      const modelName = data.modelName;
+      console.log(`Progress update for ${modelName}: ${data.progress}% - Status: ${data.status || 'unknown'}, Source: ${data.source || 'app'}, ID: ${data.downloadId}`);
+      
+      // Check if this is from a notification or the app
+      const isFromNotification = data.source && data.source.startsWith('notification');
+      
+      // Handle notification resume event
+      if (data.source === 'notification_resume') {
+        console.log(`[DownloadsScreen] Handling notification resume for ${modelName} with ID ${data.downloadId}`);
+        
+        // Update download state with all available information
+        updateDownload(modelName, {
+          progress: data.progress || 0,
+          bytesDownloaded: data.bytesDownloaded || 0,
+          totalBytes: data.totalBytes || 0,
+          status: 'downloading',
+          isPaused: false,
+          downloadId: parseInt(data.downloadId),
+          lastUpdated: Date.now()
+        });
+        
+        // Force refresh downloads list
+        setTimeout(() => {
+          refreshDownloads().catch(error => 
+            console.error('Error refreshing downloads after resume:', error)
+          );
+        }, 500);
+        
+        return;
+      }
+      
+      // Handle notification pause event
+      if (data.source === 'notification_pause') {
+        console.log(`[DownloadsScreen] Handling notification pause for ${modelName}`);
+        updateDownload(modelName, {
+          progress: data.progress || 0,
+          bytesDownloaded: data.bytesDownloaded || 0,
+          totalBytes: data.totalBytes || 0,
+          status: 'paused',
+          isPaused: true,
+          downloadId: parseInt(data.downloadId),
+          lastUpdated: Date.now()
+        });
+        return;
+      }
+      
+      // Handle notification cancel event
+      if (data.source === 'notification_cancel') {
+        console.log(`[DownloadsScreen] Handling notification cancel for ${modelName}`);
+        removeDownload(modelName);
+        return;
+      }
+      
+      // Handle download ID changed event
+      if (data.oldDownloadId && data.newDownloadId) {
+        console.log(`[DownloadsScreen] Download ID changed from ${data.oldDownloadId} to ${data.newDownloadId} for ${modelName}`);
+        
+        // Update with new download ID
+        updateDownload(modelName, {
+          downloadId: parseInt(data.newDownloadId),
+          isPaused: false,
+          status: 'downloading',
+          lastUpdated: Date.now()
+        });
+        
+        return;
+      }
+      
+      // Update download progress with complete info
+      updateDownload(modelName, {
         progress: data.progress,
         bytesDownloaded: data.bytesDownloaded,
         totalBytes: data.totalBytes,
-        status: data.isCompleted ? 'completed' : (data.isPaused ? 'paused' : 'downloading'),
-        downloadId: data.downloadId,
+        status: data.status,
+        downloadId: parseInt(data.downloadId),
         isPaused: data.isPaused,
-        error: data.error
+        error: data.error,
+        lastUpdated: Date.now()
       });
     };
     
@@ -125,14 +198,25 @@ export default function DownloadsScreen() {
       });
     };
     
+    const handleDownloadCanceled = (data: any) => {
+      if (!data || !data.modelName) return;
+      
+      console.log(`[DownloadsScreen] Download canceled for ${data.modelName}, source: ${data.source || 'app'}`);
+      
+      // Remove from download progress
+      removeDownload(data.modelName);
+    };
+    
     modelDownloader.on('downloadProgress', handleDownloadProgress);
     modelDownloader.on('downloadIdChanged', handleDownloadIdChanged);
+    modelDownloader.on('downloadCanceled', handleDownloadCanceled);
     
     return () => {
       modelDownloader.off('downloadProgress', handleDownloadProgress);
       modelDownloader.off('downloadIdChanged', handleDownloadIdChanged);
+      modelDownloader.off('downloadCanceled', handleDownloadCanceled);
     };
-  }, [updateDownload]);
+  }, [updateDownload, removeDownload]);
 
   // Refresh downloads status
   const refreshDownloads = async () => {
@@ -173,51 +257,51 @@ export default function DownloadsScreen() {
             if (modelInfo.exists) {
               // Model exists in final location
               updateDownload(modelName, {
-                progress: 100,
+              progress: 100,
                 bytesDownloaded: (modelInfo as any).size || 0,
                 totalBytes: (modelInfo as any).size || 0,
-                status: 'completed',
-                downloadId: downloadState.downloadId
+              status: 'completed',
+              downloadId: downloadState.downloadId
               });
-              
-              // Remove from active downloads
-              const updatedStates = { ...parsedStates };
-              delete updatedStates[modelName];
-              await AsyncStorage.setItem('active_downloads', JSON.stringify(updatedStates));
-            } else {
-              // Check temp directory
-              const tempPath = `${FileSystem.documentDirectory}temp/${modelName}`;
-              const tempInfo = await FileSystem.getInfoAsync(tempPath);
-              
-              if (tempInfo.exists) {
-                try {
+            
+            // Remove from active downloads
+            const updatedStates = { ...parsedStates };
+            delete updatedStates[modelName];
+            await AsyncStorage.setItem('active_downloads', JSON.stringify(updatedStates));
+          } else {
+            // Check temp directory
+            const tempPath = `${FileSystem.documentDirectory}temp/${modelName}`;
+            const tempInfo = await FileSystem.getInfoAsync(tempPath);
+            
+            if (tempInfo.exists) {
+              try {
                   // Move from temp to final location
-                  const destPath = `${FileSystem.documentDirectory}models/${modelName}`;
-                  await FileSystem.makeDirectoryAsync(
-                    `${FileSystem.documentDirectory}models`, 
-                    { intermediates: true }
+                const destPath = `${FileSystem.documentDirectory}models/${modelName}`;
+                await FileSystem.makeDirectoryAsync(
+                  `${FileSystem.documentDirectory}models`, 
+                  { intermediates: true }
                   );
-                  
-                  await FileSystem.moveAsync({
-                    from: tempPath,
-                    to: destPath
-                  });
-                  
+                
+                await FileSystem.moveAsync({
+                  from: tempPath,
+                  to: destPath
+                });
+                
                   // Update progress
                   const finalInfo = await FileSystem.getInfoAsync(destPath, { size: true });
                   updateDownload(modelName, {
-                    progress: 100,
+                  progress: 100,
                     bytesDownloaded: (finalInfo as any).size || 0,
                     totalBytes: (finalInfo as any).size || 0,
-                    status: 'completed',
-                    downloadId: downloadState.downloadId
+                  status: 'completed',
+                  downloadId: downloadState.downloadId
                   });
-                  
-                  // Remove from active downloads
-                  const updatedStates = { ...parsedStates };
-                  delete updatedStates[modelName];
-                  await AsyncStorage.setItem('active_downloads', JSON.stringify(updatedStates));
-                } catch (error) {
+                
+                // Remove from active downloads
+                const updatedStates = { ...parsedStates };
+                delete updatedStates[modelName];
+                await AsyncStorage.setItem('active_downloads', JSON.stringify(updatedStates));
+              } catch (error) {
                   console.error(`Error moving temp file for ${modelName}:`, error);
                   updateDownload(modelName, {
                     ...downloadProgress[modelName],
