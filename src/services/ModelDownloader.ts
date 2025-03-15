@@ -203,16 +203,13 @@ class ModelDownloader extends EventEmitter {
   constructor() {
     super();
     
-    // Initialize base paths with proper separators
-    const separator = Platform.OS === 'android' ? '/' : '/';
-    this.baseDir = `${FileSystemModule.documentDirectory}${separator}models`;
-    this.downloadDir = `${FileSystemModule.documentDirectory}${separator}temp`;
-    
-    console.log('[ModelDownloader] Initialized with paths:', {
-      baseDir: this.baseDir,
-      downloadDir: this.downloadDir,
-      documentDirectory: FileSystemModule.documentDirectory
-    });
+    // Initialize base paths
+    this.baseDir = Platform.OS === 'android' 
+      ? 'models' // Path relative to internal storage root
+      : 'Documents/models/';
+    this.downloadDir = Platform.OS === 'android'
+      ? 'temp' // Path for temporary downloads
+      : 'Documents/temp/';
     
     // Setup event handlers for native events
     this.setupNativeEventHandlers();
@@ -693,66 +690,77 @@ class ModelDownloader extends EventEmitter {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
   }
 
-  private async moveFile(sourcePath: string, destinationPath: string): Promise<void> {
+  private async moveFile(sourcePath: string, destPath: string): Promise<void> {
+    console.log(`[ModelDownloader] Moving file from ${sourcePath} to ${destPath}`);
+    
     try {
-        console.log('[ModelDownloader] Moving file:', {
-            sourcePath,
-            destinationPath,
-            baseDir: this.baseDir
-        });
+      // Sanitize paths by encoding URI components
+      const sanitizedSourcePath = sourcePath.split('/').map(part => encodeURIComponent(part)).join('/');
+      const sanitizedDestPath = destPath.split('/').map(part => encodeURIComponent(part)).join('/');
+      
+      const modelName = destPath.split('/').pop() || 'model';
+      console.log(`[ModelDownloader] Emitting importProgress event for ${modelName} (importing)`);
+      
+      // Emit event to show importing dialog
+      this.emit('importProgress', {
+        modelName,
+        status: 'importing'
+      });
 
-        // Ensure source file exists
-        const sourceInfo = await FileSystemModule.getInfoAsync(sourcePath, { size: true });
-        if (!sourceInfo.exists) {
-            throw new Error(`Source file does not exist: ${sourcePath}`);
-        }
+      // Check if source file exists
+      const sourceInfo = await FileSystemModule.getInfoAsync(sanitizedSourcePath, { size: true });
+      if (!sourceInfo.exists) {
+        throw new Error(`Source file does not exist: ${sourcePath}`);
+      }
+      
+      // Check if destination directory exists
+      const destDir = sanitizedDestPath.substring(0, sanitizedDestPath.lastIndexOf('/'));
+      const destDirInfo = await FileSystemModule.getInfoAsync(destDir, { size: false });
+      if (!destDirInfo.exists) {
+        console.log(`[ModelDownloader] Creating destination directory: ${destDir}`);
+        await FileSystemModule.makeDirectoryAsync(destDir, { intermediates: true });
+      }
+      
+      // Check if destination file already exists
+      const destInfo = await FileSystemModule.getInfoAsync(sanitizedDestPath, { size: false });
+      if (destInfo.exists) {
+        console.log(`[ModelDownloader] Destination file already exists, deleting it: ${sanitizedDestPath}`);
+        await FileSystemModule.deleteAsync(sanitizedDestPath, { idempotent: true });
+      }
+      
+      // Move the file
+      console.log(`[ModelDownloader] Executing moveAsync from ${sanitizedSourcePath} to ${sanitizedDestPath}`);
+      await FileSystemModule.moveAsync({
+        from: sanitizedSourcePath,
+        to: sanitizedDestPath
+      });
+      
+      // Verify the file was moved
+      const newDestInfo = await FileSystemModule.getInfoAsync(sanitizedDestPath, { size: true });
+      if (!newDestInfo.exists) {
+        throw new Error(`File was not moved successfully to ${destPath}`);
+      }
 
-        // Ensure destination directory exists
-        const destDir = destinationPath.substring(0, destinationPath.lastIndexOf('/'));
-        const destDirInfo = await FileSystemModule.getInfoAsync(destDir, { size: false });
-        if (!destDirInfo.exists) {
-            console.log('[ModelDownloader] Creating destination directory:', destDir);
-            await FileSystemModule.makeDirectoryAsync(destDir, { intermediates: true });
-        }
-
-        // Delete destination file if it exists
-        const destInfo = await FileSystemModule.getInfoAsync(destinationPath, { size: false });
-        if (destInfo.exists) {
-            console.log('[ModelDownloader] Deleting existing destination file');
-            await FileSystemModule.deleteAsync(destinationPath, { idempotent: true });
-        }
-
-        // Move the file
-        console.log('[ModelDownloader] Moving file to:', destinationPath);
-        await FileSystemModule.moveAsync({
-            from: sourcePath,
-            to: destinationPath
-        });
-        
-        // Verify the move was successful
-        const movedFileInfo = await FileSystemModule.getInfoAsync(destinationPath, { size: true });
-        if (!movedFileInfo.exists) {
-            throw new Error('File move appeared to succeed but destination file does not exist');
-        }
-
-        console.log('[ModelDownloader] File moved successfully');
-        
-        // Emit events to update UI
-        const modelName = destinationPath.split('/').pop() || 'model';
-        this.emit('importProgress', {
-            modelName,
-            status: 'completed'
-        });
-        this.emit('modelsChanged');
+      console.log(`[ModelDownloader] Emitting importProgress event for ${modelName} (completed)`);
+      // Emit event to hide importing dialog
+      this.emit('importProgress', {
+        modelName,
+        status: 'completed'
+      });
+      
+      console.log(`[ModelDownloader] File successfully moved to ${destPath}`);
     } catch (error) {
-        console.error('[ModelDownloader] Error moving file:', error);
-        const modelName = destinationPath.split('/').pop() || 'model';
-        this.emit('importProgress', {
-            modelName,
-            status: 'error',
-            error: error instanceof Error ? error.message : 'Unknown error'
-        });
-        throw error;
+      const modelName = destPath.split('/').pop() || 'model';
+      console.log(`[ModelDownloader] Emitting importProgress event for ${modelName} (error)`);
+      // Emit event to hide importing dialog with error
+      this.emit('importProgress', {
+        modelName,
+        status: 'error',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+
+      console.error(`[ModelDownloader] Error moving file from ${sourcePath} to ${destPath}:`, error);
+      throw error;
     }
   }
 
@@ -769,88 +777,30 @@ class ModelDownloader extends EventEmitter {
     }
   }
 
-  async downloadModel(url: string, modelName: string): Promise<{ downloadId: number; path: string }> {
+  async downloadModel(url: string, modelName: string): Promise<{ downloadId: number }> {
     try {
-        console.log('[ModelDownloader] Starting download:', { url, modelName });
-        
-        // Ensure base directories exist
-        await this.ensureDirectoriesExist();
-        
-        // Generate paths
-        const tempPath = `${this.downloadDir}/${modelName}`;
-        const finalPath = `${this.baseDir}/${modelName}`;
-        
-        console.log('[ModelDownloader] Paths:', {
-            tempPath,
-            finalPath,
-            baseDir: this.baseDir,
-            downloadDir: this.downloadDir
-        });
+      const result = await ModelDownloaderModule.downloadModel(url, modelName);
+      console.log(`[ModelDownloader] Download started with ID: ${result.downloadId}`);
+      
+      const downloadId = parseInt(result.downloadId);
+      
+      const downloadInfo: DownloadTaskInfo = {
+        task: null,
+        downloadId,
+        modelName,
+        url,
+        progress: 0,
+        bytesDownloaded: 0,
+        totalBytes: 0,
+        status: 'queued',
+        lastUpdated: Date.now()
+      };
 
-        // Start the download
-        const downloadId = await this.startDownload(url, tempPath);
-        
-        console.log('[ModelDownloader] Download started:', {
-            downloadId,
-            modelName,
-            tempPath
-        });
-        
-        return {
-            downloadId,
-            path: finalPath
-        };
+      this.activeDownloads.set(modelName, downloadInfo);
+      return { downloadId };
     } catch (error) {
-        console.error('[ModelDownloader] Error starting download:', error);
-        throw error;
-    }
-  }
-
-  private async ensureDirectoriesExist(): Promise<void> {
-    try {
-        // Check and create base directory
-        const baseDirInfo = await FileSystemModule.getInfoAsync(this.baseDir, { size: false });
-        if (!baseDirInfo.exists) {
-            console.log('[ModelDownloader] Creating base directory:', this.baseDir);
-            await FileSystemModule.makeDirectoryAsync(this.baseDir, { intermediates: true });
-        }
-        
-        // Check and create download directory
-        const downloadDirInfo = await FileSystemModule.getInfoAsync(this.downloadDir, { size: false });
-        if (!downloadDirInfo.exists) {
-            console.log('[ModelDownloader] Creating download directory:', this.downloadDir);
-            await FileSystemModule.makeDirectoryAsync(this.downloadDir, { intermediates: true });
-        }
-    } catch (error) {
-        console.error('[ModelDownloader] Error ensuring directories exist:', error);
-        throw error;
-    }
-  }
-
-  private async startDownload(url: string, tempPath: string): Promise<number> {
-    try {
-        const result = await ModelDownloaderModule.downloadModel(url, tempPath);
-        console.log(`[ModelDownloader] Download started with ID: ${result.downloadId}`);
-        
-        const downloadId = parseInt(result.downloadId);
-        
-        const downloadInfo: DownloadTaskInfo = {
-            task: null,
-            downloadId,
-            modelName: tempPath.split('/').pop() || tempPath,
-            url,
-            progress: 0,
-            bytesDownloaded: 0,
-            totalBytes: 0,
-            status: 'queued',
-            lastUpdated: Date.now()
-        };
-
-        this.activeDownloads.set(tempPath.split('/').pop() || tempPath, downloadInfo);
-        return downloadId;
-    } catch (error) {
-        console.error('Error starting download:', error);
-        throw error;
+      console.error('Error starting download:', error);
+      throw error;
     }
   }
 
@@ -1034,9 +984,8 @@ class ModelDownloader extends EventEmitter {
 
   async getStoredModels(): Promise<StoredModel[]> {
     try {
-      console.log('[ModelDownloader] Getting stored models...');
-      console.log('[ModelDownloader] Base directory:', this.baseDir);
-      console.log('[ModelDownloader] Platform:', Platform.OS);
+      console.log('[ModelDownloader] Getting stored models from directory:', this.baseDir);
+      console.log('[ModelDownloader] Current platform:', Platform.OS);
       
       // First ensure the directory exists
       const dirInfo = await FileSystemModule.getInfoAsync(this.baseDir, { size: false });
@@ -1054,54 +1003,57 @@ class ModelDownloader extends EventEmitter {
       console.log(`[ModelDownloader] Found ${dir.length} files in models directory:`, dir);
       
       // Process each file
-      const localModels: StoredModel[] = [];
-      
+      let localModels: StoredModel[] = [];
       if (dir.length > 0) {
-        for (const name of dir) {
-          // Try multiple path formats
-          const paths = [
-            `${this.baseDir}/${name}`,
-            `${FileSystemModule.documentDirectory}models/${name}`,
-            `${FileSystemModule.documentDirectory}/models/${name}`
-          ];
-          
-          let fileInfo = null;
-          let usedPath = '';
-          
-          // Try each path until we find one that works
-          for (const path of paths) {
-            console.log(`[ModelDownloader] Trying path for ${name}:`, path);
-            const info = await FileSystemModule.getInfoAsync(path, { size: true });
-            if (info.exists) {
-              fileInfo = info;
-              usedPath = path;
-              console.log(`[ModelDownloader] Found file at path:`, path);
-              break;
+        localModels = await Promise.all(
+          dir.map(async (name: string) => {
+            const path = `${this.baseDir}/${name}`;
+            console.log(`[ModelDownloader] Checking file: ${name} at path: ${path}`);
+            
+            const fileInfo = await FileSystemModule.getInfoAsync(path, { size: true });
+            console.log(`[ModelDownloader] File info for ${name}:`, fileInfo);
+            
+            // Get file size safely
+            let size = 0;
+            if (fileInfo.exists) {
+              size = fileInfo.size || 0;
+              console.log(`[ModelDownloader] File ${name} exists with size: ${size} bytes`);
+            } else {
+              console.log(`[ModelDownloader] File ${name} does not exist, trying alternate path verification`);
+              try {
+                // Try additional path verification for Android internal storage
+                const alternatePath = `${this.baseDir}/${name.replace(/\s/g, '_')}`;
+                const alternateInfo = await FileSystemModule.getInfoAsync(alternatePath, { size: true });
+                if (alternateInfo.exists) {
+                  size = alternateInfo.size || 0;
+                  console.log(`[ModelDownloader] File found with alternate path: ${alternatePath}, size: ${size} bytes`);
+                }
+              } catch (e) {
+                console.log('[ModelDownloader] Error checking alternate path:', e);
+              }
             }
-          }
-          
-          if (fileInfo && fileInfo.exists) {
-            const model: StoredModel = {
+            
+            // Use current time as modification time if not available
+            const modified = fileInfo.modificationTime ? 
+              new Date(fileInfo.modificationTime).toISOString() : 
+              new Date().toISOString();
+            
+            const model = {
               name,
-              path: usedPath,
-              size: fileInfo.size || 0,
-              modified: fileInfo.modificationTime ? 
-                new Date(fileInfo.modificationTime).toISOString() : 
-                new Date().toISOString(),
+              path,
+              size,
+              modified,
               isExternal: false
             };
-            
             console.log(`[ModelDownloader] Created model object:`, model);
-            localModels.push(model);
-          } else {
-            console.log(`[ModelDownloader] Could not find file ${name} at any path`);
-          }
-        }
+            return model;
+          })
+        );
       }
       
+      // Log the final results
       console.log('[ModelDownloader] Local models found:', localModels);
       console.log('[ModelDownloader] External models:', this.externalModels);
-      
       const allModels = [...localModels, ...this.externalModels];
       console.log('[ModelDownloader] Returning all models:', allModels);
       

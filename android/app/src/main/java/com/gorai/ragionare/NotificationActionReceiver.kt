@@ -32,6 +32,44 @@ class NotificationActionReceiver : BroadcastReceiver() {
                 } catch (e: Exception) {
                     // If resume fails, continue with the standard event emission
                     println("Error resuming download from notification: ${e.message}")
+                    
+                    // Try to use the handleNotificationAction method as a fallback
+                    try {
+                        val promise = object : com.facebook.react.bridge.Promise {
+                            override fun resolve(value: Any?) {
+                                println("Promise resolved: $value")
+                            }
+                            override fun reject(code: String?, message: String?) {
+                                println("Promise rejected: $code - $message")
+                            }
+                            override fun reject(code: String?, throwable: Throwable?) {
+                                println("Promise rejected with throwable: $code - ${throwable?.message}")
+                            }
+                            override fun reject(code: String?, message: String?, throwable: Throwable?) {
+                                println("Promise rejected with message and throwable: $code - $message - ${throwable?.message}")
+                            }
+                            override fun reject(throwable: Throwable) {
+                                println("Promise rejected with throwable only: ${throwable.message}")
+                            }
+                            override fun reject(throwable: Throwable, userInfo: WritableMap?) {
+                                println("Promise rejected with throwable and userInfo: ${throwable.message}")
+                            }
+                            override fun reject(code: String?, userInfo: WritableMap) {
+                                println("Promise rejected with code and userInfo: $code")
+                            }
+                            override fun reject(code: String?, message: String?, userInfo: WritableMap) {
+                                println("Promise rejected with code, message, and userInfo: $code - $message")
+                            }
+                            override fun reject(code: String?, message: String?, throwable: Throwable?, userInfo: WritableMap) {
+                                println("Promise rejected with code, message, throwable, and userInfo: $code - $message - ${throwable?.message}")
+                            }
+                        }
+                        
+                        it.handleNotificationAction("resume", downloadId, promise)
+                        return
+                    } catch (e2: Exception) {
+                        println("Error using handleNotificationAction as fallback: ${e2.message}")
+                    }
                 }
             }
         }

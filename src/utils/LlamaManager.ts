@@ -1,6 +1,7 @@
 import { initLlama, loadLlamaModelInfo, type LlamaContext } from 'llama.rn';
 import { Platform, NativeModules } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { modelDownloader } from '../services/ModelDownloader';
 
 interface ModelMemoryInfo {
   requiredMemory: number;
@@ -50,6 +51,10 @@ class LlamaManager {
     try {
       console.log('[LlamaManager] Initializing model from path:', modelPath);
 
+      // Get the proper base directory
+      const baseDir = await modelDownloader.getModelsDirectory();
+      console.log('[LlamaManager] Base directory:', baseDir);
+
       // For external models, we need to handle the URI format
       let finalModelPath = modelPath;
       
@@ -61,18 +66,55 @@ class LlamaManager {
         } 
         // On Android, we need to handle the path differently
         else if (Platform.OS === 'android') {
-          // For Android, we need to use a different format
-          // The native module expects a path without the file:// prefix
-          // but with the leading slash
           finalModelPath = finalModelPath.replace('file://', '');
+          // Ensure the path starts with a forward slash
+          if (!finalModelPath.startsWith('/')) {
+            finalModelPath = '/' + finalModelPath;
+          }
         }
+      } 
+      // If it's a relative path (just model name), construct full path
+      else if (!finalModelPath.includes('/')) {
+        // Ensure the model name has .gguf extension
+        if (!finalModelPath.toLowerCase().endsWith('.gguf')) {
+          finalModelPath = `${finalModelPath}.gguf`;
+        }
+        finalModelPath = `${baseDir}/${finalModelPath}`;
       }
       
       console.log('[LlamaManager] Using final model path:', finalModelPath);
 
+      // Verify the model file exists
+      const modelExists = await modelDownloader.checkFileExists(finalModelPath);
+      if (!modelExists) {
+        throw new Error(`Model file not found at path: ${finalModelPath}`);
+      }
+
+      // Get file size to verify it's not empty
+      try {
+        const fileInfo = await modelDownloader.getFileSize(finalModelPath);
+        if (!fileInfo || fileInfo === 0) {
+          throw new Error('Model file exists but appears to be empty');
+        }
+        console.log('[LlamaManager] Model file size:', fileInfo);
+      } catch (error) {
+        console.error('[LlamaManager] Error checking model file size:', error);
+        throw new Error('Failed to verify model file integrity');
+      }
+
       // First load model info to validate the model
-      const modelInfo = await loadLlamaModelInfo(finalModelPath);
-      console.log('[LlamaManager] Model Info:', modelInfo);
+      try {
+        console.log('[LlamaManager] Loading model info from:', finalModelPath);
+        const modelInfo = await loadLlamaModelInfo(finalModelPath);
+        console.log('[LlamaManager] Model Info:', modelInfo);
+
+        if (!modelInfo) {
+          throw new Error('Failed to load model info - invalid model file');
+        }
+      } catch (error) {
+        console.error('[LlamaManager] Error loading model info:', error);
+        throw new Error('Failed to validate model file - ensure this is a valid GGUF format model');
+      }
 
       // Release existing context if any
       if (this.context) {
@@ -83,23 +125,33 @@ class LlamaManager {
       this.modelPath = finalModelPath;
       
       // Initialize with recommended settings
-      this.context = await initLlama({
-        model: finalModelPath,
-        use_mlock: true,
-        n_ctx: 6144,
-        n_batch: 512,
-        n_threads: Platform.OS === 'ios' ? 6 : 4,
-        n_gpu_layers: Platform.OS === 'ios' ? 1 : 0,
-        embedding: false,
-        rope_freq_base: 10000,
-        rope_freq_scale: 1,
-      });
+      try {
+        console.log('[LlamaManager] Initializing llama context with path:', finalModelPath);
+        this.context = await initLlama({
+          model: finalModelPath,
+          use_mlock: true,
+          n_ctx: 2048, // Reduced context size for better compatibility
+          n_batch: 512,
+          n_threads: Platform.OS === 'ios' ? 6 : 4,
+          n_gpu_layers: 0, // Disable GPU layers by default for compatibility
+          embedding: false,
+          rope_freq_base: 10000,
+          rope_freq_scale: 1,
+        });
 
-      console.log('[LlamaManager] Model initialized successfully');
-      return this.context;
+        if (!this.context) {
+          throw new Error('Failed to initialize llama context');
+        }
+
+        console.log('[LlamaManager] Model initialized successfully');
+        return this.context;
+      } catch (error) {
+        console.error('[LlamaManager] Error initializing llama context:', error);
+        throw new Error(`Failed to initialize model: ${error instanceof Error ? error.message : 'unknown error'}`);
+      }
     } catch (error) {
       console.error('[LlamaManager] Model initialization error:', error);
-      throw new Error(`Failed to initialize model: ${error}`);
+      throw error;
     }
   }
 
