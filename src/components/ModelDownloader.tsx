@@ -15,7 +15,6 @@ import { theme } from '../constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { modelDownloader, ModelInfo } from '../services/ModelDownloader';
 import { ThemeType, ThemeColors } from '../types/theme';
-import { useDownloads } from '../contexts/DownloadsContext';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -35,6 +34,7 @@ interface ModelDownloaderType {
 const ModelDownloaderModule = modelDownloader as ModelDownloaderType;
 
 interface ModelDownloaderProps {
+  downloadProgress: DownloadProgress;
   onDownloadStart: (downloadId: number, modelName: string) => void;
 }
 
@@ -47,10 +47,9 @@ interface DownloadProgress {
   };
 }
 
-const ModelDownloaderComponent = ({ onDownloadStart }: ModelDownloaderProps) => {
+const ModelDownloaderComponent = ({ downloadProgress, onDownloadStart }: ModelDownloaderProps) => {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as ThemeColors];
-  const { downloadProgress, updateDownload } = useDownloads();
   const [url, setUrl] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
   const [currentDownload, setCurrentDownload] = useState<string | null>(null);
@@ -80,19 +79,9 @@ const ModelDownloaderComponent = ({ onDownloadStart }: ModelDownloaderProps) => 
       const result = await modelDownloader.downloadModel(url, filename);
       console.log('Download started:', result);
       
-      updateDownload(filename, {
-        progress: 0,
-        bytesDownloaded: 0,
-        totalBytes: 0,
-        status: 'queued',
-        downloadId: result.downloadId,
-        isPaused: false,
-        lastUpdated: Date.now()
-      });
-      
       onDownloadStart(result.downloadId, filename);
       setUrl('');
-    } catch (error: any) {
+    } catch (error: any) {  // Type the error as any to access message property
       console.error('Download error:', error);
       setCurrentDownload(null);
       Alert.alert('Error', error.message || 'Failed to download file');

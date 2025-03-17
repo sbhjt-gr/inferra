@@ -34,9 +34,6 @@ class DownloadNotificationModule(reactContext: ReactApplicationContext) : ReactC
     private val activeNotifications = ConcurrentHashMap<String, Int>()
     private val handler = Handler(Looper.getMainLooper())
 
-    // Track active downloads and their pause state
-    private val activeDownloadStates = ConcurrentHashMap<String, Pair<Int, Boolean>>()
-
     init {
         createNotificationChannel()
     }
@@ -73,9 +70,6 @@ class DownloadNotificationModule(reactContext: ReactApplicationContext) : ReactC
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
 
-            // Create action intents
-            val actionIntents = createActionIntents(modelName, downloadId, progress)
-
             // Build the notification
             val builder = NotificationCompat.Builder(reactApplicationContext, CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.stat_sys_download)
@@ -86,31 +80,9 @@ class DownloadNotificationModule(reactContext: ReactApplicationContext) : ReactC
                 .setOnlyAlertOnce(true)
                 .setContentIntent(pendingIntent)
 
-            // Add actions for in-progress downloads
+            // Add progress
             if (progress < 100) {
                 builder.setProgress(100, progress, false)
-                
-                // Add cancel action
-                builder.addAction(
-                    android.R.drawable.ic_menu_close_clear_cancel,
-                    "Cancel",
-                    actionIntents.cancelIntent
-                )
-                
-                // Add pause/resume action based on current state
-                if (actionIntents.isPaused) {
-                    builder.addAction(
-                        android.R.drawable.ic_media_play,
-                        "Resume",
-                        actionIntents.resumeIntent
-                    )
-                } else {
-                    builder.addAction(
-                        android.R.drawable.ic_media_pause,
-                        "Pause",
-                        actionIntents.pauseIntent
-                    )
-                }
             } else {
                 // Download complete
                 builder.setSmallIcon(android.R.drawable.stat_sys_download_done)
@@ -137,64 +109,6 @@ class DownloadNotificationModule(reactContext: ReactApplicationContext) : ReactC
         }
     }
 
-    private data class ActionIntents(
-        val pauseIntent: PendingIntent,
-        val resumeIntent: PendingIntent,
-        val cancelIntent: PendingIntent,
-        val isPaused: Boolean
-    )
-
-    private fun createActionIntents(modelName: String, downloadId: String, progress: Int): ActionIntents {
-        // Get current pause state from progress updates
-        val isPaused = activeDownloadStates[downloadId]?.second ?: false
-        
-        // Create cancel intent
-        val cancelIntent = Intent(reactApplicationContext, NotificationActionReceiver::class.java).apply {
-            action = "com.gorai.ragionare.CANCEL_DOWNLOAD"
-            putExtra("downloadId", downloadId)
-            putExtra("modelName", modelName)
-        }
-        val cancelPendingIntent = PendingIntent.getBroadcast(
-            reactApplicationContext,
-            "${downloadId}_cancel".hashCode(),
-            cancelIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        
-        // Create pause intent
-        val pauseIntent = Intent(reactApplicationContext, NotificationActionReceiver::class.java).apply {
-            action = "com.gorai.ragionare.PAUSE_DOWNLOAD"
-            putExtra("downloadId", downloadId)
-            putExtra("modelName", modelName)
-        }
-        val pausePendingIntent = PendingIntent.getBroadcast(
-            reactApplicationContext,
-            "${downloadId}_pause".hashCode(),
-            pauseIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        
-        // Create resume intent
-        val resumeIntent = Intent(reactApplicationContext, NotificationActionReceiver::class.java).apply {
-            action = "com.gorai.ragionare.RESUME_DOWNLOAD"
-            putExtra("downloadId", downloadId)
-            putExtra("modelName", modelName)
-        }
-        val resumePendingIntent = PendingIntent.getBroadcast(
-            reactApplicationContext,
-            "${downloadId}_resume".hashCode(),
-            resumeIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        
-        return ActionIntents(
-            pauseIntent = pausePendingIntent,
-            resumeIntent = resumePendingIntent,
-            cancelIntent = cancelPendingIntent,
-            isPaused = isPaused
-        )
-    }
-
     @ReactMethod
     fun cancelNotification(downloadId: String, promise: Promise) {
         try {
@@ -209,13 +123,9 @@ class DownloadNotificationModule(reactContext: ReactApplicationContext) : ReactC
         }
     }
 
-    // Update download state when progress updates
     @ReactMethod
-    fun updateDownloadProgress(downloadId: String, progress: Int, isPaused: Boolean, promise: Promise) {
+    fun updateDownloadProgress(downloadId: String, progress: Int, promise: Promise) {
         try {
-            // Store current state
-            activeDownloadStates[downloadId] = Pair(progress, isPaused)
-            
             val notificationId = activeNotifications[downloadId] ?: downloadId.hashCode()
             
             // Get existing notification
@@ -227,32 +137,6 @@ class DownloadNotificationModule(reactContext: ReactApplicationContext) : ReactC
                 .setOngoing(true)
                 .setOnlyAlertOnce(true)
                 .setProgress(100, progress, false)
-
-            // Create action intents with updated pause state
-            val modelName = "Model" // Fallback name, this would be better if you passed the model name
-            val actionIntents = createActionIntents(modelName, downloadId, progress)
-            
-            // Add cancel action
-            builder.addAction(
-                android.R.drawable.ic_menu_close_clear_cancel,
-                "Cancel",
-                actionIntents.cancelIntent
-            )
-            
-            // Add pause/resume action based on current state
-            if (isPaused) {
-                builder.addAction(
-                    android.R.drawable.ic_media_play,
-                    "Resume",
-                    actionIntents.resumeIntent
-                )
-            } else {
-                builder.addAction(
-                    android.R.drawable.ic_media_pause,
-                    "Pause",
-                    actionIntents.pauseIntent
-                )
-            }
 
             // Update the notification
             notificationManager.notify(notificationId, builder.build())

@@ -283,17 +283,12 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
   // Add function to load storage information
   const loadStorageInfo = async () => {
     try {
-      // Get models directory from ModelDownloader
-      const modelsDir = await modelDownloader.getModelsDirectory();
       const tempDir = `${FileSystem.documentDirectory}temp`;
+      const modelsDir = `${FileSystem.documentDirectory}models`;
       const cacheDir = FileSystem.cacheDirectory || '';
 
-      // Get list of stored models and calculate total size
-      const storedModels = await modelDownloader.getStoredModels();
-      const modelsSize = storedModels.reduce((total, model) => total + (model.size || 0), 0);
-
-      // Get temp and cache sizes
       const tempSize = await getDirectorySize(tempDir);
+      const modelsSize = await getDirectorySize(modelsDir);
       const cacheSize = await getDirectorySize(cacheDir);
 
       setStorageInfo({
@@ -370,22 +365,15 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
             onPress: async () => {
               try {
                 setIsClearing(true);
-                // Get the models directory from ModelDownloader
-                const modelsDir = await modelDownloader.getModelsDirectory();
+                const modelsDir = `${FileSystem.documentDirectory}models`;
+                await clearDirectory(modelsDir);
                 
-                // Get list of all stored models
-                const storedModels = await modelDownloader.getStoredModels();
+                // Also clear external models references
+                await modelDownloader.refreshStoredModels();
                 
-                // Delete each model using ModelDownloader's method
-                for (const model of storedModels) {
-                  await modelDownloader.deleteModel(model.path);
-                }
-                
-                // Refresh the storage info display
                 await loadStorageInfo();
                 Alert.alert('Success', 'All models cleared successfully');
               } catch (error) {
-                console.error('Error clearing models:', error);
                 Alert.alert('Error', 'Failed to clear models');
               } finally {
                 setIsClearing(false);

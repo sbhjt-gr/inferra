@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -14,8 +14,6 @@ import {
   ScrollView,
   Animated,
   Platform,
-  AppState,
-  AppStateStatus,
 } from 'react-native';
 import { CompositeNavigationProp, useFocusEffect } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
@@ -33,6 +31,7 @@ import * as BackgroundFetch from 'expo-background-fetch';
 import * as TaskManager from 'expo-task-manager';
 import * as DocumentPicker from 'expo-document-picker';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { downloadNotificationService } from '../services/DownloadNotificationService';
 
 type ModelScreenProps = {
   navigation: CompositeNavigationProp<
@@ -235,14 +234,15 @@ const registerBackgroundTask = async () => {
 
 const Tab = createBottomTabNavigator();
 
+const setupNotifications = async () => {
+  if (Platform.OS === 'android') {
+    await downloadNotificationService.requestPermissions();
+  }
+};
+
 export default function ModelScreen({ navigation }: ModelScreenProps) {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
-  
-  // Add console log to debug theme values
-  console.log('[ModelScreen] Current theme:', currentTheme);
-  console.log('[ModelScreen] Theme colors:', themeColors);
-
   const [activeTab, setActiveTab] = useState<'stored' | 'downloadable'>('stored');
   const [storedModels, setStoredModels] = useState<StoredModel[]>([]);
   const { downloadProgress, setDownloadProgress } = useDownloads();
@@ -256,7 +256,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
   const buttonProcessingRef = useRef(new Set<string>());
   const [isLoading, setIsLoading] = useState(false);
   const [importingModelName, setImportingModelName] = useState<string | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
 
   const handleLinkModel = async () => {
     try {
@@ -368,6 +367,9 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
   };
 
   const handleCustomDownload = async (downloadId: number, modelName: string) => {
+    // Navigate to Downloads screen immediately
+    navigation.navigate('Downloads');
+    
     // Add to download progress tracking with the full filename
     setDownloadProgress(prev => ({
       ...prev,
@@ -469,6 +471,9 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         );
         return;
       }
+
+      // Navigate to Downloads screen immediately
+      navigation.navigate('Downloads');
       
       try {
         setInitializingDownloads(prev => ({ ...prev, [model.name]: true }));
@@ -550,47 +555,29 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
                       )}
                     </View>
                   </View>
-                  <View style={styles.actionButtonsContainer}>
-                    {downloadProgress[model.name] && downloadProgress[model.name].status !== 'completed' && downloadProgress[model.name].status !== 'failed' && (
-                      <TouchableOpacity
-                        style={styles.actionButton}
-                        onPress={() => {
-                          if (downloadProgress[model.name]) {
-                            handleCancel(downloadProgress[model.name].downloadId, model.name);
-                          }
-                        }}
-                      >
-                        <Ionicons 
-                          name="close-circle" 
-                          size={24} 
-                          color="#ff4444" 
-                        />
-                      </TouchableOpacity>
-                    )}
-                    <TouchableOpacity
-                      style={[
-                        styles.downloadButton, 
-                        { backgroundColor: '#4a0660' },
-                        (downloadingModels[model.name] || downloadProgress[model.name] || initializingDownloads[model.name] || isDownloaded) && { opacity: 0.5 }
-                      ]}
-                      onPress={() => handleDownload(model)}
-                      disabled={Boolean(downloadingModels[model.name] || downloadProgress[model.name] || initializingDownloads[model.name] || isDownloaded)}
-                    >
-                      <Ionicons 
-                        name={
-                          isDownloaded
-                            ? "checkmark"
-                            : initializingDownloads[model.name] 
-                              ? "sync" 
-                              : downloadingModels[model.name] || downloadProgress[model.name] 
-                                ? "hourglass-outline" 
-                                : "cloud-download-outline"
-                        } 
-                        size={20} 
-                        color="#fff" 
-                      />
-                    </TouchableOpacity>
-                  </View>
+                  <TouchableOpacity
+                    style={[
+                      styles.downloadButton, 
+                      { backgroundColor: '#4a0660' },
+                      (downloadingModels[model.name] || downloadProgress[model.name] || initializingDownloads[model.name] || isDownloaded) && { opacity: 0.5 }
+                    ]}
+                    onPress={() => handleDownload(model)}
+                    disabled={Boolean(downloadingModels[model.name] || downloadProgress[model.name] || initializingDownloads[model.name] || isDownloaded)}
+                  >
+                    <Ionicons 
+                      name={
+                        isDownloaded
+                          ? "checkmark"
+                          : initializingDownloads[model.name] 
+                            ? "sync" 
+                            : downloadingModels[model.name] || downloadProgress[model.name] 
+                              ? "hourglass-outline" 
+                              : "cloud-download-outline"
+                      } 
+                      size={20} 
+                      color="#fff" 
+                    />
+                  </TouchableOpacity>
                 </View>
                 <View style={styles.modelMetaInfo}>
                   <View style={styles.metaItem}>
@@ -737,48 +724,11 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         console.error('[ModelScreen] Error checking background downloads:', checkError);
       }
       
-      // Get and log the models directory path for debugging
-      const modelsDir = await modelDownloader.getModelsDirectory();
-      console.log('[ModelScreen] Models directory path:', modelsDir);
-      
       // Then get the stored models
       console.log('[ModelScreen] Getting stored models from modelDownloader...');
       const models = await modelDownloader.getStoredModels();
-      console.log('[ModelScreen] Raw models list:', models);
-      
-      // Filter out any invalid models without a path
-      const validModels = models.filter(m => m.path && m.path.trim() !== '');
-      if (validModels.length !== models.length) {
-        console.warn(`[ModelScreen] Filtered out ${models.length - validModels.length} invalid models`);
-      }
-      
-      // Log each model for debugging
-      validModels.forEach((model, index) => {
-        console.log(`[ModelScreen] Model ${index + 1}:`, {
-          name: model.name,
-          path: model.path,
-          size: model.size,
-          isExternal: model.isExternal
-        });
-      });
-      
-      // Get existence info for all models in parallel
-      const modelsWithExistence = await Promise.all(validModels.map(async m => ({
-        name: m.name,
-        path: m.path,
-        size: m.size,
-        modified: m.modified,
-        isExternal: m.isExternal,
-        exists: await modelDownloader.checkFileExists(m.path)
-      })));
-      
-      console.log('[ModelScreen] Models with existence info:', modelsWithExistence);
-      
-      // Only show models that actually exist
-      const existingModels = validModels.filter((_, index) => modelsWithExistence[index].exists);
-      console.log('[ModelScreen] Final models list (existing only):', existingModels);
-      
-      setStoredModels(existingModels);
+      console.log(`[ModelScreen] Found ${models.length} stored models:`, models.map(m => m.name));
+      setStoredModels(models);
     } catch (error) {
       console.error('[ModelScreen] Error loading stored models:', error);
       Alert.alert(
@@ -788,7 +738,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     }
   };
 
-  // Update the effect that handles download progress
+  // Update the useEffect for download progress
   useEffect(() => {
     const handleProgress = async ({ modelName, ...progress }: { 
       modelName: string;
@@ -798,69 +748,26 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       status: string;
       downloadId: number;
       error?: string;
-      source?: string; // Add source field to handle notification events
     }) => {
       const filename = modelName.split('/').pop() || modelName;
       
-      console.log(`[ModelScreen] Download progress for ${filename}:`, progress.status, progress.progress, progress.source || 'app');
+      console.log(`[ModelScreen] Download progress for ${filename}:`, progress.status, progress.progress);
       
       const bytesDownloaded = typeof progress.bytesDownloaded === 'number' ? progress.bytesDownloaded : 0;
       const totalBytes = typeof progress.totalBytes === 'number' ? progress.totalBytes : 0;
       const progressValue = typeof progress.progress === 'number' ? progress.progress : 0;
 
-      // Handle notification resume event
-      if (progress.source === 'notification_resume') {
-        console.log(`[ModelScreen] Handling notification resume for ${filename}`);
-        
-        setDownloadProgress(prev => ({
-          ...prev,
-          [filename]: {
-            progress: progressValue,
-            bytesDownloaded,
-            totalBytes,
-            status: 'downloading',
-            isPaused: false,
-            downloadId: progress.downloadId
-          }
-        }));
-        
-        return;
-      }
-      
-      // Handle notification pause event
-      if (progress.source === 'notification_pause') {
-        console.log(`[ModelScreen] Handling notification pause for ${filename}`);
-        
-        setDownloadProgress(prev => ({
-          ...prev,
-          [filename]: {
-            progress: progressValue,
-            bytesDownloaded,
-            totalBytes,
-            status: 'paused',
-            isPaused: true,
-            downloadId: progress.downloadId
-          }
-        }));
-        
-        return;
-      }
-      
-      // Handle notification cancel event
-      if (progress.source === 'notification_cancel') {
-        console.log(`[ModelScreen] Handling notification cancel for ${filename}`);
-        
-        setDownloadProgress(prev => {
-          const newProgress = { ...prev };
-          delete newProgress[filename];
-          return newProgress;
-        });
-        
-        return;
-      }
-
       if (progress.status === 'completed') {
         console.log(`[ModelScreen] Download completed for ${filename}`);
+        
+        // Show completion notification
+        if (Platform.OS === 'android') {
+          await downloadNotificationService.showNotification(
+            filename,
+            progress.downloadId,
+            100
+          );
+        }
         
         setDownloadProgress(prev => ({
           ...prev,
@@ -886,6 +793,11 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       } else if (progress.status === 'failed') {
         console.log(`[ModelScreen] Download failed for ${filename}:`, progress.error);
         
+        // Cancel notification on failure
+        if (Platform.OS === 'android') {
+          await downloadNotificationService.cancelNotification(progress.downloadId);
+        }
+        
         setDownloadProgress(prev => ({
           ...prev,
           [filename]: {
@@ -898,6 +810,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
           }
         }));
         
+        // Show error alert
         // Remove from progress tracking after a delay
         setTimeout(() => {
           setDownloadProgress(prev => {
@@ -907,6 +820,14 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
           });
         }, 1000);
       } else {
+        // Update ongoing download notification
+        if (Platform.OS === 'android') {
+          await downloadNotificationService.updateProgress(
+            progress.downloadId,
+            progressValue
+          );
+        }
+
         setDownloadProgress(prev => ({
           ...prev,
           [filename]: {
@@ -920,33 +841,15 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       }
     };
 
-    // Handle download ID changed events
-    const handleDownloadIdChanged = (data: any) => {
-      console.log(`[ModelScreen] Download ID changed from ${data.oldDownloadId} to ${data.newDownloadId} for ${data.modelName}`);
-      
-      const modelName = data.modelName.split('/').pop() || data.modelName;
-      
-      setDownloadProgress(prev => {
-        if (!prev[modelName]) return prev;
-        
-        return {
-          ...prev,
-          [modelName]: {
-            ...prev[modelName],
-            downloadId: parseInt(data.newDownloadId),
-            isPaused: false,
-            status: 'downloading'
-          }
-        };
-      });
+    // Set up notifications
+    const setupNotifications = async () => {
+      if (Platform.OS === 'android') {
+        await downloadNotificationService.requestPermissions();
+      }
+      await registerBackgroundTask();
     };
 
     loadStoredModels();
-    
-    // Remove any existing listeners before adding new ones
-    modelDownloader.removeAllListeners('downloadProgress');
-    modelDownloader.removeAllListeners('modelsChanged');
-    modelDownloader.removeAllListeners('downloadIdChanged');
     
     // Listen for download progress events
     modelDownloader.on('downloadProgress', handleProgress);
@@ -954,17 +857,12 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     // Listen for model changes
     modelDownloader.on('modelsChanged', loadStoredModels);
     
-    // Listen for download ID changed events
-    modelDownloader.on('downloadIdChanged', handleDownloadIdChanged);
-    
-    // Set up background task
-    registerBackgroundTask();
+    // Set up notifications
+    setupNotifications();
     
     return () => {
-      // Clean up all listeners
-      modelDownloader.removeAllListeners('downloadProgress');
-      modelDownloader.removeAllListeners('modelsChanged');
-      modelDownloader.removeAllListeners('downloadIdChanged');
+      modelDownloader.off('downloadProgress', handleProgress);
+      modelDownloader.off('modelsChanged', loadStoredModels);
     };
   }, []);
 
@@ -988,36 +886,46 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
   }, [downloadProgress]);
 
   const handleDelete = (model: StoredModel) => {
-    Alert.alert(
-      'Delete Model',
-      `Are you sure you want to delete ${getDisplayName(model.name)}?`,
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel'
-        },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              console.log('[ModelScreen] Attempting to delete model:', {
-                name: model.name,
-                path: model.path,
-                isExternal: model.isExternal
-              });
-              
-              await modelDownloader.deleteModel(model.path);
-              console.log('[ModelScreen] Model deleted successfully');
-              await loadStoredModels(); // Refresh the list after deletion
-            } catch (error) {
-              console.error('[ModelScreen] Error deleting model:', error);
-              Alert.alert('Error', 'Failed to delete model');
-            }
-          }
-        }
-      ]
-    );
+    console.log(`[ModelScreen] Attempting to delete model: ${model.name}, path: ${model.path}`);
+    
+    if (model.isExternal) {
+      // For imported models, just remove the linkage without confirmation
+      try {
+        console.log(`[ModelScreen] Removing linkage for external model: ${model.name}`);
+        modelDownloader.deleteModel(model.path);
+        loadStoredModels();
+      } catch (error) {
+        console.error(`[ModelScreen] Error removing linkage for model ${model.name}:`, error);
+        Alert.alert('Error', 'Failed to remove model linkage');
+      }
+    } else {
+      // For downloaded models, show confirmation dialog
+      Alert.alert(
+        'Delete Model',
+        `Are you sure you want to delete ${model.name}?`,
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                console.log(`[ModelScreen] User confirmed deletion of model: ${model.name}`);
+                await modelDownloader.deleteModel(model.path);
+                console.log(`[ModelScreen] Model deleted, refreshing stored models list`);
+                await loadStoredModels();
+              } catch (error) {
+                console.error(`[ModelScreen] Error deleting model ${model.name}:`, error);
+                Alert.alert('Error', 'Failed to delete model');
+              }
+            },
+          },
+        ]
+      );
+    }
   };
 
   const getDisplayName = (filename: string) => {
@@ -1068,29 +976,21 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
 
   // Add header component for the stored models list
   const StoredModelsHeader = () => (
-    <View style={styles.sectionHeader}>
-      <View style={styles.headingContainer}>
-        <Text style={[styles.sectionHeading, { color: themeColors.text }]}>Stored Models</Text>
-      </View>
-      
-      <Text style={[styles.sectionSubheading, { color: themeColors.secondaryText }]}>
-        Models stored on your device
-      </Text>
-      
-      <TouchableOpacity 
-        style={[styles.customUrlButton, { backgroundColor: themeColors.borderColor, marginTop: 12 }]}
+    <View style={styles.storedModelsHeader}>
+      <TouchableOpacity
+        style={[styles.customUrlButton, { backgroundColor: themeColors.borderColor }]}
         onPress={handleLinkModel}
       >
         <View style={styles.customUrlButtonContent}>
           <View style={styles.customUrlIconContainer}>
-            <Ionicons name="link-outline" size={24} color={themeColors.primary} />
+            <Ionicons name="link-outline" size={24} color="#4a0660" />
           </View>
           <View style={styles.customUrlTextContainer}>
             <Text style={[styles.customUrlButtonTitle, { color: themeColors.text }]}>
               Import Model
             </Text>
             <Text style={[styles.customUrlButtonSubtitle, { color: themeColors.secondaryText }]}>
-              Import a GGUF model from storage
+              Import a GGUF model from the storage
             </Text>
           </View>
         </View>
@@ -1125,9 +1025,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
             <></>
             )}
           </View>
-          <Text style={[styles.modelPath, { color: themeColors.secondaryText }]}>
-            {item.path}
-          </Text>
           <View style={styles.modelMetaInfo}>
             <View style={styles.metaItem}>
               <Ionicons name="disc-outline" size={14} color={themeColors.secondaryText} />
@@ -1180,22 +1077,11 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       // Force a check for completed downloads and refresh models
       const refreshModels = async () => {
         try {
-          console.log('[ModelScreen] Screen focused, refreshing models...');
-          
           // First check for any completed downloads in temp directory
           await modelDownloader.processCompletedDownloads();
           
-          // Force a refresh of the ModelDownloader's stored models cache
-          try {
-            await modelDownloader.refreshStoredModels();
-            console.log('[ModelScreen] Refreshed model downloader cache');
-          } catch (refreshError) {
-            console.error('[ModelScreen] Error refreshing model cache:', refreshError);
-          }
-          
           // Then reload the stored models list
           await loadStoredModels();
-          console.log('[ModelScreen] Models refreshed successfully');
         } catch (error) {
           console.error('[ModelScreen] Error refreshing models on focus:', error);
         }
@@ -1214,6 +1100,30 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     if (activeTab === 'stored') {
       console.log('[ModelScreen] Tab changed to stored, refreshing models');
       loadStoredModels();
+    }
+  }, [activeTab]);
+
+  // Add effect to periodically check for new models
+  useEffect(() => {
+    if (activeTab === 'stored') {
+      console.log('[ModelScreen] Setting up periodic refresh for stored models');
+      
+      // Check every 3 seconds for new models
+      const intervalId = setInterval(async () => {
+        try {
+          console.log('[ModelScreen] Periodic refresh checking for new models');
+          await modelDownloader.processCompletedDownloads();
+          await loadStoredModels();
+        } catch (error) {
+          console.error('[ModelScreen] Error in periodic refresh:', error);
+        }
+      }, 3000);
+      
+      // Clean up interval on unmount
+      return () => {
+        console.log('[ModelScreen] Clearing periodic refresh interval');
+        clearInterval(intervalId);
+      };
     }
   }, [activeTab]);
 
@@ -1662,23 +1572,17 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
   },
-  sectionHeader: {
-    padding: 16,
+  storedModelsHeader: {
+    paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 16,
   },
-  headingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  sectionHeading: {
-    fontSize: 20,
-    fontWeight: '600',
-  },
-  sectionSubheading: {
+  modelDescription: {
+    marginTop: 4,
+    marginBottom: 6,
     fontSize: 14,
-    marginTop: 8,
+    lineHeight: 20,
+    color: 'rgba(255, 255, 255, 0.7)',
   },
   modelItem: {
     flexDirection: 'row',
@@ -1772,25 +1676,5 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 12,
     fontWeight: '500',
-  },
-  modelPath: {
-    fontSize: 12,
-    marginTop: 2,
-    marginBottom: 4,
-    flexWrap: 'wrap',
-    flex: 1,
-    lineHeight: 16,
-  },
-  actionButtonsContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  actionButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 8,
   },
 }); 
