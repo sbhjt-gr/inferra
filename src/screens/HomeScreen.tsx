@@ -785,214 +785,209 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       ? streamingStats
       : item.stats;
       
-    const messageElements = [];
-
-    if (item.role === 'assistant' && thinkingContent) {
-      messageElements.push(
-        <View key="thinking" style={styles.thinkingContainer}>
-          <View style={styles.thinkingHeader}>
-            <Ionicons 
-              name="bulb-outline" 
-              size={14} 
-              color={themeColors.secondaryText}
-              style={styles.thinkingIcon}
-            />
-            <Text style={[styles.thinkingLabel, { color: themeColors.secondaryText }]}>
-              Reasoning
+    return (
+      <View style={styles.messageContainer}>
+        {item.role === 'assistant' && thinkingContent && (
+          <View key="thinking" style={styles.thinkingContainer}>
+            <View style={styles.thinkingHeader}>
+              <Ionicons 
+                name="bulb-outline" 
+                size={14} 
+                color={themeColors.secondaryText}
+                style={styles.thinkingIcon}
+              />
+              <Text style={[styles.thinkingLabel, { color: themeColors.secondaryText }]}>
+                Reasoning
+              </Text>
+              <TouchableOpacity 
+                style={styles.copyButton} 
+                onPress={() => copyToClipboard(thinkingContent)}
+                hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+              >
+                <Ionicons 
+                  name="copy-outline" 
+                  size={14} 
+                  color={themeColors.secondaryText} 
+                />
+              </TouchableOpacity>
+            </View>
+            <Text 
+              style={[styles.thinkingText, { color: themeColors.secondaryText }]} 
+              selectable={true}
+            >
+              {thinkingContent}
+            </Text>
+          </View>
+        )}
+        <View style={[
+          styles.messageCard,
+          { 
+            backgroundColor: item.role === 'user' ? themeColors.headerBackground : themeColors.borderColor,
+            alignSelf: item.role === 'user' ? 'flex-end' : 'flex-start',
+            borderTopRightRadius: item.role === 'user' ? 4 : 20,
+            borderTopLeftRadius: item.role === 'user' ? 20 : 4,
+          }
+        ]}>
+          <View style={styles.messageHeader}>
+            <Text style={[styles.roleLabel, { color: item.role === 'user' ? '#fff' : themeColors.text }]}>
+              {item.role === 'user' ? 'You' : 'Model'}
             </Text>
             <TouchableOpacity 
               style={styles.copyButton} 
-              onPress={() => copyToClipboard(thinkingContent)}
+              onPress={() => copyToClipboard(item.content)}
               hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
             >
               <Ionicons 
                 name="copy-outline" 
-                size={14} 
-                color={themeColors.secondaryText} 
+                size={16} 
+                color={item.role === 'user' ? '#fff' : themeColors.text} 
               />
             </TouchableOpacity>
           </View>
-          <Text 
-            style={[styles.thinkingText, { color: themeColors.secondaryText }]} 
-            selectable={true}
-          >
-            {thinkingContent}
-          </Text>
-        </View>
-      );
-    }
 
-    // Add main message card
-    messageElements.push(
-      <View key="message" style={[
-        styles.messageCard,
-        { backgroundColor: item.role === 'user' ? themeColors.headerBackground : themeColors.borderColor }
-      ]}>
-        <View style={styles.messageHeader}>
-          <Text style={[styles.roleLabel, { color: item.role === 'user' ? '#fff' : themeColors.text }]}>
-            {item.role === 'user' ? 'You' : 'Model'}
-          </Text>
-          <TouchableOpacity 
-            style={styles.copyButton} 
-            onPress={() => copyToClipboard(item.content)}
-            hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
-          >
-            <Ionicons 
-              name="copy-outline" 
-              size={16} 
-              color={item.role === 'user' ? '#fff' : themeColors.text} 
-            />
-          </TouchableOpacity>
-        </View>
-
-        {!hasMarkdownFormatting(messageContent) ? (
-          <View style={styles.messageContent}>
-            <Text 
-              style={[
-                styles.messageText,
-                { color: item.role === 'user' ? '#fff' : themeColors.text }
-              ]}
-              selectable={true}
-            >
-              {messageContent}
-            </Text>
-          </View>
-        ) : (
-          <View style={styles.markdownWrapper}>
-            <Markdown
-              style={{
-                body: {
-                  color: item.role === 'user' ? '#fff' : themeColors.text,
-                  fontSize: 16,
-                  lineHeight: 22,
-                },
-                paragraph: {
-                  marginVertical: 0,
-                },
-                code_block: {
-                  backgroundColor: '#000',
-                  borderRadius: 8,
-                  padding: 12,
-                  marginVertical: 8,
-                  position: 'relative',
-                  fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-                },
-                fence: {
-                  backgroundColor: '#000',
-                  borderRadius: 8,
-                  padding: 12,
-                  marginVertical: 8,
-                  position: 'relative',
-                  fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-                },
-                code_inline: {
-                  color: '#fff',
-                  backgroundColor: '#000',
-                  borderRadius: 4,
-                  paddingHorizontal: 4,
-                  paddingVertical: 2,
-                  fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-                  fontSize: 14,
-                },
-                text: {
-                  color: item.role === 'user' ? '#fff' : themeColors.text,
-                },
-                fence_text: {
-                  color: '#fff',
-                },
-                code_block_text: {
-                  color: '#fff',
-                }
-              }}
-              rules={{
-                fence: (node, children, parent, styles) => {
-                  const codeContent = node.content;
-                  return (
-                    <View style={[styles.fence, { position: 'relative' }]} key={node.key}>
-                      <Text style={styles.fence_text} selectable={true}>
-                        {codeContent}
-                      </Text>
-                      <TouchableOpacity 
-                        style={styles.codeBlockCopyButton}
-                        onPress={() => copyToClipboard(codeContent)}
-                        hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
-                      >
-                        <Ionicons 
-                          name="copy-outline" 
-                          size={14} 
-                          color="#fff" 
-                        />
-                      </TouchableOpacity>
-                    </View>
-                  );
-                },
-                code_block: (node, children, parent, styles) => {
-                  const codeContent = node.content;
-                  return (
-                    <View style={[styles.code_block, { position: 'relative' }]} key={node.key}>
-                      <Text style={styles.code_block_text} selectable={true}>
-                        {codeContent}
-                      </Text>
-                      <TouchableOpacity 
-                        style={styles.codeBlockCopyButton}
-                        onPress={() => copyToClipboard(codeContent)}
-                        hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
-                      >
-                        <Ionicons 
-                          name="copy-outline" 
-                          size={14} 
-                          color="#fff" 
-                        />
-                      </TouchableOpacity>
-                    </View>
-                  );
-                }
-              }}
-            >
-              {messageContent}
-            </Markdown>
-          </View>
-        )}
-
-        {item.role === 'assistant' && stats && (
-          <View style={styles.statsContainer}>
-            <Text style={[styles.statsText, { color: themeColors.secondaryText }]}>
-              {`${stats.tokens.toLocaleString()} tokens`}
-            </Text>
-            
-            {item === messages[messages.length - 1] && (
-              <TouchableOpacity 
+          {!hasMarkdownFormatting(messageContent) ? (
+            <View style={styles.messageContent}>
+              <Text 
                 style={[
-                  styles.regenerateButton,
-                  isRegenerating && styles.regenerateButtonDisabled
+                  styles.messageText,
+                  { color: item.role === 'user' ? '#fff' : themeColors.text }
                 ]}
-                onPress={handleRegenerate}
-                disabled={isLoading || isRegenerating}
+                selectable={true}
               >
-                {isRegenerating ? (
-                  <ActivityIndicator size="small" color={themeColors.secondaryText} />
-                ) : (
-                  <>
-                    <Ionicons 
-                      name="refresh-outline" 
-                      size={14} 
-                      color={themeColors.secondaryText}
-                    />
-                    <Text style={[styles.regenerateButtonText, { color: themeColors.secondaryText }]}>
-                      Regenerate
-                    </Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
-      </View>
-    );
+                {messageContent}
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.markdownWrapper}>
+              <Markdown
+                style={{
+                  body: {
+                    color: item.role === 'user' ? '#fff' : themeColors.text,
+                    fontSize: 16,
+                    lineHeight: 22,
+                  },
+                  paragraph: {
+                    marginVertical: 0,
+                  },
+                  code_block: {
+                    backgroundColor: '#000',
+                    borderRadius: 8,
+                    padding: 12,
+                    marginVertical: 8,
+                    position: 'relative',
+                    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+                  },
+                  fence: {
+                    backgroundColor: '#000',
+                    borderRadius: 8,
+                    padding: 12,
+                    marginVertical: 8,
+                    position: 'relative',
+                    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+                  },
+                  code_inline: {
+                    color: '#fff',
+                    backgroundColor: '#000',
+                    borderRadius: 4,
+                    paddingHorizontal: 4,
+                    paddingVertical: 2,
+                    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+                    fontSize: 14,
+                  },
+                  text: {
+                    color: item.role === 'user' ? '#fff' : themeColors.text,
+                  },
+                  fence_text: {
+                    color: '#fff',
+                  },
+                  code_block_text: {
+                    color: '#fff',
+                  }
+                }}
+                rules={{
+                  fence: (node, children, parent, styles) => {
+                    const codeContent = node.content;
+                    return (
+                      <View style={[styles.fence, { position: 'relative' }]} key={node.key}>
+                        <Text style={styles.fence_text} selectable={true}>
+                          {codeContent}
+                        </Text>
+                        <TouchableOpacity 
+                          style={styles.codeBlockCopyButton}
+                          onPress={() => copyToClipboard(codeContent)}
+                          hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+                        >
+                          <Ionicons 
+                            name="copy-outline" 
+                            size={14} 
+                            color="#fff" 
+                          />
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  },
+                  code_block: (node, children, parent, styles) => {
+                    const codeContent = node.content;
+                    return (
+                      <View style={[styles.code_block, { position: 'relative' }]} key={node.key}>
+                        <Text style={styles.code_block_text} selectable={true}>
+                          {codeContent}
+                        </Text>
+                        <TouchableOpacity 
+                          style={styles.codeBlockCopyButton}
+                          onPress={() => copyToClipboard(codeContent)}
+                          hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+                        >
+                          <Ionicons 
+                            name="copy-outline" 
+                            size={14} 
+                            color="#fff" 
+                          />
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  }
+                }}
+              >
+                {messageContent}
+              </Markdown>
+            </View>
+          )}
 
-    return (
-      <View style={styles.messageContainer}>
-        {messageElements}
+          {item.role === 'assistant' && stats && (
+            <View style={styles.statsContainer}>
+              <Text style={[styles.statsText, { color: themeColors.secondaryText }]}>
+                {`${stats.tokens.toLocaleString()} tokens`}
+              </Text>
+              
+              {item === messages[messages.length - 1] && (
+                <TouchableOpacity 
+                  style={[
+                    styles.regenerateButton,
+                    isRegenerating && styles.regenerateButtonDisabled
+                  ]}
+                  onPress={handleRegenerate}
+                  disabled={isLoading || isRegenerating}
+                >
+                  {isRegenerating ? (
+                    <ActivityIndicator size="small" color={themeColors.secondaryText} />
+                  ) : (
+                    <>
+                      <Ionicons 
+                        name="refresh-outline" 
+                        size={14} 
+                        color={themeColors.secondaryText}
+                      />
+                      <Text style={[styles.regenerateButtonText, { color: themeColors.secondaryText }]}>
+                        Regenerate
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+        </View>
       </View>
     );
   }, [themeColors, messages, isLoading, isRegenerating, handleRegenerate, copyToClipboard, isStreaming, streamingMessageId, streamingMessage, streamingThinking, streamingStats]);
@@ -1281,10 +1276,11 @@ const styles = StyleSheet.create({
   messageContainer: {
     marginVertical: 4,
     width: '100%',
+    paddingHorizontal: 8,
   },
   messageCard: {
-    width: '100%',
-    borderRadius: 8,
+    maxWidth: '85%',
+    borderRadius: 20,
     marginVertical: 4,
     elevation: 1,
     shadowColor: '#000',

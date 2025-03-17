@@ -4,6 +4,8 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
+  Text,
+  FlatList,
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
@@ -55,8 +57,41 @@ export default function ChatScreen() {
     }
   };
 
+  const renderMessage = ({ item }: { item: { role: string; content: string } }) => (
+    <View style={styles.messageContainer}>
+      <View style={[
+        styles.messageCard,
+        { 
+          backgroundColor: item.role === 'user' ? themeColors.headerBackground : themeColors.borderColor,
+          alignSelf: item.role === 'user' ? 'flex-end' : 'flex-start',
+          borderTopRightRadius: item.role === 'user' ? 4 : 20,
+          borderTopLeftRadius: item.role === 'user' ? 20 : 4,
+        }
+      ]}>
+        <View style={styles.messageContent}>
+          <Text 
+            style={[
+              styles.messageText,
+              { color: item.role === 'user' ? '#fff' : themeColors.text }
+            ]}
+            selectable={true}
+          >
+            {item.content}
+          </Text>
+        </View>
+      </View>
+    </View>
+  );
+
   return (
     <View style={[styles.container, { backgroundColor: themeColors.background }]}>
+      <FlatList
+        data={messages}
+        renderItem={renderMessage}
+        keyExtractor={(item, index) => index.toString()}
+        contentContainerStyle={styles.messageList}
+        inverted={true}
+      />
       {isLoading && (
         <ActivityIndicator 
           size="large" 
@@ -77,5 +112,35 @@ const styles = StyleSheet.create({
     top: '50%',
     left: '50%',
     transform: [{ translateX: -20 }, { translateY: -20 }],
+  },
+  messageList: {
+    flexGrow: 1,
+    paddingVertical: 16,
+    paddingHorizontal: 8,
+  },
+  messageContainer: {
+    marginVertical: 4,
+    width: '100%',
+    paddingHorizontal: 8,
+  },
+  messageCard: {
+    maxWidth: '85%',
+    borderRadius: 20,
+    marginVertical: 4,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+  },
+  messageContent: {
+    padding: 12,
+    paddingTop: 8,
+    overflow: 'visible',
+  },
+  messageText: {
+    fontSize: 15,
+    lineHeight: 20,
+    overflow: 'visible',
   },
 }); 
