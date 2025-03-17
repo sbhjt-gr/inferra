@@ -52,6 +52,14 @@ interface DownloadableModel {
 
 const DOWNLOADABLE_MODELS: DownloadableModel[] = [
   {
+    "name": "Gemma 3 Instruct",
+    "description": "Google's latest compact instruction-tuned model with strong reasoning and fast inference.",
+    "size": "2.6 GB",
+    "huggingFaceLink": "https://huggingface.co/unsloth/gemma-3-4b-it-GGUF/resolve/main/gemma-3-4b-it-Q5_K_M.gguf?download=true",
+    "modelFamily": "4 Billion",
+    "quantization": "Q5_K_M"
+  },
+  {
     "name": "DeepSeek-R1 Distill Qwen",
     "description": "Highly optimized distillation of DeepSeek's R1 model using Qwen architecture for improved efficiency.",
     "size": "1.89 GB",
