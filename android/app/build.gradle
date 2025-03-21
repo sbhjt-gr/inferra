@@ -86,14 +86,51 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace "com.gorai.ragionare"
+    namespace 'com.gorai.ragionare'
+    
+    // Add shorter build directory for CMake
+    buildDir = new File(rootProject.projectDir, "build/${project.name}")
+    
     defaultConfig {
         applicationId 'com.gorai.ragionare'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
+        versionCode 81
         versionName "1.7.4"
+        
+        manifestPlaceholders = [
+            'package': 'com.gorai.ragionare'
+        ]
     }
+    
+    kotlinOptions {
+        allWarningsAsErrors = false
+        freeCompilerArgs += [
+            "-Xsuppress-warnings",
+            "-Xopt-in=kotlin.RequiresOptIn",
+            "-Xno-param-assertions",
+            "-Xno-call-assertions",
+            "-P",
+            "plugin:org.jetbrains.kotlin.compiler.plugin.suppressKotlinVersionCompatibilityCheck:enabled=true"
+        ]
+        jvmTarget = "17"
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    tasks.withType(JavaCompile) {
+        options.compilerArgs << '-Xlint:deprecation'
+        options.compilerArgs << '-Xlint:unchecked'
+    }
+
+    lintOptions {
+        checkReleaseBuilds false
+        abortOnError false
+    }
+    
     signingConfigs {
         debug {
             storeFile file('debug.keystore')
@@ -120,6 +157,12 @@ android {
         jniLibs {
             useLegacyPackaging (findProperty('expo.useLegacyPackaging')?.toBoolean() ?: false)
         }
+        pickFirst 'META-INF/LICENSE'
+        pickFirst 'META-INF/NOTICE'
+        exclude 'META-INF/DEPENDENCIES'
+        exclude 'META-INF/licenses/**'
+        exclude 'META-INF/AL2.0'
+        exclude 'META-INF/LGPL2.1'
     }
     androidResources {
         ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~'

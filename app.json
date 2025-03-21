@@ -2,7 +2,7 @@
   "expo": {
     "name": "Ragionare",
     "slug": "Ragionare",
-    "version": "1.6.8",
+    "version": "1.7.4",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "myapp",
@@ -23,6 +23,7 @@
       }
     },
     "android": {
+      "versionCode": 81,
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#000"
@@ -35,9 +36,18 @@
         "NOTIFICATIONS",
         "BACKGROUND_FETCH",
         "WAKE_LOCK",
+        "FOREGROUND_SERVICE",
+        "NOTIFICATIONS",
+        "BACKGROUND_FETCH",
+        "WAKE_LOCK",
+        "FOREGROUND_SERVICE",
+        "NOTIFICATIONS",
+        "BACKGROUND_FETCH",
+        "WAKE_LOCK",
         "FOREGROUND_SERVICE"
       ],
-      "runtimeVersion": "1.0.0"
+      "runtimeVersion": "1.0.0",
+      "package": "com.subhajitgorai.Ragionare"
     },
     "web": {
       "bundler": "metro",
