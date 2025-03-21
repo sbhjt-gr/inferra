@@ -1,32 +1,37 @@
-import { Ionicons } from '@expo/vector-icons';
-import { BottomTabNavigationProp, createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { CompositeNavigationProp, useFocusEffect } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import * as BackgroundFetch from 'expo-background-fetch';
-import * as DocumentPicker from 'expo-document-picker';
-import * as TaskManager from 'expo-task-manager';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Animated,
-  FlatList,
-  Modal,
-  Platform,
-  ScrollView,
   StyleSheet,
-  Text,
-  TouchableOpacity,
   View,
+  Text,
+  FlatList,
+  TouchableOpacity,
+  Alert,
+  NativeModules,
+  Linking,
+  Modal,
+  TextInput,
+  ActivityIndicator,
+  ScrollView,
+  Animated,
+  Platform,
 } from 'react-native';
+import { CompositeNavigationProp, useFocusEffect } from '@react-navigation/native';
+import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList, TabParamList } from '../types/navigation';
+import { useTheme } from '../context/ThemeContext';
+import { theme } from '../constants/theme';
+import { Ionicons } from '@expo/vector-icons';
 import AppHeader from '../components/AppHeader';
 import CustomUrlDialog from '../components/CustomUrlDialog';
-import { theme } from '../constants/theme';
+import { modelDownloader, StoredModel, DownloadProgress } from '../services/ModelDownloader';
+import DownloadsDialog from '../components/DownloadsDialog';
 import { useDownloads } from '../context/DownloadContext';
-import { useTheme } from '../context/ThemeContext';
+import * as BackgroundFetch from 'expo-background-fetch';
+import * as TaskManager from 'expo-task-manager';
+import * as DocumentPicker from 'expo-document-picker';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { downloadNotificationService } from '../services/DownloadNotificationService';
-import { DownloadProgress, modelDownloader, StoredModel } from '../services/ModelDownloader';
-import { RootStackParamList, TabParamList } from '../types/navigation';
 
 type ModelScreenProps = {
   navigation: CompositeNavigationProp<
@@ -50,10 +55,9 @@ const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "name": "Gemma 3 Instruct",
     "description": "Google's latest compact instruction-tuned model with strong reasoning and fast inference.",
     "size": "2.6 GB",
-    "huggingFaceLink": "https://huggingface.co/unsloth/gemma-3-4b-it-GGUF/resolve/main/gemma-3-4b-it-Q5_K_M.gguf",
+    "huggingFaceLink": "https://huggingface.co/unsloth/gemma-3-4b-it-GGUF/resolve/main/gemma-3-4b-it-Q5_K_M.gguf?download=true",
     "modelFamily": "4 Billion",
-    "quantization": "Q5_K_M",
-    "tags": ["recommended"]
+    "quantization": "Q5_K_M"
   },
   {
     "name": "DeepSeek-R1 Distill Qwen",
@@ -549,12 +553,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
                         <View style={[styles.modelTag, { backgroundColor: '#00a67e' }]}>
                           <Ionicons name="flash" size={12} color="#fff" style={{ marginRight: 4 }} />
                           <Text style={styles.modelTagText}>Fastest</Text>
-                        </View>
-                      )}
-                      {model.tags?.includes('recommended') && (
-                        <View style={[styles.modelTag, { backgroundColor: '#ff6b6b' }]}>
-                          <Ionicons name="star" size={12} color="#fff" style={{ marginRight: 4 }} />
-                          <Text style={styles.modelTagText}>Recommended</Text>
                         </View>
                       )}
                       {isDownloaded && (

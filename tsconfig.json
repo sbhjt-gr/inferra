@@ -7,7 +7,6 @@
     "jsx": "react-native",
     "esModuleInterop": true,
     "moduleResolution": "node16",
-    "module": "node16",
     "baseUrl": ".",
     "paths": {
       "*": [

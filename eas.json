@@ -11,18 +11,13 @@
     },
     "preview": {
       "distribution": "internal",
-      "channel": "preview",
-      "android": {
-        "buildType": "apk"
-      }
+      "channel": "preview"
     },
     "production": {
       "autoIncrement": true,
       "distribution": "store",
       "android": {
-        "buildType": "apk",
-        "gradleCommand": ":app:bundleRelease",
-        "withoutCredentials": false
+        "buildType": "apk"
       },
       "channel": "production"
     }
