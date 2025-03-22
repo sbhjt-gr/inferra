@@ -10,7 +10,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "buildNumber": "1",
+      "buildNumber": "75",
       "infoPlist": {
         "UIBackgroundModes": [
           "fetch",
@@ -24,7 +24,7 @@
       }
     },
     "android": {
-      "versionCode": 2,
+      "versionCode": 78,
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#000"
