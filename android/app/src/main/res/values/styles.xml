@@ -7,13 +7,13 @@
         <item name="android:editTextStyle">@style/Widget.AppCompat.EditText</item>
         <item name="android:buttonStyle">@style/Widget.AppCompat.Button</item>
         <item name="colorPrimary">#660880</item>
-        <item name="colorPrimaryDark">#4d0461</item>
+        <item name="colorPrimaryDark">#660880</item>
         <item name="colorAccent">#660880</item>
         <item name="android:windowBackground">@android:color/white</item>
         <item name="android:forceDarkAllowed">true</item>
         <item name="android:windowLightStatusBar">false</item>
-        <item name="android:statusBarColor">@android:color/transparent</item>
-        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:statusBarColor">#660880</item>
+        <item name="android:navigationBarColor">#660880</item>
         <item name="android:windowTranslucentStatus">false</item>
         <item name="android:windowTranslucentNavigation">false</item>
         <item name="android:fitsSystemWindows">true</item>

@@ -16,6 +16,9 @@ import com.facebook.soloader.SoLoader
 import expo.modules.ApplicationLifecycleDispatcher
 import expo.modules.ReactNativeHostWrapper
 
+// Import DownloadNotificationPackage
+import com.gorai.ragionare.DownloadNotificationPackage
+
 class MainApplication : Application(), ReactApplication {
   companion object {
     const val DEBUG = true
@@ -28,8 +31,8 @@ class MainApplication : Application(), ReactApplication {
         object : DefaultReactNativeHost(this) {
           override fun getPackages(): List<ReactPackage> {
             val packages = PackageList(this).packages
-            // Packages that cannot be autolinked yet can be added manually here, for example:
-            // packages.add(new MyReactNativePackage());
+            // Add DownloadNotificationPackage
+            packages.add(DownloadNotificationPackage())
             return packages
           }
 

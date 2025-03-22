@@ -112,11 +112,16 @@ class DownloadNotificationModule(reactContext: ReactApplicationContext) : ReactC
     @ReactMethod
     fun cancelNotification(downloadId: String, promise: Promise) {
         try {
-            val notificationId = activeNotifications[downloadId]
-            if (notificationId != null) {
-                notificationManager.cancel(notificationId)
-                activeNotifications.remove(downloadId)
-            }
+            // Try to get the notification ID from active notifications
+            val notificationId = activeNotifications[downloadId] ?: downloadId.hashCode()
+            
+            // Cancel the notification
+            notificationManager.cancel(notificationId)
+            activeNotifications.remove(downloadId)
+            
+            // Remove any pending removal callbacks
+            handler.removeCallbacksAndMessages(null)
+            
             promise.resolve(true)
         } catch (e: Exception) {
             promise.reject("ERROR", "Failed to cancel notification: ${e.message}")
