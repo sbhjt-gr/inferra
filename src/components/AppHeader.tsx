@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
@@ -40,7 +40,7 @@ export default function AppHeader({ onNewChat }: AppHeaderProps) {
         styles.header, 
         { 
           backgroundColor: themeColors.headerBackground,
-          paddingTop: insets.top,
+          paddingTop: insets.top + 8,
         }
       ]}
     >
@@ -82,7 +82,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingBottom: 10,
-    padding: 20,
+    paddingTop: 8,
+    paddingHorizontal: 20,
     borderBottomColor: 'rgba(0, 0, 0, 0.1)',
   },
   leftSection: {

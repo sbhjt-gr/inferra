@@ -155,6 +155,7 @@ const ChatInput = ({
   placeholderColor?: string
 }) => {
   const [text, setText] = useState('');
+  const [inputHeight, setInputHeight] = useState(48);
   const inputRef = useRef<TextInput>(null);
   const { theme: currentTheme } = useTheme();
   const isDark = currentTheme === 'dark';
@@ -163,19 +164,27 @@ const ChatInput = ({
     if (!text.trim()) return;
     onSend(text);
     setText('');
+    setInputHeight(48); // Reset height after sending
+  };
+
+  const handleContentSizeChange = (event: any) => {
+    const height = Math.min(120, Math.max(48, event.nativeEvent.contentSize.height));
+    setInputHeight(height);
   };
 
   return (
     <View style={[inpStyles.container, style]}>
       <View style={[
         inpStyles.inputWrapper,
-        isDark && { backgroundColor: 'rgba(255, 255, 255, 0.1)' }
+        isDark && { backgroundColor: 'rgba(255, 255, 255, 0.1)' },
+        { minHeight: inputHeight }
       ]}>
         <TextInput
           ref={inputRef}
           style={[
             inpStyles.input,
-            isDark && { color: '#fff' }
+            isDark && { color: '#fff' },
+            { height: inputHeight }
           ]}
           value={text}
           onChangeText={setText}
@@ -186,6 +195,7 @@ const ChatInput = ({
           textAlignVertical="center"
           returnKeyType="default"
           blurOnSubmit={false}
+          onContentSizeChange={handleContentSizeChange}
           onSubmitEditing={handleSend}
         />
       </View>
@@ -1059,14 +1069,14 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   }, []);
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      style={{ flex: 1 }}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+    <SafeAreaView 
+      style={[styles.container, { backgroundColor: themeColors.background }]}
+      edges={['right', 'left']}
     >
-      <SafeAreaView 
-        style={[styles.container, { backgroundColor: themeColors.background }]}
-        edges={['right', 'left', 'bottom']}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={{ flex: 1 }}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
       >
         <AppHeader 
           onNewChat={startNewChat}
@@ -1120,13 +1130,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         </Modal>
 
         <View style={styles.container}>
-          <View style={[
-            styles.content,
-            { 
-              paddingBottom: keyboardVisible ? 
-                (Platform.OS === 'ios' ? keyboardHeight - 50 : keyboardHeight - 50) : 0 
-            }
-          ]}>
+          <View style={[styles.content]}>
             <View style={styles.modelSelectorWrapper}>
               <ModelSelector 
                 ref={modelSelectorRef}
@@ -1176,24 +1180,25 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                 />
               )}
             </View>
-
-            <ChatInput
-              onSend={handleSend}
-              disabled={isLoading || isStreaming}
-              isLoading={isLoading || isStreaming}
-              onCancel={handleCancelGeneration}
-              placeholderColor={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.4)'}
-              style={{ 
-                borderTopWidth: 1,
-                borderTopColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
-                backgroundColor: themeColors.background,
-                paddingHorizontal: 4,
-              }}
-            />
           </View>
         </View>
-      </SafeAreaView>
-    </KeyboardAvoidingView>
+
+        <View style={styles.inputContainer}>
+          <ChatInput
+            onSend={handleSend}
+            disabled={isLoading || isStreaming}
+            isLoading={isLoading || isStreaming}
+            onCancel={handleCancelGeneration}
+            placeholderColor={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.4)'}
+            style={{ 
+              borderTopWidth: 1,
+              borderTopColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+              backgroundColor: themeColors.background,
+            }}
+          />
+        </View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
@@ -1202,17 +1207,16 @@ const inpStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     paddingHorizontal: 4,
-    paddingTop: 13,
-    marginBottom: -10,
+    paddingTop: 8,
+    paddingBottom: Platform.OS === 'ios' ? 0 : 4,
     backgroundColor: 'transparent',
-    marginHorizontal: -20,
   },
   inputWrapper: {
     flex: 1,
     backgroundColor: '#f0f0f0',
     borderRadius: 24,
     marginRight: 8,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     minHeight: 48,
     justifyContent: 'center',
     marginHorizontal: 12,
@@ -1220,8 +1224,8 @@ const inpStyles = StyleSheet.create({
   input: {
     fontSize: 16,
     maxHeight: 120,
-    paddingTop: 12,
-    paddingBottom: 12,
+    paddingTop: Platform.OS === 'ios' ? 12 : 8,
+    paddingBottom: Platform.OS === 'ios' ? 12 : 8,
     color: '#000',
   },
   sendButton: {
@@ -1254,7 +1258,6 @@ const inpStyles = StyleSheet.create({
   },
 });
 
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -1272,6 +1275,15 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingVertical: 16,
     paddingHorizontal: 8,
+    paddingBottom: Platform.OS === 'ios' ? 60 : 80,
+  },
+  inputContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'transparent',
+    paddingBottom: Platform.OS === 'ios' ? 20 : 10,
   },
   messageContainer: {
     marginVertical: 4,
@@ -1370,15 +1382,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingHorizontal: 32,
   },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    padding: 8,
-    borderRadius: 24,
-    marginTop: 8,
-    marginBottom: 0,
-    minHeight: 56,
-  },
   input: {
     flex: 1,
     fontSize: 16,
@@ -1386,13 +1389,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     marginRight: 8,
     minHeight: 40,
-  },
-  sendButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   inputContainerDisabled: {
     opacity: 0.7,
