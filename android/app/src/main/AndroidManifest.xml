@@ -37,5 +37,6 @@
         <data android:scheme="exp+ragionare"/>
       </intent-filter>
     </activity>
+    <provider android:name="expo.modules.filesystem.FileSystemFileProvider" android:authorities="${applicationId}.FileSystemFileProvider" android:exported="false" android:grantUriPermissions="true"/>
   </application>
 </manifest>

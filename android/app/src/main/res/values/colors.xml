@@ -9,4 +9,5 @@
     <color name="white">#FFFFFFFF</color>
     <color name="window_background">@color/white</color>
     <color name="window_background_dark">@color/black</color>
+    <color name="splashscreen_background">#FFFFFF</color>
 </resources>
