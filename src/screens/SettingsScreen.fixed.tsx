@@ -40,7 +40,7 @@ const DEFAULT_SETTINGS = {
   topK: 40,
   topP: 0.9,
   minP: 0.05,
-  stopWords: ['<|end|>', '<end_of_turn>', '<|im_end|>', '<|endoftext|>', '<｜end▁of▁sentence｜>'],
+  stopWords: ['<|end|>', '<end_of_turn>', '<|im_end|>', '<|endoftext|>', '<｜end_of_sentence｜>', ''],
   systemPrompt: 'You are an AI assistant.'
 };
 

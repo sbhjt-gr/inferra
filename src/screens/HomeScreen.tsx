@@ -177,14 +177,13 @@ const ChatInput = ({
       <View style={[
         inpStyles.inputWrapper,
         isDark && { backgroundColor: 'rgba(255, 255, 255, 0.1)' },
-        { minHeight: inputHeight }
+        { height: inputHeight }
       ]}>
         <TextInput
           ref={inputRef}
           style={[
             inpStyles.input,
             isDark && { color: '#fff' },
-            { height: inputHeight }
           ]}
           value={text}
           onChangeText={setText}
@@ -196,7 +195,7 @@ const ChatInput = ({
           returnKeyType="default"
           blurOnSubmit={false}
           onContentSizeChange={handleContentSizeChange}
-          onSubmitEditing={handleSend}
+          keyboardAppearance={isDark ? 'dark' : 'light'}
         />
       </View>
       
@@ -1069,69 +1068,69 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   }, []);
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      style={{ flex: 1 }}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+    <SafeAreaView 
+      style={[styles.container, { backgroundColor: themeColors.background }]}
+      edges={['right', 'left']}
     >
-      <SafeAreaView 
-        style={[styles.container, { backgroundColor: themeColors.background }]}
-        edges={['right', 'left']}
+      <AppHeader 
+        onNewChat={startNewChat}
+        title="Ragionare"
+        showLogo={true}
+      />
+      
+      {/* iOS Copy Toast */}
+      {showCopyToast && (
+        <View style={styles.copyToast}>
+          <Text style={styles.copyToastText}>{copyToastMessageRef.current}</Text>
+        </View>
+      )}
+
+      {/* Memory Warning Modal */}
+      <Modal
+        visible={showMemoryWarning}
+        transparent
+        animationType="fade"
+        onRequestClose={handleMemoryWarningClose}
       >
-        <AppHeader 
-          onNewChat={startNewChat}
-          title="Ragionare"
-          showLogo={true}
-        />
-        
-        {/* iOS Copy Toast */}
-        {showCopyToast && (
-          <View style={styles.copyToast}>
-            <Text style={styles.copyToastText}>{copyToastMessageRef.current}</Text>
-          </View>
-        )}
-
-        {/* Memory Warning Modal */}
-        <Modal
-          visible={showMemoryWarning}
-          transparent
-          animationType="fade"
-          onRequestClose={handleMemoryWarningClose}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalContent, { backgroundColor: themeColors.borderColor }]}>
-              <View style={styles.modalHeader}>
-                <Ionicons name="warning-outline" size={32} color="#FFA726" />
-                <Text style={[styles.modalTitle, { color: themeColors.text }]}>
-                  Low Memory Warning
-                </Text>
-              </View>
-              
-              <Text style={[styles.modalText, { color: themeColors.text }]}>
-                Your device has less than 8GB of RAM. Large language models require significant memory to run efficiently. You may experience:
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: themeColors.borderColor }]}>
+            <View style={styles.modalHeader}>
+              <Ionicons name="warning-outline" size={32} color="#FFA726" />
+              <Text style={[styles.modalTitle, { color: themeColors.text }]}>
+                Low Memory Warning
               </Text>
-              
-              <View style={styles.bulletPoints}>
-                <Text style={[styles.bulletPoint, { color: themeColors.text }]}>• Slower response times</Text>
-                <Text style={[styles.bulletPoint, { color: themeColors.text }]}>• Potential app crashes</Text>
-                <Text style={[styles.bulletPoint, { color: themeColors.text }]}>• Limited model size support</Text>
-              </View>
-              
-              <Text style={[styles.modalText, { color: themeColors.text, marginTop: 8 }]}>
-                Although, you can still continue using this app, but optimal performance, consider using a phone with more RAM.
-              </Text>
-
-              <TouchableOpacity
-                style={[styles.modalButton, { backgroundColor: themeColors.headerBackground }]}
-                onPress={handleMemoryWarningClose}
-              >
-                <Text style={styles.modalButtonText}>I Understand</Text>
-              </TouchableOpacity>
             </View>
-          </View>
-        </Modal>
+            
+            <Text style={[styles.modalText, { color: themeColors.text }]}>
+              Your device has less than 8GB of RAM. Large language models require significant memory to run efficiently. You may experience:
+            </Text>
+            
+            <View style={styles.bulletPoints}>
+              <Text style={[styles.bulletPoint, { color: themeColors.text }]}>• Slower response times</Text>
+              <Text style={[styles.bulletPoint, { color: themeColors.text }]}>• Potential app crashes</Text>
+              <Text style={[styles.bulletPoint, { color: themeColors.text }]}>• Limited model size support</Text>
+            </View>
+            
+            <Text style={[styles.modalText, { color: themeColors.text, marginTop: 8 }]}>
+              Although, you can still continue using this app, but optimal performance, consider using a phone with more RAM.
+            </Text>
 
-        <View style={{ flex: 1, width: '100%', paddingBottom: Platform.OS === 'ios' ? 8 : 0 }}>
+            <TouchableOpacity
+              style={[styles.modalButton, { backgroundColor: themeColors.headerBackground }]}
+              onPress={handleMemoryWarningClose}
+            >
+              <Text style={styles.modalButtonText}>I Understand</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={{ flex: 1, width: '100%' }}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 16 : 0}
+      >
+        <View style={{ flex: 1, width: '100%' }}>
           <View style={styles.modelSelectorWrapper}>
             <ModelSelector 
               ref={modelSelectorRef}
@@ -1142,7 +1141,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             />
           </View>
 
-          <View style={[styles.messagesContainer, { flex: 1 }]}>
+          <View style={[styles.messagesContainer]}>
             {messages.length === 0 ? (
               <View style={styles.emptyState}>
                 <Ionicons 
@@ -1171,7 +1170,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                 scrollEventThrottle={16}
                 showsVerticalScrollIndicator={true}
                 automaticallyAdjustKeyboardInsets={false}
-                keyboardDismissMode="on-drag"
+                keyboardDismissMode="none"
                 initialNumToRender={15}
                 removeClippedSubviews={false}
                 windowSize={10}
@@ -1182,37 +1181,36 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
               />
             )}
           </View>
-
-          <View style={{
-            width: '100%',
-            backgroundColor: themeColors.background,
-            borderTopWidth: 1,
-            borderTopColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
-          }}>
-            <ChatInput
-              onSend={handleSend}
-              disabled={isLoading || isStreaming}
-              isLoading={isLoading || isStreaming}
-              onCancel={handleCancelGeneration}
-              placeholderColor={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.4)'}
-              style={{ 
-                backgroundColor: themeColors.background,
-              }}
-            />
-          </View>
         </View>
-      </SafeAreaView>
-    </KeyboardAvoidingView>
+
+        <View style={{
+          width: '100%',
+          backgroundColor: themeColors.background,
+          borderTopWidth: 1,
+          borderTopColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+        }}>
+          <ChatInput
+            onSend={handleSend}
+            disabled={isLoading || isStreaming}
+            isLoading={isLoading || isStreaming}
+            onCancel={handleCancelGeneration}
+            placeholderColor={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.4)'}
+            style={{ 
+              backgroundColor: themeColors.background,
+            }}
+          />
+        </View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const inpStyles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     paddingHorizontal: 4,
-    paddingTop: 8,
-    paddingBottom: Platform.OS === 'ios' ? 8 : 8,
+    paddingVertical: 8,
     backgroundColor: 'transparent',
     width: '100%',
   },
@@ -1228,10 +1226,8 @@ const inpStyles = StyleSheet.create({
   },
   input: {
     fontSize: 16,
-    maxHeight: 120,
-    paddingTop: Platform.OS === 'ios' ? 12 : 8,
-    paddingBottom: Platform.OS === 'ios' ? 12 : 8,
     color: '#000',
+    paddingVertical: 4,
   },
   sendButton: {
     width: 48,
@@ -1280,7 +1276,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingVertical: 16,
     paddingHorizontal: 8,
-    paddingBottom: 24,
+    paddingBottom: 80,
   },
   messagesContainer: {
     flex: 1,

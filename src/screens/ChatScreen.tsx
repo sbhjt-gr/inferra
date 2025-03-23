@@ -6,16 +6,24 @@ import {
   ActivityIndicator,
   Text,
   FlatList,
+  KeyboardAvoidingView,
+  Platform,
+  TextInput,
+  TouchableOpacity,
+  Keyboard,
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import { llamaManager } from '../utils/LlamaManager';
+import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function ChatScreen() {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
   const [messages, setMessages] = useState<Array<{ role: string; content: string }>>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [input, setInput] = useState('');
 
   useEffect(() => {
     const settings = llamaManager.getSettings();
@@ -27,7 +35,9 @@ export default function ChatScreen() {
     ]);
   }, []);
 
-  const handleSendMessage = async (content: string) => {
+  const handleSendMessage = async () => {
+    if (!input.trim()) return;
+    
     if (!llamaManager.getModelPath()) {
       Alert.alert('Error', 'Please select a model first');
       return;
@@ -35,6 +45,9 @@ export default function ChatScreen() {
 
     try {
       setIsLoading(true);
+      const content = input.trim();
+      setInput('');
+      Keyboard.dismiss();
       
       const updatedMessages = [
         ...messages,
@@ -84,27 +97,65 @@ export default function ChatScreen() {
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: themeColors.background }]}>
-      <FlatList
-        data={messages}
-        renderItem={renderMessage}
-        keyExtractor={(item, index) => index.toString()}
-        contentContainerStyle={styles.messageList}
-        inverted={true}
-      />
-      {isLoading && (
-        <ActivityIndicator 
-          size="large" 
-          color={themeColors.headerBackground} 
-          style={styles.loading} 
-        />
-      )}
-    </View>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      style={{ flex: 1 }}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+    >
+      <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]} edges={['right', 'left']}>
+        <View style={styles.messagesContainer}>
+          <FlatList
+            data={messages.filter(m => m.role !== 'system')}
+            renderItem={renderMessage}
+            keyExtractor={(item, index) => index.toString()}
+            contentContainerStyle={styles.messageList}
+            inverted={true}
+          />
+          {isLoading && (
+            <ActivityIndicator 
+              size="large" 
+              color={themeColors.headerBackground} 
+              style={styles.loading} 
+            />
+          )}
+        </View>
+        
+        <View style={[styles.inputContainer, { borderTopColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)' }]}>
+          <View style={[styles.inputWrapper, currentTheme === 'dark' && { backgroundColor: 'rgba(255, 255, 255, 0.1)' }]}>
+            <TextInput
+              style={[styles.input, currentTheme === 'dark' && { color: '#fff' }]}
+              value={input}
+              onChangeText={setInput}
+              placeholder="Send a message..."
+              placeholderTextColor={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.4)'}
+              multiline
+              editable={!isLoading}
+              returnKeyType="default"
+            />
+          </View>
+          
+          <TouchableOpacity 
+            style={[styles.sendButton, !input.trim() && styles.sendButtonDisabled]} 
+            onPress={handleSendMessage}
+            disabled={!input.trim() || isLoading}
+          >
+            <Ionicons 
+              name="send" 
+              size={24} 
+              color={input.trim() ? '#660880' : currentTheme === 'dark' ? '#666' : '#999'} 
+            />
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+  },
+  messagesContainer: {
     flex: 1,
   },
   loading: {
@@ -117,6 +168,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingVertical: 16,
     paddingHorizontal: 8,
+    paddingBottom: 24,
   },
   messageContainer: {
     marginVertical: 4,
@@ -142,5 +194,42 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 20,
     overflow: 'visible',
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    paddingHorizontal: 4,
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    backgroundColor: 'transparent',
+  },
+  inputWrapper: {
+    flex: 1,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 24,
+    marginRight: 8,
+    paddingHorizontal: 16,
+    minHeight: 48,
+    justifyContent: 'center',
+    marginHorizontal: 12,
+  },
+  input: {
+    fontSize: 16,
+    maxHeight: 120,
+    paddingTop: Platform.OS === 'ios' ? 12 : 8,
+    paddingBottom: Platform.OS === 'ios' ? 12 : 8,
+    color: '#000',
+  },
+  sendButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+    marginRight: 8,
+  },
+  sendButtonDisabled: {
+    opacity: 0.6,
   },
 }); 
