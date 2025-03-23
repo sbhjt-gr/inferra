@@ -57,7 +57,8 @@ const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "size": "2.6 GB",
     "huggingFaceLink": "https://huggingface.co/unsloth/gemma-3-4b-it-GGUF/resolve/main/gemma-3-4b-it-Q5_K_M.gguf?download=true",
     "modelFamily": "4 Billion",
-    "quantization": "Q5_K_M"
+    "quantization": "Q5_K_M",
+    "tags": ["recommended"]
   },
   {
     "name": "DeepSeek-R1 Distill Qwen",
@@ -469,6 +470,16 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       });
     };
 
+    // Add handleBrowserDownload function
+    const handleBrowserDownload = async (url: string) => {
+      try {
+        await Linking.openURL(url);
+      } catch (error) {
+        console.error('Error opening URL:', error);
+        Alert.alert('Error', 'Could not open the download link');
+      }
+    };
+
     const handleDownload = async (model: DownloadableModel) => {
       // Check if model is already downloaded
       if (isModelDownloaded(model.name)) {
@@ -555,6 +566,12 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
                           <Text style={styles.modelTagText}>Fastest</Text>
                         </View>
                       )}
+                      {model.tags?.includes('recommended') && (
+                        <View style={[styles.modelTag, { backgroundColor: '#FF8C00' }]}>
+                          <Ionicons name="star" size={12} color="#fff" style={{ marginRight: 4 }} />
+                          <Text style={styles.modelTagText}>Recommended</Text>
+                        </View>
+                      )}
                       {isDownloaded && (
                         <View style={[styles.modelTag, { backgroundColor: '#666' }]}>
                           <Ionicons name="checkmark" size={12} color="#fff" style={{ marginRight: 4 }} />
@@ -563,29 +580,31 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
                       )}
                     </View>
                   </View>
-                  <TouchableOpacity
-                    style={[
-                      styles.downloadButton, 
-                      { backgroundColor: '#4a0660' },
-                      (downloadingModels[model.name] || downloadProgress[model.name] || initializingDownloads[model.name] || isDownloaded) && { opacity: 0.5 }
-                    ]}
-                    onPress={() => handleDownload(model)}
-                    disabled={Boolean(downloadingModels[model.name] || downloadProgress[model.name] || initializingDownloads[model.name] || isDownloaded)}
-                  >
-                    <Ionicons 
-                      name={
-                        isDownloaded
-                          ? "checkmark"
-                          : initializingDownloads[model.name] 
-                            ? "sync" 
-                            : downloadingModels[model.name] || downloadProgress[model.name] 
-                              ? "hourglass-outline" 
-                              : "cloud-download-outline"
-                      } 
-                      size={20} 
-                      color="#fff" 
-                    />
-                  </TouchableOpacity>
+                  <View style={styles.downloadButtonsContainer}>
+                    <TouchableOpacity
+                      style={[
+                        styles.downloadButton, 
+                        { backgroundColor: '#4a0660' },
+                        (downloadingModels[model.name] || downloadProgress[model.name] || initializingDownloads[model.name] || isDownloaded) && { opacity: 0.5 }
+                      ]}
+                      onPress={() => handleDownload(model)}
+                      disabled={Boolean(downloadingModels[model.name] || downloadProgress[model.name] || initializingDownloads[model.name] || isDownloaded)}
+                    >
+                      <Ionicons 
+                        name={
+                          isDownloaded
+                            ? "checkmark"
+                            : initializingDownloads[model.name] 
+                              ? "sync" 
+                              : downloadingModels[model.name] || downloadProgress[model.name] 
+                                ? "hourglass-outline" 
+                                : "cloud-download-outline"
+                        } 
+                        size={20} 
+                        color="#fff" 
+                      />
+                    </TouchableOpacity>
+                  </View>
                 </View>
                 <View style={styles.modelMetaInfo}>
                   <View style={styles.metaItem}>
@@ -594,6 +613,13 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
                       {model.size}
                     </Text>
                   </View>
+                  <TouchableOpacity
+                    style={styles.browserDownloadButton}
+                    onPress={() => handleBrowserDownload(model.huggingFaceLink)}
+                  >
+                    <Ionicons name="open-outline" size={14} color="#660880" style={{ marginRight: 4 }} />
+                    <Text style={styles.browserDownloadText}>Download in browser</Text>
+                  </TouchableOpacity>
                 </View>
                 
                 {model.description && (
@@ -1420,6 +1446,22 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 12,
     fontWeight: '600',
+  },
+  downloadButtonsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  browserDownloadButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+  },
+  browserDownloadText: {
+    color: '#660880',
+    fontSize: 13,
+    fontWeight: '500',
   },
   downloadButton: {
     width: 44,

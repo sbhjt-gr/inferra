@@ -3,6 +3,10 @@ import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build
 import android.os.Bundle
+import android.view.View
+import android.view.WindowManager
+import android.view.WindowInsets
+import android.graphics.Color
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
@@ -30,6 +34,17 @@ class MainActivity : ReactActivity() {
     // @generated end expo-splashscreen
     
     super.onCreate(null)
+
+    // Make status bar fully transparent and allow content to draw under it
+    window.statusBarColor = Color.TRANSPARENT
+    
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+      window.setDecorFitsSystemWindows(false)
+    } else {
+      window.decorView.systemUiVisibility = (View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+        or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+        or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR)
+    }
   }
 
   /**

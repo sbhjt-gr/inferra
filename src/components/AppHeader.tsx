@@ -1,6 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, Platform } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { View, Text, StyleSheet, Image, TouchableOpacity, Platform, StatusBar } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,7 +15,6 @@ type AppHeaderProps = {
 export default function AppHeader({ onNewChat }: AppHeaderProps) {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme];
-  const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute();
 
@@ -35,78 +33,84 @@ export default function AppHeader({ onNewChat }: AppHeaderProps) {
   };
 
   return (
-    <View 
-      style={[
-        styles.header, 
-        { 
-          backgroundColor: themeColors.headerBackground,
-          paddingTop: insets.top + 8,
-        }
-      ]}
-    >
-      <View style={styles.leftSection}>
-        <Image 
-          source={require('../../assets/icon.png')} 
-          style={styles.icon} 
-          resizeMode="contain"
-        />
-        <Text style={[styles.title, { color: themeColors.headerText }]}>
-          Ragionare
-        </Text>
-      </View>
+    <View style={[
+      styles.container, 
+      { backgroundColor: themeColors.headerBackground }
+    ]}>
+      <View style={styles.headerContent}>
+        <View style={styles.leftSection}>
+          <Image 
+            source={require('../../assets/icon.png')} 
+            style={styles.icon} 
+            resizeMode="contain"
+          />
+          <Text style={[styles.title, { color: themeColors.headerText }]}>
+            Ragionare
+          </Text>
+        </View>
 
-      <View style={styles.rightButtons}>
-        {isHomeScreen && (
+        <View style={styles.rightButtons}>
+          {isHomeScreen && (
+            <TouchableOpacity
+              style={styles.headerButton}
+              onPress={handleNewChat}
+            >
+              <Ionicons name="add-outline" size={22} color="#fff" />
+            </TouchableOpacity>
+          )}
+          
           <TouchableOpacity
             style={styles.headerButton}
-            onPress={handleNewChat}
+            onPress={handleOpenChatHistory}
           >
-            <Ionicons name="add-outline" size={24} color="#fff" />
+            <Ionicons name="time-outline" size={22} color="#fff" />
           </TouchableOpacity>
-        )}
-        
-        <TouchableOpacity
-          style={styles.headerButton}
-          onPress={handleOpenChatHistory}
-        >
-          <Ionicons name="time-outline" size={24} color="#fff" />
-        </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  header: {
+  container: {
+    width: '100%',
+    height: 52,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  headerContent: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingBottom: 10,
-    paddingTop: 8,
-    paddingHorizontal: 20,
-    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
+    paddingHorizontal: 16,
   },
   leftSection: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   icon: {
-    width: 32,
-    height: 32,
+    width: 24,
+    height: 24,
     marginRight: 8,
   },
   title: {
-    fontSize: 20,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
   rightButtons: {
     flexDirection: 'row',
     gap: 8,
   },
   headerButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
   },
