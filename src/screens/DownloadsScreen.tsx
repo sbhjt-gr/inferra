@@ -24,6 +24,7 @@ import type { DownloadProgress } from '../services/ModelDownloader';
 import type { DownloadTask } from '@kesha-antonov/react-native-background-downloader';
 import * as FileSystem from 'expo-file-system';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import AppHeader from '../components/AppHeader';
 
 const formatBytes = (bytes: number) => {
   if (bytes === undefined || bytes === null || isNaN(bytes) || bytes === 0) return '0 B';
@@ -316,27 +317,12 @@ export default function DownloadsScreen() {
   );
 
   return (
-    <View style={{ flex: 1, backgroundColor: themeColors.headerBackground }}>
-      <StatusBar
-        backgroundColor="transparent"
-        barStyle="light-content"
-        translucent={true}
+    <View style={{ flex: 1, backgroundColor: themeColors.background }}>
+      <AppHeader
+        title="Active Downloads"
+        showBackButton
+        showLogo={false}
       />
-      <View style={[
-        styles.header, 
-        { 
-          backgroundColor: themeColors.headerBackground,
-          paddingTop: insets.top + 10, // Add status bar height plus padding
-        }
-      ]}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="arrow-back" size={24} color="#fff" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Active Downloads</Text>
-      </View>
       
       <View style={[styles.container, { backgroundColor: themeColors.background }]}>
         <FlatList
@@ -360,19 +346,6 @@ export default function DownloadsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-  },
-  backButton: {
-    marginRight: 16,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#fff',
   },
   listContent: {
     padding: 16,

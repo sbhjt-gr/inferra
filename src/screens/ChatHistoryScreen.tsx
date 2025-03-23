@@ -17,6 +17,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import chatManager, { Chat } from '../utils/ChatManager';
+import AppHeader from '../components/AppHeader';
 
 export default function ChatHistoryScreen() {
   const { theme: currentTheme } = useTheme();
@@ -55,17 +56,6 @@ export default function ChatHistoryScreen() {
       setIsLoading(false);
     }
   }, []);
-
-  // Force status bar update
-  useEffect(() => {
-    StatusBar.setBarStyle('light-content');
-    StatusBar.setBackgroundColor(themeColors.headerBackground);
-    return () => {
-      // Reset to default when unmounting
-      StatusBar.setBarStyle(themeColors.statusBarStyle === 'light' ? 'light-content' : 'dark-content');
-      StatusBar.setBackgroundColor(themeColors.statusBarBg);
-    };
-  }, [currentTheme]);
 
   const handleSelectChat = async (chatId: string) => {
     try {
@@ -174,48 +164,37 @@ export default function ChatHistoryScreen() {
     </TouchableOpacity>
   );
 
-  return (
-    <View style={{ flex: 1, backgroundColor: themeColors.headerBackground }}>
-      <StatusBar
-        backgroundColor={themeColors.headerBackground}
-        barStyle="light-content"
-        translucent={true}
-      />
-      <View style={[
-        styles.header, 
-        { 
-          backgroundColor: themeColors.headerBackground,
-          paddingTop: insets.top + 12,
-        }
-      ]}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
+  // Create custom right buttons for the header
+  const headerRightButtons = (
+    <>
+      <TouchableOpacity
+        style={styles.headerButton}
+        onPress={handleCreateNewChat}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      >
+        <Ionicons name="add-outline" size={24} color="#fff" />
+      </TouchableOpacity>
+      
+      {chats.length > 0 && (
+        <TouchableOpacity
+          style={styles.headerButton}
+          onPress={handleDeleteAllChats}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Ionicons name="arrow-back" size={24} color="#fff" />
+          <Ionicons name="trash-outline" size={24} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Chat History</Text>
-        <View style={styles.headerActions}>
-          <TouchableOpacity
-            style={styles.newChatButton}
-            onPress={handleCreateNewChat}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Ionicons name="add-outline" size={24} color="#fff" />
-          </TouchableOpacity>
-          
-          {chats.length > 0 && (
-            <TouchableOpacity
-              style={styles.deleteAllButton}
-              onPress={handleDeleteAllChats}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Ionicons name="trash-outline" size={24} color="#fff" />
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
+      )}
+    </>
+  );
+
+  return (
+    <View style={{ flex: 1, backgroundColor: themeColors.background }}>
+      <AppHeader 
+        title="Chat History"
+        showBackButton
+        showLogo={false}
+        rightButtons={headerRightButtons}
+      />
       
       <View style={[styles.container, { backgroundColor: themeColors.background }]}>
         {isLoading ? (
@@ -253,48 +232,14 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
-    minHeight: 60,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
-    flex: 1,
-    textAlign: 'left',
-  },
-  backButton: {
+  headerButton: {
     width: 40,
     height: 40,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  newChatButton: {
-    marginRight: 8,
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  deleteAllButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    marginLeft: 8,
   },
   listContent: {
     padding: 12,
