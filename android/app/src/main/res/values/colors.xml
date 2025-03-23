@@ -10,4 +10,7 @@
     <color name="window_background">@color/white</color>
     <color name="window_background_dark">@color/black</color>
     <color name="splashscreen_background">#FFFFFF</color>
+    <color name="iconBackground">#FFFFFF</color>
+    <color name="colorPrimary">#023c69</color>
+    <color name="colorPrimaryDark">#660880</color>
 </resources>

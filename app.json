@@ -2,7 +2,7 @@
   "expo": {
     "name": "Ragionare",
     "slug": "Ragionare",
-    "version": "1.7.5",
+    "version": "1.8.4",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "myapp",
@@ -24,7 +24,7 @@
       }
     },
     "android": {
-      "versionCode": 81,
+      "versionCode": 83,
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#000"
@@ -48,7 +48,7 @@
         "FOREGROUND_SERVICE"
       ],
       "runtimeVersion": "1.0.0",
-      "package": "com.gorai.Ragionare"
+      "package": "com.gorai.ragionare"
     },
     "web": {
       "bundler": "metro",
