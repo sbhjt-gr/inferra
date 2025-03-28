@@ -64,7 +64,7 @@ npx expo run:ios --configuration Release
 
 ## License
 
- GNU AFFERO GENERAL PUBLIC LICENSE Version 3
+Distributed under AGPL-3.0. See `LICENSE` for more information.
 
 ## Acknowledgement
 
