@@ -65,3 +65,8 @@ npx expo run:ios --configuration Release
 ## License
 
  GNU AFFERO GENERAL PUBLIC LICENSE Version 3
+
+## Acknowledgement
+
+-   [llama.cpp](https://github.com/ggerganov/llama.cpp) - the underlying engine to run LLMs
+-   [ragionare-llama.rn](https://github.com/sbhjt-gr/ragionare-llama.rn) is customized from the original react-native llama.cpp adapter [llama.rn](https://github.com/mybigday/llama.rn)
