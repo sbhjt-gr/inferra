@@ -1,6 +1,6 @@
 # Ragionare LLM Runner
 
-Ragionare is a React Native mobile application that allows you to run large language models (LLMs) directly on your device. No internet connection required for inference - your conversations stay completely private and local.
+Ragionare is a mobile application that allows you to download and run large language models (LLMs) directly on your device. No internet connection required for inference - your conversations stay completely private and local.
 
 <a href="https://play.google.com/store/apps/details?id=com.gorai.ragionare">
   <img src="https://github.com/user-attachments/assets/bdc18fc5-5a99-410c-b383-eaf9c737176e" alt="play_download" width="200"/>
@@ -9,11 +9,6 @@ Ragionare is a React Native mobile application that allows you to run large lang
 <br>
 
 <img src="https://github.com/user-attachments/assets/28e9720f-1e3c-460d-b189-7f31d5020a90" alt="play_download" />
-
-## Core Features
-
-* Run local LLMs directly on your device
-* Manage and download various LLM models
 
 ## Project Structure
 
