@@ -8,7 +8,7 @@ Ragionare is a React Native mobile application that allows you to run large lang
 
 <br>
 
-<img src="https://github.com/user-attachments/assets/28e9720f-1e3c-460d-b189-7f31d5020a90" alt="play_download" width="200"/>
+<img src="https://github.com/user-attachments/assets/28e9720f-1e3c-460d-b189-7f31d5020a90" alt="play_download" />
 
 ## Core Features
 
