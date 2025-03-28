@@ -1,50 +1,72 @@
-# Welcome to your Expo app 👋
+# Ragionare LLM Runner
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Ragionare is a React Native mobile application that allows you to run large language models (LLMs) directly on your device. No internet connection required for inference - your conversations stay completely private and local.
 
-## Get started
+<a href="https://play.google.com/store/apps/details?id=com.gorai.ragionare">
+  <img src="https://github.com/user-attachments/assets/bdc18fc5-5a99-410c-b383-eaf9c737176e" alt="play_download" width="200"/>
+</a>
+
+<br>
+
+<img src="https://github.com/user-attachments/assets/28e9720f-1e3c-460d-b189-7f31d5020a90" alt="play_download" width="200"/>
+
+## Core Features
+
+* Run local LLMs directly on your device
+* Manage and download various LLM models
+
+## Project Structure
+
+The project follows a standard React Native with Expo structure:
+
+```
+src/
+  ├── components/   # Reusable UI components
+  ├── constants/    # App constants and theme definitions
+  ├── context/      # React context providers
+  ├── navigation/   # Navigation configuration
+  ├── screens/      # App screens
+  ├── services/     # Services like model downloading
+  ├── types/        # TypeScript type definitions
+  └── utils/        # Utility functions and managers
+```
+
+## Getting Started
 
 1. Install dependencies
 
-   ```bash
+   ```powershell
    npm install
    ```
 
-2. Start the app
+2. Start the development server
 
-   ```bash
-    npx expo start
+   ```powershell
+   npx expo start
    ```
 
-In the output, you'll find options to open the app in a
+3. Run on device or emulator
+   
+   ```powershell
+   # For Android
+   npx expo run:android
+   
+   # For iOS
+   npx expo run:ios
+   ```
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+## Building for Production
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+To build a production version:
 
-## Get a fresh project
+```powershell
+# For Android
+npx expo run:android --variant release
 
-When you're ready, run:
-
-```bash
-npm run reset-project
+# For iOS
+npx expo run:ios --configuration Release
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## License
 
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+ GNU AFFERO GENERAL PUBLIC LICENSE Version 3
