@@ -14,6 +14,7 @@ import {
   Modal,
   Keyboard,
   AppState,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
@@ -32,6 +33,7 @@ import { useModel } from '../context/ModelContext';
 import * as Device from 'expo-device';
 import chatManager, { Chat, ChatMessage } from '../utils/ChatManager';
 import { getThemeAwareColor } from '../utils/ColorUtils';
+import { useKeyboardManager, getKeyboardBehavior, getKeyboardVerticalOffset } from '../utils/KeyboardManager';
 
 type Message = {
   id: string;
@@ -259,8 +261,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   const [isRegenerating, setIsRegenerating] = useState(false);
   const cancelGenerationRef = useRef<boolean>(false);
   const [showMemoryWarning, setShowMemoryWarning] = useState(false);
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
-  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const { keyboardHeight, keyboardVisible, dismissKeyboard } = useKeyboardManager();
   const [streamingThinking, setStreamingThinking] = useState<string>('');
   const [streamingStats, setStreamingStats] = useState<{ tokens: number; duration: number } | null>(null);
   const appStateRef = useRef(AppState.currentState);
@@ -340,28 +341,14 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     checkSystemMemory();
   }, []);
 
-  // Update keyboard listeners
+  // When keyboard becomes visible, scroll the FlatList
   useEffect(() => {
-    const keyboardDidShowListener = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      (e) => {
-        setKeyboardVisible(true);
-        setKeyboardHeight(Platform.OS === 'ios' ? e.endCoordinates.height : e.endCoordinates.height - 20);
-      }
-    );
-    const keyboardDidHideListener = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-      () => {
-        setKeyboardVisible(false);
-        setKeyboardHeight(0);
-      }
-    );
-
-    return () => {
-      keyboardDidShowListener.remove();
-      keyboardDidHideListener.remove();
-    };
-  }, []);
+    if (keyboardVisible && flatListRef.current && messages.length > 0) {
+      setTimeout(() => {
+        flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+      }, 100);
+    }
+  }, [keyboardVisible, messages]);
 
   // Add AppState change handler
   useEffect(() => {
@@ -1072,137 +1059,136 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     }
   };
 
-  const dismissKeyboard = useCallback(() => {
-    Keyboard.dismiss();
-  }, []);
-
   return (
-    <SafeAreaView 
-      style={[styles.container, { backgroundColor: themeColors.background }]}
-      edges={['right', 'left']}
+    <KeyboardAvoidingView 
+      style={{ flex: 1 }} 
+      behavior={getKeyboardBehavior()}
+      keyboardVerticalOffset={getKeyboardVerticalOffset()}
     >
-      <AppHeader 
-        onNewChat={startNewChat}
-        title="Ragionare"
-        showLogo={true}
-      />
-      
-      {/* iOS Copy Toast */}
-      {showCopyToast && (
-        <View style={styles.copyToast}>
-          <Text style={styles.copyToastText}>{copyToastMessageRef.current}</Text>
-        </View>
-      )}
+      <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]} edges={['top', 'right', 'left']}>
+        <AppHeader 
+          onNewChat={startNewChat}
+          title="Ragionare"
+          showLogo={true}
+        />
+        
+        {/* iOS Copy Toast */}
+        {showCopyToast && (
+          <View style={styles.copyToast}>
+            <Text style={styles.copyToastText}>{copyToastMessageRef.current}</Text>
+          </View>
+        )}
 
-      {/* Memory Warning Modal */}
-      <Modal
-        visible={showMemoryWarning}
-        transparent
-        animationType="fade"
-        onRequestClose={handleMemoryWarningClose}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: themeColors.borderColor }]}>
-            <View style={styles.modalHeader}>
-              <Ionicons name="warning-outline" size={32} color={getThemeAwareColor('#FFA726', currentTheme)} />
-              <Text style={[styles.modalTitle, { color: themeColors.text }]}>
-                Low Memory Warning
+        {/* Memory Warning Modal */}
+        <Modal
+          visible={showMemoryWarning}
+          transparent
+          animationType="fade"
+          onRequestClose={handleMemoryWarningClose}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { backgroundColor: themeColors.borderColor }]}>
+              <View style={styles.modalHeader}>
+                <Ionicons name="warning-outline" size={32} color={getThemeAwareColor('#FFA726', currentTheme)} />
+                <Text style={[styles.modalTitle, { color: themeColors.text }]}>
+                  Low Memory Warning
+                </Text>
+              </View>
+              
+              <Text style={[styles.modalText, { color: themeColors.text }]}>
+                Your device has less than 8GB of RAM. Large language models require significant memory to run efficiently. You may experience:
               </Text>
-            </View>
-            
-            <Text style={[styles.modalText, { color: themeColors.text }]}>
-              Your device has less than 8GB of RAM. Large language models require significant memory to run efficiently. You may experience:
-            </Text>
-            
-            <View style={styles.bulletPoints}>
-              <Text style={[styles.bulletPoint, { color: themeColors.text }]}>• Slower response times</Text>
-              <Text style={[styles.bulletPoint, { color: themeColors.text }]}>• Potential app crashes</Text>
-              <Text style={[styles.bulletPoint, { color: themeColors.text }]}>• Limited model size support</Text>
-            </View>
-            
-            <Text style={[styles.modalText, { color: themeColors.text, marginTop: 8 }]}>
-              Although, you can still continue using this app, but optimal performance, consider using a phone with more RAM.
-            </Text>
+              
+              <View style={styles.bulletPoints}>
+                <Text style={[styles.bulletPoint, { color: themeColors.text }]}>• Slower response times</Text>
+                <Text style={[styles.bulletPoint, { color: themeColors.text }]}>• Potential app crashes</Text>
+                <Text style={[styles.bulletPoint, { color: themeColors.text }]}>• Limited model size support</Text>
+              </View>
+              
+              <Text style={[styles.modalText, { color: themeColors.text, marginTop: 8 }]}>
+                Although, you can still continue using this app, but optimal performance, consider using a phone with more RAM.
+              </Text>
 
-            <TouchableOpacity
-              style={[styles.modalButton, { backgroundColor: themeColors.headerBackground }]}
-              onPress={handleMemoryWarningClose}
-            >
-              <Text style={styles.modalButtonText}>I Understand</Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, { backgroundColor: themeColors.headerBackground }]}
+                onPress={handleMemoryWarningClose}
+              >
+                <Text style={styles.modalButtonText}>I Understand</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+        <View style={{ flex: 1, width: '100%' }}>
+          <View style={styles.modelSelectorWrapper}>
+            <ModelSelector 
+              ref={modelSelectorRef}
+              isOpen={shouldOpenModelSelector}
+              onClose={() => setShouldOpenModelSelector(false)}
+              preselectedModelPath={preselectedModelPath}
+              isGenerating={isLoading || isRegenerating}
+            />
+          </View>
+
+          <View style={[styles.messagesContainer]}>
+            {messages.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Ionicons 
+                  name="chatbubble-ellipses-outline" 
+                  size={48} 
+                  color={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.75)'} 
+                />
+                <Text style={[{ color: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.75)' }]}>
+                  Select a model and start chatting
+                </Text>
+              </View>
+            ) : (
+              <FlatList
+                ref={flatListRef}
+                data={[...messages].reverse()}
+                renderItem={renderMessage}
+                keyExtractor={item => item.id}
+                contentContainerStyle={styles.messageList}
+                inverted={true}
+                maintainVisibleContentPosition={{
+                  minIndexForVisible: 0,
+                  autoscrollToTopThreshold: 10,
+                }}
+                keyboardShouldPersistTaps="handled"
+                onScrollBeginDrag={dismissKeyboard}
+                scrollEventThrottle={16}
+                showsVerticalScrollIndicator={true}
+                initialNumToRender={15}
+                removeClippedSubviews={false}
+                windowSize={10}
+                maxToRenderPerBatch={10}
+                updateCellsBatchingPeriod={50}
+                onEndReachedThreshold={0.5}
+                scrollIndicatorInsets={{ right: 1 }}
+              />
+            )}
           </View>
         </View>
-      </Modal>
 
-      <View style={{ flex: 1, width: '100%' }}>
-        <View style={styles.modelSelectorWrapper}>
-          <ModelSelector 
-            ref={modelSelectorRef}
-            isOpen={shouldOpenModelSelector}
-            onClose={() => setShouldOpenModelSelector(false)}
-            preselectedModelPath={preselectedModelPath}
-            isGenerating={isLoading || isRegenerating}
+        <View style={{
+          width: '100%',
+          backgroundColor: themeColors.background,
+          borderTopWidth: 1,
+          borderTopColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+        }}>
+          <ChatInput
+            onSend={handleSend}
+            disabled={isLoading || isStreaming}
+            isLoading={isLoading || isStreaming}
+            onCancel={handleCancelGeneration}
+            placeholderColor={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.4)'}
+            style={{ 
+              backgroundColor: themeColors.background,
+            }}
           />
         </View>
-
-        <View style={[styles.messagesContainer]}>
-          {messages.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Ionicons 
-                name="chatbubble-ellipses-outline" 
-                size={48} 
-                color={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.75)'} 
-              />
-              <Text style={[{ color: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.75)' }]}>
-                Select a model and start chatting
-              </Text>
-            </View>
-          ) : (
-            <FlatList
-              ref={flatListRef}
-              data={[...messages].reverse()}
-              renderItem={renderMessage}
-              keyExtractor={item => item.id}
-              contentContainerStyle={styles.messageList}
-              inverted={true}
-              maintainVisibleContentPosition={{
-                minIndexForVisible: 0,
-                autoscrollToTopThreshold: 10,
-              }}
-              keyboardShouldPersistTaps="handled"
-              onScrollBeginDrag={dismissKeyboard}
-              scrollEventThrottle={16}
-              showsVerticalScrollIndicator={true}
-              initialNumToRender={15}
-              removeClippedSubviews={false}
-              windowSize={10}
-              maxToRenderPerBatch={10}
-              updateCellsBatchingPeriod={50}
-              onEndReachedThreshold={0.5}
-              scrollIndicatorInsets={{ right: 1 }}
-            />
-          )}
-        </View>
-      </View>
-
-      <View style={{
-        width: '100%',
-        backgroundColor: themeColors.background,
-        borderTopWidth: 1,
-        borderTopColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
-      }}>
-        <ChatInput
-          onSend={handleSend}
-          disabled={isLoading || isStreaming}
-          isLoading={isLoading || isStreaming}
-          onCancel={handleCancelGeneration}
-          placeholderColor={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.4)'}
-          style={{ 
-            backgroundColor: themeColors.background,
-          }}
-        />
-      </View>
-    </SafeAreaView>
+      </SafeAreaView>
+    </KeyboardAvoidingView>
   );
 }
 
