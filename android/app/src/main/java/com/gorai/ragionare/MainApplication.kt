@@ -18,6 +18,7 @@ import expo.modules.ReactNativeHostWrapper
 
 // Import DownloadNotificationPackage
 import com.gorai.ragionare.DownloadNotificationPackage
+import com.gorai.ragionare.KeyboardPackage
 
 class MainApplication : Application(), ReactApplication {
   companion object {
@@ -33,6 +34,7 @@ class MainApplication : Application(), ReactApplication {
             val packages = PackageList(this).packages
             // Add DownloadNotificationPackage
             packages.add(DownloadNotificationPackage())
+            packages.add(KeyboardPackage())
             return packages
           }
 

@@ -23,7 +23,7 @@
       "autoIncrement": true,
       "distribution": "store",
       "android": {
-        "buildType": "app-bundle"
+        "buildType": "apk"
       },
       "channel": "production"
     }
