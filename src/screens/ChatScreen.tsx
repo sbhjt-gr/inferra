@@ -9,15 +9,12 @@ import {
   Platform,
   TextInput,
   TouchableOpacity,
-  Keyboard,
-  KeyboardAvoidingView,
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import { llamaManager } from '../utils/LlamaManager';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useKeyboardManager, getKeyboardBehavior, getKeyboardVerticalOffset } from '../utils/KeyboardManager';
 
 export default function ChatScreen() {
   const { theme: currentTheme } = useTheme();
@@ -26,8 +23,6 @@ export default function ChatScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [input, setInput] = useState('');
   const flatListRef = useRef<FlatList>(null);
-  const inputRef = useRef<TextInput>(null);
-  const { keyboardHeight, keyboardVisible, dismissKeyboard } = useKeyboardManager();
 
   useEffect(() => {
     const settings = llamaManager.getSettings();
@@ -38,15 +33,6 @@ export default function ChatScreen() {
       },
     ]);
   }, []);
-
-  // Scroll to bottom when keyboard appears
-  useEffect(() => {
-    if (keyboardVisible && flatListRef.current && messages.filter(m => m.role !== 'system').length > 0) {
-      setTimeout(() => {
-        flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
-      }, 100);
-    }
-  }, [keyboardVisible, messages]);
 
   const handleSendMessage = async () => {
     if (!input.trim()) return;
@@ -60,7 +46,6 @@ export default function ChatScreen() {
       setIsLoading(true);
       const content = input.trim();
       setInput('');
-      dismissKeyboard();
       
       const updatedMessages = [
         ...messages,
@@ -110,66 +95,64 @@ export default function ChatScreen() {
   );
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={getKeyboardBehavior()}
-      keyboardVerticalOffset={getKeyboardVerticalOffset()}
-    >
-      <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]} edges={['right', 'left']}>
-        <View style={styles.messagesContainer}>
-          <FlatList
-            ref={flatListRef}
-            data={messages.filter(m => m.role !== 'system')}
-            renderItem={renderMessage}
-            keyExtractor={(item, index) => index.toString()}
-            contentContainerStyle={styles.messageList}
-            inverted={true}
-            keyboardShouldPersistTaps="handled"
-            onScrollBeginDrag={dismissKeyboard}
+    <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]} edges={['right', 'left']}>
+      <View style={styles.messagesContainer}>
+        <FlatList
+          ref={flatListRef}
+          data={messages.filter(m => m.role !== 'system')}
+          renderItem={renderMessage}
+          keyExtractor={(item, index) => index.toString()}
+          contentContainerStyle={styles.messageList}
+          inverted={true}
+          removeClippedSubviews={Platform.OS === 'android'}
+          windowSize={10}
+          maxToRenderPerBatch={10}
+          updateCellsBatchingPeriod={50}
+        />
+        {isLoading && (
+          <ActivityIndicator 
+            size="large" 
+            color={themeColors.headerBackground} 
+            style={styles.loading} 
           />
-          {isLoading && (
-            <ActivityIndicator 
-              size="large" 
-              color={themeColors.headerBackground} 
-              style={styles.loading} 
-            />
-          )}
+        )}
+      </View>
+      
+      <View style={[styles.inputContainer, { borderTopColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)' }]}>
+        <View style={[styles.inputWrapper, currentTheme === 'dark' && { backgroundColor: 'rgba(255, 255, 255, 0.1)' }]}>
+          <TextInput
+            style={[styles.input, currentTheme === 'dark' && { color: '#fff' }]}
+            value={input}
+            onChangeText={setInput}
+            placeholder="Send a message..."
+            placeholderTextColor={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.4)'}
+            multiline
+            editable={!isLoading}
+            returnKeyType="default"
+          />
         </View>
         
-        <View style={[styles.inputContainer, { borderTopColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)' }]}>
-          <View style={[styles.inputWrapper, currentTheme === 'dark' && { backgroundColor: 'rgba(255, 255, 255, 0.1)' }]}>
-            <TextInput
-              ref={inputRef}
-              style={[styles.input, currentTheme === 'dark' && { color: '#fff' }]}
-              value={input}
-              onChangeText={setInput}
-              placeholder="Send a message..."
-              placeholderTextColor={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.4)'}
-              multiline
-              editable={!isLoading}
-              returnKeyType="default"
-            />
-          </View>
-          
-          <TouchableOpacity 
-            style={[styles.sendButton, !input.trim() && styles.sendButtonDisabled]} 
-            onPress={handleSendMessage}
-            disabled={!input.trim() || isLoading}
-          >
-            <Ionicons 
-              name="send" 
-              size={24} 
-              color={input.trim() ? '#660880' : currentTheme === 'dark' ? '#666' : '#999'} 
-            />
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    </KeyboardAvoidingView>
+        <TouchableOpacity 
+          style={[styles.sendButton, !input.trim() && styles.sendButtonDisabled]} 
+          onPress={handleSendMessage}
+          disabled={!input.trim() || isLoading}
+        >
+          <Ionicons 
+            name="send" 
+            size={24} 
+            color={input.trim() ? '#660880' : currentTheme === 'dark' ? '#666' : '#999'} 
+          />
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+  },
+  safeArea: {
     flex: 1,
   },
   messagesContainer: {

@@ -47,7 +47,9 @@ export default function MainTabNavigator() {
           paddingTop: 10,
           paddingBottom: insets.bottom,
           borderTopWidth: 0,
+          display: 'flex',
         },
+        tabBarHideOnKeyboard: false,
         tabBarLabelStyle: {
           fontSize: 12,
           marginBottom: Platform.OS === 'ios' ? 0 : 5,

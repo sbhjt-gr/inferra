@@ -14,7 +14,6 @@ import * as TaskManager from 'expo-task-manager';
 import * as BackgroundFetch from 'expo-background-fetch';
 import { ThemeColors } from './src/types/theme';
 import { notificationService } from './src/services/NotificationService';
-import { enableKeyboardResize } from './src/utils/NativeKeyboardModule';
 
 // Define a background task for checking downloads
 const BACKGROUND_DOWNLOAD_TASK = 'background-download-check';
@@ -144,13 +143,6 @@ function Navigation() {
     };
   }, []);
 
-  useEffect(() => {
-    // Initialize keyboard handling for Android
-    if (Platform.OS === 'android') {
-      enableKeyboardResize();
-    }
-  }, []);
-
   return (
     <>
       <StatusBar
@@ -167,13 +159,6 @@ function Navigation() {
 }
 
 export default function App() {
-  // Initialize keyboard handling as early as possible
-  useEffect(() => {
-    if (Platform.OS === 'android') {
-      enableKeyboardResize();
-    }
-  }, []);
-
   return (
     <SafeAreaProvider>
       <ModelProvider>
