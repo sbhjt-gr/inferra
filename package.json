@@ -44,7 +44,8 @@
     "expo-system-ui": "~4.0.8",
     "expo-task-manager": "^12.0.5",
     "expo-web-browser": "~14.0.2",
-    "llama.rn": "^0.5.7",
+    "jest-expo": "52.0.6",
+    "ragionare-llama.rn": "^1.6.9",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "react-native": "0.76.7",
@@ -54,8 +55,7 @@
     "react-native-material-menu": "^2.0.0",
     "react-native-paper": "^5.13.1",
     "react-native-safe-area-context": "4.12.0",
-    "react-native-screens": "~4.4.0",
-    "jest-expo": "52.0.6"
+    "react-native-screens": "~4.4.0"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
