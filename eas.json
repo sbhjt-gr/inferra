@@ -7,12 +7,14 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
+      "channel": "development",
       "android": {
         "gradleCommand": ":app:assembleDebug"
       }
     },
     "preview": {
       "distribution": "internal",
+      "channel": "preview",
       "android": {
         "buildType": "apk"
       }
@@ -21,11 +23,7 @@
       "autoIncrement": true,
       "distribution": "store",
       "android": {
-        "buildType": "apk",
-        "gradleCommand": ":app:bundleRelease"
-      },
-      "env": {
-        "EXPO_NO_DOTENV": "1"
+        "buildType": "app-bundle"
       },
       "channel": "production"
     }
