@@ -15,6 +15,7 @@ import { theme } from '../constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { modelDownloader, ModelInfo } from '../services/ModelDownloader';
 import { ThemeType, ThemeColors } from '../types/theme';
+import { getThemeAwareColor } from '../utils/ColorUtils';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -130,7 +131,7 @@ const ModelDownloaderComponent = ({ downloadProgress, onDownloadStart }: ModelDo
             </View>
 
             <View style={styles.warningContainer}>
-              <Ionicons name="warning-outline" size={20} color="#4a0660" />
+              <Ionicons name="warning-outline" size={20} color={getThemeAwareColor('#4a0660', currentTheme)} />
               <Text style={[styles.warningText, { color: themeColors.secondaryText }]}>
                 Only Georgi Gerganov's GGUF format models are supported.
               </Text>
@@ -204,10 +205,10 @@ const ModelDownloaderComponent = ({ downloadProgress, onDownloadStart }: ModelDo
           onPress={() => setModalVisible(true)}
         >
           <View style={styles.addButtonContent}>
-            <Ionicons name="add-circle-outline" size={24} color="#fff" style={styles.addIcon} />
+            <Ionicons name="add-circle-outline" size={24} color={themeColors.headerText} style={styles.addIcon} />
             <Text style={styles.addButtonText}>Download Other Models</Text>
           </View>
-          <Ionicons name="chevron-forward" size={20} color="#fff" />
+          <Ionicons name="chevron-forward" size={20} color={themeColors.headerText} />
         </TouchableOpacity>
       </View>
     </>

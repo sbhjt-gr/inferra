@@ -6,7 +6,6 @@ import {
   ActivityIndicator,
   Text,
   FlatList,
-  KeyboardAvoidingView,
   Platform,
   TextInput,
   TouchableOpacity,
@@ -97,57 +96,51 @@ export default function ChatScreen() {
   );
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={{ flex: 1 }}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
-    >
-      <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]} edges={['right', 'left']}>
-        <View style={styles.messagesContainer}>
-          <FlatList
-            data={messages.filter(m => m.role !== 'system')}
-            renderItem={renderMessage}
-            keyExtractor={(item, index) => index.toString()}
-            contentContainerStyle={styles.messageList}
-            inverted={true}
+    <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]} edges={['right', 'left']}>
+      <View style={styles.messagesContainer}>
+        <FlatList
+          data={messages.filter(m => m.role !== 'system')}
+          renderItem={renderMessage}
+          keyExtractor={(item, index) => index.toString()}
+          contentContainerStyle={styles.messageList}
+          inverted={true}
+        />
+        {isLoading && (
+          <ActivityIndicator 
+            size="large" 
+            color={themeColors.headerBackground} 
+            style={styles.loading} 
           />
-          {isLoading && (
-            <ActivityIndicator 
-              size="large" 
-              color={themeColors.headerBackground} 
-              style={styles.loading} 
-            />
-          )}
+        )}
+      </View>
+      
+      <View style={[styles.inputContainer, { borderTopColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)' }]}>
+        <View style={[styles.inputWrapper, currentTheme === 'dark' && { backgroundColor: 'rgba(255, 255, 255, 0.1)' }]}>
+          <TextInput
+            style={[styles.input, currentTheme === 'dark' && { color: '#fff' }]}
+            value={input}
+            onChangeText={setInput}
+            placeholder="Send a message..."
+            placeholderTextColor={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.4)'}
+            multiline
+            editable={!isLoading}
+            returnKeyType="default"
+          />
         </View>
         
-        <View style={[styles.inputContainer, { borderTopColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)' }]}>
-          <View style={[styles.inputWrapper, currentTheme === 'dark' && { backgroundColor: 'rgba(255, 255, 255, 0.1)' }]}>
-            <TextInput
-              style={[styles.input, currentTheme === 'dark' && { color: '#fff' }]}
-              value={input}
-              onChangeText={setInput}
-              placeholder="Send a message..."
-              placeholderTextColor={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.4)'}
-              multiline
-              editable={!isLoading}
-              returnKeyType="default"
-            />
-          </View>
-          
-          <TouchableOpacity 
-            style={[styles.sendButton, !input.trim() && styles.sendButtonDisabled]} 
-            onPress={handleSendMessage}
-            disabled={!input.trim() || isLoading}
-          >
-            <Ionicons 
-              name="send" 
-              size={24} 
-              color={input.trim() ? '#660880' : currentTheme === 'dark' ? '#666' : '#999'} 
-            />
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    </KeyboardAvoidingView>
+        <TouchableOpacity 
+          style={[styles.sendButton, !input.trim() && styles.sendButtonDisabled]} 
+          onPress={handleSendMessage}
+          disabled={!input.trim() || isLoading}
+        >
+          <Ionicons 
+            name="send" 
+            size={24} 
+            color={input.trim() ? '#660880' : currentTheme === 'dark' ? '#666' : '#999'} 
+          />
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
   );
 }
 

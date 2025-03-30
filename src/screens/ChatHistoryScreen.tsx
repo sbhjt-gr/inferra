@@ -172,7 +172,7 @@ export default function ChatHistoryScreen() {
         onPress={handleCreateNewChat}
         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
       >
-        <Ionicons name="add-outline" size={24} color="#fff" />
+        <Ionicons name="add-outline" size={24} color={themeColors.headerText} />
       </TouchableOpacity>
       
       {chats.length > 0 && (
@@ -181,7 +181,7 @@ export default function ChatHistoryScreen() {
           onPress={handleDeleteAllChats}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Ionicons name="trash-outline" size={24} color="#fff" />
+          <Ionicons name="trash-outline" size={24} color={themeColors.headerText} />
         </TouchableOpacity>
       )}
     </>
@@ -216,7 +216,7 @@ export default function ChatHistoryScreen() {
                   style={[styles.newChatButtonEmpty, { backgroundColor: themeColors.headerBackground }]}
                   onPress={handleCreateNewChat}
                 >
-                  <Ionicons name="add-outline" size={20} color="#fff" style={styles.newChatIcon} />
+                  <Ionicons name="add-outline" size={20} color={themeColors.headerText} style={styles.newChatIcon} />
                   <Text style={styles.newChatText}>Start a new chat</Text>
                 </TouchableOpacity>
               </View>

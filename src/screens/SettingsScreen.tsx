@@ -19,6 +19,7 @@ import SystemPromptDialog from '../components/SystemPromptDialog';
 import * as FileSystem from 'expo-file-system';
 import { useFocusEffect } from '@react-navigation/native';
 import { modelDownloader } from '../services/ModelDownloader';
+import { getThemeAwareColor } from '../utils/ColorUtils';
 
 type SettingsScreenProps = {
   navigation: CompositeNavigationProp<
@@ -40,7 +41,7 @@ const DEFAULT_SETTINGS = {
   topK: 40,
   topP: 0.9,
   minP: 0.05,
-  stopWords: ['<|end|>', '<end_of_turn>', '<|im_end|>', '<|endoftext|>', '<｜end▁of▁sentence｜>'],
+  stopWords: ['<|end|>', '<end_of_turn>', '<|im_end|>', '<|endoftext|>', ''],
   systemPrompt: 'You are an AI assistant.'
 };
 
@@ -860,7 +861,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           >
             <View style={styles.settingLeft}>
               <View style={[styles.iconContainer, { backgroundColor: '#FF3B3020' }]}>
-                <Ionicons name="alert-circle-outline" size={22} color="#FF3B30" />
+                <Ionicons name="alert-circle-outline" size={22} color={getThemeAwareColor('#FF3B30', currentTheme)} />
               </View>
               <View style={styles.settingTextContainer}>
                 <Text style={[styles.settingText, { color: themeColors.text }]}>
@@ -872,7 +873,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
               </View>
             </View>
             {isClearing ? (
-              <ActivityIndicator size="small" color="#FF3B30" />
+              <ActivityIndicator size="small" color={getThemeAwareColor('#FF3B30', currentTheme)} />
             ) : (
               <Ionicons name="chevron-forward" size={20} color={themeColors.secondaryText} />
             )}

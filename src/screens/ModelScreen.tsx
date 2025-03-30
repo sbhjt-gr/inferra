@@ -32,6 +32,7 @@ import * as TaskManager from 'expo-task-manager';
 import * as DocumentPicker from 'expo-document-picker';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { downloadNotificationService } from '../services/DownloadNotificationService';
+import { getThemeAwareColor, getDocumentIconColor, getBrowserDownloadTextColor } from '../utils/ColorUtils';
 
 type ModelScreenProps = {
   navigation: CompositeNavigationProp<
@@ -52,8 +53,17 @@ interface DownloadableModel {
 
 const DOWNLOADABLE_MODELS: DownloadableModel[] = [
   {
-    "name": "Gemma 3 Instruct",
-    "description": "Google's latest compact instruction-tuned model with strong reasoning and fast inference.",
+    "name": "Gemma 3 Instruct - 1B",
+    "description": "Google's latest compact instruction-tuned model with strong reasoning and fast inference with 1B parameters.",
+    "size": "1.07 GB",
+    "huggingFaceLink": "https://huggingface.co/unsloth/gemma-3-1b-it-GGUF/resolve/main/gemma-3-1b-it-Q8_0.gguf",
+    "modelFamily": "1 Billion",
+    "quantization": "Q8_0",
+    "tags": ["recommended", "fastest"]
+  },
+  {
+    "name": "Gemma 3 Instruct - 4B",
+    "description": "Google's latest compact instruction-tuned model with strong reasoning and fast inference with 4B parameters.",
     "size": "2.6 GB",
     "huggingFaceLink": "https://huggingface.co/unsloth/gemma-3-4b-it-GGUF/resolve/main/gemma-3-4b-it-Q5_K_M.gguf?download=true",
     "modelFamily": "4 Billion",
@@ -554,27 +564,27 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
                       {model.name.replace(/ \([^)]+\)$/, '')}
                     </Text>
                     <View style={styles.modelBadgesContainer}>
-                      <View style={[styles.modelFamily, { backgroundColor: '#4a0660' }]}>
+                      <View style={[styles.modelFamily, { backgroundColor: getThemeAwareColor('#4a0660', currentTheme) }]}>
                         <Text style={styles.modelFamilyText}>{model.modelFamily}</Text>
                       </View>
-                      <View style={[styles.modelQuantization, { backgroundColor: '#2c7fb8' }]}>
+                      <View style={[styles.modelQuantization, { backgroundColor: getThemeAwareColor('#2c7fb8', currentTheme) }]}>
                         <Text style={styles.modelQuantizationText}>{model.quantization}</Text>
                       </View>
                       {model.tags?.includes('fastest') && (
-                        <View style={[styles.modelTag, { backgroundColor: '#00a67e' }]}>
-                          <Ionicons name="flash" size={12} color="#fff" style={{ marginRight: 4 }} />
+                        <View style={[styles.modelTag, { backgroundColor: getThemeAwareColor('#00a67e', currentTheme) }]}>
+                          <Ionicons name="flash" size={12} color={themeColors.headerText} style={{ marginRight: 4 }} />
                           <Text style={styles.modelTagText}>Fastest</Text>
                         </View>
                       )}
                       {model.tags?.includes('recommended') && (
-                        <View style={[styles.modelTag, { backgroundColor: '#FF8C00' }]}>
-                          <Ionicons name="star" size={12} color="#fff" style={{ marginRight: 4 }} />
+                        <View style={[styles.modelTag, { backgroundColor: getThemeAwareColor('#FF8C00', currentTheme) }]}>
+                          <Ionicons name="star" size={12} color={themeColors.headerText} style={{ marginRight: 4 }} />
                           <Text style={styles.modelTagText}>Recommended</Text>
                         </View>
                       )}
                       {isDownloaded && (
-                        <View style={[styles.modelTag, { backgroundColor: '#666' }]}>
-                          <Ionicons name="checkmark" size={12} color="#fff" style={{ marginRight: 4 }} />
+                        <View style={[styles.modelTag, { backgroundColor: getThemeAwareColor('#666', currentTheme) }]}>
+                          <Ionicons name="checkmark" size={12} color={themeColors.headerText} style={{ marginRight: 4 }} />
                           <Text style={styles.modelTagText}>Downloaded</Text>
                         </View>
                       )}
@@ -617,8 +627,8 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
                     style={styles.browserDownloadButton}
                     onPress={() => handleBrowserDownload(model.huggingFaceLink)}
                   >
-                    <Ionicons name="open-outline" size={14} color="#660880" style={{ marginRight: 4 }} />
-                    <Text style={styles.browserDownloadText}>Download in browser</Text>
+                    <Ionicons name="open-outline" size={14} color={getBrowserDownloadTextColor(currentTheme)} style={{ marginRight: 4 }} />
+                    <Text style={[styles.browserDownloadText, { color: getBrowserDownloadTextColor(currentTheme) }]}>Download in browser</Text>
                   </TouchableOpacity>
                 </View>
                 
@@ -723,7 +733,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
                       style={styles.cancelDownloadButton}
                       onPress={() => handleDialogCancel(name)}
                     >
-                      <Ionicons name="close-circle" size={24} color="#ff4444" />
+                      <Ionicons name="close-circle" size={24} color={getThemeAwareColor('#ff4444', currentTheme)} />
                     </TouchableOpacity>
                   </View>
                   <Text style={[styles.downloadItemProgress, { color: themeColors.secondaryText }]}>
@@ -980,7 +990,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         >
           <View style={styles.customUrlButtonContent}>
             <View style={styles.customUrlIconContainer}>
-              <Ionicons name="add-circle-outline" size={24} color="#4a0660" />
+              <Ionicons name="add-circle-outline" size={24} color={getThemeAwareColor('#4a0660', currentTheme)} />
             </View>
             <View style={styles.customUrlTextContainer}>
               <Text style={[styles.customUrlButtonTitle, { color: themeColors.text }]}>
@@ -1017,7 +1027,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       >
         <View style={styles.customUrlButtonContent}>
           <View style={styles.customUrlIconContainer}>
-            <Ionicons name="link-outline" size={24} color="#4a0660" />
+            <Ionicons name="link-outline" size={24} color={getThemeAwareColor('#4a0660', currentTheme)} />
           </View>
           <View style={styles.customUrlTextContainer}>
             <Text style={[styles.customUrlButtonTitle, { color: themeColors.text }]}>
@@ -1040,9 +1050,12 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       <View style={[styles.modelItem, { backgroundColor: themeColors.borderColor }]}>
         <View style={styles.modelIconContainer}>
           <Ionicons 
-            name={item.isExternal ? "link" : "folder"} 
+            name={item.isExternal ? "link" : "document"} 
             size={24} 
-            color={item.isExternal ? "#4a90e2" : "#4a0660"}
+            color={item.isExternal ? 
+              getThemeAwareColor("#4a90e2", currentTheme) : 
+              getDocumentIconColor(currentTheme)
+            }
           />
         </View>
         <View style={styles.modelInfo}>
@@ -1072,7 +1085,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
           style={[styles.deleteButton, { backgroundColor: 'transparent' }]}
           onPress={() => handleDelete(item)}
         >
-          <Ionicons name="trash-outline" size={20} color="#ff4444" />
+          <Ionicons name="trash-outline" size={20} color={getThemeAwareColor('#ff4444', currentTheme)} />
         </TouchableOpacity>
       </View>
     );
@@ -1091,10 +1104,10 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         ]}
       >
         <TouchableOpacity
-          style={[styles.floatingButtonContent, { backgroundColor: '#4a0660' }]}
+          style={[styles.floatingButtonContent, { backgroundColor: themeColors.primary }]}
           onPress={() => navigation.navigate('Downloads')}
         >
-          <Ionicons name="cloud-download" size={24} color="#fff" />
+          <Ionicons name="cloud-download" size={24} color={themeColors.headerText} />
           <View style={styles.downloadCount}>
             <Text style={styles.downloadCountText}>{activeCount}</Text>
           </View>
@@ -1195,9 +1208,9 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
             <TouchableOpacity
               style={[
                 styles.segmentButton,
-                { borderColor: '#4a0660' },
+                { borderColor: themeColors.primary },
                 activeTab === 'stored' && styles.activeSegment,
-                activeTab === 'stored' && { backgroundColor: '#4a0660' }
+                activeTab === 'stored' && { backgroundColor: themeColors.primary }
               ]}
               onPress={() => setActiveTab('stored')}
             >
@@ -1217,9 +1230,9 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
             <TouchableOpacity
               style={[
                 styles.segmentButton,
-                { borderColor: '#4a0660' },
+                { borderColor: themeColors.primary },
                 activeTab === 'downloadable' && styles.activeSegment,
-                activeTab === 'downloadable' && { backgroundColor: '#4a0660' }
+                activeTab === 'downloadable' && { backgroundColor: themeColors.primary }
               ]}
               onPress={() => setActiveTab('downloadable')}
             >
@@ -1278,7 +1291,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       {(isLoading || importingModelName) && (
         <View style={styles.loadingOverlay}>
           <View style={[styles.loadingContainer, { backgroundColor: themeColors.borderColor }]}>
-            <ActivityIndicator size="large" color="#4a0660" />
+            <ActivityIndicator size="large" color={getThemeAwareColor('#4a0660', currentTheme)} />
             <Text style={[styles.loadingText, { color: themeColors.text }]}>
               {importingModelName ? `Importing ${importingModelName}...` : 'Importing model...'}
             </Text>
@@ -1459,7 +1472,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
   },
   browserDownloadText: {
-    color: '#660880',
     fontSize: 13,
     fontWeight: '500',
   },
