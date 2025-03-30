@@ -1,6 +1,6 @@
 {
   "cli": {
-    "version": ">= 5.4.0",
+    "version": "16.1.0",
     "appVersionSource": "local"
   },
   "build": {
@@ -21,7 +21,11 @@
       "autoIncrement": true,
       "distribution": "store",
       "android": {
-        "buildType": "apk"
+        "buildType": "apk",
+        "gradleCommand": ":app:bundleRelease"
+      },
+      "env": {
+        "EXPO_NO_DOTENV": "1"
       },
       "channel": "production"
     }
