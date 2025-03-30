@@ -19,17 +19,17 @@ const lightTheme = {
 const darkTheme = {
   background: '#1E1326',
   text: '#fff',
-  headerBackground: '#4a0660',
+  headerBackground: '#5A1277',
   headerText: '#fff',
-  tabBarBackground: '#4a0660',
+  tabBarBackground: '#5A1277',
   tabBarActiveText: '#fff',
-  tabBarInactiveText: 'rgba(255, 255, 255, 0.6)',
-  borderColor: '#2D1F39',
+  tabBarInactiveText: 'rgba(255, 255, 255, 0.7)',
+  borderColor: '#3D2D4A',
   statusBarStyle: 'light' as const,
-  statusBarBg: '#31043d',
-  navigationBar: '#4a0660',
-  secondaryText: '#999',
-  primary: '#4a0660',
+  statusBarBg: '#4D0F61',
+  navigationBar: '#450C58',
+  secondaryText: '#BDB7C4',
+  primary: '#9C38C0',
 };
 
 export const theme: Record<ThemeColors, typeof lightTheme> = {

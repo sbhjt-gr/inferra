@@ -8,6 +8,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import chatManager from '../utils/ChatManager';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getThemeAwareColor } from '../utils/ColorUtils';
 
 type AppHeaderProps = {
   title?: string;
@@ -99,7 +100,7 @@ export default function AppHeader({
                 onPress={handleBackPress}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Ionicons name="arrow-back" size={24} color="#fff" />
+                <Ionicons name="arrow-back" size={24} color={themeColors.headerText} />
               </TouchableOpacity>
             )}
             
@@ -135,7 +136,7 @@ export default function AppHeader({
                   onPress={handleNewChat}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
-                  <Ionicons name="add-outline" size={22} color="#fff" />
+                  <Ionicons name="add-outline" size={22} color={themeColors.headerText} />
                 </TouchableOpacity>
               )}
               
@@ -144,7 +145,7 @@ export default function AppHeader({
                 onPress={handleOpenChatHistory}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Ionicons name="time-outline" size={22} color="#fff" />
+                <Ionicons name="time-outline" size={22} color={themeColors.headerText} />
               </TouchableOpacity>
             </>
           )}

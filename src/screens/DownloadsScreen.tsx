@@ -25,6 +25,7 @@ import type { DownloadTask } from '@kesha-antonov/react-native-background-downlo
 import * as FileSystem from 'expo-file-system';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AppHeader from '../components/AppHeader';
+import { getThemeAwareColor } from '../utils/ColorUtils';
 
 const formatBytes = (bytes: number) => {
   if (bytes === undefined || bytes === null || isNaN(bytes) || bytes === 0) return '0 B';
@@ -296,7 +297,7 @@ export default function DownloadsScreen() {
             style={styles.cancelButton}
             onPress={() => handleCancel(item.id, item.name)}
           >
-            <Ionicons name="close-circle" size={24} color="#ff4444" />
+            <Ionicons name="close-circle" size={24} color={getThemeAwareColor('#ff4444', currentTheme)} />
           </TouchableOpacity>
         </View>
       </View>

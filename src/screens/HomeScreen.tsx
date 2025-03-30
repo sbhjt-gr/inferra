@@ -1,11 +1,10 @@
-import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   StyleSheet,
   View,
   Text,
   TextInput,
   FlatList,
-  KeyboardAvoidingView,
   Platform,
   TouchableOpacity,
   ActivityIndicator,
@@ -14,7 +13,6 @@ import {
   ToastAndroid,
   Modal,
   Keyboard,
-  Dimensions,
   AppState,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -33,6 +31,7 @@ import { RootStackParamList, TabParamList } from '../types/navigation';
 import { useModel } from '../context/ModelContext';
 import * as Device from 'expo-device';
 import chatManager, { Chat, ChatMessage } from '../utils/ChatManager';
+import { getThemeAwareColor } from '../utils/ColorUtils';
 
 type Message = {
   id: string;
@@ -95,7 +94,10 @@ const CodeBlock = ({ content, style }: { content: string, style?: any }) => {
     <View style={[styles.codeBlock, style]}>
       <Text 
         selectable={true}
-        style={styles.codeText}
+        style={[
+          styles.codeText,
+          { color: currentTheme === 'dark' ? '#E4E4E4' : '#000' }
+        ]}
       >
         {content}
       </Text>
@@ -107,7 +109,7 @@ const CodeBlock = ({ content, style }: { content: string, style?: any }) => {
         <Ionicons 
           name="copy-outline" 
           size={14} 
-          color="#fff" 
+          color={themeColors.headerText} 
         />
       </TouchableOpacity>
     </View>
@@ -158,6 +160,7 @@ const ChatInput = ({
   const [inputHeight, setInputHeight] = useState(48);
   const inputRef = useRef<TextInput>(null);
   const { theme: currentTheme } = useTheme();
+  const themeColors = theme[currentTheme as 'light' | 'dark'];
   const isDark = currentTheme === 'dark';
 
   const handleSend = () => {
@@ -203,14 +206,14 @@ const ChatInput = ({
         <View style={inpStyles.loadingContainer}>
           <ActivityIndicator
             size="small"
-            color="#0084ff"
+            color={getThemeAwareColor('#0084ff', currentTheme)}
             style={inpStyles.loadingIndicator}
           />
           <TouchableOpacity
             onPress={onCancel}
             style={inpStyles.cancelButton}
           >
-            <Ionicons name="close" size={24} color="#fff" />
+            <Ionicons name="close" size={24} color={themeColors.headerText} />
           </TouchableOpacity>
         </View>
       ) : (
@@ -225,7 +228,7 @@ const ChatInput = ({
           <Ionicons 
             name="send" 
             size={24} 
-            color={text.trim() ? '#660880' : isDark ? '#666' : '#999'} 
+            color={text.trim() ? getThemeAwareColor('#660880', currentTheme) : isDark ? themeColors.secondaryText : '#999'} 
           />
         </TouchableOpacity>
       )}
@@ -641,7 +644,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
               <Ionicons 
                 name="copy-outline" 
                 size={14} 
-                color="#fff" 
+                color={themeColors.headerText} 
               />
             </TouchableOpacity>
           </View>
@@ -923,13 +926,16 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                         </Text>
                         <TouchableOpacity 
                           style={styles.codeBlockCopyButton}
-                          onPress={() => copyToClipboard(codeContent)}
+                          onPress={() => {
+                            copyToClipboard(codeContent);
+                            copyToastMessageRef.current = 'Code copied to clipboard';
+                          }}
                           hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
                         >
                           <Ionicons 
                             name="copy-outline" 
                             size={14} 
-                            color="#fff" 
+                            color={themeColors.headerText} 
                           />
                         </TouchableOpacity>
                       </View>
@@ -944,13 +950,16 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                         </Text>
                         <TouchableOpacity 
                           style={styles.codeBlockCopyButton}
-                          onPress={() => copyToClipboard(codeContent)}
+                          onPress={() => {
+                            copyToClipboard(codeContent);
+                            copyToastMessageRef.current = 'Code copied to clipboard';
+                          }}
                           hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
                         >
                           <Ionicons 
                             name="copy-outline" 
                             size={14} 
-                            color="#fff" 
+                            color={themeColors.headerText} 
                           />
                         </TouchableOpacity>
                       </View>
@@ -1095,7 +1104,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: themeColors.borderColor }]}>
             <View style={styles.modalHeader}>
-              <Ionicons name="warning-outline" size={32} color="#FFA726" />
+              <Ionicons name="warning-outline" size={32} color={getThemeAwareColor('#FFA726', currentTheme)} />
               <Text style={[styles.modalTitle, { color: themeColors.text }]}>
                 Low Memory Warning
               </Text>
@@ -1125,82 +1134,74 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         </View>
       </Modal>
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={{ flex: 1, width: '100%' }}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 16 : 0}
-      >
-        <View style={{ flex: 1, width: '100%' }}>
-          <View style={styles.modelSelectorWrapper}>
-            <ModelSelector 
-              ref={modelSelectorRef}
-              isOpen={shouldOpenModelSelector}
-              onClose={() => setShouldOpenModelSelector(false)}
-              preselectedModelPath={preselectedModelPath}
-              isGenerating={isLoading || isRegenerating}
-            />
-          </View>
-
-          <View style={[styles.messagesContainer]}>
-            {messages.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Ionicons 
-                  name="chatbubble-ellipses-outline" 
-                  size={48} 
-                  color={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.75)'} 
-                />
-                <Text style={[{ color: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.75)' }]}>
-                  Select a model and start chatting
-                </Text>
-              </View>
-            ) : (
-              <FlatList
-                ref={flatListRef}
-                data={[...messages].reverse()}
-                renderItem={renderMessage}
-                keyExtractor={item => item.id}
-                contentContainerStyle={styles.messageList}
-                inverted={true}
-                maintainVisibleContentPosition={{
-                  minIndexForVisible: 0,
-                  autoscrollToTopThreshold: 10,
-                }}
-                keyboardShouldPersistTaps="handled"
-                onScrollBeginDrag={dismissKeyboard}
-                scrollEventThrottle={16}
-                showsVerticalScrollIndicator={true}
-                automaticallyAdjustKeyboardInsets={false}
-                keyboardDismissMode="none"
-                initialNumToRender={15}
-                removeClippedSubviews={false}
-                windowSize={10}
-                maxToRenderPerBatch={10}
-                updateCellsBatchingPeriod={50}
-                onEndReachedThreshold={0.5}
-                scrollIndicatorInsets={{ right: 1 }}
-              />
-            )}
-          </View>
-        </View>
-
-        <View style={{
-          width: '100%',
-          backgroundColor: themeColors.background,
-          borderTopWidth: 1,
-          borderTopColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
-        }}>
-          <ChatInput
-            onSend={handleSend}
-            disabled={isLoading || isStreaming}
-            isLoading={isLoading || isStreaming}
-            onCancel={handleCancelGeneration}
-            placeholderColor={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.4)'}
-            style={{ 
-              backgroundColor: themeColors.background,
-            }}
+      <View style={{ flex: 1, width: '100%' }}>
+        <View style={styles.modelSelectorWrapper}>
+          <ModelSelector 
+            ref={modelSelectorRef}
+            isOpen={shouldOpenModelSelector}
+            onClose={() => setShouldOpenModelSelector(false)}
+            preselectedModelPath={preselectedModelPath}
+            isGenerating={isLoading || isRegenerating}
           />
         </View>
-      </KeyboardAvoidingView>
+
+        <View style={[styles.messagesContainer]}>
+          {messages.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons 
+                name="chatbubble-ellipses-outline" 
+                size={48} 
+                color={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.75)'} 
+              />
+              <Text style={[{ color: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.75)' }]}>
+                Select a model and start chatting
+              </Text>
+            </View>
+          ) : (
+            <FlatList
+              ref={flatListRef}
+              data={[...messages].reverse()}
+              renderItem={renderMessage}
+              keyExtractor={item => item.id}
+              contentContainerStyle={styles.messageList}
+              inverted={true}
+              maintainVisibleContentPosition={{
+                minIndexForVisible: 0,
+                autoscrollToTopThreshold: 10,
+              }}
+              keyboardShouldPersistTaps="handled"
+              onScrollBeginDrag={dismissKeyboard}
+              scrollEventThrottle={16}
+              showsVerticalScrollIndicator={true}
+              initialNumToRender={15}
+              removeClippedSubviews={false}
+              windowSize={10}
+              maxToRenderPerBatch={10}
+              updateCellsBatchingPeriod={50}
+              onEndReachedThreshold={0.5}
+              scrollIndicatorInsets={{ right: 1 }}
+            />
+          )}
+        </View>
+      </View>
+
+      <View style={{
+        width: '100%',
+        backgroundColor: themeColors.background,
+        borderTopWidth: 1,
+        borderTopColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+      }}>
+        <ChatInput
+          onSend={handleSend}
+          disabled={isLoading || isStreaming}
+          isLoading={isLoading || isStreaming}
+          onCancel={handleCancelGeneration}
+          placeholderColor={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.4)'}
+          style={{ 
+            backgroundColor: themeColors.background,
+          }}
+        />
+      </View>
     </SafeAreaView>
   );
 }

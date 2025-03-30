@@ -16,6 +16,7 @@ import { modelDownloader } from '../services/ModelDownloader';
 import { ThemeType, ThemeColors } from '../types/theme';
 import { useModel } from '../context/ModelContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getThemeAwareColor } from '../utils/ColorUtils';
 
 interface StoredModel {
   name: string;
@@ -169,14 +170,16 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
           <Ionicons 
             name={selectedModelPath === item.path ? "cube" : "cube-outline"} 
             size={28} 
-            color={selectedModelPath === item.path ? '#4a0660' : themeColors.text} 
+            color={selectedModelPath === item.path ? 
+              getThemeAwareColor('#4a0660', currentTheme) : 
+              themeColors.text} 
           />
         </View>
         <View style={styles.modelInfo}>
           <Text style={[
             styles.modelName, 
             { color: themeColors.text },
-            selectedModelPath === item.path && styles.selectedModelText
+            selectedModelPath === item.path && { color: getThemeAwareColor('#4a0660', currentTheme) }
           ]}>
             {getDisplayName(item.name)}
           </Text>
@@ -188,7 +191,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
         </View>
         {selectedModelPath === item.path && (
           <View style={styles.selectedIndicator}>
-            <Ionicons name="checkmark-circle" size={24} color="#4a0660" />
+            <Ionicons name="checkmark-circle" size={24} color={getThemeAwareColor('#4a0660', currentTheme)} />
           </View>
         )}
       </TouchableOpacity>
@@ -247,12 +250,14 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
           <View style={styles.selectorContent}>
             <View style={styles.modelIconWrapper}>
               {isModelLoading ? (
-                <ActivityIndicator size="small" color="#4a0660" />
+                <ActivityIndicator size="small" color={getThemeAwareColor('#4a0660', currentTheme)} />
               ) : (
                 <Ionicons 
                   name={selectedModelPath ? "cube" : "cube-outline"} 
                   size={24} 
-                  color={selectedModelPath ? '#4a0660' : themeColors.text} 
+                  color={selectedModelPath ? 
+                    getThemeAwareColor('#4a0660', currentTheme) : 
+                    themeColors.text} 
                 />
               )}
             </View>
@@ -280,7 +285,9 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                 <Ionicons 
                   name="close-circle" 
                   size={20} 
-                  color={isGenerating ? '#d32f2f' : themeColors.secondaryText} 
+                  color={isGenerating ? 
+                    getThemeAwareColor('#d32f2f', currentTheme) : 
+                    themeColors.secondaryText} 
                 />
               </TouchableOpacity>
             )}
