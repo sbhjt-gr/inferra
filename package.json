@@ -55,8 +55,7 @@
     "react-native-markdown-display": "^7.0.2",
     "react-native-paper": "^5.13.1",
     "react-native-safe-area-context": "4.12.0",
-    "react-native-screens": "~4.4.0",
-    "markdown-it": ">=12.3.2"
+    "react-native-screens": "~4.4.0"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
@@ -82,5 +81,8 @@
         "listUnknownPackages": false
       }
     }
+  },
+  "overrides": {
+    "markdown-it": "^13.0.2"
   }
 }
