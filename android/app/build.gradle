@@ -91,8 +91,8 @@ android {
         applicationId 'com.gorai.ragionare'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 86
-        versionName "1.8.4"
+        versionCode 97
+        versionName "1.9.0"
         
         ndk {
             abiFilters "arm64-v8a", "x86_64"

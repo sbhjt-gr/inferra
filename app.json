@@ -2,7 +2,7 @@
   "expo": {
     "name": "Ragionare",
     "slug": "Ragionare",
-    "version": "1.8.4",
+    "version": "1.9.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "myapp",
@@ -24,7 +24,7 @@
       }
     },
     "android": {
-      "versionCode": 86,
+      "versionCode": 97,
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#000"
@@ -71,11 +71,9 @@
     },
     "extra": {
       "eas": {
-        "projectId": "50d677ee-fa44-4d42-afa7-942b1e1223e7"
+        "projectId": "a4bd654d-7346-4a03-82c1-617d110edcca"
       }
     },
-    "updates": {
-      "url": "https://u.expo.dev/50d677ee-fa44-4d42-afa7-942b1e1223e7"
-    }
+    "owner": "yas_sgg"
   }
 }
