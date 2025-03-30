@@ -1,0 +1,54 @@
+# Files and directories that will be excluded from EAS builds
+# This reduces build size and speeds up the build process
+
+# Development directories
+node_modules/
+.expo/
+.vscode/
+.idea/
+
+# Build artifacts
+dist/
+web-build/
+build/
+
+# Source control
+.git/
+.github/
+
+# Debug logs
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+.metro-health-check*
+
+# Environment and config files
+.env*.local
+*.log
+
+# Documentation and other non-essential files
+__tests__/
+tests/
+*.test.js
+*.test.ts
+*.test.tsx
+*.spec.js
+*.spec.ts
+*.spec.tsx
+*.md
+LICENSE
+CHANGELOG.md
+docs/
+
+# Development assets
+*.orig
+*.map
+
+# Example code
+app-example/
+
+# TypeScript build info
+*.tsbuildinfo
+
+# macOS specific files
+.DS_Store 
