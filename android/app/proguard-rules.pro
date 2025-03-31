@@ -11,6 +11,13 @@
 -keepattributes SourceFile,LineNumberTable
 -renamesourcefileattribute SourceFile
 
+# Handle missing javax.naming classes
+-dontwarn javax.naming.**
+-dontwarn org.bouncycastle.jce.provider.X509LDAPCertStoreSpi
+-dontwarn org.bouncycastle.x509.util.LDAPStoreHelper
+-keep class javax.naming.** { *; }
+-keep class org.bouncycastle.jce.provider.** { *; }
+
 # React Native
 -keep,allowobfuscation @interface com.facebook.proguard.annotations.DoNotStrip
 -keep,allowobfuscation @interface com.facebook.proguard.annotations.KeepGettersAndSetters
