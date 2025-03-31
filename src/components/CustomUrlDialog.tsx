@@ -55,7 +55,6 @@ const CustomUrlDialog = ({ visible, onClose, onDownloadStart, navigation }: Cust
   const handleDownload = async () => {
     if (!isValid) return;
     
-    // Navigate to Downloads screen immediately
     navigation.navigate('Downloads');
     onClose();
     
@@ -86,7 +85,6 @@ const CustomUrlDialog = ({ visible, onClose, onDownloadStart, navigation }: Cust
       
       const { downloadId } = await modelDownloader.downloadModel(url, filename);
       
-      // Initialize download progress
       const initialProgress = {
         downloadId,
         progress: 0,
@@ -95,17 +93,14 @@ const CustomUrlDialog = ({ visible, onClose, onDownloadStart, navigation }: Cust
         status: 'downloading'
       };
 
-      // Get existing progress
       const existingProgressJson = await AsyncStorage.getItem('download_progress');
       const existingProgress = existingProgressJson ? JSON.parse(existingProgressJson) : {};
 
-      // Update progress
       const newProgress = {
         ...existingProgress,
         [filename]: initialProgress
       };
 
-      // Save to AsyncStorage
       await AsyncStorage.setItem('download_progress', JSON.stringify(newProgress));
       
       onDownloadStart(downloadId, filename);

@@ -60,7 +60,6 @@ const extractCodeFromFence = (content: string): string => {
   return codeMatch ? codeMatch[1].trim() : '';
 };
 
-// Helper functions for code blocks
 const hasCodeBlock = (content: string): boolean => {
   return content.includes('```') || content.includes('`');
 };
@@ -77,7 +76,6 @@ const extractAllCodeBlocks = (content: string): string[] => {
   return codeBlocks;
 };
 
-// Create custom renderers for selectable text
 const createSelectableRenderer = (defaultRenderer: any) => (node: any, children: any, parent: any, styles: any) => {
   const defaultOutput = defaultRenderer(node, children, parent, styles);
   if (defaultOutput && defaultOutput.type === Text) {
@@ -86,7 +84,6 @@ const createSelectableRenderer = (defaultRenderer: any) => (node: any, children:
   return defaultOutput;
 };
 
-// Component for code blocks
 const CodeBlock = ({ content, style }: { content: string, style?: any }) => {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
@@ -118,30 +115,27 @@ const CodeBlock = ({ content, style }: { content: string, style?: any }) => {
 };
 
 const hasMarkdownFormatting = (content: string): boolean => {
-  // Check for common markdown syntax
   const markdownPatterns = [
-    /```/,           // Code blocks
-    /`[^`]+`/,       // Inline code
-    /\*\*[^*]+\*\*/,  // Bold
-    /\*[^*]+\*/,      // Italic
-    /^#+\s/m,         // Headers
-    /\[[^\]]+\]\([^)]+\)/,  // Links
-    /^\s*[-*+]\s/m,   // Unordered lists
-    /^\s*\d+\.\s/m,   // Ordered lists
-    /^\s*>\s/m,       // Blockquotes
-    /~~[^~]+~~/,      // Strikethrough
-    /\|\s*[^|]+\s*\|/  // Tables
+    /```/,           
+    /`[^`]+`/,       
+    /\*\*[^*]+\*\*/,  
+    /\*[^*]+\*/,      
+    /^#+\s/m,         
+    /\[[^\]]+\]\([^)]+\)/,  
+    /^\s*[-*+]\s/m,   
+    /^\s*\d+\.\s/m,   
+    /^\s*>\s/m,       
+    /~~[^~]+~~/,      
+    /\|\s*[^|]+\s*\|/  
   ];
 
   return markdownPatterns.some(pattern => pattern.test(content));
 };
 
-// Add generateRandomId function at the top level
 const generateRandomId = () => {
   return Math.random().toString(36).substring(2) + Date.now().toString(36);
 };
 
-// Update ChatInput component usage
 const ChatInput = ({ 
   onSend, 
   disabled = false,
@@ -168,7 +162,7 @@ const ChatInput = ({
     if (!text.trim()) return;
     onSend(text);
     setText('');
-    setInputHeight(48); // Reset height after sending
+    setInputHeight(48);
   };
 
   const handleContentSizeChange = (event: any) => {
@@ -265,7 +259,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   const [streamingStats, setStreamingStats] = useState<{ tokens: number; duration: number } | null>(null);
   const appStateRef = useRef(AppState.currentState);
   const [appState, setAppState] = useState(appStateRef.current);
-  // Track if this is the first launch
   const isFirstLaunchRef = useRef(true);
 
   useFocusEffect(
@@ -275,12 +268,10 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   );
 
   useEffect(() => {
-    // Create a new chat only on first launch
     if (isFirstLaunchRef.current) {
       startNewChat();
       isFirstLaunchRef.current = false;
     } else {
-      // Otherwise load the current chat
       loadCurrentChat();
     }
     
@@ -299,10 +290,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       setPreselectedModelPath(route.params.modelPath);
     }
     
-    // Handle loadChatId parameter from ChatHistoryScreen
     if (route.params?.loadChatId) {
       loadChat(route.params.loadChatId);
-      // Clear the parameter to prevent reloading on future renders
       navigation.setParams({ loadChatId: undefined });
     }
   }, [route.params]);
@@ -318,13 +307,11 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   useEffect(() => {
     const checkSystemMemory = async () => {
       try {
-        // Check if warning has been shown before
         const hasShownWarning = await AsyncStorage.getItem('@memory_warning_shown');
         if (hasShownWarning === 'true') {
           return;
         }
 
-        // Get device memory
         const memory = Device.totalMemory;
         if (!memory) return;
 
@@ -340,13 +327,11 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     checkSystemMemory();
   }, []);
 
-  // Single effect to handle keyboard
   useEffect(() => {
     const showSubscription = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
       () => {
         setKeyboardVisible(true);
-        // Hide tab bar
         if (navigation?.getParent()) {
           navigation.getParent()?.setOptions({
             tabBarStyle: { display: 'none' }
@@ -358,7 +343,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
       () => {
         setKeyboardVisible(false);
-        // Show tab bar
         if (navigation?.getParent()) {
           navigation.getParent()?.setOptions({
             tabBarStyle: {
@@ -380,13 +364,10 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     };
   }, [navigation, themeColors]);
 
-  // Handle screen focus
   useFocusEffect(
     useCallback(() => {
-      // Reset keyboard state when screen comes into focus
       setKeyboardVisible(false);
       
-      // Show tab bar
       if (navigation?.getParent()) {
         navigation.getParent()?.setOptions({
           tabBarStyle: {
@@ -401,26 +382,22 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       }
 
       return () => {
-        // Cleanup on blur
         Keyboard.dismiss();
       };
     }, [navigation, themeColors])
   );
 
-  // Add AppState change handler
   useEffect(() => {
     const subscription = AppState.addEventListener('change', nextAppState => {
       if (
         appStateRef.current.match(/inactive|background/) && 
         nextAppState === 'active'
       ) {
-        // App has come to foreground - just load the current chat
         loadCurrentChat();
       } else if (
         appStateRef.current === 'active' &&
         nextAppState.match(/inactive|background/)
       ) {
-        // App is going to background, save current chat only if it has messages
         if (chat && messages.some(msg => msg.role === 'user' || msg.role === 'assistant')) {
           chatManager.saveAllChats();
         }
@@ -441,7 +418,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       setChat(currentChat);
       setMessages(currentChat.messages);
     } else {
-      // Create a new chat if none exists
       const newChat = await chatManager.createNewChat();
       setChat(newChat);
       setMessages(newChat.messages);
@@ -488,19 +464,17 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   };
 
   const handleCancelGeneration = useCallback(() => {
-    // Access the context directly from llamaManager
     if (llamaManager.context) {
       llamaManager.context.stopCompletion();
     }
     
-    // Save the current partial response before canceling
     if (streamingMessageId && (streamingMessage || streamingThinking)) {
       const currentChat = chatManager.getCurrentChat();
       if (currentChat) {
         chatManager.updateMessageContent(
           streamingMessageId,
-          streamingMessage || '',  // Keep the current response
-          streamingThinking || '', // Keep the current thinking
+          streamingMessage || '',
+          streamingThinking || '',
           {
             duration: 0,
             tokens: 0,
@@ -509,7 +483,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       }
     }
     
-    // Reset streaming and loading states but keep the message content
     setIsStreaming(false);
     setStreamingMessageId(null);
     setIsLoading(false);
@@ -577,18 +550,15 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
           } else {
             fullResponse += token;
             
-            // Update the streaming message immediately to show real-time formatting
             setStreamingMessage(fullResponse);
           }
           
-          // Update streaming stats in real-time
           setStreamingStats({
             tokens: tokenCount,
             duration: (Date.now() - startTime) / 1000
           });
           
-          // Update message content in real-time (this will now save to AsyncStorage)
-          if (tokenCount % 10 === 0) { // Update every 10 tokens to reduce overhead
+          if (tokenCount % 10 === 0) {
             await chatManager.updateMessageContent(
               messageId,
               fullResponse,
@@ -604,7 +574,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         }
       );
       
-      // Only update if not cancelled
       if (!cancelGenerationRef.current) {
         await chatManager.updateMessageContent(
           messageId,
@@ -637,30 +606,24 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     if (Platform.OS === 'android') {
       ToastAndroid.show('Copied to clipboard', ToastAndroid.SHORT);
     } else {
-      // Show iOS toast
       setShowCopyToast(true);
       
-      // Clear any existing timeout
       if (copyToastTimeoutRef.current) {
         clearTimeout(copyToastTimeoutRef.current);
       }
       
-      // Use a ref to store the toast message
       copyToastMessageRef.current = 'Copied to clipboard';
       
-      // Hide toast after 2 seconds
       copyToastTimeoutRef.current = setTimeout(() => {
         setShowCopyToast(false);
       }, 2000);
     }
   };
 
-  // Function to count code blocks in a message
   const countCodeBlocks = useCallback((content: string): number => {
     return extractAllCodeBlocks(content).length;
   }, []);
 
-  // Function to extract and display code blocks with copy buttons
   const renderCodeBlocks = useCallback((content: string) => {
     const codeBlocks = extractAllCodeBlocks(content);
     if (codeBlocks.length === 0) return null;
@@ -698,19 +661,14 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   const handleRegenerate = async () => {
     if (messages.length < 2) return;
     
-    // Check if a model is selected
     if (!llamaManager.getModelPath()) {
       Alert.alert('No Model Selected', 'Please select a model first to regenerate a response.');
       return;
     }
     
-    // Get the last user message
     const lastUserMessageIndex = [...messages].reverse().findIndex(msg => msg.role === 'user');
     if (lastUserMessageIndex === -1) return;
     
-    const lastUserMessage = messages[messages.length - lastUserMessageIndex - 1];
-    
-    // Remove the last assistant message
     const newMessages = messages.slice(0, -1);
     
     const assistantMessage: Message = {
@@ -729,7 +687,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     setIsRegenerating(true);
     cancelGenerationRef.current = false;
     
-    // Set up streaming state
     setStreamingMessageId(assistantMessage.id);
     setStreamingMessage('');
     setStreamingThinking('');
@@ -747,7 +704,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         [...newMessages].map(msg => ({ role: msg.role, content: msg.content })),
         (token) => {
           if (cancelGenerationRef.current) {
-            return false;  // Return false to stop generation
+            return false;
           }
           
           if (token.includes('<think>')) {
@@ -766,18 +723,15 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
           } else {
             fullResponse += token;
             
-            // Update the streaming message immediately to show real-time formatting
             setStreamingMessage(fullResponse);
           }
           
-          // Update streaming stats in real-time
           setStreamingStats({
             tokens: tokenCount,
             duration: (Date.now() - startTime) / 1000
           });
           
-          // Update message content in real-time (this will now save to AsyncStorage)
-          if (tokenCount % 10 === 0) { // Update every 10 tokens to reduce overhead
+          if (tokenCount % 10 === 0) {
             const finalMessage: Message = {
               ...assistantMessage,
               content: fullResponse,
@@ -797,7 +751,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         }
       );
       
-      // Only update if not cancelled
       if (!cancelGenerationRef.current) {
         const finalMessage: Message = {
           ...assistantMessage,
@@ -1054,17 +1007,14 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
 
   const startNewChat = async () => {
     try {
-      // Before creating a new chat, save the current chat if it has messages
       if (chat && messages.some(msg => msg.role === 'user' || msg.role === 'assistant')) {
         await chatManager.saveAllChats();
       }
       
-      // Create a new chat and set it as current
       const newChat = await chatManager.createNewChat();
       setChat(newChat);
       setMessages(newChat.messages);
       
-      // Reset any streaming or loading states
       setIsStreaming(false);
       setStreamingMessageId(null);
       setStreamingMessage('');
@@ -1079,19 +1029,15 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
 
   const loadChat = async (chatId: string) => {
     try {
-      // Set the current chat in the chat manager
       const success = await chatManager.setCurrentChat(chatId);
       
       if (success) {
-        // Get the updated current chat
         const currentChat = chatManager.getCurrentChat();
         
-        // Update the UI state
         if (currentChat) {
           setChat(currentChat);
           setMessages(currentChat.messages);
           
-          // Reset streaming states
           setIsStreaming(false);
           setStreamingMessageId(null);
           setStreamingMessage('');
@@ -1125,14 +1071,12 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         showLogo={true}
       />
       
-      {/* iOS Copy Toast */}
       {showCopyToast && (
         <View style={styles.copyToast}>
           <Text style={styles.copyToastText}>{copyToastMessageRef.current}</Text>
         </View>
       )}
 
-      {/* Memory Warning Modal */}
       <Modal
         visible={showMemoryWarning}
         transparent

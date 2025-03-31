@@ -42,14 +42,11 @@ const DownloadsDialog = ({ visible, onClose, downloads, setDownloadProgress }: D
 
   const checkCompletedDownloads = async () => {
     try {
-      // Force a check for completed downloads
       await modelDownloader.checkBackgroundDownloads();
       
-      // Get the current stored models
       const storedModels = await modelDownloader.getStoredModels();
       const storedModelNames = new Set(storedModels.map(model => model.name));
       
-      // Remove any downloads that are actually completed
       setDownloadProgress((prev: Record<string, {
         progress: number;
         bytesDownloaded: number;
@@ -89,7 +86,6 @@ const DownloadsDialog = ({ visible, onClose, downloads, setDownloadProgress }: D
     };
   }, []);
 
-  // Filter out completed and failed downloads
   const activeDownloads = Object.entries(downloads).filter(
     ([_, data]) => data.status !== 'completed' && data.status !== 'failed'
   );
@@ -113,10 +109,8 @@ const DownloadsDialog = ({ visible, onClose, downloads, setDownloadProgress }: D
       const downloadInfo = downloads[modelName];
       
       if (downloadInfo.isPaused) {
-        // Resume download
         await modelDownloader.resumeDownload(downloadInfo.downloadId);
       } else {
-        // Pause download
         await modelDownloader.pauseDownload(downloadInfo.downloadId);
       }
     } catch (error) {

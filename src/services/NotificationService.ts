@@ -23,7 +23,7 @@ class NotificationService {
     if (this.isInitialized) return;
 
     try {
-      // Load saved notification IDs
+      
       const savedIds = await AsyncStorage.getItem('downloadNotificationIds');
       if (savedIds) {
         this.notificationIds = JSON.parse(savedIds);
@@ -32,14 +32,14 @@ class NotificationService {
       this.isInitialized = true;
     } catch (error) {
       console.error('Error initializing notifications:', error);
-      // Still mark as initialized to prevent repeated attempts
+      
       this.isInitialized = true;
     }
   }
 
   private async storeNotification(title: string, description: string, type: string, downloadId?: number) {
     try {
-      // Get existing notifications
+      
       const existingNotificationsJson = await AsyncStorage.getItem('downloadNotifications');
       let notifications: StoredNotification[] = [];
       
@@ -47,7 +47,7 @@ class NotificationService {
         notifications = JSON.parse(existingNotificationsJson);
       }
       
-      // Add new notification
+      
       const newNotification: StoredNotification = {
         id: Date.now().toString(),
         title,
@@ -57,15 +57,15 @@ class NotificationService {
         downloadId
       };
       
-      // Add to the beginning of the array (newest first)
+      
       notifications.unshift(newNotification);
       
-      // Limit to 50 notifications to prevent excessive storage
+      
       if (notifications.length > 50) {
         notifications = notifications.slice(0, 50);
       }
       
-      // Save back to AsyncStorage
+      
       await AsyncStorage.setItem('downloadNotifications', JSON.stringify(notifications));
     } catch (error) {
       console.error('Error storing notification:', error);
@@ -79,7 +79,7 @@ class NotificationService {
       await downloadNotificationService.showNotification(modelName, downloadId, 0);
     }
     
-    // Store for history
+    
     await this.storeNotification(
       'Download Started',
       `${modelName} download has started`,
@@ -101,8 +101,8 @@ class NotificationService {
       await downloadNotificationService.updateProgress(downloadId, progress);
     }
     
-    // Only store progress notifications at certain intervals to avoid spam
-    if (progress % 25 === 0) { // Store at 25%, 50%, 75%, 100%
+    
+    if (progress % 25 === 0) { 
       const formattedDownloaded = this.formatBytes(bytesDownloaded);
       const formattedTotal = this.formatBytes(totalBytes);
       
@@ -122,7 +122,7 @@ class NotificationService {
       await downloadNotificationService.showNotification(modelName, downloadId, 100);
     }
     
-    // Store for history
+    
     await this.storeNotification(
       'Download Complete',
       `${modelName} has been downloaded successfully`,
@@ -138,7 +138,7 @@ class NotificationService {
       await downloadNotificationService.cancelNotification(downloadId);
     }
     
-    // Store for history
+    
     await this.storeNotification(
       'Download Failed',
       `${modelName} download has failed`,
@@ -150,7 +150,7 @@ class NotificationService {
   async showDownloadPausedNotification(modelName: string, downloadId: number): Promise<void> {
     await this.initialize();
     
-    // Store for history only - no visual notification needed
+    
     await this.storeNotification(
       'Download Paused',
       `${modelName} download has been paused`,
@@ -162,7 +162,7 @@ class NotificationService {
   async showDownloadPauseUnavailableNotification(modelName: string, downloadId: number): Promise<void> {
     await this.initialize();
     
-    // Store for history only - no visual notification needed
+    
     await this.storeNotification(
       'Pause Not Available',
       `Pausing ${modelName} download is not supported`,
@@ -174,7 +174,7 @@ class NotificationService {
   async showDownloadResumedNotification(modelName: string, downloadId: number): Promise<void> {
     await this.initialize();
     
-    // Store for history only - no visual notification needed
+    
     await this.storeNotification(
       'Download Resumed',
       `${modelName} download has been resumed`,
@@ -186,7 +186,7 @@ class NotificationService {
   async showDownloadResumeUnavailableNotification(modelName: string, downloadId: number): Promise<void> {
     await this.initialize();
     
-    // Store for history only - no visual notification needed
+    
     await this.storeNotification(
       'Resume Not Available',
       `Resuming ${modelName} download is not supported`,
@@ -202,7 +202,7 @@ class NotificationService {
       await downloadNotificationService.cancelNotification(downloadId);
     }
     
-    // Store for history
+    
     await this.storeNotification(
       'Download Cancelled',
       `${modelName} download has been cancelled`,
@@ -214,7 +214,7 @@ class NotificationService {
   async showGenericNotification(title: string, body: string, modelName: string, downloadId: number): Promise<void> {
     await this.initialize();
     
-    // Store for history only - no visual notification needed
+    
     await this.storeNotification(
       title,
       body,

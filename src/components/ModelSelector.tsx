@@ -29,7 +29,6 @@ interface ModelDownloaderType {
   getStoredModels: () => Promise<StoredModel[]>;
 }
 
-// Add this interface for the ref
 export interface ModelSelectorRef {
   refreshModels: () => void;
 }
@@ -52,11 +51,9 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     const loadModels = async () => {
       try {
         const storedModels = await modelDownloader.getStoredModels();
-        // Filter out any models that are still being downloaded
         const downloadStates = await AsyncStorage.getItem('active_downloads');
         const activeDownloads = downloadStates ? JSON.parse(downloadStates) : {};
         
-        // Only show models that are not currently being downloaded
         const completedModels = storedModels.filter(model => {
           const isDownloading = Object.values(activeDownloads).some(
             (download: any) => 
@@ -76,13 +73,11 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
       loadModels();
     }, []);
 
-    // Add effect to refresh models when downloads change
     useEffect(() => {
       const checkDownloads = async () => {
         const downloadStates = await AsyncStorage.getItem('active_downloads');
         if (downloadStates) {
           const downloads = JSON.parse(downloadStates);
-          // If any download just completed, refresh the model list
           const hasCompletedDownload = Object.values(downloads).some(
             (download: any) => download.status === 'completed'
           );
@@ -92,12 +87,10 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
         }
       };
 
-      // Check downloads every 2 seconds
       const interval = setInterval(checkDownloads, 2000);
       return () => clearInterval(interval);
     }, []);
 
-    // Expose the refresh method through the ref
     useImperativeHandle(ref, () => ({
       refreshModels: loadModels
     }));
@@ -145,7 +138,6 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     };
 
     const getDisplayName = (filename: string) => {
-      // Remove file extension
       return filename.split('.')[0];
     };
 
@@ -197,20 +189,17 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
       </TouchableOpacity>
     );
 
-    // Add effect to handle isOpen prop
     useEffect(() => {
       if (isOpen !== undefined) {
         setModalVisible(isOpen);
       }
     }, [isOpen]);
 
-    // Update modal close handler
     const handleModalClose = () => {
       setModalVisible(false);
       onClose?.();
     };
 
-    // Add effect to handle preselected model
     useEffect(() => {
       if (preselectedModelPath && models.length > 0) {
         const preselectedModel = models.find(model => model.path === preselectedModelPath);
@@ -220,7 +209,6 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
       }
     }, [preselectedModelPath, models]);
 
-    // Add effect to close modal if generation starts
     useEffect(() => {
       if (isGenerating && modalVisible) {
         setModalVisible(false);

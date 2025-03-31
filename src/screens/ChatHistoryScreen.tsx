@@ -29,13 +29,10 @@ export default function ChatHistoryScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
 
-  // Subscribe to chat manager changes
   useEffect(() => {
-    // Initial load
     setIsLoading(true);
     loadChats();
     
-    // Subscribe to future changes
     const unsubscribe = chatManager.addListener(() => {
       loadChats();
     });
@@ -59,14 +56,11 @@ export default function ChatHistoryScreen() {
 
   const handleSelectChat = async (chatId: string) => {
     try {
-      // First set the current chat
       await chatManager.setCurrentChat(chatId);
       
-      // Then navigate back to the home screen
-      // The HomeScreen will load the current chat in its useEffect
       navigation.navigate('MainTabs', {
         screen: 'HomeTab',
-        params: { loadChatId: chatId }  // Pass the chat ID as a parameter
+        params: { loadChatId: chatId }
       });
     } catch (error) {
       console.error('Error selecting chat:', error);
@@ -164,7 +158,6 @@ export default function ChatHistoryScreen() {
     </TouchableOpacity>
   );
 
-  // Create custom right buttons for the header
   const headerRightButtons = (
     <>
       <TouchableOpacity

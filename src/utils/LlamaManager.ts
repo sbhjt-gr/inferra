@@ -31,7 +31,7 @@ const DEFAULT_SETTINGS: ModelSettings = {
   systemPrompt: 'You are an AI assistant.'
 };
 
-// Type assertion for the native module
+
 const LlamaManagerModule = NativeModules.LlamaManager as LlamaManagerInterface;
 
 class LlamaManager {
@@ -40,7 +40,7 @@ class LlamaManager {
   private settings: ModelSettings = { ...DEFAULT_SETTINGS };
 
   constructor() {
-    // Load settings when LlamaManager is instantiated
+    
     this.loadSettings().catch(error => {
       console.error('Error loading settings:', error);
     });
@@ -50,31 +50,31 @@ class LlamaManager {
     try {
       console.log('[LlamaManager] Initializing model from path:', modelPath);
 
-      // For external models, we need to handle the URI format
+      
       let finalModelPath = modelPath;
       
-      // If it's a file:// URI, we need to extract the actual path for native modules
+      
       if (finalModelPath.startsWith('file://')) {
-        // On iOS, we can just remove the file:// prefix
+        
         if (Platform.OS === 'ios') {
           finalModelPath = finalModelPath.replace('file://', '');
         } 
-        // On Android, we need to handle the path differently
+        
         else if (Platform.OS === 'android') {
-          // For Android, we need to use a different format
-          // The native module expects a path without the file:// prefix
-          // but with the leading slash
+          
+          
+          
           finalModelPath = finalModelPath.replace('file://', '');
         }
       }
       
       console.log('[LlamaManager] Using final model path:', finalModelPath);
 
-      // First load model info to validate the model
+      
       const modelInfo = await loadLlamaModelInfo(finalModelPath);
       console.log('[LlamaManager] Model Info:', modelInfo);
 
-      // Release existing context if any
+      
       if (this.context) {
         await this.context.release();
         this.context = null;
@@ -82,7 +82,7 @@ class LlamaManager {
 
       this.modelPath = finalModelPath;
       
-      // Initialize with recommended settings
+      
       this.context = await initLlama({
         model: finalModelPath,
         use_mlock: true,
@@ -108,21 +108,21 @@ class LlamaManager {
       const savedSettings = await AsyncStorage.getItem('@model_settings');
       if (savedSettings) {
         const parsedSettings = JSON.parse(savedSettings);
-        // Merge with default settings to ensure all properties exist
+        
         this.settings = {
           ...DEFAULT_SETTINGS,
           ...parsedSettings
         };
         console.log('[LlamaManager] Loaded settings:', this.settings);
       } else {
-        // If no settings found, use defaults and save them
+        
         this.settings = { ...DEFAULT_SETTINGS };
         await this.saveSettings();
         console.log('[LlamaManager] No saved settings found, using defaults');
       }
     } catch (error) {
       console.error('[LlamaManager] Error loading settings:', error);
-      // On error, use default settings
+      
       this.settings = { ...DEFAULT_SETTINGS };
     }
   }
@@ -143,7 +143,7 @@ class LlamaManager {
     console.log('[LlamaManager] Settings reset to defaults');
   }
 
-  // Settings getters and setters
+  
   getSettings(): ModelSettings {
     return { ...this.settings };
   }
@@ -154,7 +154,7 @@ class LlamaManager {
     console.log('[LlamaManager] Settings updated:', this.settings);
   }
 
-  // Individual setting getters for backward compatibility
+  
   getMaxTokens(): number {
     return this.settings.maxTokens;
   }
@@ -188,7 +188,7 @@ class LlamaManager {
           mirostat_eta: 0.1,
         },
         (data) => {
-          // Only check for complete stop words, not partial matches
+          
           if (!this.settings.stopWords.includes(data.token)) {
             fullResponse += data.token;
             onToken?.(data.token);

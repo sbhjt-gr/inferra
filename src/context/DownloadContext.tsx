@@ -22,7 +22,6 @@ const DownloadContext = createContext<DownloadContextType | undefined>(undefined
 export const DownloadProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [downloadProgress, setDownloadProgress] = useState<DownloadProgress>({});
 
-  // Load saved download states on mount
   useEffect(() => {
     const loadSavedStates = async () => {
       try {
@@ -30,7 +29,6 @@ export const DownloadProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         if (savedProgress) {
           const parsedProgress = JSON.parse(savedProgress);
           
-          // Keep all downloads that are not completed or failed
           const filteredProgress = Object.entries(parsedProgress).reduce((acc, [key, value]) => {
             if (value && typeof value === 'object' && 
                 'status' in value && 
@@ -57,7 +55,6 @@ export const DownloadProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     loadSavedStates();
   }, []);
 
-  // Save download states whenever they change
   useEffect(() => {
     const saveStates = async () => {
       try {

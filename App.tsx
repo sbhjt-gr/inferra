@@ -15,15 +15,12 @@ import * as BackgroundFetch from 'expo-background-fetch';
 import { ThemeColors } from './src/types/theme';
 import { notificationService } from './src/services/NotificationService';
 
-// Define a background task for checking downloads
 const BACKGROUND_DOWNLOAD_TASK = 'background-download-check';
 
-// Register the task
 try {
   TaskManager.defineTask(BACKGROUND_DOWNLOAD_TASK, async () => {
     try {
       console.log('[Background] Checking downloads status');
-      // This will be called when the app is in the background
       await modelDownloader.checkBackgroundDownloads();
       return BackgroundFetch.BackgroundFetchResult.NewData;
     } catch (error) {
@@ -35,14 +32,12 @@ try {
   console.error('Error defining background task:', error);
 }
 
-// Register the background fetch task
 async function registerBackgroundFetchAsync() {
   try {
-    // Register with more aggressive settings
     await BackgroundFetch.registerTaskAsync(BACKGROUND_DOWNLOAD_TASK, {
-      minimumInterval: 30, // Check every 30 seconds
-      stopOnTerminate: false, // Continue running even if the app is terminated
-      startOnBoot: true // Start the task when the device restarts
+      minimumInterval: 30, 
+      stopOnTerminate: false, 
+      startOnBoot: true 
     });
     
     console.log('Background fetch task registered with enhanced settings');
@@ -83,22 +78,18 @@ function Navigation() {
   };
 
   useEffect(() => {
-    // Register background fetch task when the app starts
     try {
       registerBackgroundFetchAsync();
     } catch (error) {
       console.error('Error registering background fetch:', error);
     }
 
-    // Handle app state changes
     const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
       try {
         if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
-          // App has come to the foreground
           console.log('App has come to the foreground!');
           modelDownloader.checkBackgroundDownloads();
         } else if (appState.current === 'active' && nextAppState.match(/inactive|background/)) {
-          // App has gone to the background
           console.log('App has gone to the background!');
         }
         
@@ -109,7 +100,6 @@ function Navigation() {
     });
 
     return () => {
-      // Cleanup llama context when app closes
       try {
         llamaManager.release();
         subscription.remove();
@@ -120,7 +110,6 @@ function Navigation() {
   }, []);
 
   useEffect(() => {
-    // Initialize the notification service
     async function initializeNotifications() {
       try {
         await notificationService.initialize();
@@ -133,9 +122,7 @@ function Navigation() {
     initializeNotifications();
 
     return () => {
-      // Cleanup when component unmounts
       try {
-        // Unregister the background fetch task
         BackgroundFetch.unregisterTaskAsync(BACKGROUND_DOWNLOAD_TASK);
       } catch (error) {
         console.error('Error cleaning up background fetch:', error);
