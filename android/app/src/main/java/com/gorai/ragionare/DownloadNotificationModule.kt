@@ -61,7 +61,6 @@ class DownloadNotificationModule(reactContext: ReactApplicationContext) : ReactC
         try {
             val notificationId = downloadId.hashCode()
             
-            // Create intent for when notification is tapped
             val intent = reactApplicationContext.packageManager.getLaunchIntentForPackage(reactApplicationContext.packageName)
             val pendingIntent = PendingIntent.getActivity(
                 reactApplicationContext,
@@ -70,7 +69,6 @@ class DownloadNotificationModule(reactContext: ReactApplicationContext) : ReactC
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
 
-            // Build the notification
             val builder = NotificationCompat.Builder(reactApplicationContext, CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.stat_sys_download)
                 .setContentTitle("Downloading $modelName")
@@ -80,11 +78,9 @@ class DownloadNotificationModule(reactContext: ReactApplicationContext) : ReactC
                 .setOnlyAlertOnce(true)
                 .setContentIntent(pendingIntent)
 
-            // Add progress
             if (progress < 100) {
                 builder.setProgress(100, progress, false)
             } else {
-                // Download complete
                 builder.setSmallIcon(android.R.drawable.stat_sys_download_done)
                     .setContentTitle("Download Complete")
                     .setContentText("$modelName has been downloaded")
@@ -92,14 +88,12 @@ class DownloadNotificationModule(reactContext: ReactApplicationContext) : ReactC
                     .setOngoing(false)
                     .setAutoCancel(true)
                 
-                // Schedule removal of notification after 5 seconds
                 handler.postDelayed({
                     activeNotifications.remove(downloadId)
                     notificationManager.cancel(notificationId)
                 }, 5000)
             }
 
-            // Show the notification
             notificationManager.notify(notificationId, builder.build())
             activeNotifications[downloadId] = notificationId
             
@@ -112,14 +106,11 @@ class DownloadNotificationModule(reactContext: ReactApplicationContext) : ReactC
     @ReactMethod
     fun cancelNotification(downloadId: String, promise: Promise) {
         try {
-            // Try to get the notification ID from active notifications
             val notificationId = activeNotifications[downloadId] ?: downloadId.hashCode()
             
-            // Cancel the notification
             notificationManager.cancel(notificationId)
             activeNotifications.remove(downloadId)
             
-            // Remove any pending removal callbacks
             handler.removeCallbacksAndMessages(null)
             
             promise.resolve(true)
@@ -133,7 +124,6 @@ class DownloadNotificationModule(reactContext: ReactApplicationContext) : ReactC
         try {
             val notificationId = activeNotifications[downloadId] ?: downloadId.hashCode()
             
-            // Get existing notification
             val builder = NotificationCompat.Builder(reactApplicationContext, CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.stat_sys_download)
                 .setContentTitle("Downloading Model")
@@ -143,7 +133,6 @@ class DownloadNotificationModule(reactContext: ReactApplicationContext) : ReactC
                 .setOnlyAlertOnce(true)
                 .setProgress(100, progress, false)
 
-            // Update the notification
             notificationManager.notify(notificationId, builder.build())
             activeNotifications[downloadId] = notificationId
             

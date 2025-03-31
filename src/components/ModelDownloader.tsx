@@ -31,7 +31,6 @@ interface ModelDownloaderType {
   deleteModel: (path: string) => Promise<boolean>;
 }
 
-// Type assertion for the native module
 const ModelDownloaderModule = modelDownloader as ModelDownloaderType;
 
 interface ModelDownloaderProps {
@@ -55,7 +54,6 @@ const ModelDownloaderComponent = ({ downloadProgress, onDownloadStart }: ModelDo
   const [modalVisible, setModalVisible] = useState(false);
   const [currentDownload, setCurrentDownload] = useState<string | null>(null);
 
-  // Clear currentDownload if it's completed
   useEffect(() => {
     if (currentDownload && 
         (!downloadProgress[currentDownload] || 
@@ -82,14 +80,13 @@ const ModelDownloaderComponent = ({ downloadProgress, onDownloadStart }: ModelDo
       
       onDownloadStart(result.downloadId, filename);
       setUrl('');
-    } catch (error: any) {  // Type the error as any to access message property
+    } catch (error: any) {
       console.error('Download error:', error);
       setCurrentDownload(null);
       Alert.alert('Error', error.message || 'Failed to download file');
     }
   };
 
-  // Get current download progress if any
   const currentProgress = currentDownload && 
                          downloadProgress[currentDownload] && 
                          downloadProgress[currentDownload].status !== 'completed' && 

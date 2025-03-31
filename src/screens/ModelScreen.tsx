@@ -6,10 +6,8 @@ import {
   FlatList,
   TouchableOpacity,
   Alert,
-  NativeModules,
   Linking,
   Modal,
-  TextInput,
   ActivityIndicator,
   ScrollView,
   Animated,
@@ -25,12 +23,10 @@ import { Ionicons } from '@expo/vector-icons';
 import AppHeader from '../components/AppHeader';
 import CustomUrlDialog from '../components/CustomUrlDialog';
 import { modelDownloader, StoredModel, DownloadProgress } from '../services/ModelDownloader';
-import DownloadsDialog from '../components/DownloadsDialog';
 import { useDownloads } from '../context/DownloadContext';
 import * as BackgroundFetch from 'expo-background-fetch';
 import * as TaskManager from 'expo-task-manager';
 import * as DocumentPicker from 'expo-document-picker';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { downloadNotificationService } from '../services/DownloadNotificationService';
 import { getThemeAwareColor, getDocumentIconColor, getBrowserDownloadTextColor } from '../utils/ColorUtils';
 
@@ -214,48 +210,32 @@ const getProgressText = (data: DownloadProgress[string]) => {
   return `${progress}% • ${downloadedFormatted} / ${totalFormatted}`;
 };
 
-// Add this at the top level, outside the component
-let globalCheckInterval: NodeJS.Timeout | null = null;
-
-// Add this helper function at the top level
 const getActiveDownloadsCount = (downloads: DownloadProgress): number => {
   return Object.values(downloads).filter(
     download => download.status !== 'completed' && download.status !== 'failed'
   ).length;
 };
 
-// Add this constant at the top level
 const BACKGROUND_DOWNLOAD_TASK = 'background-download-task';
 
-// Add this before the component
 TaskManager.defineTask(BACKGROUND_DOWNLOAD_TASK, async ({ data, error }) => {
   if (error) {
     console.error('Background task error:', error);
     return BackgroundFetch.BackgroundFetchResult.Failed;
   }
   
-  // Continue running downloads in background
   return BackgroundFetch.BackgroundFetchResult.NewData;
 });
 
-// Add this function at the top level
 const registerBackgroundTask = async () => {
   try {
     await BackgroundFetch.registerTaskAsync(BACKGROUND_DOWNLOAD_TASK, {
-      minimumInterval: 1, // 1 second
-      stopOnTerminate: false, // continue running when app is closed
-      startOnBoot: true, // restart task when device reboots
+      minimumInterval: 1,
+      stopOnTerminate: false,
+      startOnBoot: true,
     });
   } catch (err) {
     console.error('Task registration failed:', err);
-  }
-};
-
-const Tab = createBottomTabNavigator();
-
-const setupNotifications = async () => {
-  if (Platform.OS === 'android') {
-    await downloadNotificationService.requestPermissions();
   }
 };
 
@@ -265,23 +245,17 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
   const [activeTab, setActiveTab] = useState<'stored' | 'downloadable'>('stored');
   const [storedModels, setStoredModels] = useState<StoredModel[]>([]);
   const { downloadProgress, setDownloadProgress } = useDownloads();
-  const [isDownloadsDialogVisible, setIsDownloadsDialogVisible] = useState(false);
-  const [customUrl, setCustomUrl] = useState('');
-  const [isCustomUrlValid, setIsCustomUrlValid] = useState(false);
-  const [isCustomUrlLoading, setIsCustomUrlLoading] = useState(false);
   const [customUrlDialogVisible, setCustomUrlDialogVisible] = useState(false);
   const [isDownloadsVisible, setIsDownloadsVisible] = useState(false);
   const buttonScale = useRef(new Animated.Value(1)).current;
-  const buttonProcessingRef = useRef(new Set<string>());
   const [isLoading, setIsLoading] = useState(false);
   const [importingModelName, setImportingModelName] = useState<string | null>(null);
 
   const handleLinkModel = async () => {
     try {
-      // Use DocumentPicker to get a file URI that can be used directly
       const result = await DocumentPicker.getDocumentAsync({
         type: '*/*',
-        copyToCacheDirectory: false, // Don't copy to cache to save space
+        copyToCacheDirectory: false,
       });
 
       if (result.canceled) {
@@ -299,7 +273,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         size: file.size
       });
 
-      // Check if file is a GGUF model
       if (!fileName.endsWith('.gguf')) {
         Alert.alert(
           'Invalid File',
@@ -308,11 +281,9 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         return;
       }
 
-      // Show loading indicator
       setIsLoading(true);
       
       try {
-        // For Android content:// URIs, we need to copy the file
         const isAndroidContentUri = Platform.OS === 'android' && file.uri.startsWith('content://');
         
         if (isAndroidContentUri) {
@@ -324,7 +295,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
                 text: 'Continue',
                 onPress: async () => {
                   try {
-                    // Link the model - this will copy it for Android content URIs
                     await modelDownloader.linkExternalModel(file.uri, file.name);
                     setIsLoading(false);
                     Alert.alert(
@@ -350,7 +320,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
             ]
           );
         } else {
-          // For non-Android or file:// URIs, we can link directly
           await modelDownloader.linkExternalModel(file.uri, file.name);
           setIsLoading(false);
           Alert.alert(
@@ -377,22 +346,12 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     }
   };
 
-  const validateModelUrl = (url: string) => {
-    setCustomUrl(url);
-    // Only check if it's a valid URL
-    const isValid = url.trim().length > 0 && 
-      (url.startsWith('http://') || url.startsWith('https://'));
-    setIsCustomUrlValid(isValid);
-  };
-
   const handleCustomDownload = async (downloadId: number, modelName: string) => {
-    // Navigate to Downloads screen immediately
     navigation.navigate('Downloads');
     
-    // Add to download progress tracking with the full filename
     setDownloadProgress(prev => ({
       ...prev,
-      [modelName.split('/').pop() || modelName]: { // Get just the filename
+      [modelName.split('/').pop() || modelName]: {
         progress: 0,
         bytesDownloaded: 0,
         totalBytes: 0,
@@ -401,16 +360,13 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       }
     }));
     
-    // Close the custom URL dialog
     setCustomUrlDialogVisible(false);
   };
 
-  // Add this shared cancel function at the component level
   const cancelDownload = async (downloadId: number, modelName: string) => {
     try {
       await modelDownloader.cancelDownload(downloadId);
       
-      // Remove from download progress
       setDownloadProgress(prev => {
         const newProgress = { ...prev };
         delete newProgress[modelName];
@@ -422,41 +378,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       console.error('Error canceling download:', error);
       Alert.alert('Error', 'Failed to cancel download');
     }
-  };
-
-  // Add pause/resume functionality
-  const handlePauseResume = async (downloadId: number, modelName: string, isPaused: boolean) => {
-    try {
-      if (isPaused) {
-        // Resume download
-        await modelDownloader.resumeDownload(downloadId);
-      } else {
-        // Pause download
-        await modelDownloader.pauseDownload(downloadId);
-      }
-    } catch (error) {
-      console.error('Error pausing/resuming download:', error);
-      Alert.alert('Error', 'Failed to pause/resume download');
-    }
-  };
-
-  // Update the handleCancel function in the main component
-  const handleCancel = async (downloadId: number, modelName: string) => {
-    Alert.alert(
-      'Cancel Download',
-      'Are you sure you want to cancel this download?',
-      [
-        {
-          text: 'No',
-          style: 'cancel'
-        },
-        {
-          text: 'Yes',
-          style: 'destructive',
-          onPress: () => cancelDownload(downloadId, modelName)
-        }
-      ]
-    );
   };
 
   const DownloadableModelList = ({ 
@@ -471,16 +392,14 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     const [downloadingModels, setDownloadingModels] = useState<{ [key: string]: boolean }>({});
     const [initializingDownloads, setInitializingDownloads] = useState<{ [key: string]: boolean }>({});
 
-    // Check if a model is already downloaded
     const isModelDownloaded = (modelName: string) => {
       return storedModels.some(storedModel => {
-        const storedModelName = storedModel.name.split('.')[0]; // Remove file extension
-        const downloadableModelName = modelName.split('.')[0]; // Remove file extension
+        const storedModelName = storedModel.name.split('.')[0];
+        const downloadableModelName = modelName.split('.')[0];
         return storedModelName.toLowerCase() === downloadableModelName.toLowerCase();
       });
     };
 
-    // Add handleBrowserDownload function
     const handleBrowserDownload = async (url: string) => {
       try {
         await Linking.openURL(url);
@@ -491,7 +410,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     };
 
     const handleDownload = async (model: DownloadableModel) => {
-      // Check if model is already downloaded
       if (isModelDownloaded(model.name)) {
         Alert.alert(
           'Model Already Downloaded',
@@ -501,7 +419,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         return;
       }
 
-      // Navigate to Downloads screen immediately
       navigation.navigate('Downloads');
       
       try {
@@ -667,8 +584,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
   const DownloadsDialog = ({ 
     visible, 
     onClose, 
-    downloads,
-    setDownloadProgress
+    downloads
   }: { 
     visible: boolean; 
     onClose: () => void; 
@@ -759,7 +675,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
   const loadStoredModels = async () => {
     console.log('[ModelScreen] Loading stored models...');
     try {
-      // First try to process any completed downloads that might be in temp
       try {
         console.log('[ModelScreen] Checking for background downloads...');
         await modelDownloader.checkBackgroundDownloads();
@@ -768,7 +683,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         console.error('[ModelScreen] Error checking background downloads:', checkError);
       }
       
-      // Then get the stored models
       console.log('[ModelScreen] Getting stored models from modelDownloader...');
       const models = await modelDownloader.getStoredModels();
       console.log(`[ModelScreen] Found ${models.length} stored models:`, models.map(m => m.name));
@@ -782,7 +696,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     }
   };
 
-  // Update the useEffect for download progress
   useEffect(() => {
     const handleProgress = async ({ modelName, ...progress }: { 
       modelName: string;
@@ -804,7 +717,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       if (progress.status === 'completed') {
         console.log(`[ModelScreen] Download completed for ${filename}`);
         
-        // Show completion notification
         if (Platform.OS === 'android') {
           await downloadNotificationService.showNotification(
             filename,
@@ -826,7 +738,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         
         await loadStoredModels();
         
-        // Remove from progress tracking after a delay
         setTimeout(() => {
           setDownloadProgress(prev => {
             const newProgress = { ...prev };
@@ -837,7 +748,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       } else if (progress.status === 'failed') {
         console.log(`[ModelScreen] Download failed for ${filename}:`, progress.error);
         
-        // Cancel notification on failure
         if (Platform.OS === 'android') {
           await downloadNotificationService.cancelNotification(progress.downloadId);
         }
@@ -854,8 +764,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
           }
         }));
         
-        // Show error alert
-        // Remove from progress tracking after a delay
         setTimeout(() => {
           setDownloadProgress(prev => {
             const newProgress = { ...prev };
@@ -864,7 +772,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
           });
         }, 1000);
       } else {
-        // Update ongoing download notification
         if (Platform.OS === 'android') {
           await downloadNotificationService.updateProgress(
             progress.downloadId,
@@ -885,7 +792,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       }
     };
 
-    // Set up notifications
     const setupNotifications = async () => {
       if (Platform.OS === 'android') {
         await downloadNotificationService.requestPermissions();
@@ -895,13 +801,10 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
 
     loadStoredModels();
     
-    // Listen for download progress events
     modelDownloader.on('downloadProgress', handleProgress);
     
-    // Listen for model changes
     modelDownloader.on('modelsChanged', loadStoredModels);
     
-    // Set up notifications
     setupNotifications();
     
     return () => {
@@ -910,7 +813,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     };
   }, []);
 
-  // Update the effect that animates the button
   useEffect(() => {
     const activeCount = getActiveDownloadsCount(downloadProgress);
     if (activeCount > 0) {
@@ -933,7 +835,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     console.log(`[ModelScreen] Attempting to delete model: ${model.name}, path: ${model.path}`);
     
     if (model.isExternal) {
-      // For imported models, just remove the linkage without confirmation
       try {
         console.log(`[ModelScreen] Removing linkage for external model: ${model.name}`);
         modelDownloader.deleteModel(model.path);
@@ -943,7 +844,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         Alert.alert('Error', 'Failed to remove model linkage');
       }
     } else {
-      // For downloaded models, show confirmation dialog
       Alert.alert(
         'Delete Model',
         `Are you sure you want to delete ${model.name}?`,
@@ -976,7 +876,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     return filename.split('.')[0];
   };
 
-  // First remove the button from renderDownloadableList
   const renderDownloadableList = () => (
     <View style={styles.downloadableContainer}>
       <ScrollView 
@@ -1018,7 +917,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     </View>
   );
 
-  // Add header component for the stored models list
   const StoredModelsHeader = () => (
     <View style={styles.storedModelsHeader}>
       <TouchableOpacity
@@ -1091,7 +989,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     );
   };
 
-  // Add this before the return statement
   const renderDownloadsButton = () => {
     const activeCount = getActiveDownloadsCount(downloadProgress);
     if (activeCount === 0) return null;
@@ -1116,18 +1013,14 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     );
   };
 
-  // Add focus effect to reload models when screen comes into focus
   useFocusEffect(
     React.useCallback(() => {
       console.log('[ModelScreen] Screen focused, refreshing models');
       
-      // Force a check for completed downloads and refresh models
       const refreshModels = async () => {
         try {
-          // First check for any completed downloads in temp directory
           await modelDownloader.processCompletedDownloads();
           
-          // Then reload the stored models list
           await loadStoredModels();
         } catch (error) {
           console.error('[ModelScreen] Error refreshing models on focus:', error);
@@ -1142,7 +1035,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     }, [])
   );
 
-  // Add effect to reload models when active tab changes to 'stored'
   useEffect(() => {
     if (activeTab === 'stored') {
       console.log('[ModelScreen] Tab changed to stored, refreshing models');
@@ -1150,12 +1042,10 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     }
   }, [activeTab]);
 
-  // Add effect to periodically check for new models
   useEffect(() => {
     if (activeTab === 'stored') {
       console.log('[ModelScreen] Setting up periodic refresh for stored models');
       
-      // Check every 3 seconds for new models
       const intervalId = setInterval(async () => {
         try {
           console.log('[ModelScreen] Periodic refresh checking for new models');
@@ -1166,7 +1056,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         }
       }, 3000);
       
-      // Clean up interval on unmount
       return () => {
         console.log('[ModelScreen] Clearing periodic refresh interval');
         clearInterval(intervalId);
@@ -1174,7 +1063,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     }
   }, [activeTab]);
 
-  // Add effect to handle model importing progress
   useEffect(() => {
     const handleImportProgress = (progress: { 
       modelName: string; 
@@ -1287,7 +1175,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         setDownloadProgress={setDownloadProgress}
       />
 
-      {/* Loading overlay */}
       {(isLoading || importingModelName) && (
         <View style={styles.loadingOverlay}>
           <View style={[styles.loadingContainer, { backgroundColor: themeColors.borderColor }]}>

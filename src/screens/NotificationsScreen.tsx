@@ -28,7 +28,6 @@ export default function NotificationsScreen({ navigation }: NotificationsScreenP
 
   const loadNotifications = async () => {
     try {
-      // Get download notifications from AsyncStorage
       const downloadNotificationsJson = await AsyncStorage.getItem('downloadNotifications');
       let downloadNotifications: Notification[] = [];
       
@@ -44,7 +43,6 @@ export default function NotificationsScreen({ navigation }: NotificationsScreenP
         }));
       }
       
-      // Sort notifications by time (newest first)
       const sortedNotifications = [...downloadNotifications].sort((a, b) => {
         return new Date(b.time).getTime() - new Date(a.time).getTime();
       });
@@ -73,7 +71,6 @@ export default function NotificationsScreen({ navigation }: NotificationsScreenP
   useEffect(() => {
     loadNotifications();
     
-    // Refresh notifications when the screen comes into focus
     const unsubscribe = navigation.addListener('focus', () => {
       loadNotifications();
     });

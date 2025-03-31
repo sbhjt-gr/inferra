@@ -102,7 +102,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
   });
   const [isClearing, setIsClearing] = useState(false);
 
-  // Load settings when screen is focused
   useFocusEffect(
     React.useCallback(() => {
       setModelSettings(llamaManager.getSettings());
@@ -115,7 +114,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
         const memory = Device.totalMemory;
         const memoryGB = memory ? (memory / (1024 * 1024 * 1024)).toFixed(1) : 'Unknown';
         
-        // Get CPU cores
         const cpuCores = Device.supportedCpuArchitectures?.join(', ') || 'Unknown';
         
         setSystemInfo(prev => ({
@@ -126,7 +124,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           appVersion: Constants.expoConfig?.version || 'Unknown',
           cpu: cpuCores,
           memory: `${memoryGB} GB`,
-          gpu: Device.modelName || 'Unknown' // Best approximation for GPU in mobile devices
+          gpu: Device.modelName || 'Unknown'
         }));
       } catch (error) {
         console.error('Error getting system info:', error);
@@ -248,7 +246,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     </TouchableOpacity>
   );
 
-  // Add function to format bytes to human-readable format
   const formatBytes = (bytes: number) => {
     if (bytes === 0) return '0 B';
     const k = 1024;
@@ -257,7 +254,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  // Add function to get directory size
   const getDirectorySize = async (directory: string): Promise<number> => {
     try {
       const dirInfo = await FileSystem.getInfoAsync(directory);
@@ -281,7 +277,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     }
   };
 
-  // Add function to load storage information
   const loadStorageInfo = async () => {
     try {
       const tempDir = `${FileSystem.documentDirectory}temp`;
@@ -302,7 +297,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     }
   };
 
-  // Add function to clear a directory
   const clearDirectory = async (directory: string): Promise<void> => {
     try {
       const dirInfo = await FileSystem.getInfoAsync(directory);
@@ -320,7 +314,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     }
   };
 
-  // Add functions to clear specific directories
   const clearCache = async () => {
     try {
       setIsClearing(true);
@@ -369,7 +362,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
                 const modelsDir = `${FileSystem.documentDirectory}models`;
                 await clearDirectory(modelsDir);
                 
-                // Also clear external models references
                 await modelDownloader.refreshStoredModels();
                 
                 await loadStorageInfo();
@@ -388,7 +380,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     }
   };
 
-  // Load storage info when the screen is focused
   useFocusEffect(
     React.useCallback(() => {
       loadStorageInfo();

@@ -77,16 +77,14 @@ export default function DownloadsScreen() {
   const buttonProcessingRef = useRef<Set<string>>(new Set());
   const insets = useSafeAreaInsets();
 
-  // Convert downloadProgress object to array for FlatList and filter out completed downloads
   const downloads: DownloadItem[] = Object.entries(downloadProgress)
     .filter(([_, data]) => {
-      // Filter out completed, failed, or 100% progress downloads
       return data.status !== 'completed' && 
              data.status !== 'failed' && 
              data.progress < 100;
     })
     .map(([name, data]) => ({
-      id: data.downloadId || 0,  // Ensure id is never undefined
+      id: data.downloadId || 0,
       name,
       progress: data.progress || 0,
       bytesDownloaded: data.bytesDownloaded || 0,
@@ -94,19 +92,15 @@ export default function DownloadsScreen() {
       status: data.status || 'unknown'
     }));
 
-  // Load saved state on mount
   useEffect(() => {
     const handleAppStateChange = async (nextAppState: AppStateStatus) => {
       if (nextAppState === 'active') {
-        // Reload download states when app comes to foreground
         await loadSavedDownloadStates();
       }
     };
 
-    // Subscribe to app state changes
     const subscription = AppState.addEventListener('change', handleAppStateChange);
 
-    // Initial load
     loadSavedDownloadStates();
 
     return () => {
@@ -114,21 +108,17 @@ export default function DownloadsScreen() {
     };
   }, []);
 
-  // Update the loadSavedDownloadStates function
   const loadSavedDownloadStates = async () => {
     try {
       console.log('[DownloadsScreen] Loading saved download states...');
       
-      // Load saved download states from AsyncStorage
       const savedStates = await AsyncStorage.getItem('active_downloads');
       if (savedStates) {
         const parsedStates = JSON.parse(savedStates);
         
-        // Check each download state
         for (const [modelName, state] of Object.entries(parsedStates)) {
           const downloadState = state as DownloadState;
           
-          // Check if the model exists in the models directory
           const modelPath = `${FileSystem.documentDirectory}models/${modelName}`;
           let fileSize = 0;
           try {
@@ -141,10 +131,8 @@ export default function DownloadsScreen() {
           }
           
           if (fileSize > 0) {
-            // Model exists, mark as completed
             console.log(`[DownloadsScreen] Found completed model: ${modelName}`);
             
-            // Update download progress
             setDownloadProgress(prev => ({
               ...prev,
               [modelName]: {
@@ -156,17 +144,14 @@ export default function DownloadsScreen() {
               }
             }));
             
-            // Remove from active downloads
             const updatedStates = { ...parsedStates };
             delete updatedStates[modelName];
             await AsyncStorage.setItem('active_downloads', JSON.stringify(updatedStates));
           } else {
-            // Check temp directory
             const tempPath = `${FileSystem.documentDirectory}temp/${modelName}`;
             const tempInfo = await FileSystem.getInfoAsync(tempPath);
             
             if (tempInfo.exists) {
-              // Temp file exists, try to move it
               try {
                 const destPath = `${FileSystem.documentDirectory}models/${modelName}`;
                 await FileSystem.makeDirectoryAsync(
@@ -181,7 +166,6 @@ export default function DownloadsScreen() {
                 
                 console.log(`[DownloadsScreen] Moved completed download: ${modelName}`);
                 
-                // Get file size safely
                 let fileSize = 0;
                 try {
                   const fileInfo = await FileSystem.getInfoAsync(destPath, { size: true });
@@ -192,7 +176,6 @@ export default function DownloadsScreen() {
                   console.error(`[DownloadsScreen] Error getting file size for ${modelName}:`, error);
                 }
                 
-                // Update download progress
                 setDownloadProgress(prev => ({
                   ...prev,
                   [modelName]: {
@@ -204,7 +187,6 @@ export default function DownloadsScreen() {
                   }
                 }));
                 
-                // Remove from active downloads
                 const updatedStates = { ...parsedStates };
                 delete updatedStates[modelName];
                 await AsyncStorage.setItem('active_downloads', JSON.stringify(updatedStates));
@@ -212,7 +194,6 @@ export default function DownloadsScreen() {
                 console.error(`[DownloadsScreen] Error moving temp file for ${modelName}:`, error);
               }
             } else {
-              // Add to download progress if not already there
               if (!downloadProgress[modelName]) {
                 setDownloadProgress(prev => ({
                   ...prev,
@@ -234,12 +215,10 @@ export default function DownloadsScreen() {
     }
   };
 
-  // Add this effect to load saved state on mount
   useEffect(() => {
     loadSavedDownloadStates();
   }, []);
 
-  // Add this effect to save state whenever it changes
   useEffect(() => {
     const saveDownloadProgress = async () => {
       try {

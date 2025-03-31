@@ -60,7 +60,6 @@ export default function AppHeader({
     }
   };
 
-  // Set status bar style
   React.useEffect(() => {
     StatusBar.setBarStyle('light-content');
     if (!transparent) {
@@ -71,7 +70,6 @@ export default function AppHeader({
     StatusBar.setTranslucent(true);
     
     return () => {
-      // Reset to default when unmounting
       StatusBar.setBarStyle(themeColors.statusBarStyle === 'light' ? 'light-content' : 'dark-content');
       StatusBar.setBackgroundColor(themeColors.statusBarBg);
     };

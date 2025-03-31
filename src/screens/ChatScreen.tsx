@@ -53,7 +53,6 @@ export default function ChatScreen() {
       ];
       setMessages(updatedMessages);
 
-      // Generate response
       const response = await llamaManager.generateResponse(updatedMessages);
       
       setMessages([

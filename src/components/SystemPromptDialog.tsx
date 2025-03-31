@@ -25,7 +25,6 @@ export default function SystemPromptDialog({
   const themeColors = theme[currentTheme];
   const [currentValue, setCurrentValue] = useState('');
 
-  // Update currentValue when the dialog becomes visible or value changes
   useEffect(() => {
     if (visible) {
       setCurrentValue(value);

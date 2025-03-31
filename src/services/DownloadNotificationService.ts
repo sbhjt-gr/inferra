@@ -1,23 +1,19 @@
 import { NativeModules, Platform, PermissionsAndroid } from 'react-native';
 
-// Define the interface for our native module
 interface DownloadNotificationModuleInterface {
   showDownloadNotification(modelName: string, downloadId: string, progress: number): Promise<boolean>;
   updateDownloadProgress(downloadId: string, progress: number): Promise<boolean>;
   cancelNotification(downloadId: string): Promise<boolean>;
 }
 
-// Get the native module
 const { DownloadNotificationModule } = NativeModules;
 
-// Create a mock implementation for iOS or when the module is not available
 const mockImplementation: DownloadNotificationModuleInterface = {
   showDownloadNotification: async () => false,
   updateDownloadProgress: async () => false,
   cancelNotification: async () => false,
 };
 
-// Use the native module if available, otherwise use the mock
 const nativeModule: DownloadNotificationModuleInterface = 
   Platform.OS === 'android' && DownloadNotificationModule 
     ? DownloadNotificationModule 
@@ -26,15 +22,10 @@ const nativeModule: DownloadNotificationModuleInterface =
 class DownloadNotificationService {
   private hasPermission: boolean = false;
 
-  /**
-   * Request notification permissions
-   * @returns Promise<boolean> - Whether permission was granted
-   */
   async requestPermissions(): Promise<boolean> {
     try {
       if (Platform.OS !== 'android') return false;
 
-      // For Android 13+ (API level 33+), we need to request POST_NOTIFICATIONS permission
       if (Platform.OS === 'android' && Platform.Version >= 33) {
         const granted = await PermissionsAndroid.request(
           PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
@@ -51,7 +42,6 @@ class DownloadNotificationService {
         return this.hasPermission;
       }
       
-      // For older Android versions, permission is granted by default
       this.hasPermission = true;
       return true;
     } catch (error) {
@@ -60,17 +50,10 @@ class DownloadNotificationService {
     }
   }
 
-  /**
-   * Show a download notification with progress
-   * @param modelName The name of the model being downloaded
-   * @param downloadId The unique ID of the download
-   * @param progress The download progress (0-100)
-   */
   async showNotification(modelName: string, downloadId: string | number, progress: number): Promise<boolean> {
     try {
       if (Platform.OS !== 'android') return false;
       
-      // Request permissions if we don't have them yet
       if (!this.hasPermission) {
         await this.requestPermissions();
       }
@@ -86,11 +69,7 @@ class DownloadNotificationService {
     }
   }
 
-  /**
-   * Update the progress of an existing download notification
-   * @param downloadId The unique ID of the download
-   * @param progress The download progress (0-100)
-   */
+
   async updateProgress(downloadId: string | number, progress: number): Promise<boolean> {
     try {
       if (Platform.OS !== 'android') return false;
@@ -105,10 +84,6 @@ class DownloadNotificationService {
     }
   }
 
-  /**
-   * Cancel a download notification
-   * @param downloadId The unique ID of the download
-   */
   async cancelNotification(downloadId: string | number): Promise<boolean> {
     try {
       if (Platform.OS !== 'android') return false;
