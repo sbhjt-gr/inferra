@@ -54,7 +54,7 @@ interface DownloadableModel {
 const DOWNLOADABLE_MODELS: DownloadableModel[] = [
   {
     "name": "Gemma 3 Instruct - 1B",
-    "description": "Google's latest compact instruction-tuned model with strong reasoning and fast inference with 1B parameters.",
+    "description": "Google's latest compact instruction-tuned model with strong reasoning and fast inference with 1 billion parameters.",
     "size": "1.07 GB",
     "huggingFaceLink": "https://huggingface.co/unsloth/gemma-3-1b-it-GGUF/resolve/main/gemma-3-1b-it-Q8_0.gguf",
     "modelFamily": "1 Billion",
@@ -63,7 +63,7 @@ const DOWNLOADABLE_MODELS: DownloadableModel[] = [
   },
   {
     "name": "Gemma 3 Instruct - 4B",
-    "description": "Google's latest compact instruction-tuned model with strong reasoning and fast inference with 4B parameters.",
+    "description": "Google's latest compact instruction-tuned model with strong reasoning and fast inference with 4 billion parameters.",
     "size": "2.6 GB",
     "huggingFaceLink": "https://huggingface.co/unsloth/gemma-3-4b-it-GGUF/resolve/main/gemma-3-4b-it-Q5_K_M.gguf?download=true",
     "modelFamily": "4 Billion",
@@ -80,21 +80,21 @@ const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "tags": ["fastest"]
   },
   {
-    "name": "Qwen 2.5 Coder Instruct",
-    "description": "Alibaba's specialized coding model with excellent code completion and explanation abilities.",
-    "size": "2.27 GB",
-    "huggingFaceLink": "https://huggingface.co/Qwen/Qwen2.5-Coder-3B-Instruct-GGUF/resolve/main/qwen2.5-coder-3b-instruct-q5_k_m.gguf",
-    "modelFamily": "7 Billion",
-    "quantization": "Q5_K_M",
-    "tags": ["fastest"]
-  },
-  {
     "name": "Phi-3 Mini Instruct",
     "description": "Microsoft's compact instruction-tuned model with strong reasoning capabilities despite its small size.",
     "size": "2.2 GB",
     "huggingFaceLink": "https://huggingface.co/bartowski/Phi-3-mini-4k-instruct-GGUF/resolve/main/Phi-3-mini-4k-instruct-Q4_K_M.gguf",
     "modelFamily": "3.8 Billion",
     "quantization": "Q4_K_M",
+    "tags": ["fastest"]
+  },
+  {
+    "name": "Qwen 2.5 Coder Instruct",
+    "description": "Alibaba's specialized coding model with excellent code completion and explanation abilities.",
+    "size": "2.27 GB",
+    "huggingFaceLink": "https://huggingface.co/Qwen/Qwen2.5-Coder-3B-Instruct-GGUF/resolve/main/qwen2.5-coder-3b-instruct-q5_k_m.gguf",
+    "modelFamily": "7 Billion",
+    "quantization": "Q5_K_M",
     "tags": ["fastest"]
   },
   {
