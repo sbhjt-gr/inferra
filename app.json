@@ -19,9 +19,7 @@
           "remote-notification"
         ]
       },
-      "runtimeVersion": {
-        "policy": "appVersion"
-      }
+      "runtimeVersion": "1.9.2"
     },
     "android": {
       "versionCode": 118,
@@ -47,7 +45,7 @@
         "WAKE_LOCK",
         "FOREGROUND_SERVICE"
       ],
-      "runtimeVersion": "1.0.0",
+      "runtimeVersion": "1.9.2",
       "package": "com.gorai.ragionare"
     },
     "web": {
