@@ -64,8 +64,8 @@ const DOWNLOADABLE_MODELS: DownloadableModel[] = [
   {
     "name": "Gemma 3 Instruct - 4B",
     "description": "Google's latest compact instruction-tuned model with strong reasoning and fast inference with 4 billion parameters.",
-    "size": "2.6 GB",
-    "huggingFaceLink": "https://huggingface.co/unsloth/gemma-3-4b-it-GGUF/resolve/main/gemma-3-4b-it-Q5_K_M.gguf?download=true",
+    "size": "2.83 GB",
+    "huggingFaceLink": "https://huggingface.co/unsloth/gemma-3-4b-it-GGUF/resolve/main/gemma-3-4b-it-Q5_K_M.gguf",
     "modelFamily": "4 Billion",
     "quantization": "Q5_K_M",
     "tags": ["recommended"]

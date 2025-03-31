@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { Platform, StatusBar, AppState, AppStateStatus, StatusBarStyle } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -14,12 +14,6 @@ import * as TaskManager from 'expo-task-manager';
 import * as BackgroundFetch from 'expo-background-fetch';
 import { ThemeColors } from './src/types/theme';
 import { notificationService } from './src/services/NotificationService';
-import * as Font from 'expo-font';
-import * as SplashScreen from 'expo-splash-screen';
-import * as Ionicons from '@expo/vector-icons';
-
-// Keep the splash screen visible while we fetch resources
-SplashScreen.preventAutoHideAsync();
 
 // Define a background task for checking downloads
 const BACKGROUND_DOWNLOAD_TASK = 'background-download-check';
@@ -165,30 +159,6 @@ function Navigation() {
 }
 
 export default function App() {
-  const [isReady, setIsReady] = useState(false);
-
-  useEffect(() => {
-    async function prepare() {
-      try {
-        // Load fonts
-        await Font.loadAsync({
-          ...Ionicons.font
-        });
-      } catch (e) {
-        console.warn(e);
-      } finally {
-        setIsReady(true);
-        await SplashScreen.hideAsync();
-      }
-    }
-
-    prepare();
-  }, []);
-
-  if (!isReady) {
-    return null;
-  }
-
   return (
     <SafeAreaProvider>
       <ModelProvider>

@@ -8,14 +8,6 @@
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    "assetBundlePatterns": [
-      "**/*"
-    ],
-    "splash": {
-      "image": "./assets/icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
     "ios": {
       "supportsTablet": true,
       "buildNumber": "120",
@@ -32,7 +24,7 @@
       }
     },
     "android": {
-      "versionCode": 117,
+      "versionCode": 118,
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#000"
@@ -81,7 +73,6 @@
       "eas": {
         "projectId": "a4bd654d-7346-4a03-82c1-617d110edcca"
       }
-    },
-    "owner": "yas_sgg"
+    }
   }
 }
