@@ -2,6 +2,7 @@
 # This reduces build size and speeds up the build process
 
 # Development directories
+node_modules/
 .expo/
 .vscode/
 .idea/

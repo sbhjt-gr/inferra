@@ -2,18 +2,15 @@
   "expo": {
     "name": "Ragionare",
     "slug": "Ragionare",
-    "version": "1.9.1",
+    "version": "1.9.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    "assetBundlePatterns": [
-      "**/*"
-    ],
     "ios": {
       "supportsTablet": true,
-      "buildNumber": "75",
+      "buildNumber": "120",
       "infoPlist": {
         "UIBackgroundModes": [
           "fetch",
@@ -27,7 +24,7 @@
       }
     },
     "android": {
-      "versionCode": 109,
+      "versionCode": 115,
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#000"
