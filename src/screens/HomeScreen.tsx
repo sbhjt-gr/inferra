@@ -19,7 +19,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import ModelSelector from '../components/ModelSelector';
 import { llamaManager } from '../utils/LlamaManager';
 import AppHeader from '../components/AppHeader';
@@ -104,7 +104,7 @@ const CodeBlock = ({ content, style }: { content: string, style?: any }) => {
         onPress={() => Clipboard.setString(content)}
         hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
       >
-        <Ionicons 
+        <MaterialCommunityIcons 
           name="copy-outline" 
           size={14} 
           color={themeColors.headerText} 
@@ -208,7 +208,7 @@ const ChatInput = ({
             onPress={onCancel}
             style={inpStyles.cancelButton}
           >
-            <Ionicons name="close" size={24} color={themeColors.headerText} />
+            <MaterialCommunityIcons name="close" size={24} color={themeColors.headerText} />
           </TouchableOpacity>
         </View>
       ) : (
@@ -220,7 +220,7 @@ const ChatInput = ({
           onPress={handleSend}
           disabled={!text.trim() || disabled}
         >
-          <Ionicons 
+          <MaterialCommunityIcons 
             name="send" 
             size={24} 
             color={text.trim() ? getThemeAwareColor('#660880', currentTheme) : isDark ? themeColors.secondaryText : '#999'} 
@@ -646,7 +646,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
               }}
               hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
             >
-              <Ionicons 
+              <MaterialCommunityIcons 
                 name="copy-outline" 
                 size={14} 
                 color={themeColors.headerText} 
@@ -797,7 +797,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         {item.role === 'assistant' && thinkingContent && (
           <View key="thinking" style={styles.thinkingContainer}>
             <View style={styles.thinkingHeader}>
-              <Ionicons 
+              <MaterialCommunityIcons 
                 name="bulb-outline" 
                 size={14} 
                 color={themeColors.secondaryText}
@@ -811,7 +811,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                 onPress={() => copyToClipboard(thinkingContent)}
                 hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
               >
-                <Ionicons 
+                <MaterialCommunityIcons 
                   name="copy-outline" 
                   size={14} 
                   color={themeColors.secondaryText} 
@@ -844,7 +844,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
               onPress={() => copyToClipboard(item.content)}
               hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
             >
-              <Ionicons 
+              <MaterialCommunityIcons 
                 name="copy-outline" 
                 size={16} 
                 color={item.role === 'user' ? '#fff' : themeColors.text} 
@@ -927,7 +927,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                           }}
                           hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
                         >
-                          <Ionicons 
+                          <MaterialCommunityIcons 
                             name="copy-outline" 
                             size={14} 
                             color={themeColors.headerText} 
@@ -951,7 +951,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                           }}
                           hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
                         >
-                          <Ionicons 
+                          <MaterialCommunityIcons 
                             name="copy-outline" 
                             size={14} 
                             color={themeColors.headerText} 
@@ -986,7 +986,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                     <ActivityIndicator size="small" color={themeColors.secondaryText} />
                   ) : (
                     <>
-                      <Ionicons 
+                      <MaterialCommunityIcons 
                         name="refresh-outline" 
                         size={14} 
                         color={themeColors.secondaryText}
@@ -1086,7 +1086,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: themeColors.borderColor }]}>
             <View style={styles.modalHeader}>
-              <Ionicons name="warning-outline" size={32} color={getThemeAwareColor('#FFA726', currentTheme)} />
+              <MaterialCommunityIcons name="alert-outline" size={32} color={getThemeAwareColor('#FFA726', currentTheme)} />
               <Text style={[styles.modalTitle, { color: themeColors.text }]}>
                 Low Memory Warning
               </Text>
@@ -1130,8 +1130,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         <View style={[styles.messagesContainer]}>
           {messages.length === 0 ? (
             <View style={styles.emptyState}>
-              <Ionicons 
-                name="chatbubble-ellipses-outline" 
+              <MaterialCommunityIcons 
+                name="message-text-outline" 
                 size={48} 
                 color={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.75)'} 
               />

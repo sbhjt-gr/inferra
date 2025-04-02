@@ -10,7 +10,7 @@ import {
   Alert,
   Linking,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import { modelDownloader } from '../services/ModelDownloader';
@@ -131,7 +131,7 @@ const CustomUrlDialog = ({ visible, onClose, onDownloadStart, navigation }: Cust
               Download Custom Model
             </Text>
             <TouchableOpacity onPress={onClose}>
-              <Ionicons name="close" size={24} color={themeColors.text} />
+              <MaterialCommunityIcons name="close" size={24} color={themeColors.text} />
             </TouchableOpacity>
           </View>
 
@@ -140,23 +140,23 @@ const CustomUrlDialog = ({ visible, onClose, onDownloadStart, navigation }: Cust
             onPress={openHuggingFace}
           >
             <View style={styles.hfLinkContent}>
-              <Ionicons name="search" size={18} color="#4a0660" />
+              <MaterialCommunityIcons name="magnify" size={18} color="#4a0660" />
               <Text style={[styles.hfLinkText, { color: themeColors.text }]}>
                 Browse GGUF Models on HuggingFace
               </Text>
             </View>
-            <Ionicons name="open-outline" size={18} color={themeColors.secondaryText} />
+            <MaterialCommunityIcons name="open-in-new" size={18} color={themeColors.secondaryText} />
           </TouchableOpacity>
 
           <View style={styles.warningContainer}>
-            <Ionicons name="warning-outline" size={20} color="#4a0660" />
+            <MaterialCommunityIcons name="alert-outline" size={20} color="#4a0660" />
             <Text style={[styles.warningText, { color: themeColors.secondaryText }]}>
             Only direct download links to GGUF models are supported. Please make sure opening the link in a browser downloads a GGUF model file directly.
             </Text>
           </View>
 
           <View style={[styles.inputContainer, { backgroundColor: themeColors.borderColor }]}>
-            <Ionicons name="link" size={20} color={themeColors.secondaryText} />
+            <MaterialCommunityIcons name="link-variant" size={20} color={themeColors.secondaryText} />
             <TextInput
               style={[styles.input, { color: themeColors.text }]}
               placeholder="Enter model URL"

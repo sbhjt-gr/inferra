@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity, StatusBar } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
@@ -97,7 +97,7 @@ export default function AppHeader({
                 onPress={handleBackPress}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Ionicons name="arrow-back" size={24} color={themeColors.headerText} />
+                <MaterialCommunityIcons name="arrow-left" size={24} color={themeColors.headerText} />
               </TouchableOpacity>
             )}
             
@@ -133,7 +133,7 @@ export default function AppHeader({
                   onPress={handleNewChat}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
-                  <Ionicons name="add-outline" size={22} color={themeColors.headerText} />
+                  <MaterialCommunityIcons name="plus" size={22} color={themeColors.headerText} />
                 </TouchableOpacity>
               )}
               
@@ -142,7 +142,7 @@ export default function AppHeader({
                 onPress={handleOpenChatHistory}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Ionicons name="time-outline" size={22} color={themeColors.headerText} />
+                <MaterialCommunityIcons name="clock-outline" size={22} color={themeColors.headerText} />
               </TouchableOpacity>
             </>
           )}

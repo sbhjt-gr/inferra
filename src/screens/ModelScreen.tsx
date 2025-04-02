@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   StyleSheet,
   View,
@@ -19,7 +19,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList, TabParamList } from '../types/navigation';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AppHeader from '../components/AppHeader';
 import CustomUrlDialog from '../components/CustomUrlDialog';
 import { modelDownloader, StoredModel, DownloadProgress } from '../services/ModelDownloader';
@@ -489,19 +489,19 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
                       </View>
                       {model.tags?.includes('fastest') && (
                         <View style={[styles.modelTag, { backgroundColor: getThemeAwareColor('#00a67e', currentTheme) }]}>
-                          <Ionicons name="flash" size={12} color={themeColors.headerText} style={{ marginRight: 4 }} />
+                          <MaterialCommunityIcons name="flash" size={12} color={themeColors.headerText} style={{ marginRight: 4 }} />
                           <Text style={styles.modelTagText}>Fastest</Text>
                         </View>
                       )}
                       {model.tags?.includes('recommended') && (
                         <View style={[styles.modelTag, { backgroundColor: getThemeAwareColor('#FF8C00', currentTheme) }]}>
-                          <Ionicons name="star" size={12} color={themeColors.headerText} style={{ marginRight: 4 }} />
+                          <MaterialCommunityIcons name="star" size={12} color={themeColors.headerText} style={{ marginRight: 4 }} />
                           <Text style={styles.modelTagText}>Recommended</Text>
                         </View>
                       )}
                       {isDownloaded && (
                         <View style={[styles.modelTag, { backgroundColor: getThemeAwareColor('#666', currentTheme) }]}>
-                          <Ionicons name="checkmark" size={12} color={themeColors.headerText} style={{ marginRight: 4 }} />
+                          <MaterialCommunityIcons name="check" size={12} color={themeColors.headerText} style={{ marginRight: 4 }} />
                           <Text style={styles.modelTagText}>Downloaded</Text>
                         </View>
                       )}
@@ -517,15 +517,15 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
                       onPress={() => handleDownload(model)}
                       disabled={Boolean(downloadingModels[model.name] || downloadProgress[model.name] || initializingDownloads[model.name] || isDownloaded)}
                     >
-                      <Ionicons 
+                      <MaterialCommunityIcons 
                         name={
                           isDownloaded
-                            ? "checkmark"
+                            ? "check"
                             : initializingDownloads[model.name] 
                               ? "sync" 
                               : downloadingModels[model.name] || downloadProgress[model.name] 
-                                ? "hourglass-outline" 
-                                : "cloud-download-outline"
+                                ? "hourglass" 
+                                : "cloud-download"
                         } 
                         size={20} 
                         color="#fff" 
@@ -535,7 +535,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
                 </View>
                 <View style={styles.modelMetaInfo}>
                   <View style={styles.metaItem}>
-                    <Ionicons name="disc-outline" size={16} color={themeColors.secondaryText} />
+                    <MaterialCommunityIcons name="disc" size={16} color={themeColors.secondaryText} />
                     <Text style={[styles.metaText, { color: themeColors.secondaryText }]}>
                       {model.size}
                     </Text>
@@ -544,7 +544,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
                     style={styles.browserDownloadButton}
                     onPress={() => handleBrowserDownload(model.huggingFaceLink)}
                   >
-                    <Ionicons name="open-outline" size={14} color={getBrowserDownloadTextColor(currentTheme)} style={{ marginRight: 4 }} />
+                    <MaterialCommunityIcons name="open-in-new" size={14} color={getBrowserDownloadTextColor(currentTheme)} style={{ marginRight: 4 }} />
                     <Text style={[styles.browserDownloadText, { color: getBrowserDownloadTextColor(currentTheme) }]}>Download in browser</Text>
                   </TouchableOpacity>
                 </View>
@@ -630,7 +630,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
                 Active Downloads ({activeDownloads.length})
               </Text>
               <TouchableOpacity onPress={onClose}>
-                <Ionicons name="close" size={24} color={themeColors.text} />
+                <MaterialCommunityIcons name="close" size={24} color={themeColors.text} />
               </TouchableOpacity>
             </View>
             
@@ -649,7 +649,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
                       style={styles.cancelDownloadButton}
                       onPress={() => handleDialogCancel(name)}
                     >
-                      <Ionicons name="close-circle" size={24} color={getThemeAwareColor('#ff4444', currentTheme)} />
+                      <MaterialCommunityIcons name="close-circle" size={24} color={getThemeAwareColor('#ff4444', currentTheme)} />
                     </TouchableOpacity>
                   </View>
                   <Text style={[styles.downloadItemProgress, { color: themeColors.secondaryText }]}>
@@ -889,7 +889,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         >
           <View style={styles.customUrlButtonContent}>
             <View style={styles.customUrlIconContainer}>
-              <Ionicons name="add-circle-outline" size={24} color={getThemeAwareColor('#4a0660', currentTheme)} />
+              <MaterialCommunityIcons name="plus-circle-outline" size={24} color={getThemeAwareColor('#4a0660', currentTheme)} />
             </View>
             <View style={styles.customUrlTextContainer}>
               <Text style={[styles.customUrlButtonTitle, { color: themeColors.text }]}>
@@ -925,7 +925,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       >
         <View style={styles.customUrlButtonContent}>
           <View style={styles.customUrlIconContainer}>
-            <Ionicons name="link-outline" size={24} color={getThemeAwareColor('#4a0660', currentTheme)} />
+            <MaterialCommunityIcons name="link" size={24} color={getThemeAwareColor('#4a0660', currentTheme)} />
           </View>
           <View style={styles.customUrlTextContainer}>
             <Text style={[styles.customUrlButtonTitle, { color: themeColors.text }]}>
@@ -947,7 +947,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     return (
       <View style={[styles.modelItem, { backgroundColor: themeColors.borderColor }]}>
         <View style={styles.modelIconContainer}>
-          <Ionicons 
+          <MaterialCommunityIcons 
             name={item.isExternal ? "link" : "document"} 
             size={24} 
             color={item.isExternal ? 
@@ -963,7 +963,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
             </Text>
             {item.isExternal ? (
               <View style={styles.externalBadgeContainer}>
-                <Ionicons name="link-outline" size={12} color="white" style={{ marginRight: 4 }} />
+                <MaterialCommunityIcons name="link" size={12} color="white" style={{ marginRight: 4 }} />
                 <Text style={styles.externalBadgeText}>External</Text>
               </View>
             ) : ( 
@@ -972,7 +972,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
           </View>
           <View style={styles.modelMetaInfo}>
             <View style={styles.metaItem}>
-              <Ionicons name="disc-outline" size={14} color={themeColors.secondaryText} />
+              <MaterialCommunityIcons name="disc" size={14} color={themeColors.secondaryText} />
               <Text style={[styles.metaText, { color: themeColors.secondaryText }]}>
                 {formattedSize}
               </Text>
@@ -983,7 +983,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
           style={[styles.deleteButton, { backgroundColor: 'transparent' }]}
           onPress={() => handleDelete(item)}
         >
-          <Ionicons name="trash-outline" size={20} color={getThemeAwareColor('#ff4444', currentTheme)} />
+          <MaterialCommunityIcons name="delete-outline" size={20} color={getThemeAwareColor('#ff4444', currentTheme)} />
         </TouchableOpacity>
       </View>
     );
@@ -1004,7 +1004,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
           style={[styles.floatingButtonContent, { backgroundColor: themeColors.primary }]}
           onPress={() => navigation.navigate('Downloads')}
         >
-          <Ionicons name="cloud-download" size={24} color={themeColors.headerText} />
+          <MaterialCommunityIcons name="cloud-download" size={24} color={themeColors.headerText} />
           <View style={styles.downloadCount}>
             <Text style={styles.downloadCountText}>{activeCount}</Text>
           </View>
@@ -1102,8 +1102,8 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
               ]}
               onPress={() => setActiveTab('stored')}
             >
-              <Ionicons 
-                name="folder-outline" 
+              <MaterialCommunityIcons 
+                name="folder" 
                 size={18} 
                 color={activeTab === 'stored' ? '#fff' : themeColors.text} 
                 style={styles.segmentIcon}
@@ -1124,8 +1124,8 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
               ]}
               onPress={() => setActiveTab('downloadable')}
             >
-              <Ionicons 
-                name="cloud-download-outline" 
+              <MaterialCommunityIcons 
+                name="cloud-download" 
                 size={18} 
                 color={activeTab === 'downloadable' ? '#fff' : themeColors.text}
                 style={styles.segmentIcon}
@@ -1150,8 +1150,8 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
               ListHeaderComponent={StoredModelsHeader}
               ListEmptyComponent={
                 <View style={styles.emptyContainer}>
-                  <Ionicons 
-                    name="folder-open-outline" 
+                  <MaterialCommunityIcons 
+                    name="folder-open" 
                     size={48} 
                     color={themeColors.secondaryText}
                   />

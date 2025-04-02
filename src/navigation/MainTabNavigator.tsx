@@ -1,6 +1,6 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Platform } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import HomeScreen from '../screens/HomeScreen';
 import SettingsScreen from '../screens/SettingsScreen';
@@ -31,13 +31,13 @@ export default function MainTabNavigator() {
               iconName = focused ? 'cube' : 'cube-outline';
               break;
             case 'Settings':
-              iconName = focused ? 'settings' : 'settings-outline';
+              iconName = focused ? 'cog' : 'cog-outline';
               break;
             default:
               iconName = 'alert-circle';
           }
 
-          return <Ionicons name={iconName as any} size={size} color={color} />;
+          return <MaterialCommunityIcons name={iconName as any} size={size} color={color} />;
         },
         tabBarActiveTintColor: themeColors.tabBarActiveText,
         tabBarInactiveTintColor: themeColors.tabBarInactiveText,

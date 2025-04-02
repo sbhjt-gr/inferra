@@ -22,7 +22,7 @@
       "runtimeVersion": "1.9.2"
     },
     "android": {
-      "versionCode": 118,
+      "versionCode": 126,
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#000"
@@ -69,9 +69,9 @@
     },
     "extra": {
       "eas": {
-        "projectId": "62bd70a1-c527-4aeb-bc65-1bc30f7fe1be"
+        "projectId": "50d677ee-fa44-4d42-afa7-942b1e1223e7"
       }
     },
-    "owner": "ya_sg"
+    "owner": "subhajitgorai"
   }
 }

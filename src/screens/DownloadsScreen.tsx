@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
@@ -276,7 +276,7 @@ export default function DownloadsScreen() {
             style={styles.cancelButton}
             onPress={() => handleCancel(item.id, item.name)}
           >
-            <Ionicons name="close-circle" size={24} color={getThemeAwareColor('#ff4444', currentTheme)} />
+            <MaterialCommunityIcons name="close-circle" size={24} color={getThemeAwareColor('#ff4444', currentTheme)} />
           </TouchableOpacity>
         </View>
       </View>

@@ -8,7 +8,7 @@ import {
   Alert,
   NativeModules,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 
@@ -182,7 +182,7 @@ const DownloadManager = forwardRef<DownloadManagerRef, DownloadManagerProps>(
             <View style={styles.header}>
               <Text style={[styles.title, { color: themeColors.text }]}>Downloads</Text>
               <TouchableOpacity onPress={onClose}>
-                <Ionicons name="close" size={24} color={themeColors.text} />
+                <MaterialCommunityIcons name="close" size={24} color={themeColors.text} />
               </TouchableOpacity>
             </View>
 
@@ -202,7 +202,7 @@ const DownloadManager = forwardRef<DownloadManagerRef, DownloadManagerProps>(
                         onPress={() => cancelDownload(download.id)}
                         style={styles.actionButton}
                       >
-                        <Ionicons name="close-circle" size={24} color="#ff4444" />
+                        <MaterialCommunityIcons name="close-circle" size={24} color="#ff4444" />
                       </TouchableOpacity>
                     </View>
                     
