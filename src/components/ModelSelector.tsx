@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { modelDownloader } from '../services/ModelDownloader';
 import { ThemeType, ThemeColors } from '../types/theme';
 import { useModel } from '../context/ModelContext';
@@ -159,7 +159,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
         disabled={isGenerating}
       >
         <View style={styles.modelIconContainer}>
-          <Ionicons 
+          <MaterialCommunityIcons 
             name={selectedModelPath === item.path ? "cube" : "cube-outline"} 
             size={28} 
             color={selectedModelPath === item.path ? 
@@ -183,7 +183,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
         </View>
         {selectedModelPath === item.path && (
           <View style={styles.selectedIndicator}>
-            <Ionicons name="checkmark-circle" size={24} color={getThemeAwareColor('#4a0660', currentTheme)} />
+            <MaterialCommunityIcons name="check-circle" size={24} color={getThemeAwareColor('#4a0660', currentTheme)} />
           </View>
         )}
       </TouchableOpacity>
@@ -240,7 +240,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
               {isModelLoading ? (
                 <ActivityIndicator size="small" color={getThemeAwareColor('#4a0660', currentTheme)} />
               ) : (
-                <Ionicons 
+                <MaterialCommunityIcons 
                   name={selectedModelPath ? "cube" : "cube-outline"} 
                   size={24} 
                   color={selectedModelPath ? 
@@ -270,8 +270,8 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                   isGenerating && styles.unloadButtonActive
                 ]}
               >
-                <Ionicons 
-                  name="close-circle" 
+                <MaterialCommunityIcons 
+                  name="close" 
                   size={20} 
                   color={isGenerating ? 
                     getThemeAwareColor('#d32f2f', currentTheme) : 
@@ -279,7 +279,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                 />
               </TouchableOpacity>
             )}
-            <Ionicons name="chevron-forward" size={20} color={themeColors.secondaryText} />
+            <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
           </View>
         </TouchableOpacity>
 
@@ -299,7 +299,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                   onPress={handleModalClose}
                   style={styles.closeButton}
                 >
-                  <Ionicons name="close" size={24} color={themeColors.text} />
+                  <MaterialCommunityIcons name="close" size={24} color={themeColors.text} />
                 </TouchableOpacity>
               </View>
 
@@ -310,7 +310,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                 contentContainerStyle={styles.modelList}
                 ListEmptyComponent={
                   <View style={styles.emptyContainer}>
-                    <Ionicons name="cube-outline" size={48} color={themeColors.secondaryText} />
+                    <MaterialCommunityIcons name="cube-outline" size={48} color={themeColors.secondaryText} />
                     <Text style={[styles.emptyText, { color: themeColors.secondaryText }]}>
                       No models found. Go to Models → Download Models screen to download a Model.
                     </Text>

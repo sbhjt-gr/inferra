@@ -3,7 +3,7 @@ import { StyleSheet, Text, View, FlatList, RefreshControl, TouchableOpacity } fr
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 
@@ -83,17 +83,17 @@ export default function NotificationsScreen({ navigation }: NotificationsScreenP
       case 'download_started':
         return 'cloud-download-outline';
       case 'download_progress':
-        return 'refresh-outline';
+        return 'refresh';
       case 'download_completed':
-        return 'checkmark-circle-outline';
+        return 'check-circle-outline';
       case 'download_failed':
         return 'alert-circle-outline';
       case 'download_paused':
-        return 'pause-outline';
+        return 'pause-circle-outline';
       case 'download_resumed':
-        return 'play-outline';
+        return 'play-circle-outline';
       default:
-        return 'notifications-outline';
+        return 'bell-outline';
     }
   };
 
@@ -113,7 +113,7 @@ export default function NotificationsScreen({ navigation }: NotificationsScreenP
             renderItem={({ item }) => (
               <View style={[styles.notificationItem, { borderBottomColor: themeColors.borderColor }]}>
                 <View style={styles.iconContainer}>
-                  <Ionicons 
+                  <MaterialCommunityIcons 
                     name={getIconForNotificationType(item.type)} 
                     size={24} 
                     color={themeColors.primary} 
@@ -138,7 +138,7 @@ export default function NotificationsScreen({ navigation }: NotificationsScreenP
         </>
       ) : (
         <View style={styles.emptyContainer}>
-          <Ionicons name="notifications-off-outline" size={64} color={themeColors.tertiaryText} />
+          <MaterialCommunityIcons name="bell-off-outline" size={64} color={themeColors.tertiaryText} />
           <Text style={[styles.emptyText, { color: themeColors.tertiaryText }]}>No notifications yet</Text>
         </View>
       )}

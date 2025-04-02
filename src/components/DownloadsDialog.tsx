@@ -9,7 +9,7 @@ import {
   AppState,
   AppStateStatus,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import { modelDownloader } from '../services/ModelDownloader';
@@ -132,7 +132,7 @@ const DownloadsDialog = ({ visible, onClose, downloads, setDownloadProgress }: D
               Active Downloads ({activeDownloads.length})
             </Text>
             <TouchableOpacity onPress={onClose}>
-              <Ionicons name="close" size={24} color={themeColors.text} />
+              <MaterialCommunityIcons name="close" size={24} color={themeColors.text} />
             </TouchableOpacity>
           </View>
 
@@ -173,7 +173,7 @@ const DownloadsDialog = ({ visible, onClose, downloads, setDownloadProgress }: D
                       style={[styles.controlButton, { backgroundColor: themeColors.primary }]}
                       onPress={() => handlePauseResume(name)}
                     >
-                      <Ionicons 
+                      <MaterialCommunityIcons 
                         name={data.isPaused ? "play" : "pause"} 
                         size={20} 
                         color="#fff" 
@@ -187,7 +187,7 @@ const DownloadsDialog = ({ visible, onClose, downloads, setDownloadProgress }: D
                       style={[styles.controlButton, { backgroundColor: '#ff4444' }]}
                       onPress={() => handleCancel(name)}
                     >
-                      <Ionicons name="close" size={20} color="#fff" />
+                      <MaterialCommunityIcons name="close" size={20} color="#fff" />
                       <Text style={styles.controlButtonText}>Cancel</Text>
                     </TouchableOpacity>
                   </View>

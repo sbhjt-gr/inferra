@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 interface SettingSliderProps {
   label: string;
@@ -44,7 +44,7 @@ export default function SettingSlider({
     >
       <View style={styles.settingLeft}>
         <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
-          <Ionicons name="options-outline" size={22} color={iconColor} />
+          <MaterialCommunityIcons name="tune" size={22} color={iconColor} />
         </View>
         <View style={styles.settingTextContainer}>
           <View style={styles.labelRow}>
@@ -63,13 +63,13 @@ export default function SettingSlider({
               onPress={handleReset}
               style={[styles.resetButton, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}
             >
-              <Ionicons name="refresh-outline" size={14} color={iconColor} />
+              <MaterialCommunityIcons name="refresh" size={14} color={iconColor} />
               <Text style={[styles.resetText, { color: iconColor }]}>Reset to Default</Text>
             </TouchableOpacity>
           )}
         </View>
       </View>
-      <Ionicons name="chevron-forward" size={20} color={themeColors.secondaryText} />
+      <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
     </TouchableOpacity>
   );
 }

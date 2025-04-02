@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, TextInput, Dimensions } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 interface ModelSettingDialogProps {
   visible: boolean;
@@ -85,7 +85,7 @@ export default function ModelSettingDialog({
           <View style={styles.header}>
             <Text style={[styles.title, { color: themeColors.text }]}>{label}</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <Ionicons name="close" size={24} color={themeColors.text} />
+              <MaterialCommunityIcons name="close" size={24} color={themeColors.text} />
             </TouchableOpacity>
           </View>
           
@@ -130,7 +130,7 @@ export default function ModelSettingDialog({
                 style={[styles.resetButton, { backgroundColor: themeColors.primary + '20' }]}
                 onPress={handleReset}
               >
-                <Ionicons name="refresh-outline" size={20} color={themeColors.primary} />
+                <MaterialCommunityIcons name="refresh" size={20} color={themeColors.primary} />
                 <Text style={[styles.resetText, { color: themeColors.primary }]}>Reset to Default</Text>
               </TouchableOpacity>
             )}

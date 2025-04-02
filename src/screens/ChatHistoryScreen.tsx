@@ -12,7 +12,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
@@ -151,9 +151,9 @@ export default function ChatHistoryScreen() {
           style={styles.deleteButton}
           onPress={() => handleDeleteChat(item.id)}
         >
-          <Ionicons name="trash-outline" size={20} color={themeColors.secondaryText} />
+          <MaterialCommunityIcons name="delete-outline" size={20} color={themeColors.secondaryText} />
         </TouchableOpacity>
-        <Ionicons name="chevron-forward" size={24} color={themeColors.secondaryText} />
+        <MaterialCommunityIcons name="chevron-right" size={24} color={themeColors.secondaryText} />
       </View>
     </TouchableOpacity>
   );
@@ -165,7 +165,7 @@ export default function ChatHistoryScreen() {
         onPress={handleCreateNewChat}
         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
       >
-        <Ionicons name="add-outline" size={24} color={themeColors.headerText} />
+        <MaterialCommunityIcons name="plus" size={24} color={themeColors.headerText} />
       </TouchableOpacity>
       
       {chats.length > 0 && (
@@ -174,7 +174,7 @@ export default function ChatHistoryScreen() {
           onPress={handleDeleteAllChats}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Ionicons name="trash-outline" size={24} color={themeColors.headerText} />
+          <MaterialCommunityIcons name="delete-outline" size={24} color={themeColors.headerText} />
         </TouchableOpacity>
       )}
     </>
@@ -209,7 +209,7 @@ export default function ChatHistoryScreen() {
                   style={[styles.newChatButtonEmpty, { backgroundColor: themeColors.headerBackground }]}
                   onPress={handleCreateNewChat}
                 >
-                  <Ionicons name="add-outline" size={20} color={themeColors.headerText} style={styles.newChatIcon} />
+                  <MaterialCommunityIcons name="plus" size={20} color={themeColors.headerText} style={styles.newChatIcon} />
                   <Text style={styles.newChatText}>Start a new chat</Text>
                 </TouchableOpacity>
               </View>

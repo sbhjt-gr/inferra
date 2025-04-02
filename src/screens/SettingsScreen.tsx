@@ -6,7 +6,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList, TabParamList } from '../types/navigation';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AppHeader from '../components/AppHeader';
 import * as Device from 'expo-device';
@@ -211,7 +211,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     title: string;
     description: string;
     value: ThemeOption;
-    icon: keyof typeof Ionicons.glyphMap;
+    icon: keyof typeof MaterialCommunityIcons.glyphMap;
   }) => (
     <TouchableOpacity 
       style={[
@@ -222,7 +222,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     >
       <View style={styles.settingLeft}>
         <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
-          <Ionicons name={icon} size={22} color={iconColor} />
+          <MaterialCommunityIcons name={icon} size={22} color={iconColor} />
         </View>
         <View style={styles.settingTextContainer}>
           <Text style={[styles.settingText, { color: themeColors.text }]}>
@@ -399,7 +399,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           >
             <View style={styles.settingLeft}>
               <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
-                <Ionicons name="chatbubble-ellipses-outline" size={22} color={iconColor} />
+                <MaterialCommunityIcons name="message-text-outline" size={22} color={iconColor} />
               </View>
               <View style={styles.settingTextContainer}>
                 <Text style={[styles.settingText, { color: themeColors.text }]}>
@@ -413,13 +413,13 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
                     onPress={() => handleSettingsChange({ systemPrompt: DEFAULT_SETTINGS.systemPrompt })}
                     style={[styles.resetButton, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}
                   >
-                    <Ionicons name="refresh-outline" size={14} color={iconColor} />
+                    <MaterialCommunityIcons name="refresh" size={14} color={iconColor} />
                     <Text style={[styles.resetText, { color: iconColor }]}>Reset to Default</Text>
                   </TouchableOpacity>
                 )}
               </View>
             </View>
-            <Ionicons name="chevron-forward" size={20} color={themeColors.secondaryText} />
+            <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
           </TouchableOpacity>
         </SettingsSection>
 
@@ -428,19 +428,19 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
             title="System Default"
             description="Follow system theme settings"
             value="system"
-            icon="phone-portrait-outline"
+            icon="cellphone"
           />
           <ThemeOption
             title="Light Mode"
             description="Classic light appearance"
             value="light"
-            icon="sunny-outline"
+            icon="white-balance-sunny"
           />
           <ThemeOption
             title="Dark Mode"
             description="Easier on the eyes in low light"
             value="dark"
-            icon="moon-outline"
+            icon="moon-waning-crescent"
           />
         </SettingsSection>
 
@@ -451,7 +451,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           >
             <View style={styles.settingLeft}>
               <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
-                <Ionicons name="logo-google-playstore" size={22} color={iconColor} />
+                <MaterialCommunityIcons name="google-play" size={22} color={iconColor} />
               </View>
               <View style={styles.settingTextContainer}>
                 <Text style={[styles.settingText, { color: themeColors.text }]}>
@@ -462,7 +462,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
                 </Text>
               </View>
             </View>
-            <Ionicons name="chevron-forward" size={20} color={themeColors.secondaryText} />
+            <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
           </TouchableOpacity>
 
           <TouchableOpacity 
@@ -471,7 +471,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           >
             <View style={styles.settingLeft}>
               <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
-                <Ionicons name="cafe-outline" size={22} color={iconColor} />
+                <MaterialCommunityIcons name="coffee-outline" size={22} color={iconColor} />
               </View>
               <View style={styles.settingTextContainer}>
                 <Text style={[styles.settingText, { color: themeColors.text }]}>
@@ -482,7 +482,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
                 </Text>
               </View>
             </View>
-            <Ionicons name="chevron-forward" size={20} color={themeColors.secondaryText} />
+            <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
           </TouchableOpacity>
 
           <TouchableOpacity 
@@ -491,7 +491,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           >
             <View style={styles.settingLeft}>
               <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
-                <Ionicons name="logo-github" size={22} color={iconColor} />
+                <MaterialCommunityIcons name="github" size={22} color={iconColor} />
               </View>
               <View style={styles.settingTextContainer}>
                 <Text style={[styles.settingText, { color: themeColors.text }]}>
@@ -502,7 +502,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
                 </Text>
               </View>
             </View>
-            <Ionicons name="chevron-forward" size={20} color={themeColors.secondaryText} />
+            <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
           </TouchableOpacity>
 
           <TouchableOpacity 
@@ -511,7 +511,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           >
             <View style={styles.settingLeft}>
               <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
-                <Ionicons name="shield-checkmark-outline" size={22} color={iconColor} />
+                <MaterialCommunityIcons name="shield-check-outline" size={22} color={iconColor} />
               </View>
               <View style={styles.settingTextContainer}>
                 <Text style={[styles.settingText, { color: themeColors.text }]}>
@@ -522,7 +522,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
                 </Text>
               </View>
             </View>
-            <Ionicons name="chevron-forward" size={20} color={themeColors.secondaryText} />
+            <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
           </TouchableOpacity>
         </SettingsSection>
 
@@ -533,7 +533,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           >
             <View style={styles.settingLeft}>
               <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
-                <Ionicons name="text-outline" size={22} color={iconColor} />
+                <MaterialCommunityIcons name="text" size={22} color={iconColor} />
               </View>
               <View style={styles.settingTextContainer}>
                 <View style={styles.labelRow}>
@@ -552,7 +552,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
                     onPress={() => handleSettingsChange({ maxTokens: DEFAULT_SETTINGS.maxTokens })}
                     style={[styles.resetButton, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}
                   >
-                    <Ionicons name="refresh-outline" size={14} color={iconColor} />
+                    <MaterialCommunityIcons name="refresh" size={14} color={iconColor} />
                     <Text style={[styles.resetText, { color: iconColor }]}>Reset to Default</Text>
                   </TouchableOpacity>
                 )}
@@ -563,7 +563,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
                 )}
               </View>
             </View>
-            <Ionicons name="chevron-forward" size={20} color={themeColors.secondaryText} />
+            <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
           </TouchableOpacity>
           
           <TouchableOpacity 
@@ -572,7 +572,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           >
             <View style={styles.settingLeft}>
               <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
-                <Ionicons name="stop-circle-outline" size={22} color={iconColor} />
+                <MaterialCommunityIcons name="stop-circle-outline" size={22} color={iconColor} />
               </View>
               <View style={styles.settingTextContainer}>
                 <View style={styles.labelRow}>
@@ -591,13 +591,13 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
                     onPress={() => handleSettingsChange({ stopWords: DEFAULT_SETTINGS.stopWords })}
                     style={[styles.resetButton, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}
                   >
-                    <Ionicons name="refresh-outline" size={14} color={iconColor} />
+                    <MaterialCommunityIcons name="refresh" size={14} color={iconColor} />
                     <Text style={[styles.resetText, { color: iconColor }]}>Reset to Default</Text>
                   </TouchableOpacity>
                 )}
               </View>
             </View>
-            <Ionicons name="chevron-forward" size={20} color={themeColors.secondaryText} />
+            <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
           </TouchableOpacity>
 
           <SettingSlider
@@ -691,7 +691,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           >
             <View style={styles.settingLeft}>
               <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
-                <Ionicons name="information-circle-outline" size={22} color={iconColor} />
+                <MaterialCommunityIcons name="information-outline" size={22} color={iconColor} />
               </View>
               <View style={styles.settingTextContainer}>
                 <Text style={[styles.settingText, { color: themeColors.text }]}>
@@ -702,7 +702,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
                 </Text>
               </View>
             </View>
-            <Ionicons 
+            <MaterialCommunityIcons 
               name={showSystemInfo ? "chevron-up" : "chevron-down"} 
               size={20} 
               color={themeColors.secondaryText} 
@@ -714,7 +714,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
               <View style={[styles.settingItem, styles.settingItemBorder]}>
                 <View style={styles.settingLeft}>
                   <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
-                    <Ionicons name="phone-portrait-outline" size={22} color={iconColor} />
+                    <MaterialCommunityIcons name="cellphone" size={22} color={iconColor} />
                   </View>
                   <View style={styles.settingTextContainer}>
                     <Text style={[styles.settingText, { color: themeColors.text }]}>
@@ -730,7 +730,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
               <View style={[styles.settingItem, styles.settingItemBorder]}>
                 <View style={styles.settingLeft}>
                   <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
-                    <Ionicons name="hardware-chip-outline" size={22} color={iconColor} />
+                    <MaterialCommunityIcons name="chip" size={22} color={iconColor} />
                   </View>
                   <View style={styles.settingTextContainer}>
                     <Text style={[styles.settingText, { color: themeColors.text }]}>
@@ -746,7 +746,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
               <View style={[styles.settingItem, styles.settingItemBorder]}>
                 <View style={styles.settingLeft}>
                   <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
-                    <Ionicons name="save-outline" size={22} color={iconColor} />
+                    <MaterialCommunityIcons name="content-save-outline" size={22} color={iconColor} />
                   </View>
                   <View style={styles.settingTextContainer}>
                     <Text style={[styles.settingText, { color: themeColors.text }]}>
@@ -762,7 +762,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
               <View style={[styles.settingItem, styles.settingItemBorder]}>
                 <View style={styles.settingLeft}>
                   <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
-                    <Ionicons name="phone-portrait-outline" size={22} color={iconColor} />
+                    <MaterialCommunityIcons name="cellphone" size={22} color={iconColor} />
                   </View>
                   <View style={styles.settingTextContainer}>
                     <Text style={[styles.settingText, { color: themeColors.text }]}>
@@ -778,7 +778,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
               <View style={[styles.settingItem, styles.settingItemBorder]}>
                 <View style={styles.settingLeft}>
                   <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
-                    <Ionicons name="apps-outline" size={22} color={iconColor} />
+                    <MaterialCommunityIcons name="apps" size={22} color={iconColor} />
                   </View>
                   <View style={styles.settingTextContainer}>
                     <Text style={[styles.settingText, { color: themeColors.text }]}>
@@ -802,7 +802,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           >
             <View style={styles.settingLeft}>
               <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
-                <Ionicons name="trash-outline" size={22} color={iconColor} />
+                <MaterialCommunityIcons name="delete-outline" size={22} color={iconColor} />
               </View>
               <View style={styles.settingTextContainer}>
                 <Text style={[styles.settingText, { color: themeColors.text }]}>
@@ -816,7 +816,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
             {isClearing ? (
               <ActivityIndicator size="small" color={themeColors.primary} />
             ) : (
-              <Ionicons name="chevron-forward" size={20} color={themeColors.secondaryText} />
+              <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
             )}
           </TouchableOpacity>
           
@@ -827,7 +827,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           >
             <View style={styles.settingLeft}>
               <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
-                <Ionicons name="folder-outline" size={22} color={iconColor} />
+                <MaterialCommunityIcons name="folder-outline" size={22} color={iconColor} />
               </View>
               <View style={styles.settingTextContainer}>
                 <Text style={[styles.settingText, { color: themeColors.text }]}>
@@ -841,7 +841,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
             {isClearing ? (
               <ActivityIndicator size="small" color={themeColors.primary} />
             ) : (
-              <Ionicons name="chevron-forward" size={20} color={themeColors.secondaryText} />
+              <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
             )}
           </TouchableOpacity>
           
@@ -852,7 +852,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           >
             <View style={styles.settingLeft}>
               <View style={[styles.iconContainer, { backgroundColor: '#FF3B3020' }]}>
-                <Ionicons name="alert-circle-outline" size={22} color={getThemeAwareColor('#FF3B30', currentTheme)} />
+                <MaterialCommunityIcons name="alert-circle-outline" size={22} color={getThemeAwareColor('#FF3B30', currentTheme)} />
               </View>
               <View style={styles.settingTextContainer}>
                 <Text style={[styles.settingText, { color: themeColors.text }]}>
@@ -866,7 +866,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
             {isClearing ? (
               <ActivityIndicator size="small" color={getThemeAwareColor('#FF3B30', currentTheme)} />
             ) : (
-              <Ionicons name="chevron-forward" size={20} color={themeColors.secondaryText} />
+              <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
             )}
           </TouchableOpacity>
         </SettingsSection>

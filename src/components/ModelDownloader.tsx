@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { modelDownloader, ModelInfo } from '../services/ModelDownloader';
 import { ThemeType, ThemeColors } from '../types/theme';
 import { getThemeAwareColor } from '../utils/ColorUtils';
@@ -123,7 +123,7 @@ const ModelDownloaderComponent = ({ downloadProgress, onDownloadStart }: ModelDo
                 Download Model
               </Text>
               <TouchableOpacity onPress={() => setModalVisible(false)}>
-                <Ionicons name="close" size={24} color={themeColors.text} />
+                <MaterialCommunityIcons name="close" size={24} color={themeColors.text} />
               </TouchableOpacity>
             </View>
 
