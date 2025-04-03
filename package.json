@@ -84,6 +84,7 @@
     }
   },
   "overrides": {
-    "markdown-it": "^14.0.0"
+    "markdown-it": "^14.0.0",
+    "image-size": "^1.2.1"
   }
 }
