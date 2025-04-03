@@ -16,30 +16,24 @@ import com.facebook.soloader.SoLoader
 import expo.modules.ApplicationLifecycleDispatcher
 import expo.modules.ReactNativeHostWrapper
 
-import com.gorai.ragionare.DownloadNotificationPackage
-
 class MainApplication : Application(), ReactApplication {
-  companion object {
-    const val DEBUG = true
-    const val IS_NEW_ARCHITECTURE_ENABLED = true
-    const val IS_HERMES_ENABLED = true
-  }
 
   override val reactNativeHost: ReactNativeHost = ReactNativeHostWrapper(
         this,
         object : DefaultReactNativeHost(this) {
           override fun getPackages(): List<ReactPackage> {
             val packages = PackageList(this).packages
-            packages.add(DownloadNotificationPackage())
+            // Packages that cannot be autolinked yet can be added manually here, for example:
+            // packages.add(new MyReactNativePackage());
             return packages
           }
 
           override fun getJSMainModuleName(): String = ".expo/.virtual-metro-entry"
 
-          override fun getUseDeveloperSupport(): Boolean = DEBUG
+          override fun getUseDeveloperSupport(): Boolean = BuildConfig.DEBUG
 
-          override val isNewArchEnabled: Boolean = IS_NEW_ARCHITECTURE_ENABLED
-          override val isHermesEnabled: Boolean = IS_HERMES_ENABLED
+          override val isNewArchEnabled: Boolean = BuildConfig.IS_NEW_ARCHITECTURE_ENABLED
+          override val isHermesEnabled: Boolean = BuildConfig.IS_HERMES_ENABLED
       }
   )
 
@@ -49,7 +43,8 @@ class MainApplication : Application(), ReactApplication {
   override fun onCreate() {
     super.onCreate()
     SoLoader.init(this, OpenSourceMergedSoMapping)
-    if (IS_NEW_ARCHITECTURE_ENABLED) {
+    if (BuildConfig.IS_NEW_ARCHITECTURE_ENABLED) {
+      // If you opted-in for the New Architecture, we load the native entry point for this app.
       load()
     }
     ApplicationLifecycleDispatcher.onApplicationCreate(this)

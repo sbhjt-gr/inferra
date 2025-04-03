@@ -524,7 +524,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
                             : initializingDownloads[model.name] 
                               ? "sync" 
                               : downloadingModels[model.name] || downloadProgress[model.name] 
-                                ? "hourglass" 
+                                ? "timer-sand" 
                                 : "cloud-download"
                         } 
                         size={20} 
@@ -948,7 +948,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       <View style={[styles.modelItem, { backgroundColor: themeColors.borderColor }]}>
         <View style={styles.modelIconContainer}>
           <MaterialCommunityIcons 
-            name={item.isExternal ? "link" : "document"} 
+            name={item.isExternal ? "link" : "file-document-outline"} 
             size={24} 
             color={item.isExternal ? 
               getThemeAwareColor("#4a90e2", currentTheme) : 

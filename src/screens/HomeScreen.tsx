@@ -105,7 +105,7 @@ const CodeBlock = ({ content, style }: { content: string, style?: any }) => {
         hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
       >
         <MaterialCommunityIcons 
-          name="copy-outline" 
+          name="content-copy" 
           size={14} 
           color={themeColors.headerText} 
         />
@@ -647,7 +647,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
               hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
             >
               <MaterialCommunityIcons 
-                name="copy-outline" 
+                name="content-copy" 
                 size={14} 
                 color={themeColors.headerText} 
               />
@@ -812,7 +812,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                 hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
               >
                 <MaterialCommunityIcons 
-                  name="copy-outline" 
+                  name="content-copy" 
                   size={14} 
                   color={themeColors.secondaryText} 
                 />
@@ -845,7 +845,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
               hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
             >
               <MaterialCommunityIcons 
-                name="copy-outline" 
+                name="content-copy" 
                 size={16} 
                 color={item.role === 'user' ? '#fff' : themeColors.text} 
               />
@@ -928,7 +928,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                           hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
                         >
                           <MaterialCommunityIcons 
-                            name="copy-outline" 
+                            name="content-copy" 
                             size={14} 
                             color={themeColors.headerText} 
                           />
@@ -952,7 +952,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                           hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
                         >
                           <MaterialCommunityIcons 
-                            name="copy-outline" 
+                            name="content-copy" 
                             size={14} 
                             color={themeColors.headerText} 
                           />
@@ -987,7 +987,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                   ) : (
                     <>
                       <MaterialCommunityIcons 
-                        name="refresh-outline" 
+                        name="refresh" 
                         size={14} 
                         color={themeColors.secondaryText}
                       />
