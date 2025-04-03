@@ -17,6 +17,9 @@
       "channel": "preview",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "ANDROID_HOME": "/home/subhajit/Android/Sdk"
       }
     },
     "production": {
@@ -25,7 +28,10 @@
       "android": {
         "buildType": "apk"
       },
-      "channel": "production"
+      "channel": "production",
+      "env": {
+        "ANDROID_HOME": "/home/subhajit/Android/Sdk"
+      }
     }
   },
   "submit": {
