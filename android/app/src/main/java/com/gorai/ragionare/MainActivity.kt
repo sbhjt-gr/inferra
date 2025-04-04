@@ -3,31 +3,41 @@ import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build
 import android.os.Bundle
+import android.view.View
+import android.widget.FrameLayout
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled
 import com.facebook.react.defaults.DefaultReactActivityDelegate
+import com.facebook.react.bridge.ReactContext
 
 import expo.modules.ReactActivityDelegateWrapper
 
 class MainActivity : ReactActivity() {
+  
   override fun onCreate(savedInstanceState: Bundle?) {
     // Set the theme to AppTheme BEFORE onCreate to support
     // coloring the background, status bar, and navigation bar.
     // This is required for expo-splash-screen.
     setTheme(R.style.Theme_App_SplashScreen)
-    super.onCreate(null)
     
-    // Only register splash screen manager on Android 12 and above
+    // Handle splash screen differently for different Android versions
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
       try {
+        // Use the new Splash Screen API on Android 12+
+        // @generated begin expo-splashscreen - expo prebuild (DO NOT MODIFY) sync-f3ff59a738c56c9a6119210cb55f0b613eb8b6af
         SplashScreenManager.registerOnActivity(this)
+        // @generated end expo-splashscreen
       } catch (e: Exception) {
-        // Fallback to basic splash screen if registration fails
+        // If there's an error with the splash screen API, just continue without it
         e.printStackTrace()
       }
     }
+    // For older versions, we're just using the theme-based splash screen
+    // which is set by the setTheme call above - no additional code needed
+    
+    super.onCreate(null)
   }
 
   /**
