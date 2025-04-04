@@ -25,5 +25,6 @@
         <!-- Keep only basic attributes that are supported on all Android versions -->
         <item name="android:windowBackground">@drawable/splashscreen</item>
         <item name="android:windowFullscreen">false</item>
+        <item name="android:navigationBarColor">#660880</item>
     </style>
 </resources> 

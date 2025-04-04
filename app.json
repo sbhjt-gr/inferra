@@ -2,7 +2,7 @@
   "expo": {
     "name": "Ragionare",
     "slug": "Ragionare",
-    "version": "1.9.2",
+    "version": "1.9.3",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "myapp",
@@ -10,7 +10,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "buildNumber": "120",
+      "buildNumber": "159",
       "infoPlist": {
         "UIBackgroundModes": [
           "fetch",
@@ -19,13 +19,13 @@
           "remote-notification"
         ]
       },
-      "runtimeVersion": "1.9.2"
+      "runtimeVersion": "1.9.3"
     },
     "android": {
-      "versionCode": 154,
+      "versionCode": 158,
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
-        "backgroundColor": "#000"
+        "backgroundColor": "#000000"
       },
       "permissions": [
         "NOTIFICATIONS",
@@ -45,7 +45,7 @@
         "WAKE_LOCK",
         "FOREGROUND_SERVICE"
       ],
-      "runtimeVersion": "1.9.2",
+      "runtimeVersion": "1.9.3",
       "package": "com.gorai.ragionare"
     },
     "web": {

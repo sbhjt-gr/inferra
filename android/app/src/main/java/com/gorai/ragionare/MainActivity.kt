@@ -5,6 +5,7 @@ import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.widget.FrameLayout
+import android.view.WindowManager
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
@@ -21,6 +22,9 @@ class MainActivity : ReactActivity() {
     // coloring the background, status bar, and navigation bar.
     // This is required for expo-splash-screen.
     setTheme(R.style.Theme_App_SplashScreen)
+    
+    // Configure window soft input mode for better keyboard handling
+    window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
     
     // Handle splash screen differently for different Android versions
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {

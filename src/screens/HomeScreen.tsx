@@ -615,7 +615,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             </View>
             
             <Text style={[styles.modalText, { color: themeColors.text, marginTop: 8 }]}>
-              Although, you can still continue using this app, for optimal performance, consider using a phone with more RAM.
+              Although, you can still continue using this app, but for optimal performance, consider using a phone with more RAM.
             </Text>
 
             <TouchableOpacity

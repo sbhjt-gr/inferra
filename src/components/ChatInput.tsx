@@ -51,8 +51,9 @@ export default function ChatInput({
 
   return (
     <KeyboardAvoidingView 
-    style={styles.keyboardAvoidingView}
-    behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      style={styles.keyboardAvoidingView}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}>
       <View style={[styles.container, style]}>
         <View style={[
           styles.inputWrapper,
@@ -90,7 +91,11 @@ export default function ChatInput({
               onPress={onCancel}
               style={styles.cancelButton}
             >
-              <MaterialCommunityIcons name="close" size={24} color={themeColors.headerText} />
+              <MaterialCommunityIcons 
+                name="close" 
+                size={24} 
+                color={isDark ? '#ffffff' : "#660880"} 
+              />
             </TouchableOpacity>
           </View>
         ) : (
