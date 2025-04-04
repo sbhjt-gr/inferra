@@ -16,11 +16,18 @@ class MainActivity : ReactActivity() {
     // Set the theme to AppTheme BEFORE onCreate to support
     // coloring the background, status bar, and navigation bar.
     // This is required for expo-splash-screen.
-    // setTheme(R.style.AppTheme);
-    // @generated begin expo-splashscreen - expo prebuild (DO NOT MODIFY) sync-f3ff59a738c56c9a6119210cb55f0b613eb8b6af
-    SplashScreenManager.registerOnActivity(this)
-    // @generated end expo-splashscreen
+    setTheme(R.style.Theme_App_SplashScreen)
     super.onCreate(null)
+    
+    // Only register splash screen manager on Android 12 and above
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+      try {
+        SplashScreenManager.registerOnActivity(this)
+      } catch (e: Exception) {
+        // Fallback to basic splash screen if registration fails
+        e.printStackTrace()
+      }
+    }
   }
 
   /**

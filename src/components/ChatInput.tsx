@@ -4,8 +4,9 @@ import {
   View,
   TextInput,
   TouchableOpacity,
-  ActivityIndicator,
   Platform,
+  KeyboardAvoidingView,
+  ActivityIndicator,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
@@ -49,63 +50,67 @@ export default function ChatInput({
   };
 
   return (
-    <View style={[styles.container, style]}>
-      <View style={[
-        styles.inputWrapper,
-        isDark && { backgroundColor: 'rgba(255, 255, 255, 0.1)' },
-        { height: inputHeight }
-      ]}>
-        <TextInput
-          ref={inputRef}
-          style={[
-            styles.input,
-            isDark && { color: '#fff' },
-          ]}
-          value={text}
-          onChangeText={setText}
-          placeholder="Send a message..."
-          placeholderTextColor={placeholderColor}
-          multiline
-          editable={!disabled}
-          textAlignVertical="center"
-          returnKeyType="default"
-          blurOnSubmit={false}
-          onContentSizeChange={handleContentSizeChange}
-          keyboardAppearance={isDark ? 'dark' : 'light'}
-        />
-      </View>
-      
-      {isLoading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator
-            size="small"
-            color={getThemeAwareColor('#0084ff', currentTheme)}
-            style={styles.loadingIndicator}
+    <KeyboardAvoidingView 
+    style={styles.keyboardAvoidingView}
+    behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <View style={[styles.container, style]}>
+        <View style={[
+          styles.inputWrapper,
+          isDark && { backgroundColor: 'rgba(255, 255, 255, 0.1)' },
+          { height: inputHeight }
+        ]}>
+          <TextInput
+            ref={inputRef}
+            style={[
+              styles.input,
+              isDark && { color: '#fff' },
+            ]}
+            value={text}
+            onChangeText={setText}
+            placeholder="Send a message..."
+            placeholderTextColor={placeholderColor}
+            multiline
+            editable={!disabled}
+            textAlignVertical="center"
+            returnKeyType="default"
+            blurOnSubmit={false}
+            onContentSizeChange={handleContentSizeChange}
+            keyboardAppearance={isDark ? 'dark' : 'light'}
           />
-          <TouchableOpacity
-            onPress={onCancel}
-            style={styles.cancelButton}
-          >
-            <MaterialCommunityIcons name="close" size={24} color={themeColors.headerText} />
-          </TouchableOpacity>
         </View>
-      ) : (
-        <TouchableOpacity 
-          style={[
-            styles.sendButton,
-            !text.trim() && styles.sendButtonDisabled
-          ]} 
-          onPress={handleSend}
-          disabled={!text.trim() || disabled}
-        >
-          <MaterialCommunityIcons 
-            name="send" 
-            size={24} 
-            color={text.trim() ? getThemeAwareColor('#660880', currentTheme) : isDark ? themeColors.secondaryText : '#999'} 
-          />
-        </TouchableOpacity>
-      )}
-    </View>
+        
+        {isLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator
+              size="small"
+              color={getThemeAwareColor('#0084ff', currentTheme)}
+              style={styles.loadingIndicator}
+            />
+            <TouchableOpacity
+              onPress={onCancel}
+              style={styles.cancelButton}
+            >
+              <MaterialCommunityIcons name="close" size={24} color={themeColors.headerText} />
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity 
+            style={[
+              styles.sendButton,
+              !text.trim() && styles.sendButtonDisabled
+            ]} 
+            onPress={handleSend}
+            disabled={!text.trim() || disabled}
+          >
+            <MaterialCommunityIcons 
+              name="send" 
+              size={24} 
+              color={text.trim() ? getThemeAwareColor('#660880', currentTheme) : isDark ? themeColors.secondaryText : '#999'} 
+            />
+          </TouchableOpacity>
+        )}
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 

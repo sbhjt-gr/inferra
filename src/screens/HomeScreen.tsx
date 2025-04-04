@@ -2,21 +2,18 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   StyleSheet,
   Platform,
-  TextInput,
   TouchableOpacity,
-  ActivityIndicator,
   Alert,
   Modal,
   Keyboard,
-  KeyboardEvent,
   AppState,
   View,
   Text,
   FlatList,
   KeyboardAvoidingView,
   ToastAndroid,
+  Clipboard,
 } from 'react-native';
-import * as Clipboard from '@react-native-community/clipboard';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
@@ -618,7 +615,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             </View>
             
             <Text style={[styles.modalText, { color: themeColors.text, marginTop: 8 }]}>
-              Although, you can still continue using this app, but optimal performance, consider using a phone with more RAM.
+              Although, you can still continue using this app, for optimal performance, consider using a phone with more RAM.
             </Text>
 
             <TouchableOpacity
@@ -631,11 +628,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         </View>
       </Modal>
 
-      <KeyboardAvoidingView 
-        style={styles.keyboardAvoidingView}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
-      >
+
         <View style={styles.modelSelectorWrapper}>
           <ModelSelector 
             ref={modelSelectorRef}
@@ -645,42 +638,45 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             isGenerating={isLoading || isRegenerating}
           />
         </View>
+        <KeyboardAvoidingView 
+          style={styles.keyboardAvoidingView}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
 
-        <View style={[styles.messagesContainer]}>
-          <ChatView
-            messages={messages}
-            isStreaming={isStreaming}
-            streamingMessageId={streamingMessageId}
-            streamingMessage={streamingMessage}
-            streamingThinking={streamingThinking}
-            streamingStats={streamingStats}
-            onCopyText={copyToClipboard}
-            onRegenerateResponse={handleRegenerate}
-            isRegenerating={isRegenerating}
-            flatListRef={flatListRef}
-          />
-        </View>
+            <View style={[styles.messagesContainer]}>
+              <ChatView
+                messages={messages}
+                isStreaming={isStreaming}
+                streamingMessageId={streamingMessageId}
+                streamingMessage={streamingMessage}
+                streamingThinking={streamingThinking}
+                streamingStats={streamingStats}
+                onCopyText={copyToClipboard}
+                onRegenerateResponse={handleRegenerate}
+                isRegenerating={isRegenerating}
+                flatListRef={flatListRef}
+              />
+            </View>
 
-        <View style={[
-          styles.inputContainer,
-          { 
-            backgroundColor: themeColors.background,
-            borderTopWidth: 1,
-            borderTopColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
-          }
-        ]}>
-          <ChatInput
-            onSend={handleSend}
-            disabled={isLoading || isStreaming}
-            isLoading={isLoading || isStreaming}
-            onCancel={handleCancelGeneration}
-            placeholderColor={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.4)'}
-            style={{ 
-              backgroundColor: themeColors.background,
-            }}
-          />
-        </View>
-      </KeyboardAvoidingView>
+            <View style={[
+              styles.inputContainer,
+              { 
+                backgroundColor: themeColors.background,
+                borderTopWidth: 1,
+                borderTopColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+              }
+            ]}>
+              <ChatInput
+                onSend={handleSend}
+                disabled={isLoading || isStreaming}
+                isLoading={isLoading || isStreaming}
+                onCancel={handleCancelGeneration}
+                placeholderColor={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.4)'}
+                style={{ 
+                  backgroundColor: themeColors.background,
+                }}
+              />
+            </View>
+        </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
