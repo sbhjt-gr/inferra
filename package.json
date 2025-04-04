@@ -19,7 +19,6 @@
     "@expo/vector-icons": "^14.0.4",
     "@kesha-antonov/react-native-background-downloader": "^3.2.6",
     "@react-native-async-storage/async-storage": "^1.23.1",
-    "@react-native-community/clipboard": "^1.5.1",
     "@react-native-community/slider": "4.5.5",
     "@react-native-menu/menu": "^1.2.3",
     "@react-navigation/bottom-tabs": "^7.2.0",
