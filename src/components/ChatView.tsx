@@ -6,6 +6,7 @@ import {
   FlatList,
   TouchableOpacity,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Markdown from 'react-native-markdown-display';
@@ -263,7 +264,11 @@ export default function ChatView({
                     styles.regenerateButton,
                     isRegenerating && styles.regenerateButtonDisabled
                   ]}
-                  onPress={onRegenerateResponse}
+                  onPress={() => {
+                    if (!isRegenerating) {
+                      onRegenerateResponse();
+                    }
+                  }}
                   disabled={isRegenerating}
                 >
                   {isRegenerating ? (
