@@ -18,6 +18,8 @@
         <item name="android:fitsSystemWindows">true</item>
         <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
     </style>
+    
+    <!-- Android 12+ specific splash screen -->
     <style name="Theme.App.SplashScreen" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@color/splashscreen_background</item>
         <item name="windowSplashScreenAnimatedIcon">@drawable/splashscreen</item>
