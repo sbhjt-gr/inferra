@@ -89,7 +89,7 @@ export default function ChatView({
           <View key="thinking" style={styles.thinkingContainer}>
             <View style={styles.thinkingHeader}>
               <MaterialCommunityIcons 
-                name="bulb-outline" 
+                name="lightbulb-outline" 
                 size={14} 
                 color={themeColors.secondaryText}
                 style={styles.thinkingIcon}
@@ -330,6 +330,11 @@ export default function ChatView({
           updateCellsBatchingPeriod={50}
           onEndReachedThreshold={0.5}
           scrollIndicatorInsets={{ right: 1 }}
+          onLayout={() => {
+            if (flatListRef.current && messages.length > 0) {
+              flatListRef.current.scrollToOffset({ offset: 0, animated: false });
+            }
+          }}
         />
       )}
     </View>
