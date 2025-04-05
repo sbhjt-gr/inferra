@@ -1,12 +1,13 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   StyleSheet,
   View,
   TextInput,
   TouchableOpacity,
   Platform,
-  KeyboardAvoidingView,
   ActivityIndicator,
+  Keyboard,
+  LayoutAnimation,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
@@ -32,10 +33,33 @@ export default function ChatInput({
 }: ChatInputProps) {
   const [text, setText] = useState('');
   const [inputHeight, setInputHeight] = useState(48);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
   const inputRef = useRef<TextInput>(null);
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
   const isDark = currentTheme === 'dark';
+
+  useEffect(() => {
+    const showSubscription = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => {
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+        setKeyboardVisible(true);
+      }
+    );
+    const hideSubscription = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+        setKeyboardVisible(false);
+      }
+    );
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
 
   const handleSend = () => {
     if (!text.trim()) return;
@@ -46,76 +70,78 @@ export default function ChatInput({
 
   const handleContentSizeChange = (event: any) => {
     const height = Math.min(120, Math.max(48, event.nativeEvent.contentSize.height));
-    setInputHeight(height);
+    if (height !== inputHeight) {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      setInputHeight(height);
+    }
   };
 
   return (
-    <KeyboardAvoidingView 
-      style={styles.keyboardAvoidingView}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}>
-      <View style={[styles.container, style]}>
-        <View style={[
-          styles.inputWrapper,
-          isDark && { backgroundColor: 'rgba(255, 255, 255, 0.1)' },
-          { height: inputHeight }
-        ]}>
-          <TextInput
-            ref={inputRef}
-            style={[
-              styles.input,
-              isDark && { color: '#fff' },
-            ]}
-            value={text}
-            onChangeText={setText}
-            placeholder="Send a message..."
-            placeholderTextColor={placeholderColor}
-            multiline
-            editable={!disabled}
-            textAlignVertical="center"
-            returnKeyType="default"
-            blurOnSubmit={false}
-            onContentSizeChange={handleContentSizeChange}
-            keyboardAppearance={isDark ? 'dark' : 'light'}
+    <View style={[
+      styles.container,
+      style,
+      !keyboardVisible && { paddingBottom: Platform.OS === 'ios' ? 8 : 4 }
+    ]}>
+      <View style={[
+        styles.inputWrapper,
+        isDark && { backgroundColor: 'rgba(255, 255, 255, 0.1)' },
+        { height: inputHeight }
+      ]}>
+        <TextInput
+          ref={inputRef}
+          style={[
+            styles.input,
+            isDark && { color: '#fff' },
+          ]}
+          value={text}
+          onChangeText={setText}
+          placeholder="Send a message..."
+          placeholderTextColor={placeholderColor}
+          multiline
+          editable={!disabled}
+          textAlignVertical="center"
+          returnKeyType="default"
+          blurOnSubmit={false}
+          onContentSizeChange={handleContentSizeChange}
+          keyboardAppearance={isDark ? 'dark' : 'light'}
+        />
+      </View>
+      
+      {isLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator
+            size="small"
+            color={getThemeAwareColor('#0084ff', currentTheme)}
+            style={styles.loadingIndicator}
           />
-        </View>
-        
-        {isLoading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator
-              size="small"
-              color={getThemeAwareColor('#0084ff', currentTheme)}
-              style={styles.loadingIndicator}
-            />
-            <TouchableOpacity
-              onPress={onCancel}
-              style={styles.cancelButton}
-            >
-              <MaterialCommunityIcons 
-                name="close" 
-                size={24} 
-                color={isDark ? '#ffffff' : "#660880"} 
-              />
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <TouchableOpacity 
-            style={[
-              styles.sendButton,
-              !text.trim() && styles.sendButtonDisabled
-            ]} 
-            onPress={handleSend}
-            disabled={!text.trim() || disabled}
+          <TouchableOpacity
+            onPress={onCancel}
+            style={styles.cancelButton}
           >
             <MaterialCommunityIcons 
-              name="send" 
+              name="close" 
               size={24} 
-              color={text.trim() ? getThemeAwareColor('#660880', currentTheme) : isDark ? themeColors.secondaryText : '#999'} 
+              color={isDark ? '#ffffff' : "#660880"} 
             />
           </TouchableOpacity>
-        )}
-      </View>
-    </KeyboardAvoidingView>
+        </View>
+      ) : (
+        <TouchableOpacity 
+          style={[
+            styles.sendButton,
+            !text.trim() && styles.sendButtonDisabled
+          ]} 
+          onPress={handleSend}
+          disabled={!text.trim() || disabled}
+        >
+          <MaterialCommunityIcons 
+            name="send" 
+            size={24} 
+            color={text.trim() ? getThemeAwareColor('#660880', currentTheme) : isDark ? themeColors.secondaryText : '#999'} 
+          />
+        </TouchableOpacity>
+      )}
+    </View>
   );
 }
 
@@ -127,6 +153,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     backgroundColor: 'transparent',
     width: '100%',
+    marginBottom: 5,
   },
   inputWrapper: {
     flex: 1,

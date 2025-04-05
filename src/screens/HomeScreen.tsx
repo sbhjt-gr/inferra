@@ -153,10 +153,18 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     };
   }, []);
 
+  useEffect(() => {
+    if (messages.length > 0 && !keyboardVisible) {
+      requestAnimationFrame(() => {
+        if (flatListRef.current) {
+          flatListRef.current.scrollToOffset({ offset: 0, animated: false });
+        }
+      });
+    }
+  }, [messages, isStreaming, streamingMessage, keyboardVisible]);
+
   useFocusEffect(
     useCallback(() => {
-      setKeyboardVisible(false);
-      
       return () => {
         Keyboard.dismiss();
       };
@@ -228,6 +236,11 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       if (!success) {
         Alert.alert('Error', 'Failed to add message to chat');
         return;
+      }
+      
+      const currentChat = chatManager.getCurrentChat();
+      if (currentChat) {
+        setMessages(currentChat.messages);
       }
       
       await processMessage();
@@ -640,42 +653,44 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         </View>
         <KeyboardAvoidingView 
           style={styles.keyboardAvoidingView}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+          contentContainerStyle={{ flex: 1 }}
+          enabled={true}>
+          <View style={[styles.messagesContainer]}>
+            <ChatView
+              messages={messages}
+              isStreaming={isStreaming}
+              streamingMessageId={streamingMessageId}
+              streamingMessage={streamingMessage}
+              streamingThinking={streamingThinking}
+              streamingStats={streamingStats}
+              onCopyText={copyToClipboard}
+              onRegenerateResponse={handleRegenerate}
+              isRegenerating={isRegenerating}
+              flatListRef={flatListRef}
+            />
+          </View>
 
-            <View style={[styles.messagesContainer]}>
-              <ChatView
-                messages={messages}
-                isStreaming={isStreaming}
-                streamingMessageId={streamingMessageId}
-                streamingMessage={streamingMessage}
-                streamingThinking={streamingThinking}
-                streamingStats={streamingStats}
-                onCopyText={copyToClipboard}
-                onRegenerateResponse={handleRegenerate}
-                isRegenerating={isRegenerating}
-                flatListRef={flatListRef}
-              />
-            </View>
-
-            <View style={[
-              styles.inputContainer,
-              { 
+          <View style={[
+            styles.inputContainer,
+            { 
+              backgroundColor: themeColors.background,
+              borderTopWidth: 1,
+              borderTopColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+            }
+          ]}>
+            <ChatInput
+              onSend={handleSend}
+              disabled={isLoading || isStreaming}
+              isLoading={isLoading || isStreaming}
+              onCancel={handleCancelGeneration}
+              placeholderColor={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.4)'}
+              style={{ 
                 backgroundColor: themeColors.background,
-                borderTopWidth: 1,
-                borderTopColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
-              }
-            ]}>
-              <ChatInput
-                onSend={handleSend}
-                disabled={isLoading || isStreaming}
-                isLoading={isLoading || isStreaming}
-                onCancel={handleCancelGeneration}
-                placeholderColor={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.4)'}
-                style={{ 
-                  backgroundColor: themeColors.background,
-                }}
-              />
-            </View>
+              }}
+            />
+          </View>
         </KeyboardAvoidingView>
     </SafeAreaView>
   );

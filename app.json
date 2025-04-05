@@ -22,7 +22,7 @@
       "runtimeVersion": "1.9.3"
     },
     "android": {
-      "versionCode": 158,
+      "versionCode": 159,
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#000000"

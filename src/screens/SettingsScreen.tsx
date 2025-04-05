@@ -162,24 +162,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     }
   };
 
-  const handleSettingsReset = async () => {
-    try {
-      await llamaManager.resetSettings();
-      setModelSettings(llamaManager.getSettings());
-      setError(null);
-    } catch (error) {
-      console.error('Error resetting settings:', error);
-      Alert.alert('Error', 'Failed to reset settings');
-    }
-  };
-
-  const updateMaxTokens = (value: string) => {
-    const tokens = parseInt(value, 10);
-    if (!isNaN(tokens)) {
-      handleSettingsChange({ maxTokens: tokens });
-    }
-  };
-
   const openLink = (url: string) => {
     Linking.openURL(url);
   };
