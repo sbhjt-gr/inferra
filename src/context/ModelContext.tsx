@@ -42,7 +42,6 @@ export const ModelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
 
         setSelectedModelPath(modelPath);
-        showSnackbar('Model loaded successfully');
       }
     } catch (error) {
       console.error('Model loading error:', error);
