@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -6,8 +6,6 @@ import {
   TouchableOpacity,
   Platform,
   ActivityIndicator,
-  Keyboard,
-  LayoutAnimation,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
@@ -33,33 +31,10 @@ export default function ChatInput({
 }: ChatInputProps) {
   const [text, setText] = useState('');
   const [inputHeight, setInputHeight] = useState(48);
-  const [keyboardVisible, setKeyboardVisible] = useState(false);
   const inputRef = useRef<TextInput>(null);
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
   const isDark = currentTheme === 'dark';
-
-  useEffect(() => {
-    const showSubscription = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      () => {
-        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-        setKeyboardVisible(true);
-      }
-    );
-    const hideSubscription = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-      () => {
-        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-        setKeyboardVisible(false);
-      }
-    );
-
-    return () => {
-      showSubscription.remove();
-      hideSubscription.remove();
-    };
-  }, []);
 
   const handleSend = () => {
     if (!text.trim()) return;
@@ -70,18 +45,11 @@ export default function ChatInput({
 
   const handleContentSizeChange = (event: any) => {
     const height = Math.min(120, Math.max(48, event.nativeEvent.contentSize.height));
-    if (height !== inputHeight) {
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-      setInputHeight(height);
-    }
+    setInputHeight(height);
   };
 
   return (
-    <View style={[
-      styles.container,
-      style,
-      !keyboardVisible && { paddingBottom: Platform.OS === 'ios' ? 8 : 4 }
-    ]}>
+    <View style={[styles.container, style]}>
       <View style={[
         styles.inputWrapper,
         isDark && { backgroundColor: 'rgba(255, 255, 255, 0.1)' },
@@ -153,7 +121,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     backgroundColor: 'transparent',
     width: '100%',
-    marginBottom: 5,
   },
   inputWrapper: {
     flex: 1,

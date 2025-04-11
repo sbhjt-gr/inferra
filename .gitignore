@@ -3,6 +3,10 @@
 # dependencies
 node_modules/
 
+
+.env
+.cursorrules
+
 # Expo
 .expo/
 dist/

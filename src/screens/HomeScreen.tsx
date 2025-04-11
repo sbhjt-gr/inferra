@@ -153,18 +153,10 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     };
   }, []);
 
-  useEffect(() => {
-    if (messages.length > 0 && !keyboardVisible) {
-      requestAnimationFrame(() => {
-        if (flatListRef.current) {
-          flatListRef.current.scrollToOffset({ offset: 0, animated: false });
-        }
-      });
-    }
-  }, [messages, isStreaming, streamingMessage, keyboardVisible]);
-
   useFocusEffect(
     useCallback(() => {
+      setKeyboardVisible(false);
+      
       return () => {
         Keyboard.dismiss();
       };
@@ -236,11 +228,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       if (!success) {
         Alert.alert('Error', 'Failed to add message to chat');
         return;
-      }
-      
-      const currentChat = chatManager.getCurrentChat();
-      if (currentChat) {
-        setMessages(currentChat.messages);
       }
       
       await processMessage();
@@ -653,9 +640,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         </View>
         <KeyboardAvoidingView 
           style={styles.keyboardAvoidingView}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-          contentContainerStyle={{ flex: 1 }}
           enabled={true}>
           <View style={[styles.messagesContainer]}>
             <ChatView
