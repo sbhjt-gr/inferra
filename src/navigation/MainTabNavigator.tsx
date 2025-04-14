@@ -43,7 +43,7 @@ export default function MainTabNavigator() {
         tabBarInactiveTintColor: themeColors.tabBarInactiveText,
         tabBarStyle: {
           backgroundColor: themeColors.tabBarBackground,
-          height: 60 + insets.bottom,
+          height: 75 + insets.bottom,
           paddingTop: 10,
           paddingBottom: insets.bottom,
           borderTopWidth: 0,
