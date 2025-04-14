@@ -11,11 +11,8 @@ class ModelDownloader extends EventEmitter {
   private fileManager: FileManager;
   private storedModelsManager: StoredModelsManager;
   private downloadTaskManager: DownloadTaskManager;
-  private appState: AppStateStatus = AppState.currentState;
   private isInitialized: boolean = false;
   private hasNotificationPermission: boolean = false;
-  private _notificationSubscription: any = null;
-  private wasOpenedViaNotification: boolean = false;
 
   constructor() {
     super();

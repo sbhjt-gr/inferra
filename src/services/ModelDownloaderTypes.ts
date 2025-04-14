@@ -1,5 +1,3 @@
-import * as FileSystem from 'expo-file-system';
-
 export type Listener = (...args: any[]) => void;
 
 export interface ActiveDownload {
@@ -12,7 +10,7 @@ export interface ActiveDownload {
   status: 'queued' | 'downloading' | 'completed' | 'failed';
   timestamp: number;
   destination?: string;
-  options?: any; // FileSystem.DownloadOptions
+  options?: any;
 }
 
 export interface DownloadTaskInfo {
@@ -77,4 +75,4 @@ export interface DownloadProgressEvent {
   downloadId: number;
   error?: string;
   isPaused?: boolean;
-} 
+}
