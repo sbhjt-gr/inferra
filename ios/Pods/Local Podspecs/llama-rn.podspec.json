@@ -1,0 +1,50 @@
+{
+  "name": "llama-rn",
+  "version": "1.7.2",
+  "summary": "React Native binding of llama.cpp for Ragionare",
+  "homepage": "https://github.com/sbhjt-gr/ragionare-llama.rn#readme",
+  "license": "MIT",
+  "authors": "Jhen-Jie Hong <developer@jhen.me> (https://github.com/mybigday)",
+  "platforms": {
+    "ios": "13.0",
+    "tvos": "13.0"
+  },
+  "source": {
+    "git": "https://github.com/mybigday/llama.rn.git",
+    "tag": "1.7.2"
+  },
+  "source_files": "ios/**/*.{h,m,mm}",
+  "vendored_frameworks": "ios/rnllama.xcframework",
+  "dependencies": {
+    "React-Core": [],
+    "RCT-Folly": [
+      "2024.10.14.00"
+    ],
+    "glog": [],
+    "React-RCTFabric": [],
+    "ReactCodegen": [],
+    "RCTRequired": [],
+    "RCTTypeSafety": [],
+    "ReactCommon/turbomodule/bridging": [],
+    "ReactCommon/turbomodule/core": [],
+    "React-NativeModulesApple": [],
+    "Yoga": [],
+    "React-Fabric": [],
+    "React-graphics": [],
+    "React-utils": [],
+    "React-featureflags": [],
+    "React-debug": [],
+    "React-ImageManager": [],
+    "React-rendererdebug": [],
+    "DoubleConversion": [],
+    "hermes-engine": []
+  },
+  "compiler_flags": "-fno-objc-arc -DLM_GGML_USE_CPU -DLM_GGML_USE_ACCELERATE -Wno-shorten-64-to-32 -DLM_GGML_USE_METAL -DLM_GGML_METAL_USE_BF16  -DRCT_NEW_ARCH_ENABLED=1 -DFOLLY_NO_CONFIG -DFOLLY_MOBILE=1 -DFOLLY_USE_LIBCPP=1 -DFOLLY_CFG_NO_COROUTINES=1 -DFOLLY_HAVE_CLOCK_GETTIME=1 -Wno-comma -Wno-shorten-64-to-32",
+  "pod_target_xcconfig": {
+    "OTHER_LDFLAGS": "-framework Accelerate -framework Foundation -framework Metal -framework MetalKit",
+    "OTHER_CFLAGS": "-O3 -DNDEBUG",
+    "OTHER_CPLUSPLUSFLAGS": "$(inherited) -O3 -DNDEBUG -std=c++17 -DRCT_NEW_ARCH_ENABLED=1 -DFOLLY_NO_CONFIG -DFOLLY_MOBILE=1 -DFOLLY_USE_LIBCPP=1 -DFOLLY_CFG_NO_COROUTINES=1 -DFOLLY_HAVE_CLOCK_GETTIME=1 -Wno-comma -Wno-shorten-64-to-32",
+    "HEADER_SEARCH_PATHS": "\"$(PODS_ROOT)/boost\" \"$(PODS_ROOT)/Headers/Private/Yoga\"",
+    "CLANG_CXX_LANGUAGE_STANDARD": "c++20"
+  }
+}

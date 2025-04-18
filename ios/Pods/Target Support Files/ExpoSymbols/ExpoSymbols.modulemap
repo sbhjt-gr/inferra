@@ -1,0 +1,6 @@
+module ExpoSymbols {
+  umbrella header "ExpoSymbols-umbrella.h"
+
+  export *
+  module * { export * }
+}

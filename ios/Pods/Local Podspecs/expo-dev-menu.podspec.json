@@ -1,0 +1,151 @@
+{
+  "name": "expo-dev-menu",
+  "version": "6.0.24",
+  "summary": "Expo/React Native module with the developer menu.",
+  "description": "Expo/React Native module with the developer menu.",
+  "license": "MIT",
+  "authors": "650 Industries, Inc.",
+  "homepage": "https://docs.expo.dev",
+  "platforms": {
+    "ios": "15.1"
+  },
+  "swift_versions": "5.2",
+  "source": {
+    "git": "https://github.com/expo/expo.git"
+  },
+  "static_framework": true,
+  "requires_arc": true,
+  "header_dir": "EXDevMenu",
+  "resource_bundles": {
+    "EXDevMenu": [
+      "ios/assets",
+      "assets/*.ios.js",
+      "assets/dev-menu-packager-host",
+      "assets/*.ttf",
+      "assets/*.otf"
+    ]
+  },
+  "xcconfig": {
+    "GCC_PREPROCESSOR_DEFINITIONS": "EX_DEV_MENU_ENABLED=1",
+    "OTHER_SWIFT_FLAGS": "-DEX_DEV_MENU_ENABLED"
+  },
+  "user_target_xcconfig": {
+    "HEADER_SEARCH_PATHS": "\"${PODS_CONFIGURATION_BUILD_DIR}/expo-dev-menu/Swift Compatibility Header\""
+  },
+  "pod_target_xcconfig": {
+    "DEFINES_MODULE": "YES",
+    "CLANG_CXX_LANGUAGE_STANDARD": "c++20",
+    "HEADER_SEARCH_PATHS": "\"${PODS_ROOT}/Headers/Private/React-Core\" \"$(PODS_CONFIGURATION_BUILD_DIR)/ExpoModulesCore/Swift Compatibility Header\" \"$(PODS_CONFIGURATION_BUILD_DIR)/expo-dev-menu-interface/Swift Compatibility Header\" \"$(PODS_ROOT)/boost\" \"$(PODS_ROOT)/Headers/Private/Yoga\"",
+    "OTHER_CPLUSPLUSFLAGS": "$(inherited) -DRCT_NEW_ARCH_ENABLED=1 -DFOLLY_NO_CONFIG -DFOLLY_MOBILE=1 -DFOLLY_USE_LIBCPP=1 -DFOLLY_CFG_NO_COROUTINES=1 -DFOLLY_HAVE_CLOCK_GETTIME=1 -Wno-comma -Wno-shorten-64-to-32"
+  },
+  "compiler_flags": "-DFOLLY_NO_CONFIG -DFOLLY_MOBILE=1 -DFOLLY_USE_LIBCPP=1 -DFOLLY_CFG_NO_COROUTINES=1 -Wno-comma -Wno-shorten-64-to-32 -DREACT_NATIVE_TARGET_VERSION=76 -DUSE_HERMES",
+  "dependencies": {
+    "React-Core": [],
+    "RCT-Folly": [
+      "2024.10.14.00"
+    ],
+    "glog": [],
+    "React-RCTFabric": [],
+    "ReactCodegen": [],
+    "RCTRequired": [],
+    "RCTTypeSafety": [],
+    "ReactCommon/turbomodule/bridging": [],
+    "ReactCommon/turbomodule/core": [],
+    "React-NativeModulesApple": [],
+    "Yoga": [],
+    "React-Fabric": [],
+    "React-graphics": [],
+    "React-utils": [],
+    "React-featureflags": [],
+    "React-debug": [],
+    "React-ImageManager": [],
+    "React-rendererdebug": [],
+    "DoubleConversion": [],
+    "hermes-engine": []
+  },
+  "source_files": "ios/**/*.{h,m,mm,swift}",
+  "preserve_paths": "ios/**/*.{h,m,mm,swift}",
+  "exclude_files": [
+    "ios/*Tests/**/*",
+    "ios/ReactNativeCompatibles/**/*",
+    "vendored/**/*"
+  ],
+  "default_subspecs": [
+    "Main",
+    "ReactNativeCompatibles"
+  ],
+  "testspecs": [
+    {
+      "name": "Tests",
+      "test_type": "unit",
+      "requires_app_host": false,
+      "source_files": "ios/Tests/**/*",
+      "dependencies": {
+        "Quick": [],
+        "Nimble": [],
+        "React-CoreModules": [],
+        "ExpoModulesTestCore": []
+      },
+      "platforms": {
+        "ios": "15.1"
+      }
+    },
+    {
+      "name": "UITests",
+      "test_type": "unit",
+      "requires_app_host": true,
+      "source_files": "ios/UITests/**/*",
+      "dependencies": {
+        "React-CoreModules": [],
+        "React": []
+      },
+      "platforms": {
+        "ios": "15.1"
+      }
+    }
+  ],
+  "subspecs": [
+    {
+      "name": "SafeAreaView",
+      "dependencies": {
+        "ExpoModulesCore": []
+      },
+      "pod_target_xcconfig": {
+        "DEFINES_MODULE": "YES",
+        "SWIFT_COMPILATION_MODE": "wholemodule"
+      },
+      "source_files": "vendored/react-native-safe-area-context/**/*.{h,m,swift}",
+      "private_header_files": "vendored/react-native-safe-area-context/**/*.h",
+      "compiler_flags": "-w -Xanalyzer -analyzer-disable-all-checks"
+    },
+    {
+      "name": "Vendored",
+      "dependencies": {
+        "expo-dev-menu/SafeAreaView": []
+      }
+    },
+    {
+      "name": "Main",
+      "pod_target_xcconfig": {
+        "HEADER_SEARCH_PATHS": "\"${PODS_CONFIGURATION_BUILD_DIR}/React-jsinspector/jsinspector_modern.framework/Headers\""
+      },
+      "dependencies": {
+        "React-Core": [],
+        "React-jsinspector": [],
+        "EXManifests": [],
+        "ExpoModulesCore": [],
+        "expo-dev-menu-interface": [],
+        "expo-dev-menu/Vendored": []
+      }
+    },
+    {
+      "name": "ReactNativeCompatibles",
+      "source_files": "ios/ReactNativeCompatibles/ReactNative/**/*",
+      "compiler_flags": "-DFOLLY_NO_CONFIG -DFOLLY_MOBILE=1 -DFOLLY_USE_LIBCPP=1 -DFOLLY_CFG_NO_COROUTINES=1 -Wno-comma -Wno-shorten-64-to-32 -DREACT_NATIVE_TARGET_VERSION=76 -DUSE_HERMES",
+      "dependencies": {
+        "React-Core": []
+      }
+    }
+  ],
+  "swift_version": "5.2"
+}
