@@ -81,9 +81,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     };
 
     const toggleOnlineModelsDropdown = () => {
-      if (!hasAnyApiKey()) {
-        setIsOnlineModelsExpanded(!isOnlineModelsExpanded);
-      }
+      setIsOnlineModelsExpanded(!isOnlineModelsExpanded);
     };
 
     const loadModels = async () => {
@@ -269,7 +267,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
             name={selectedModelPath === item.path ? "cube" : "cube-outline"} 
             size={28} 
             color={selectedModelPath === item.path ? 
-              getThemeAwareColor('#4a0660', currentTheme) : 
+              currentTheme === 'dark' ? '#fff' : getThemeAwareColor('#4a0660', currentTheme) : 
               themeColors.text} 
           />
         </View>
@@ -278,15 +276,15 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
             <Text style={[
               styles.modelName, 
               { color: themeColors.text },
-              selectedModelPath === item.path && { color: getThemeAwareColor('#4a0660', currentTheme) }
+              selectedModelPath === item.path && { color: currentTheme === 'dark' ? '#fff' : getThemeAwareColor('#4a0660', currentTheme) }
             ]}>
               {getDisplayName(item.name)}
             </Text>
             <View style={[
               styles.connectionTypeBadge,
-              { backgroundColor: 'rgba(74, 6, 96, 0.1)' }
+              { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.15)' : 'rgba(74, 6, 96, 0.1)' }
             ]}>
-              <Text style={[styles.connectionTypeText, { color: '#4a0660' }]}>
+              <Text style={[styles.connectionTypeText, { color: currentTheme === 'dark' ? '#fff' : '#4a0660' }]}>
                 LOCAL
               </Text>
             </View>
@@ -299,7 +297,11 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
         </View>
         {selectedModelPath === item.path && (
           <View style={styles.selectedIndicator}>
-            <MaterialCommunityIcons name="check-circle" size={24} color={getThemeAwareColor('#4a0660', currentTheme)} />
+            <MaterialCommunityIcons 
+              name="check-circle" 
+              size={24} 
+              color={currentTheme === 'dark' ? '#fff' : getThemeAwareColor('#4a0660', currentTheme)} 
+            />
           </View>
         )}
       </TouchableOpacity>
@@ -307,6 +309,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     
     const renderOnlineModelItem = ({ item }: { item: OnlineModel }) => {
       const isSelected = selectedModelPath === item.id;
+      const hasApiKey = onlineModelStatuses[item.id];
 
       return (
         <TouchableOpacity
@@ -323,11 +326,9 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
             <MaterialCommunityIcons 
               name={isSelected ? "cloud" : "cloud-outline"} 
               size={28} 
-              color={isSelected ? 
-                getThemeAwareColor('#4a0660', currentTheme) : 
-                onlineModelStatuses[item.id] ? 
-                  getThemeAwareColor('#4a0660', currentTheme) : 
-                  themeColors.text} 
+              color={isSelected || hasApiKey ? 
+                currentTheme === 'dark' ? '#fff' : getThemeAwareColor('#4a0660', currentTheme) : 
+                themeColors.secondaryText} 
             />
           </View>
           <View style={styles.modelInfo}>
@@ -335,15 +336,15 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
               <Text style={[
                 styles.modelName, 
                 { color: themeColors.text },
-                isSelected && { color: getThemeAwareColor('#4a0660', currentTheme) }
+                isSelected && { color: currentTheme === 'dark' ? '#fff' : getThemeAwareColor('#4a0660', currentTheme) }
               ]}>
                 {item.name}
               </Text>
               <View style={[
                 styles.connectionTypeBadge,
-                { backgroundColor: 'rgba(74, 180, 96, 0.15)' }
+                { backgroundColor: currentTheme === 'dark' ? 'rgba(74, 180, 96, 0.25)' : 'rgba(74, 180, 96, 0.15)' }
               ]}>
-                <Text style={[styles.connectionTypeText, { color: '#2a8c42' }]}>
+                <Text style={[styles.connectionTypeText, { color: currentTheme === 'dark' ? '#5FD584' : '#2a8c42' }]}>
                   ONLINE
                 </Text>
               </View>
@@ -351,23 +352,25 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
             <View style={styles.modelMetaInfo}>
               <View style={[
                 styles.modelTypeBadge,
-                { backgroundColor: (isSelected || onlineModelStatuses[item.id]) ? 
-                  'rgba(74, 6, 96, 0.1)' : 
-                  'rgba(150, 150, 150, 0.1)' 
+                { 
+                  backgroundColor: (isSelected || hasApiKey) ? 
+                    currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.15)' : 'rgba(74, 6, 96, 0.1)' : 
+                    'rgba(150, 150, 150, 0.1)' 
                 }
               ]}>
                 <Text style={[
                   styles.modelTypeText, 
-                  { color: (isSelected || onlineModelStatuses[item.id]) ? 
-                    '#4a0660' : 
-                    themeColors.secondaryText 
+                  { 
+                    color: (isSelected || hasApiKey) ? 
+                      currentTheme === 'dark' ? '#fff' : '#4a0660' : 
+                      themeColors.secondaryText 
                   }
                 ]}>
                   {item.provider}
                 </Text>
               </View>
-              {!onlineModelStatuses[item.id] && (
-                <Text style={[styles.modelApiKeyMissing, { color: themeColors.secondaryText }]}>
+              {!hasApiKey && (
+                <Text style={[styles.modelApiKeyMissing, { color: currentTheme === 'dark' ? '#FF9494' : '#d32f2f' }]}>
                   API key required
                 </Text>
               )}
@@ -375,7 +378,11 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
           </View>
           {isSelected && (
             <View style={styles.selectedIndicator}>
-              <MaterialCommunityIcons name="check-circle" size={24} color={getThemeAwareColor('#4a0660', currentTheme)} />
+              <MaterialCommunityIcons 
+                name="check-circle" 
+                size={24} 
+                color={currentTheme === 'dark' ? '#fff' : getThemeAwareColor('#4a0660', currentTheme)} 
+              />
             </View>
           )}
         </TouchableOpacity>
