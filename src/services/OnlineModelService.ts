@@ -88,13 +88,17 @@ class OnlineModelService {
     
     const geminiOptions = {
       ...options,
-      streamTokens: options.streamTokens || false
+      streamTokens: options.streamTokens !== false // Default to true for streaming
     };
+    
+    const streamEnabled = options.stream === true && typeof onToken === 'function';
+    
+    console.log(`Gemini API call with streaming: ${streamEnabled}, simulated streaming enabled: ${geminiOptions.streamTokens}`);
     
     const { fullResponse } = await geminiService.generateResponse(
       messages, 
       geminiOptions, 
-      options.stream ? onToken : undefined
+      streamEnabled ? onToken : undefined
     );
     
     return fullResponse;

@@ -167,31 +167,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     }, [])
   );
 
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', nextAppState => {
-      if (
-        appStateRef.current.match(/inactive|background/) && 
-        nextAppState === 'active'
-      ) {
-        loadCurrentChat();
-      } else if (
-        appStateRef.current === 'active' &&
-        nextAppState.match(/inactive|background/)
-      ) {
-        if (chat && messages.some(msg => msg.role === 'user' || msg.role === 'assistant')) {
-          chatManager.saveAllChats();
-        }
-      }
-      
-      appStateRef.current = nextAppState;
-      setAppState(nextAppState);
-    });
-
-    return () => {
-      subscription.remove();
-    };
-  }, [chat, messages]);
-
   const loadCurrentChat = useCallback(async () => {
     const currentChat = chatManager.getCurrentChat();
     if (currentChat) {
@@ -209,6 +184,31 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       await chatManager.updateChatMessages(chat.id, newMessages);
     }
   }, [chat]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      if (
+        appStateRef.current.match(/inactive|background/) && 
+        nextAppState === 'active'
+      ) {
+        loadCurrentChat();
+      } else if (
+        appStateRef.current === 'active' &&
+        nextAppState.match(/inactive|background/)
+      ) {
+        if (chat && messages.some(msg => msg.role === 'user' || msg.role === 'assistant')) {
+          saveMessages(messages);
+        }
+      }
+      
+      appStateRef.current = nextAppState;
+      setAppState(nextAppState);
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [chat, messages, saveMessages, loadCurrentChat]);
 
   const handleSend = async (text: string) => {
     const messageText = text.trim();
@@ -244,9 +244,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   };
 
   const handleCancelGeneration = useCallback(() => {
-    if (llamaManager.context) {
-      llamaManager.context.stopCompletion();
-    }
+    cancelGenerationRef.current = true;
     
     if (streamingMessageId && (streamingMessage || streamingThinking)) {
       const currentChat = chatManager.getCurrentChat();
@@ -267,7 +265,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     setStreamingMessageId(null);
     setIsLoading(false);
     setIsRegenerating(false);
-    cancelGenerationRef.current = true;
   }, [streamingMessage, streamingThinking, streamingMessageId]);
 
   const processMessage = async () => {
@@ -294,7 +291,10 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       };
       
       await chatManager.addMessage(assistantMessage);
-      const messageId = currentChat.messages[currentChat.messages.length - 1].id;
+      const lastMessage = chatManager.getCurrentChat()?.messages.slice(-1)[0];
+      if (!lastMessage) return;
+      
+      const messageId = lastMessage.id;
       
       setStreamingMessageId(messageId);
       setStreamingMessage('');
@@ -312,71 +312,75 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       if (isOnlineModel) {
         if (activeProvider === 'gemini') {
           try {
-            setIsRegenerating(true);
-            
-            const assistantMessage: Message = {
-              id: generateRandomId(),
-              content: '',
-              role: 'assistant',
-            };
-            
-            const newMessages = [...messages.slice(0, -1), assistantMessage];
-            setMessages(newMessages);
-            
             await onlineModelService.sendMessageToGemini(
-              [...newMessages]
+              [...processedMessages]
                 .filter(msg => msg.content.trim() !== '')
                 .map(msg => ({ 
                   id: generateRandomId(), 
-                  role: msg.role, 
+                  role: msg.role as 'system' | 'user' | 'assistant', 
                   content: msg.content 
                 })),
               {
                 temperature: llamaManager.getSettings().temperature,
                 maxTokens: llamaManager.getSettings().maxTokens,
                 topP: llamaManager.getSettings().topP,
-                stream: true
+                stream: true,
+                streamTokens: true
               },
-              (token) => {
+              (partialResponse) => {
                 if (cancelGenerationRef.current) {
                   return false;
                 }
                 
-                tokenCount++;
-                fullResponse = token;
+                tokenCount = partialResponse.split(/\s+/).length;
+                fullResponse = partialResponse;
                 
-                setStreamingMessage(token);
+                setStreamingMessage(partialResponse);
                 setStreamingStats({
                   tokens: tokenCount,
                   duration: (Date.now() - startTime) / 1000
                 });
                 
+                if (tokenCount % 5 === 0 || partialResponse.endsWith('.') || partialResponse.endsWith('!') || partialResponse.endsWith('?')) {
+                  chatManager.updateMessageContent(
+                    messageId,
+                    partialResponse,
+                    '',
+                    {
+                      duration: (Date.now() - startTime) / 1000,
+                      tokens: tokenCount,
+                    }
+                  );
+                }
+                
                 return !cancelGenerationRef.current;
               }
             );
             
-            // Once streaming is complete, update the final message
             if (!cancelGenerationRef.current) {
-              const finalMessage: Message = {
-                id: assistantMessage.id,
-                role: assistantMessage.role,
-                content: fullResponse,
-                stats: {
+              await chatManager.updateMessageContent(
+                messageId,
+                fullResponse,
+                '',
+                {
                   duration: (Date.now() - startTime) / 1000,
                   tokens: tokenCount,
                 }
-              };
-              
-              const finalMessages = [...messages.slice(0, -1), finalMessage];
-              setMessages(finalMessages);
-              saveMessages(finalMessages).finally(() => {
-                setIsRegenerating(false);
-              });
+              );
             }
           } catch (error) {
-            console.error('Error with Gemini API regeneration:', error);
+            console.error('Error with Gemini API:', error);
             Alert.alert('Gemini API Error', error instanceof Error ? error.message : 'Unknown error');
-            setIsRegenerating(false);
+            
+            await chatManager.updateMessageContent(
+              messageId,
+              'Sorry, an error occurred while generating a response. Please try again.',
+              '',
+              {
+                duration: 0,
+                tokens: 0,
+              }
+            );
           }
         } else {
           await chatManager.updateMessageContent(
@@ -536,34 +540,34 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                 .filter(msg => msg.content.trim() !== '')
                 .map(msg => ({ 
                   id: generateRandomId(), 
-                  role: msg.role, 
+                  role: msg.role as 'system' | 'user' | 'assistant', 
                   content: msg.content 
                 })),
               {
                 temperature: llamaManager.getSettings().temperature,
                 maxTokens: llamaManager.getSettings().maxTokens,
                 topP: llamaManager.getSettings().topP,
-                stream: true
+                stream: true,
+                streamTokens: true
               },
-              (token) => {
+              (partialResponse) => {
                 if (cancelGenerationRef.current) {
                   return false;
                 }
                 
-                tokenCount++;
-                fullResponse = token;
+                tokenCount = partialResponse.split(/\s+/).length;
+                fullResponse = partialResponse;
                 
-                setStreamingMessage(token);
+                setStreamingMessage(partialResponse);
                 setStreamingStats({
                   tokens: tokenCount,
                   duration: (Date.now() - startTime) / 1000
                 });
                 
-                // Update the message as we receive more content
-                if (tokenCount % 10 === 0) {
+                if (tokenCount % 5 === 0 || partialResponse.endsWith('.') || partialResponse.endsWith('!') || partialResponse.endsWith('?')) {
                   const finalMessage: Message = {
                     ...assistantMessage,
-                    content: token,
+                    content: partialResponse,
                     stats: {
                       duration: (Date.now() - startTime) / 1000,
                       tokens: tokenCount,
@@ -579,7 +583,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
               }
             );
             
-            // After streaming is complete, update the final message
             if (!cancelGenerationRef.current) {
               const finalMessage: Message = {
                 id: assistantMessage.id,
@@ -681,7 +684,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   const startNewChat = async () => {
     try {
       if (chat && messages.some(msg => msg.role === 'user' || msg.role === 'assistant')) {
-        await chatManager.saveAllChats();
+        await saveMessages(messages);
       }
       
       const newChat = await chatManager.createNewChat();
