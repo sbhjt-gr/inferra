@@ -14,6 +14,9 @@ import * as TaskManager from 'expo-task-manager';
 import * as BackgroundFetch from 'expo-background-fetch';
 import { ThemeColors } from './src/types/theme';
 import { notificationService } from './src/services/NotificationService';
+import { initGeminiService } from './src/services/GeminiInitializer';
+
+initGeminiService();
 
 const BACKGROUND_DOWNLOAD_TASK = 'background-download-check';
 

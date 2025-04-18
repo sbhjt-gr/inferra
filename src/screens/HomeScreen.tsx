@@ -31,6 +31,8 @@ import chatManager, { Chat, ChatMessage } from '../utils/ChatManager';
 import { getThemeAwareColor } from '../utils/ColorUtils';
 import ChatView, { Message } from '../components/ChatView';
 import ChatInput from '../components/ChatInput';
+import { onlineModelService } from '../services/OnlineModelService';
+import { useModel } from '../context/ModelContext';
 
 type HomeScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList>;
@@ -66,6 +68,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   const appStateRef = useRef(AppState.currentState);
   const [appState, setAppState] = useState(appStateRef.current);
   const isFirstLaunchRef = useRef(true);
+  const [activeProvider, setActiveProvider] = useState<'local' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude' | null>(null);
+  const { loadModel, unloadModel } = useModel();
 
   useFocusEffect(
     useCallback(() => {
@@ -210,7 +214,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     const messageText = text.trim();
     if (!messageText) return;
     
-    if (!llamaManager.getModelPath()) {
+    if (!llamaManager.getModelPath() && !activeProvider) {
       setShouldOpenModelSelector(true);
       return;
     }
@@ -274,6 +278,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       const currentMessages = currentChat.messages;
       const settings = llamaManager.getSettings();
       
+      const isOnlineModel = activeProvider && activeProvider !== 'local';
+      
       const processedMessages = currentMessages.some(msg => msg.role === 'system')
         ? currentMessages
         : [{ role: 'system', content: settings.systemPrompt, id: 'system-prompt' }, ...currentMessages];
@@ -303,52 +309,134 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       let isThinking = false;
       cancelGenerationRef.current = false;
 
-      await llamaManager.generateResponse(
-        processedMessages.map(msg => ({ role: msg.role, content: msg.content })),
-        async (token) => {
-          if (cancelGenerationRef.current) {
-            return false;
-          }
-          
-          if (token.includes('<think>')) {
-            isThinking = true;
-            return true;
-          }
-          if (token.includes('</think>')) {
-            isThinking = false;
-            return true;
-          }
-          
-          tokenCount++;
-          if (isThinking) {
-            thinking += token;
-            setStreamingThinking(thinking.trim());
-          } else {
-            fullResponse += token;
+      if (isOnlineModel) {
+        if (activeProvider === 'gemini') {
+          try {
+            setIsRegenerating(true);
             
-            setStreamingMessage(fullResponse);
-          }
-          
-          setStreamingStats({
-            tokens: tokenCount,
-            duration: (Date.now() - startTime) / 1000
-          });
-          
-          if (tokenCount % 10 === 0) {
-            await chatManager.updateMessageContent(
-              messageId,
-              fullResponse,
-              thinking.trim(),
+            const assistantMessage: Message = {
+              id: generateRandomId(),
+              content: '',
+              role: 'assistant',
+            };
+            
+            const newMessages = [...messages.slice(0, -1), assistantMessage];
+            setMessages(newMessages);
+            
+            await onlineModelService.sendMessageToGemini(
+              [...newMessages]
+                .filter(msg => msg.content.trim() !== '')
+                .map(msg => ({ 
+                  id: generateRandomId(), 
+                  role: msg.role, 
+                  content: msg.content 
+                })),
               {
-                duration: (Date.now() - startTime) / 1000,
-                tokens: tokenCount,
+                temperature: llamaManager.getSettings().temperature,
+                maxTokens: llamaManager.getSettings().maxTokens,
+                topP: llamaManager.getSettings().topP,
+                stream: true
+              },
+              (token) => {
+                if (cancelGenerationRef.current) {
+                  return false;
+                }
+                
+                tokenCount++;
+                fullResponse = token;
+                
+                setStreamingMessage(token);
+                setStreamingStats({
+                  tokens: tokenCount,
+                  duration: (Date.now() - startTime) / 1000
+                });
+                
+                return !cancelGenerationRef.current;
               }
             );
+            
+            // Once streaming is complete, update the final message
+            if (!cancelGenerationRef.current) {
+              const finalMessage: Message = {
+                id: assistantMessage.id,
+                role: assistantMessage.role,
+                content: fullResponse,
+                stats: {
+                  duration: (Date.now() - startTime) / 1000,
+                  tokens: tokenCount,
+                }
+              };
+              
+              const finalMessages = [...messages.slice(0, -1), finalMessage];
+              setMessages(finalMessages);
+              saveMessages(finalMessages).finally(() => {
+                setIsRegenerating(false);
+              });
+            }
+          } catch (error) {
+            console.error('Error with Gemini API regeneration:', error);
+            Alert.alert('Gemini API Error', error instanceof Error ? error.message : 'Unknown error');
+            setIsRegenerating(false);
           }
-          
-          return !cancelGenerationRef.current;
+        } else {
+          await chatManager.updateMessageContent(
+            messageId,
+            `This model provider (${activeProvider}) is not yet implemented.`,
+            '',
+            {
+              duration: 0,
+              tokens: 0,
+            }
+          );
         }
-      );
+      } else {
+        await llamaManager.generateResponse(
+          processedMessages.map(msg => ({ role: msg.role, content: msg.content })),
+          async (token) => {
+            if (cancelGenerationRef.current) {
+              return false;
+            }
+            
+            if (token.includes('<think>')) {
+              isThinking = true;
+              return true;
+            }
+            if (token.includes('</think>')) {
+              isThinking = false;
+              return true;
+            }
+            
+            tokenCount++;
+            if (isThinking) {
+              thinking += token;
+              setStreamingThinking(thinking.trim());
+            } else {
+              fullResponse += token;
+              
+              setStreamingMessage(fullResponse);
+            }
+            
+            setStreamingStats({
+              tokens: tokenCount,
+              duration: (Date.now() - startTime) / 1000
+            });
+            
+            if (tokenCount % 10 === 0) {
+              await chatManager.updateMessageContent(
+                messageId,
+                fullResponse,
+                thinking.trim(),
+                {
+                  duration: (Date.now() - startTime) / 1000,
+                  tokens: tokenCount,
+                }
+              );
+            }
+            
+            return !cancelGenerationRef.current;
+          }
+        );
+      }
       
       if (!cancelGenerationRef.current) {
         await chatManager.updateMessageContent(
@@ -399,7 +487,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   const handleRegenerate = async () => {
     if (messages.length < 2) return;
     
-    if (!llamaManager.getModelPath()) {
+    if (!llamaManager.getModelPath() && !activeProvider) {
       Alert.alert('No Model Selected', 'Please select a model first to regenerate a response.');
       return;
     }
@@ -438,71 +526,144 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     let isThinking = false;
     
     try {
-      await llamaManager.generateResponse(
-        [...newMessages].map(msg => ({ role: msg.role, content: msg.content })),
-        (token) => {
-          if (cancelGenerationRef.current) {
-            return false;
-          }
-          
-          if (token.includes('<think>')) {
-            isThinking = true;
-            return true;
-          }
-          if (token.includes('</think>')) {
-            isThinking = false;
-            return true;
-          }
-          
-          tokenCount++;
-          if (isThinking) {
-            thinking += token;
-            setStreamingThinking(thinking.trim());
-          } else {
-            fullResponse += token;
-            
-            setStreamingMessage(fullResponse);
-          }
-          
-          setStreamingStats({
-            tokens: tokenCount,
-            duration: (Date.now() - startTime) / 1000
-          });
-          
-          if (tokenCount % 10 === 0) {
-            const finalMessage: Message = {
-              ...assistantMessage,
-              content: fullResponse,
-              thinking: thinking.trim(),
-              stats: {
-                duration: (Date.now() - startTime) / 1000,
-                tokens: tokenCount,
-              }
-            };
-            
-            const finalMessages = [...newMessages, finalMessage];
-            setMessages(finalMessages);
-            saveMessages(finalMessages);
-          }
-          
-          return !cancelGenerationRef.current;
-        }
-      );
+      const isOnlineModel = activeProvider && activeProvider !== 'local';
       
-      if (!cancelGenerationRef.current) {
-        const finalMessage: Message = {
-          ...assistantMessage,
-          content: fullResponse,
-          thinking: thinking.trim(),
-          stats: {
-            duration: (Date.now() - startTime) / 1000,
-            tokens: tokenCount,
+      if (isOnlineModel) {
+        if (activeProvider === 'gemini') {
+          try {
+            await onlineModelService.sendMessageToGemini(
+              [...newMessages]
+                .filter(msg => msg.content.trim() !== '')
+                .map(msg => ({ 
+                  id: generateRandomId(), 
+                  role: msg.role, 
+                  content: msg.content 
+                })),
+              {
+                temperature: llamaManager.getSettings().temperature,
+                maxTokens: llamaManager.getSettings().maxTokens,
+                topP: llamaManager.getSettings().topP,
+                stream: true
+              },
+              (token) => {
+                if (cancelGenerationRef.current) {
+                  return false;
+                }
+                
+                tokenCount++;
+                fullResponse = token;
+                
+                setStreamingMessage(token);
+                setStreamingStats({
+                  tokens: tokenCount,
+                  duration: (Date.now() - startTime) / 1000
+                });
+                
+                // Update the message as we receive more content
+                if (tokenCount % 10 === 0) {
+                  const finalMessage: Message = {
+                    ...assistantMessage,
+                    content: token,
+                    stats: {
+                      duration: (Date.now() - startTime) / 1000,
+                      tokens: tokenCount,
+                    }
+                  };
+                  
+                  const finalMessages = [...newMessages, finalMessage];
+                  setMessages(finalMessages);
+                  saveMessages(finalMessages);
+                }
+                
+                return !cancelGenerationRef.current;
+              }
+            );
+            
+            // After streaming is complete, update the final message
+            if (!cancelGenerationRef.current) {
+              const finalMessage: Message = {
+                id: assistantMessage.id,
+                role: assistantMessage.role,
+                content: fullResponse,
+                stats: {
+                  duration: (Date.now() - startTime) / 1000,
+                  tokens: tokenCount,
+                }
+              };
+              
+              const finalMessages = [...newMessages, finalMessage];
+              setMessages(finalMessages);
+              await saveMessages(finalMessages);
+            }
+          } catch (error) {
+            console.error('Error with Gemini API regeneration:', error);
+            Alert.alert('Gemini API Error', error instanceof Error ? error.message : 'Unknown error');
+            setIsRegenerating(false);
           }
-        };
-        
-        const finalMessages = [...newMessages, finalMessage];
-        setMessages(finalMessages);
-        await saveMessages(finalMessages);
+        } else {
+          const finalMessage: Message = {
+            ...assistantMessage,
+            content: `This model provider (${activeProvider}) is not yet implemented.`,
+            stats: {
+              duration: 0,
+              tokens: 0,
+            }
+          };
+          
+          const finalMessages = [...newMessages, finalMessage];
+          setMessages(finalMessages);
+          await saveMessages(finalMessages);
+        }
+      } else {
+        await llamaManager.generateResponse(
+          [...newMessages].map(msg => ({ role: msg.role, content: msg.content })),
+          (token) => {
+            if (cancelGenerationRef.current) {
+              return false;
+            }
+            
+            if (token.includes('<think>')) {
+              isThinking = true;
+              return true;
+            }
+            if (token.includes('</think>')) {
+              isThinking = false;
+              return true;
+            }
+            
+            tokenCount++;
+            if (isThinking) {
+              thinking += token;
+              setStreamingThinking(thinking.trim());
+            } else {
+              fullResponse += token;
+              
+              setStreamingMessage(fullResponse);
+            }
+            
+            setStreamingStats({
+              tokens: tokenCount,
+              duration: (Date.now() - startTime) / 1000
+            });
+            
+            if (tokenCount % 10 === 0) {
+              const finalMessage: Message = {
+                ...assistantMessage,
+                content: fullResponse,
+                stats: {
+                  duration: (Date.now() - startTime) / 1000,
+                  tokens: tokenCount,
+                }
+              };
+              
+              const finalMessages = [...newMessages, finalMessage];
+              setMessages(finalMessages);
+              saveMessages(finalMessages);
+            }
+            
+            return !cancelGenerationRef.current;
+          }
+        );
       }
       
     } catch (error) {
@@ -572,6 +733,120 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     }
   };
 
+  const handleModelSelect = async (model: 'local' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude', modelPath?: string) => {
+    if (model === 'local') {
+      if (modelPath) {
+        await loadModel(modelPath);
+      }
+      setActiveProvider('local');
+    } else {
+      if (model === 'gemini') {
+        const hasApiKey = await onlineModelService.hasApiKey('gemini');
+        if (!hasApiKey) {
+          Alert.alert(
+            'API Key Required',
+            'Please set your Gemini API key in Settings before using this model.',
+            [
+              { 
+                text: 'Go to Settings', 
+                onPress: () => navigation.navigate('Settings')
+              },
+              { text: 'Cancel', style: 'cancel' }
+            ]
+          );
+          return;
+        }
+        await unloadModel();
+        setActiveProvider('gemini');
+      }
+    }
+  };
+
+  useEffect(() => {
+    const handleModelChange = () => {
+      const modelPath = llamaManager.getModelPath();
+      if (modelPath) {
+        setActiveProvider('local');
+      } else if (activeProvider === null) {
+        setActiveProvider('local');
+      }
+    };
+    
+    handleModelChange();
+    
+    const unsubscribe = llamaManager.addListener('model-loaded', handleModelChange);
+    
+    return () => {
+      unsubscribe();
+    };
+  }, [activeProvider]);
+
+  useEffect(() => {
+    const checkApiKey = async () => {
+      if (activeProvider && activeProvider !== 'local') {
+        const hasKey = await onlineModelService.hasApiKey(activeProvider);
+        if (!hasKey) {
+          Alert.alert(
+            'API Key Required',
+            `${activeProvider.charAt(0).toUpperCase() + activeProvider.slice(1)} requires an API key to function. Please add your API key in Settings.`,
+            [
+              {
+                text: 'Go to Settings',
+                onPress: () => navigation.navigate('Settings')
+              },
+              {
+                text: 'Cancel',
+                onPress: () => setActiveProvider('local')
+              }
+            ]
+          );
+        }
+      }
+    };
+    
+    checkApiKey();
+  }, [activeProvider, navigation]);
+
+  const renderModelSelectorComponent = () => {
+    let modelName = 'Select a Model';
+    let iconName: keyof typeof MaterialCommunityIcons.glyphMap = "cube-outline";
+    let currentModelPath = activeProvider === 'local' ? llamaManager.getModelPath() : activeProvider;
+    
+    if (activeProvider === 'local') {
+      const modelPath = llamaManager.getModelPath();
+      if (modelPath) {
+        const modelFileName = modelPath.split('/').pop() || '';
+        modelName = modelFileName.split('.')[0];
+        iconName = "cube";
+      }
+    } else if (activeProvider === 'gemini') {
+      modelName = 'Gemini Pro';
+      iconName = "cloud";
+    } else if (activeProvider === 'chatgpt') {
+      modelName = 'GPT-4o';
+      iconName = "cloud";
+    } else if (activeProvider === 'deepseek') {
+      modelName = 'DeepSeek Coder';
+      iconName = "cloud";
+    } else if (activeProvider === 'claude') {
+      modelName = 'Claude 3 Opus';
+      iconName = "cloud";
+    }
+    
+    return (
+      <View style={styles.modelSelectorWrapper}>
+        <ModelSelector 
+          ref={modelSelectorRef}
+          isOpen={shouldOpenModelSelector}
+          onClose={() => setShouldOpenModelSelector(false)}
+          preselectedModelPath={currentModelPath}
+          isGenerating={isLoading || isRegenerating}
+          onModelSelect={handleModelSelect}
+        />
+      </View>
+    );
+  };
+
   return (
     <SafeAreaView 
       style={[styles.container, { backgroundColor: themeColors.background }]}
@@ -628,56 +903,48 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         </View>
       </Modal>
 
-
-        <View style={styles.modelSelectorWrapper}>
-          <ModelSelector 
-            ref={modelSelectorRef}
-            isOpen={shouldOpenModelSelector}
-            onClose={() => setShouldOpenModelSelector(false)}
-            preselectedModelPath={preselectedModelPath}
-            isGenerating={isLoading || isRegenerating}
+      {renderModelSelectorComponent()}
+      
+      <KeyboardAvoidingView 
+        style={styles.keyboardAvoidingView}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        enabled={true}>
+        <View style={[styles.messagesContainer]}>
+          <ChatView
+            messages={messages}
+            isStreaming={isStreaming}
+            streamingMessageId={streamingMessageId}
+            streamingMessage={streamingMessage}
+            streamingThinking={streamingThinking}
+            streamingStats={streamingStats}
+            onCopyText={copyToClipboard}
+            onRegenerateResponse={handleRegenerate}
+            isRegenerating={isRegenerating}
+            flatListRef={flatListRef}
           />
         </View>
-        <KeyboardAvoidingView 
-          style={styles.keyboardAvoidingView}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-          enabled={true}>
-          <View style={[styles.messagesContainer]}>
-            <ChatView
-              messages={messages}
-              isStreaming={isStreaming}
-              streamingMessageId={streamingMessageId}
-              streamingMessage={streamingMessage}
-              streamingThinking={streamingThinking}
-              streamingStats={streamingStats}
-              onCopyText={copyToClipboard}
-              onRegenerateResponse={handleRegenerate}
-              isRegenerating={isRegenerating}
-              flatListRef={flatListRef}
-            />
-          </View>
 
-          <View style={[
-            styles.inputContainer,
-            { 
+        <View style={[
+          styles.inputContainer,
+          { 
+            backgroundColor: themeColors.background,
+            borderTopWidth: 1,
+            borderTopColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+          }
+        ]}>
+          <ChatInput
+            onSend={handleSend}
+            disabled={isLoading || isStreaming}
+            isLoading={isLoading || isStreaming}
+            onCancel={handleCancelGeneration}
+            placeholderColor={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.4)'}
+            style={{ 
               backgroundColor: themeColors.background,
-              borderTopWidth: 1,
-              borderTopColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
-            }
-          ]}>
-            <ChatInput
-              onSend={handleSend}
-              disabled={isLoading || isStreaming}
-              isLoading={isLoading || isStreaming}
-              onCancel={handleCancelGeneration}
-              placeholderColor={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.4)'}
-              style={{ 
-                backgroundColor: themeColors.background,
-              }}
-            />
-          </View>
-        </KeyboardAvoidingView>
+            }}
+          />
+        </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

@@ -35,9 +35,9 @@ export const ModelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
 
       if (modelPath !== selectedModelPath) {
-        await llamaManager.initializeModel(modelPath);
+        const success = await llamaManager.loadModel(modelPath);
         
-        if (!llamaManager.isInitialized()) {
+        if (!success || !llamaManager.isInitialized()) {
           throw new Error('Model failed to initialize properly');
         }
 
@@ -57,7 +57,7 @@ export const ModelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const unloadModel = useCallback(async () => {
     try {
       setIsModelLoading(true);
-      await llamaManager.release();
+      await llamaManager.unloadModel();
       setSelectedModelPath(null);
       showSnackbar('Model unloaded');
     } catch (error) {

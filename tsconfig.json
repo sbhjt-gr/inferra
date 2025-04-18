@@ -3,10 +3,14 @@
   "compilerOptions": {
     "strict": true,
     "target": "es2015",
+    "module": "ESNext",
     "downlevelIteration": true,
     "jsx": "react-native",
     "esModuleInterop": true,
-    "moduleResolution": "node16",
+    "moduleResolution": "Bundler",
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "resolveJsonModule": true,
     "baseUrl": ".",
     "paths": {
       "*": [

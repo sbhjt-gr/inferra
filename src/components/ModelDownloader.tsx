@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   TextInput,
@@ -6,32 +6,14 @@ import {
   Text,
   StyleSheet,
   Alert,
-  Modal,
-  Pressable,
-  Dimensions,
+  Modal
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { modelDownloader, ModelInfo } from '../services/ModelDownloader';
-import { ThemeType, ThemeColors } from '../types/theme';
+import { modelDownloader } from '../services/ModelDownloader';
+import { ThemeColors } from '../types/theme';
 import { getThemeAwareColor } from '../utils/ColorUtils';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
-interface ModelDownloaderType {
-  downloadModel: (url: string, filename: string) => Promise<{ downloadId: number; path: string }>;
-  checkDownloadStatus: (downloadId: number) => Promise<{
-    status: string;
-    bytesDownloaded?: number;
-    totalBytes?: number;
-  }>;
-  cancelDownload: (downloadId: number) => Promise<boolean>;
-  getStoredModels: () => Promise<ModelInfo[]>;
-  deleteModel: (path: string) => Promise<boolean>;
-}
-
-const ModelDownloaderModule = modelDownloader as ModelDownloaderType;
 
 interface ModelDownloaderProps {
   downloadProgress: DownloadProgress;

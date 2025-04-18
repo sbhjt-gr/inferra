@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, Platform, ScrollView, TouchableOpacity, Linking, Alert, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, Platform, ScrollView, TouchableOpacity, Linking, Alert, ActivityIndicator, TextInput } from 'react-native';
 import { CompositeNavigationProp } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -20,6 +20,7 @@ import * as FileSystem from 'expo-file-system';
 import { useFocusEffect } from '@react-navigation/native';
 import { modelDownloader } from '../services/ModelDownloader';
 import { getThemeAwareColor } from '../utils/ColorUtils';
+import { onlineModelService } from '../services/OnlineModelService';
 
 type SettingsScreenProps = {
   navigation: CompositeNavigationProp<
@@ -101,10 +102,14 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     cacheSize: '0 B'
   });
   const [isClearing, setIsClearing] = useState(false);
+  const [geminiApiKey, setGeminiApiKey] = useState<string>('');
+  const [showGeminiApiKey, setShowGeminiApiKey] = useState(false);
+  const [isLoadingApiKeys, setIsLoadingApiKeys] = useState(false);
 
   useFocusEffect(
     React.useCallback(() => {
       setModelSettings(llamaManager.getSettings());
+      loadApiKeys();
     }, [])
   );
 
@@ -368,6 +373,33 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
       return () => {};
     }, [])
   );
+
+  const loadApiKeys = async () => {
+    setIsLoadingApiKeys(true);
+    try {
+      const geminiKey = await onlineModelService.getApiKey('gemini');
+      setGeminiApiKey(geminiKey || '');
+    } catch (error) {
+      console.error('Error loading API keys:', error);
+    } finally {
+      setIsLoadingApiKeys(false);
+    }
+  };
+
+  const saveGeminiApiKey = async () => {
+    try {
+      if (geminiApiKey.trim()) {
+        await onlineModelService.saveApiKey('gemini', geminiApiKey.trim());
+        Alert.alert('Success', 'Gemini API key saved successfully');
+      } else {
+        await onlineModelService.clearApiKey('gemini');
+        Alert.alert('Success', 'Gemini API key cleared');
+      }
+    } catch (error) {
+      console.error('Error saving Gemini API key:', error);
+      Alert.alert('Error', 'Failed to save Gemini API key');
+    }
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: themeColors.background }]}>
@@ -853,6 +885,78 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           </TouchableOpacity>
         </SettingsSection>
 
+        <SettingsSection title="API KEYS">
+          <View style={styles.apiKeyContainer}>
+            <Text style={[styles.apiKeyTitle, { color: themeColors.text }]}>
+              Gemini API Key
+            </Text>
+            <Text style={[styles.apiKeyDescription, { color: themeColors.secondaryText }]}>
+              Required for using Gemini Pro online model. Get your API key from Google AI Studio.
+            </Text>
+            
+            <View style={styles.apiKeyInputContainer}>
+              <TextInput
+                style={[
+                  styles.apiKeyInput,
+                  { 
+                    color: themeColors.text,
+                    backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
+                    borderColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.1)'
+                  }
+                ]}
+                value={geminiApiKey}
+                onChangeText={setGeminiApiKey}
+                placeholder="Enter your Gemini API key"
+                placeholderTextColor={themeColors.secondaryText}
+                secureTextEntry={!showGeminiApiKey}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <TouchableOpacity
+                style={styles.apiKeyVisibilityButton}
+                onPress={() => setShowGeminiApiKey(!showGeminiApiKey)}
+              >
+                <MaterialCommunityIcons
+                  name={showGeminiApiKey ? 'eye-off' : 'eye'}
+                  size={22}
+                  color={themeColors.secondaryText}
+                />
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.apiKeyActions}>
+              <TouchableOpacity
+                style={[
+                  styles.apiKeyActionButton,
+                  { backgroundColor: themeColors.headerBackground }
+                ]}
+                onPress={saveGeminiApiKey}
+                disabled={isLoadingApiKeys}
+              >
+                {isLoadingApiKeys ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.apiKeyActionButtonText}>
+                    {geminiApiKey ? 'Save Key' : 'Clear Key'}
+                  </Text>
+                )}
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[
+                  styles.apiKeyLinkButton,
+                  { borderColor: themeColors.primary }
+                ]}
+                onPress={() => openLink('https://ai.google.dev/')}
+              >
+                <Text style={[styles.apiKeyLinkButtonText, { color: themeColors.primary }]}>
+                  Get API Key
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </SettingsSection>
+
         {dialogConfig.setting && (
           <ModelSettingDialog
             key={dialogConfig.setting.key}
@@ -1177,5 +1281,67 @@ const styles = StyleSheet.create({
   clearButtonText: {
     fontSize: 14,
     fontWeight: '500',
+  },
+  apiKeyContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+  },
+  apiKeyTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  apiKeyDescription: {
+    fontSize: 14,
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  apiKeyInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  apiKeyInput: {
+    flex: 1,
+    height: 48,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    fontSize: 16,
+  },
+  apiKeyVisibilityButton: {
+    position: 'absolute',
+    right: 12,
+    padding: 4,
+  },
+  apiKeyActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  apiKeyActionButton: {
+    flex: 1,
+    height: 44,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  apiKeyActionButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  apiKeyLinkButton: {
+    flex: 1,
+    height: 44,
+    borderRadius: 8,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  apiKeyLinkButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
 }); 
