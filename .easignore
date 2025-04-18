@@ -23,6 +23,7 @@ yarn-error.*
 .metro-health-check*
 
 # Environment and config files
+.env
 .env*.local
 *.log
 

@@ -1,0 +1,6 @@
+module Pods_Ragionare {
+  umbrella header "Pods-Ragionare-umbrella.h"
+
+  export *
+  module * { export * }
+}
