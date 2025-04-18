@@ -16,10 +16,15 @@
           "fetch",
           "remote-notification",
           "fetch",
+          "remote-notification",
+          "fetch",
+          "remote-notification",
+          "fetch",
           "remote-notification"
         ]
       },
-      "runtimeVersion": "2.0.0"
+      "runtimeVersion": "2.0.0",
+      "bundleIdentifier": "com.gorai.ragionare"
     },
     "android": {
       "versionCode": 200,
