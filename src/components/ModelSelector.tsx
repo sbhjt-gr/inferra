@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   Modal,
-  FlatList,
   Alert,
   ActivityIndicator,
   SectionList,
@@ -134,12 +133,15 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     const checkOnlineModelApiKeys = async () => {
       try {
         const hasGeminiKey = await onlineModelService.hasApiKey('gemini');
+        const hasOpenAIKey = await onlineModelService.hasApiKey('chatgpt');
+        const hasDeepSeekKey = await onlineModelService.hasApiKey('deepseek');
+        const hasClaudeKey = await onlineModelService.hasApiKey('claude');
         
         setOnlineModelStatuses({
           gemini: hasGeminiKey,
-          chatgpt: false, // Not implemented yet
-          deepseek: false, // Not implemented yet
-          claude: false // Not implemented yet
+          chatgpt: hasOpenAIKey,
+          deepseek: hasDeepSeekKey,
+          claude: hasClaudeKey
         });
       } catch (error) {
         console.error('Error checking API keys:', error);

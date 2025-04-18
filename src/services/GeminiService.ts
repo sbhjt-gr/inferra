@@ -96,6 +96,36 @@ export class GeminiService {
             console.error(`Gemini API error (${response.status}): ${errorText}`);
             console.error(`Request URL: ${url.replace(apiKey, 'API_KEY_REDACTED')}`);
             console.error(`Request body: ${JSON.stringify(requestBody)}`);
+            
+            if (response.status === 429 || errorText.includes("quota") || errorText.includes("rate limit")) {
+              throw new Error("QUOTA_EXCEEDED: Your Gemini API quota has been exceeded. Please try again later or upgrade your API plan.");
+            }
+            
+            if (response.status === 400) {
+              if (errorText.includes("invalid")) {
+                throw new Error("INVALID_REQUEST: The request to Gemini API was invalid. Please check your input and try again.");
+              }
+              if (errorText.includes("content filtered")) {
+                throw new Error("CONTENT_FILTERED: Your request was filtered due to safety settings or content policy violations.");
+              }
+            }
+            
+            if (response.status === 401) {
+              throw new Error("AUTHENTICATION_ERROR: Invalid API key or authentication error. Please check your API key in Settings.");
+            }
+            
+            if (response.status === 403) {
+              throw new Error("PERMISSION_DENIED: You don't have permission to access this Gemini model or feature.");
+            }
+            
+            if (response.status === 404) {
+              throw new Error("NOT_FOUND: The requested Gemini model or resource was not found.");
+            }
+            
+            if (response.status === 500 || response.status === 503) {
+              throw new Error("SERVER_ERROR: Gemini API is experiencing issues. Please try again later.");
+            }
+            
             throw new Error(`Gemini API error: ${response.status} - ${errorText}`);
           }
 
@@ -202,6 +232,36 @@ export class GeminiService {
         console.error(`Gemini API error (${response.status}): ${errorText}`);
         console.error(`Request URL: ${url.replace(apiKey, 'API_KEY_REDACTED')}`);
         console.error(`Request body: ${JSON.stringify(requestBody)}`);
+        
+        if (response.status === 429 || errorText.includes("quota") || errorText.includes("rate limit")) {
+          throw new Error("QUOTA_EXCEEDED: Your Gemini API quota has been exceeded. Please try again later or upgrade your API plan.");
+        }
+        
+        if (response.status === 400) {
+          if (errorText.includes("invalid")) {
+            throw new Error("INVALID_REQUEST: The request to Gemini API was invalid. Please check your input and try again.");
+          }
+          if (errorText.includes("content filtered")) {
+            throw new Error("CONTENT_FILTERED: Your request was filtered due to safety settings or content policy violations.");
+          }
+        }
+        
+        if (response.status === 401) {
+          throw new Error("AUTHENTICATION_ERROR: Invalid API key or authentication error. Please check your API key in Settings.");
+        }
+        
+        if (response.status === 403) {
+          throw new Error("PERMISSION_DENIED: You don't have permission to access this Gemini model or feature.");
+        }
+        
+        if (response.status === 404) {
+          throw new Error("NOT_FOUND: The requested Gemini model or resource was not found.");
+        }
+        
+        if (response.status === 500 || response.status === 503) {
+          throw new Error("SERVER_ERROR: Gemini API is experiencing issues. Please try again later.");
+        }
+        
         throw new Error(`Gemini API error: ${response.status} - ${errorText}`);
       }
 

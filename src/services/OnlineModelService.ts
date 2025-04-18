@@ -1,7 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Constants from 'expo-constants';
 import EventEmitter from 'eventemitter3';
 import { GeminiService } from './GeminiService';
+import { OpenAIService } from './OpenAIService';
+import { DeepSeekService } from './DeepSeekService';
+import { ClaudeService } from './ClaudeService';
 
 export interface ChatMessage {
   id: string;
@@ -30,9 +32,24 @@ interface OnlineModelServiceEvents {
 class OnlineModelService {
   private events = new EventEmitter<OnlineModelServiceEvents>();
   private _geminiServiceGetter: () => GeminiService | null = () => null;
+  private _openAIServiceGetter: () => OpenAIService | null = () => null;
+  private _deepSeekServiceGetter: () => DeepSeekService | null = () => null;
+  private _claudeServiceGetter: () => ClaudeService | null = () => null;
 
   setGeminiServiceGetter(getter: () => GeminiService) {
     this._geminiServiceGetter = getter;
+  }
+  
+  setOpenAIServiceGetter(getter: () => OpenAIService) {
+    this._openAIServiceGetter = getter;
+  }
+  
+  setDeepSeekServiceGetter(getter: () => DeepSeekService) {
+    this._deepSeekServiceGetter = getter;
+  }
+  
+  setClaudeServiceGetter(getter: () => ClaudeService) {
+    this._claudeServiceGetter = getter;
   }
 
   async getApiKey(provider: string): Promise<string | null> {
@@ -88,7 +105,7 @@ class OnlineModelService {
     
     const geminiOptions = {
       ...options,
-      streamTokens: options.streamTokens !== false // Default to true for streaming
+      streamTokens: options.streamTokens !== false
     };
     
     const streamEnabled = options.stream === true && typeof onToken === 'function';
@@ -98,6 +115,90 @@ class OnlineModelService {
     const { fullResponse } = await geminiService.generateResponse(
       messages, 
       geminiOptions, 
+      streamEnabled ? onToken : undefined
+    );
+    
+    return fullResponse;
+  }
+  
+  async sendMessageToOpenAI(
+    messages: ChatMessage[],
+    options: OnlineModelRequestOptions = {},
+    onToken?: (token: string) => boolean | void
+  ): Promise<string> {
+    const openAIService = this._openAIServiceGetter();
+    if (!openAIService) {
+      throw new Error('OpenAIService not initialized');
+    }
+    
+    const openAIOptions = {
+      ...options,
+      streamTokens: options.streamTokens !== false
+    };
+    
+    const streamEnabled = options.stream === true && typeof onToken === 'function';
+    
+    console.log(`OpenAI API call with streaming: ${streamEnabled}, streaming enabled: ${openAIOptions.streamTokens}`);
+    
+    const { fullResponse } = await openAIService.generateResponse(
+      messages, 
+      openAIOptions, 
+      streamEnabled ? onToken : undefined
+    );
+    
+    return fullResponse;
+  }
+  
+  async sendMessageToDeepSeek(
+    messages: ChatMessage[],
+    options: OnlineModelRequestOptions = {},
+    onToken?: (token: string) => boolean | void
+  ): Promise<string> {
+    const deepSeekService = this._deepSeekServiceGetter();
+    if (!deepSeekService) {
+      throw new Error('DeepSeekService not initialized');
+    }
+    
+    const deepSeekOptions = {
+      ...options,
+      streamTokens: options.streamTokens !== false
+    };
+    
+    const streamEnabled = options.stream === true && typeof onToken === 'function';
+    
+    console.log(`DeepSeek API call with streaming: ${streamEnabled}, streaming enabled: ${deepSeekOptions.streamTokens}`);
+    
+    const { fullResponse } = await deepSeekService.generateResponse(
+      messages, 
+      deepSeekOptions, 
+      streamEnabled ? onToken : undefined
+    );
+    
+    return fullResponse;
+  }
+  
+  async sendMessageToClaude(
+    messages: ChatMessage[],
+    options: OnlineModelRequestOptions = {},
+    onToken?: (token: string) => boolean | void
+  ): Promise<string> {
+    const claudeService = this._claudeServiceGetter();
+    if (!claudeService) {
+      throw new Error('ClaudeService not initialized');
+    }
+    
+    const claudeOptions = {
+      ...options,
+      streamTokens: options.streamTokens !== false
+    };
+    
+    const streamEnabled = options.stream === true && typeof onToken === 'function';
+    
+    console.log(`Claude API call with streaming: ${streamEnabled}, streaming enabled: ${claudeOptions.streamTokens}`);
+    
+    const { fullResponse } = await claudeService.generateResponse(
+      messages, 
+      claudeOptions, 
       streamEnabled ? onToken : undefined
     );
     
