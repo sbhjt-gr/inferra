@@ -14,7 +14,6 @@ export interface ClaudeRequestOptions {
   maxTokens?: number;
   topP?: number;
   model?: string;
-  streamTokens?: boolean;
 }
 
 export class ClaudeService {
@@ -83,179 +82,48 @@ export class ClaudeService {
         'anthropic-version': '2023-06-01'
       };
 
-      const shouldStream = !!onToken && (options.streamTokens !== false);
-      if (shouldStream) {
-        requestBody.stream = true;
-        console.log('Using streaming for Claude API');
-        
-        try {
-          console.log('Making streaming request to Claude API...');
-          const response = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            headers,
-            body: JSON.stringify(requestBody),
-          });
+      console.log('Making request to Claude API...');
+      
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(requestBody),
+      });
 
-          console.log(`Claude API response status: ${response.status}`);
-          
-          if (!response.ok) {
-            await this.handleErrorResponse(response);
-          }
-
-          if (!response.body) {
-            console.error('Response body is null - falling back to non-streaming mode');
-            const nonStreamingRequestBody = { ...requestBody };
-            delete nonStreamingRequestBody.stream;
-            
-            console.log('Retrying with non-streaming Claude API request...');
-            const fallbackResponse = await fetch('https://api.anthropic.com/v1/messages', {
-              method: 'POST',
-              headers,
-              body: JSON.stringify(nonStreamingRequestBody),
-            });
-            
-            if (!fallbackResponse.ok) {
-              await this.handleErrorResponse(fallbackResponse);
-            }
-            
-            const jsonResponse = await fallbackResponse.json();
-            console.log('Claude non-streaming fallback response received');
-            
-            if (jsonResponse.content && jsonResponse.content.length > 0) {
-              let text = '';
-              
-              for (const block of jsonResponse.content) {
-                if (block.type === 'text' && block.text) {
-                  text += block.text;
-                }
-              }
-              
-              fullResponse = text;
-              tokenCount = jsonResponse.usage?.output_tokens || text.split(/\s+/).length;
-              
-              // Simulate streaming for the client even though we got the full response at once
-              if (onToken) {
-                await this.simulateStreaming(text, onToken);
-              }
-              
-              return {
-                fullResponse: text,
-                tokenCount,
-                startTime
-              };
-            } else {
-              console.error("Unexpected response format in fallback:", JSON.stringify(jsonResponse).substring(0, 200) + "...");
-              throw new Error('Failed to extract content from Claude API response in fallback mode');
-            }
-          }
-
-          const reader = response.body.getReader();
-          const decoder = new TextDecoder();
-          let buffer = '';
-          let completeResponse = '';
-
-          console.log('Starting to read streaming response...');
-          
-          while (true) {
-            const { done, value } = await reader.read();
-            
-            if (done) {
-              console.log('Streaming response complete');
-              break;
-            }
-
-            buffer += decoder.decode(value, { stream: true });
-            
-            let lines = buffer.split('\n');
-            buffer = lines.pop() || '';
-
-            for (const line of lines) {
-              if (line.startsWith('data: ')) {
-                const data = line.slice(6);
-                
-                if (data.trim() === '[DONE]') {
-                  continue;
-                }
-
-                try {
-                  const json = JSON.parse(data);
-                  
-                  if (json.type === 'content_block_delta' && json.delta && json.delta.text) {
-                    completeResponse += json.delta.text;
-                    tokenCount++;
-                    
-                    const shouldContinue = onToken(completeResponse);
-                    if (shouldContinue === false) {
-                      reader.cancel();
-                      console.log('Streaming canceled by callback');
-                      return { 
-                        fullResponse: completeResponse, 
-                        tokenCount, 
-                        startTime 
-                      };
-                    }
-                  }
-                } catch (e) {
-                  console.error('Error parsing JSON from stream:', e);
-                }
-              }
-            }
-          }
-          
-          fullResponse = completeResponse;
-          return {
-            fullResponse,
-            tokenCount,
-            startTime
-          };
-          
-        } catch (error) {
-          console.error('Error in streaming mode:', error);
-          throw error;
-        }
-      } else {
-        console.log('Making non-streaming request to Claude API...');
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(requestBody),
-        });
-
-        console.log(`Claude API non-streaming response status: ${response.status}`);
-        
-        if (!response.ok) {
-          await this.handleErrorResponse(response);
-        }
-
-        const jsonResponse = await response.json();
-        console.log('Claude response received and parsed successfully');
-        
-        if (jsonResponse.content && jsonResponse.content.length > 0) {
-          let text = '';
-          
-          for (const block of jsonResponse.content) {
-            if (block.type === 'text' && block.text) {
-              text += block.text;
-            }
-          }
-          
-          fullResponse = text;
-          tokenCount = jsonResponse.usage?.output_tokens || text.split(/\s+/).length;
-          
-          if (onToken && options.streamTokens !== false) {
-            await this.simulateStreaming(text, onToken);
-          }
-          
-          return {
-            fullResponse: text,
-            tokenCount,
-            startTime
-          };
-        }
-        
-        console.error("Unexpected response format:", JSON.stringify(jsonResponse).substring(0, 200) + "...");
-        throw new Error('Failed to extract content from Claude API response');
+      console.log(`Claude API response status: ${response.status}`);
+      
+      if (!response.ok) {
+        await this.handleErrorResponse(response);
       }
+
+      const jsonResponse = await response.json();
+      console.log('Claude response received and parsed successfully');
+      
+      if (jsonResponse.content && jsonResponse.content.length > 0) {
+        let text = '';
+        
+        for (const block of jsonResponse.content) {
+          if (block.type === 'text' && block.text) {
+            text += block.text;
+          }
+        }
+        
+        fullResponse = text;
+        tokenCount = jsonResponse.usage?.output_tokens || text.split(/\s+/).length;
+        
+        if (onToken) {
+          await this.simulateStreaming(text, onToken);
+        }
+        
+        return {
+          fullResponse: text,
+          tokenCount,
+          startTime
+        };
+      }
+      
+      console.error("Unexpected response format:", JSON.stringify(jsonResponse).substring(0, 200) + "...");
+      throw new Error('Failed to extract content from Claude API response');
     } catch (error) {
       console.error('Error calling Claude API:', error);
       throw error;
