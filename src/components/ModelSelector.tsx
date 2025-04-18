@@ -36,10 +36,6 @@ interface OnlineModel {
 
 type Model = StoredModel | OnlineModel;
 
-interface ModelDownloaderType {
-  getStoredModels: () => Promise<StoredModel[]>;
-}
-
 export interface ModelSelectorRef {
   refreshModels: () => void;
 }
@@ -418,7 +414,13 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                 <ActivityIndicator size="small" color={getThemeAwareColor('#4a0660', currentTheme)} />
               ) : (
                 <MaterialCommunityIcons 
-                  name={selectedModelPath ? "cube" : "cube-outline"} 
+                  name={selectedModelPath ? 
+                    (selectedModelPath === 'gemini' || 
+                     selectedModelPath === 'chatgpt' || 
+                     selectedModelPath === 'deepseek' || 
+                     selectedModelPath === 'claude') ? 
+                      "cloud" : "cube" 
+                    : "cube-outline"} 
                   size={24} 
                   color={selectedModelPath ? 
                     getThemeAwareColor('#4a0660', currentTheme) : 
@@ -480,7 +482,6 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                 </TouchableOpacity>
               </View>
 
-              {/* Replace FlatList with SectionList */}
               <SectionList
                 sections={sections}
                 keyExtractor={(item) => 'path' in item ? item.path : item.id}

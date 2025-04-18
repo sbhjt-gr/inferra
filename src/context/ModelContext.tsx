@@ -8,6 +8,7 @@ interface ModelContextType {
   isModelLoading: boolean;
   loadModel: (modelPath: string) => Promise<void>;
   unloadModel: () => Promise<void>;
+  setSelectedModelPath: (modelPath: string) => void;
 }
 
 const ModelContext = createContext<ModelContextType | undefined>(undefined);
@@ -73,7 +74,8 @@ export const ModelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       selectedModelPath,
       isModelLoading,
       loadModel,
-      unloadModel
+      unloadModel,
+      setSelectedModelPath
     }}>
       {children}
       <Snackbar
