@@ -48,8 +48,6 @@ export class StoredModelsManager extends EventEmitter {
             
             const modified = new Date().toISOString();
             
-            console.log(`[StoredModelsManager] Found model: ${name}, size: ${size} bytes`);
-            
             return {
               name,
               path,
