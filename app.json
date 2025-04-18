@@ -16,10 +16,15 @@
           "fetch",
           "remote-notification",
           "fetch",
+          "remote-notification",
+          "fetch",
+          "remote-notification",
+          "fetch",
           "remote-notification"
         ]
       },
-      "runtimeVersion": "1.9.3"
+      "runtimeVersion": "1.9.3",
+      "bundleIdentifier": "com.gorai.ragionare"
     },
     "android": {
       "versionCode": 159,
