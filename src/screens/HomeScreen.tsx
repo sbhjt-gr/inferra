@@ -69,7 +69,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   const [appState, setAppState] = useState(appStateRef.current);
   const isFirstLaunchRef = useRef(true);
   const [activeProvider, setActiveProvider] = useState<'local' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude' | null>(null);
-  const { loadModel, unloadModel } = useModel();
+  const { loadModel, unloadModel, setSelectedModelPath } = useModel();
 
   useFocusEffect(
     useCallback(() => {
@@ -761,6 +761,11 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         }
         await unloadModel();
         setActiveProvider('gemini');
+        setSelectedModelPath('gemini');
+      } else if (model === 'chatgpt' || model === 'deepseek' || model === 'claude') {
+        await unloadModel();
+        setActiveProvider(model);
+        setSelectedModelPath(model);
       }
     }
   };
