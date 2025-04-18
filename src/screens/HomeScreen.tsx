@@ -267,6 +267,94 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     setIsRegenerating(false);
   }, [streamingMessage, streamingThinking, streamingMessageId]);
 
+  const handleApiError = (error: unknown, provider: 'Gemini' | 'OpenAI' | 'DeepSeek' | 'Claude') => {
+    console.error(`Error with ${provider} API:`, error);
+    
+    if (error instanceof Error) {
+      if (error.message.startsWith('QUOTA_EXCEEDED:')) {
+        Alert.alert(
+          `${provider} API Quota Exceeded`,
+          `Your ${provider} API quota has been exceeded. Please try again later or upgrade your API plan.`,
+          [
+            { 
+              text: 'Go to Settings', 
+              onPress: () => navigation.navigate('Settings')
+            },
+            { text: 'OK' }
+          ]
+        );
+        return;
+      }
+      
+      if (error.message.startsWith('AUTHENTICATION_ERROR:')) {
+        Alert.alert(
+          `${provider} API Authentication Error`,
+          `Your ${provider} API key appears to be invalid. Please check your API key in Settings.`,
+          [
+            { 
+              text: 'Go to Settings', 
+              onPress: () => navigation.navigate('Settings')
+            },
+            { text: 'OK' }
+          ]
+        );
+        return;
+      }
+      
+      if (error.message.startsWith('CONTENT_FILTERED:')) {
+        Alert.alert(
+          `Content Policy Violation`,
+          `Your request was blocked due to content policy violations. Please modify your message and try again.`
+        );
+        return;
+      }
+      
+      if (error.message.startsWith('CONTEXT_LENGTH_EXCEEDED:')) {
+        Alert.alert(
+          `Message Too Long`,
+          `Your message is too long for the model's context window. Please shorten your input or start a new chat.`
+        );
+        return;
+      }
+      
+      if (error.message.startsWith('SERVER_ERROR:')) {
+        Alert.alert(
+          `${provider} Server Error`,
+          `The ${provider} API is currently experiencing issues. Please try again later.`
+        );
+        return;
+      }
+      
+      if (error.message.startsWith('INVALID_REQUEST:')) {
+        Alert.alert(
+          `Invalid Request`,
+          `The request to the ${provider} API was invalid. Please try again with different input.`
+        );
+        return;
+      }
+      
+      if (error.message.startsWith('PERMISSION_DENIED:')) {
+        Alert.alert(
+          `Permission Denied`,
+          `You don't have permission to access this ${provider} model or feature.`
+        );
+        return;
+      }
+      
+      if (error.message.startsWith('NOT_FOUND:')) {
+        Alert.alert(
+          `Model Not Found`,
+          `The requested ${provider} model was not found. It may be deprecated or unavailable.`
+        );
+        return;
+      }
+      
+      Alert.alert(`${provider} API Error`, error.message);
+    } else {
+      Alert.alert(`${provider} API Error`, 'Unknown error occurred');
+    }
+  };
+
   const processMessage = async () => {
     const currentChat = chatManager.getCurrentChat();
     if (!currentChat) return;
@@ -369,8 +457,220 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
               );
             }
           } catch (error) {
-            console.error('Error with Gemini API:', error);
-            Alert.alert('Gemini API Error', error instanceof Error ? error.message : 'Unknown error');
+            handleApiError(error, 'Gemini');
+            
+            await chatManager.updateMessageContent(
+              messageId,
+              'Sorry, an error occurred while generating a response. Please try again.',
+              '',
+              {
+                duration: 0,
+                tokens: 0,
+              }
+            );
+          }
+        } else if (activeProvider === 'chatgpt') {
+          try {
+            await onlineModelService.sendMessageToOpenAI(
+              [...processedMessages]
+                .filter(msg => msg.content.trim() !== '')
+                .map(msg => ({ 
+                  id: generateRandomId(), 
+                  role: msg.role as 'system' | 'user' | 'assistant', 
+                  content: msg.content 
+                })),
+              {
+                temperature: llamaManager.getSettings().temperature,
+                maxTokens: llamaManager.getSettings().maxTokens,
+                topP: llamaManager.getSettings().topP,
+                stream: true,
+                streamTokens: true
+              },
+              (partialResponse) => {
+                if (cancelGenerationRef.current) {
+                  return false;
+                }
+                
+                tokenCount = partialResponse.split(/\s+/).length;
+                fullResponse = partialResponse;
+                
+                setStreamingMessage(partialResponse);
+                setStreamingStats({
+                  tokens: tokenCount,
+                  duration: (Date.now() - startTime) / 1000
+                });
+                
+                if (tokenCount % 5 === 0 || partialResponse.endsWith('.') || partialResponse.endsWith('!') || partialResponse.endsWith('?')) {
+                  chatManager.updateMessageContent(
+                    messageId,
+                    partialResponse,
+                    '',
+                    {
+                      duration: (Date.now() - startTime) / 1000,
+                      tokens: tokenCount,
+                    }
+                  );
+                }
+                
+                return !cancelGenerationRef.current;
+              }
+            );
+            
+            if (!cancelGenerationRef.current) {
+              await chatManager.updateMessageContent(
+                messageId,
+                fullResponse,
+                '',
+                {
+                  duration: (Date.now() - startTime) / 1000,
+                  tokens: tokenCount,
+                }
+              );
+            }
+          } catch (error) {
+            handleApiError(error, 'OpenAI');
+            
+            await chatManager.updateMessageContent(
+              messageId,
+              'Sorry, an error occurred while generating a response. Please try again.',
+              '',
+              {
+                duration: 0,
+                tokens: 0,
+              }
+            );
+          }
+        } else if (activeProvider === 'deepseek') {
+          try {
+            await onlineModelService.sendMessageToDeepSeek(
+              [...processedMessages]
+                .filter(msg => msg.content.trim() !== '')
+                .map(msg => ({ 
+                  id: generateRandomId(), 
+                  role: msg.role as 'system' | 'user' | 'assistant', 
+                  content: msg.content 
+                })),
+              {
+                temperature: llamaManager.getSettings().temperature,
+                maxTokens: llamaManager.getSettings().maxTokens,
+                topP: llamaManager.getSettings().topP,
+                stream: true,
+                streamTokens: true
+              },
+              (partialResponse) => {
+                if (cancelGenerationRef.current) {
+                  return false;
+                }
+                
+                tokenCount = partialResponse.split(/\s+/).length;
+                fullResponse = partialResponse;
+                
+                setStreamingMessage(partialResponse);
+                setStreamingStats({
+                  tokens: tokenCount,
+                  duration: (Date.now() - startTime) / 1000
+                });
+                
+                if (tokenCount % 5 === 0 || partialResponse.endsWith('.') || partialResponse.endsWith('!') || partialResponse.endsWith('?')) {
+                  chatManager.updateMessageContent(
+                    messageId,
+                    partialResponse,
+                    '',
+                    {
+                      duration: (Date.now() - startTime) / 1000,
+                      tokens: tokenCount,
+                    }
+                  );
+                }
+                
+                return !cancelGenerationRef.current;
+              }
+            );
+            
+            if (!cancelGenerationRef.current) {
+              await chatManager.updateMessageContent(
+                messageId,
+                fullResponse,
+                '',
+                {
+                  duration: (Date.now() - startTime) / 1000,
+                  tokens: tokenCount,
+                }
+              );
+            }
+          } catch (error) {
+            handleApiError(error, 'DeepSeek');
+            
+            await chatManager.updateMessageContent(
+              messageId,
+              'Sorry, an error occurred while generating a response. Please try again.',
+              '',
+              {
+                duration: 0,
+                tokens: 0,
+              }
+            );
+          }
+        } else if (activeProvider === 'claude') {
+          try {
+            await onlineModelService.sendMessageToClaude(
+              [...processedMessages]
+                .filter(msg => msg.content.trim() !== '')
+                .map(msg => ({ 
+                  id: generateRandomId(), 
+                  role: msg.role as 'system' | 'user' | 'assistant', 
+                  content: msg.content 
+                })),
+              {
+                temperature: llamaManager.getSettings().temperature,
+                maxTokens: llamaManager.getSettings().maxTokens,
+                topP: llamaManager.getSettings().topP,
+                stream: true,
+                streamTokens: true
+              },
+              (partialResponse) => {
+                if (cancelGenerationRef.current) {
+                  return false;
+                }
+                
+                tokenCount = partialResponse.split(/\s+/).length;
+                fullResponse = partialResponse;
+                
+                setStreamingMessage(partialResponse);
+                setStreamingStats({
+                  tokens: tokenCount,
+                  duration: (Date.now() - startTime) / 1000
+                });
+                
+                if (tokenCount % 5 === 0 || partialResponse.endsWith('.') || partialResponse.endsWith('!') || partialResponse.endsWith('?')) {
+                  chatManager.updateMessageContent(
+                    messageId,
+                    partialResponse,
+                    '',
+                    {
+                      duration: (Date.now() - startTime) / 1000,
+                      tokens: tokenCount,
+                    }
+                  );
+                }
+                
+                return !cancelGenerationRef.current;
+              }
+            );
+            
+            if (!cancelGenerationRef.current) {
+              await chatManager.updateMessageContent(
+                messageId,
+                fullResponse,
+                '',
+                {
+                  duration: (Date.now() - startTime) / 1000,
+                  tokens: tokenCount,
+                }
+              );
+            }
+          } catch (error) {
+            handleApiError(error, 'Claude');
             
             await chatManager.updateMessageContent(
               messageId,
@@ -599,8 +899,214 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
               await saveMessages(finalMessages);
             }
           } catch (error) {
-            console.error('Error with Gemini API regeneration:', error);
-            Alert.alert('Gemini API Error', error instanceof Error ? error.message : 'Unknown error');
+            handleApiError(error, 'Gemini');
+            setIsRegenerating(false);
+          }
+        } else if (activeProvider === 'chatgpt') {
+          try {
+            await onlineModelService.sendMessageToOpenAI(
+              [...newMessages]
+                .filter(msg => msg.content.trim() !== '')
+                .map(msg => ({ 
+                  id: generateRandomId(), 
+                  role: msg.role as 'system' | 'user' | 'assistant', 
+                  content: msg.content 
+                })),
+              {
+                temperature: llamaManager.getSettings().temperature,
+                maxTokens: llamaManager.getSettings().maxTokens,
+                topP: llamaManager.getSettings().topP,
+                stream: true,
+                streamTokens: true
+              },
+              (partialResponse) => {
+                if (cancelGenerationRef.current) {
+                  return false;
+                }
+                
+                tokenCount = partialResponse.split(/\s+/).length;
+                fullResponse = partialResponse;
+                
+                setStreamingMessage(partialResponse);
+                setStreamingStats({
+                  tokens: tokenCount,
+                  duration: (Date.now() - startTime) / 1000
+                });
+                
+                if (tokenCount % 5 === 0 || partialResponse.endsWith('.') || partialResponse.endsWith('!') || partialResponse.endsWith('?')) {
+                  const finalMessage: Message = {
+                    ...assistantMessage,
+                    content: partialResponse,
+                    stats: {
+                      duration: (Date.now() - startTime) / 1000,
+                      tokens: tokenCount,
+                    }
+                  };
+                  
+                  const finalMessages = [...newMessages, finalMessage];
+                  setMessages(finalMessages);
+                  saveMessages(finalMessages);
+                }
+                
+                return !cancelGenerationRef.current;
+              }
+            );
+            
+            if (!cancelGenerationRef.current) {
+              const finalMessage: Message = {
+                id: assistantMessage.id,
+                role: assistantMessage.role,
+                content: fullResponse,
+                stats: {
+                  duration: (Date.now() - startTime) / 1000,
+                  tokens: tokenCount,
+                }
+              };
+              
+              const finalMessages = [...newMessages, finalMessage];
+              setMessages(finalMessages);
+              await saveMessages(finalMessages);
+            }
+          } catch (error) {
+            handleApiError(error, 'OpenAI');
+            setIsRegenerating(false);
+          }
+        } else if (activeProvider === 'deepseek') {
+          try {
+            await onlineModelService.sendMessageToDeepSeek(
+              [...newMessages]
+                .filter(msg => msg.content.trim() !== '')
+                .map(msg => ({ 
+                  id: generateRandomId(), 
+                  role: msg.role as 'system' | 'user' | 'assistant', 
+                  content: msg.content 
+                })),
+              {
+                temperature: llamaManager.getSettings().temperature,
+                maxTokens: llamaManager.getSettings().maxTokens,
+                topP: llamaManager.getSettings().topP,
+                stream: true,
+                streamTokens: true
+              },
+              (partialResponse) => {
+                if (cancelGenerationRef.current) {
+                  return false;
+                }
+                
+                tokenCount = partialResponse.split(/\s+/).length;
+                fullResponse = partialResponse;
+                
+                setStreamingMessage(partialResponse);
+                setStreamingStats({
+                  tokens: tokenCount,
+                  duration: (Date.now() - startTime) / 1000
+                });
+                
+                if (tokenCount % 5 === 0 || partialResponse.endsWith('.') || partialResponse.endsWith('!') || partialResponse.endsWith('?')) {
+                  const finalMessage: Message = {
+                    ...assistantMessage,
+                    content: partialResponse,
+                    stats: {
+                      duration: (Date.now() - startTime) / 1000,
+                      tokens: tokenCount,
+                    }
+                  };
+                  
+                  const finalMessages = [...newMessages, finalMessage];
+                  setMessages(finalMessages);
+                  saveMessages(finalMessages);
+                }
+                
+                return !cancelGenerationRef.current;
+              }
+            );
+            
+            if (!cancelGenerationRef.current) {
+              const finalMessage: Message = {
+                id: assistantMessage.id,
+                role: assistantMessage.role,
+                content: fullResponse,
+                stats: {
+                  duration: (Date.now() - startTime) / 1000,
+                  tokens: tokenCount,
+                }
+              };
+              
+              const finalMessages = [...newMessages, finalMessage];
+              setMessages(finalMessages);
+              await saveMessages(finalMessages);
+            }
+          } catch (error) {
+            handleApiError(error, 'DeepSeek');
+            setIsRegenerating(false);
+          }
+        } else if (activeProvider === 'claude') {
+          try {
+            await onlineModelService.sendMessageToClaude(
+              [...newMessages]
+                .filter(msg => msg.content.trim() !== '')
+                .map(msg => ({ 
+                  id: generateRandomId(), 
+                  role: msg.role as 'system' | 'user' | 'assistant', 
+                  content: msg.content 
+                })),
+              {
+                temperature: llamaManager.getSettings().temperature,
+                maxTokens: llamaManager.getSettings().maxTokens,
+                topP: llamaManager.getSettings().topP,
+                stream: true,
+                streamTokens: true
+              },
+              (partialResponse) => {
+                if (cancelGenerationRef.current) {
+                  return false;
+                }
+                
+                tokenCount = partialResponse.split(/\s+/).length;
+                fullResponse = partialResponse;
+                
+                setStreamingMessage(partialResponse);
+                setStreamingStats({
+                  tokens: tokenCount,
+                  duration: (Date.now() - startTime) / 1000
+                });
+                
+                if (tokenCount % 5 === 0 || partialResponse.endsWith('.') || partialResponse.endsWith('!') || partialResponse.endsWith('?')) {
+                  const finalMessage: Message = {
+                    ...assistantMessage,
+                    content: partialResponse,
+                    stats: {
+                      duration: (Date.now() - startTime) / 1000,
+                      tokens: tokenCount,
+                    }
+                  };
+                  
+                  const finalMessages = [...newMessages, finalMessage];
+                  setMessages(finalMessages);
+                  saveMessages(finalMessages);
+                }
+                
+                return !cancelGenerationRef.current;
+              }
+            );
+            
+            if (!cancelGenerationRef.current) {
+              const finalMessage: Message = {
+                id: assistantMessage.id,
+                role: assistantMessage.role,
+                content: fullResponse,
+                stats: {
+                  duration: (Date.now() - startTime) / 1000,
+                  tokens: tokenCount,
+                }
+              };
+              
+              const finalMessages = [...newMessages, finalMessage];
+              setMessages(finalMessages);
+              await saveMessages(finalMessages);
+            }
+          } catch (error) {
+            handleApiError(error, 'Claude');
             setIsRegenerating(false);
           }
         } else {

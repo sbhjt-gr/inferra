@@ -15,8 +15,14 @@ import * as BackgroundFetch from 'expo-background-fetch';
 import { ThemeColors } from './src/types/theme';
 import { notificationService } from './src/services/NotificationService';
 import { initGeminiService } from './src/services/GeminiInitializer';
+import { initOpenAIService } from './src/services/OpenAIInitializer';
+import { initDeepSeekService } from './src/services/DeepSeekInitializer';
+import { initClaudeService } from './src/services/ClaudeInitializer';
 
 initGeminiService();
+initOpenAIService();
+initDeepSeekService();
+initClaudeService();
 
 const BACKGROUND_DOWNLOAD_TASK = 'background-download-check';
 

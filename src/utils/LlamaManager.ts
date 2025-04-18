@@ -254,7 +254,6 @@ class LlamaManager {
     try {
       await this.release();
       await this.initializeModel(modelPath);
-      // Emit the model-loaded event
       this.events.emit('model-loaded', modelPath);
       return true;
     } catch (error) {
@@ -265,17 +264,14 @@ class LlamaManager {
 
   async unloadModel() {
     await this.release();
-    // Emit the model-unloaded event
     this.events.emit('model-unloaded');
   }
 
-  // Add this method to support adding event listeners
   addListener(event: keyof LlamaManagerEvents, listener: any): () => void {
     this.events.on(event, listener);
     return () => this.events.off(event, listener);
   }
 
-  // Add this method to support removing event listeners
   removeListener(event: keyof LlamaManagerEvents, listener: any): void {
     this.events.off(event, listener);
   }
