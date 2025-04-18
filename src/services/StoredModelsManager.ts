@@ -1,5 +1,6 @@
 import * as FileSystem from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 import { EventEmitter } from './EventEmitter';
 import { FileManager } from './FileManager';
 import { StoredModel } from './ModelDownloaderTypes';
