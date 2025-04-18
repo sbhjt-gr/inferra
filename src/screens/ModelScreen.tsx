@@ -685,7 +685,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       
       console.log('[ModelScreen] Getting stored models from modelDownloader...');
       const models = await modelDownloader.getStoredModels();
-      console.log(`[ModelScreen] Found ${models.length} stored models:`, models.map(m => m.name));
       setStoredModels(models);
     } catch (error) {
       console.error('[ModelScreen] Error loading stored models:', error);

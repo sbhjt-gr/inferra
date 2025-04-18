@@ -8,6 +8,7 @@ import {
   FlatList,
   Alert,
   ActivityIndicator,
+  SectionList,
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
@@ -25,6 +26,15 @@ interface StoredModel {
   modified: string;
 }
 
+interface OnlineModel {
+  id: string;
+  name: string;
+  provider: string;
+  isOnline: true;
+}
+
+type Model = StoredModel | OnlineModel;
+
 interface ModelDownloaderType {
   getStoredModels: () => Promise<StoredModel[]>;
 }
@@ -40,12 +50,25 @@ interface ModelSelectorProps {
   isGenerating?: boolean;
 }
 
+const ONLINE_MODELS: OnlineModel[] = [
+  { id: 'gemini', name: 'Gemini Pro', provider: 'Google', isOnline: true },
+  { id: 'chatgpt', name: 'GPT-4o', provider: 'OpenAI', isOnline: true },
+  { id: 'deepseek', name: 'DeepSeek Coder', provider: 'DeepSeek', isOnline: true },
+  { id: 'claude', name: 'Claude 3 Opus', provider: 'Anthropic', isOnline: true },
+];
+
+interface SectionData {
+  title: string;
+  data: Model[];
+}
+
 const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorProps>(
   ({ isOpen, onClose, preselectedModelPath, isGenerating }, ref) => {
     const { theme: currentTheme } = useTheme();
     const themeColors = theme[currentTheme as ThemeColors];
     const [modalVisible, setModalVisible] = useState(false);
     const [models, setModels] = useState<StoredModel[]>([]);
+    const [sections, setSections] = useState<SectionData[]>([]);
     const { selectedModelPath, isModelLoading, loadModel, unloadModel } = useModel();
 
     const loadModels = async () => {
@@ -64,6 +87,11 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
         });
         
         setModels(completedModels);
+        
+        setSections([
+          { title: 'Local Models', data: completedModels },
+          { title: 'Online Models', data: ONLINE_MODELS }
+        ]);
       } catch (error) {
         console.error('Error loading models:', error);
       }
@@ -95,7 +123,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
       refreshModels: loadModels
     }));
 
-    const handleModelSelect = async (model: StoredModel) => {
+    const handleModelSelect = async (model: Model) => {
       if (isGenerating) {
         Alert.alert(
           'Model In Use',
@@ -104,6 +132,16 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
         return;
       }
       setModalVisible(false);
+      
+      if ('isOnline' in model) {
+        Alert.alert(
+          'Online Model Selected',
+          `${model.name} by ${model.provider} requires an API key. Please configure it in Settings.`,
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+      
       await loadModel(model.path);
     };
 
@@ -147,7 +185,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
       return model ? getDisplayName(model.name) : getDisplayName(path.split('/').pop() || '');
     };
 
-    const renderModelItem = ({ item }: { item: StoredModel }) => (
+    const renderLocalModelItem = ({ item }: { item: StoredModel }) => (
       <TouchableOpacity
         style={[
           styles.modelItem,
@@ -187,6 +225,54 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
           </View>
         )}
       </TouchableOpacity>
+    );
+    
+    const renderOnlineModelItem = ({ item }: { item: OnlineModel }) => (
+      <TouchableOpacity
+        style={[
+          styles.modelItem,
+          { backgroundColor: themeColors.borderColor },
+          isGenerating && styles.modelItemDisabled
+        ]}
+        onPress={() => handleModelSelect(item)}
+        disabled={isGenerating}
+      >
+        <View style={styles.modelIconContainer}>
+          <MaterialCommunityIcons 
+            name="cloud-outline" 
+            size={28} 
+            color={themeColors.text} 
+          />
+        </View>
+        <View style={styles.modelInfo}>
+          <Text style={[styles.modelName, { color: themeColors.text }]}>
+            {item.name}
+          </Text>
+          <View style={styles.modelMetaInfo}>
+            <View style={styles.modelTypeBadge}>
+              <Text style={styles.modelTypeText}>
+                {item.provider}
+              </Text>
+            </View>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+
+    const renderItem = ({ item }: { item: Model }) => {
+      if ('isOnline' in item) {
+        return renderOnlineModelItem({ item });
+      } else {
+        return renderLocalModelItem({ item });
+      }
+    };
+
+    const renderSectionHeader = ({ section }: { section: SectionData }) => (
+      <View style={[styles.sectionHeader, { backgroundColor: themeColors.background }]}>
+        <Text style={[styles.sectionHeaderText, { color: themeColors.secondaryText }]}>
+          {section.title}
+        </Text>
+      </View>
     );
 
     useEffect(() => {
@@ -303,16 +389,19 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                 </TouchableOpacity>
               </View>
 
-              <FlatList
-                data={models}
-                renderItem={renderModelItem}
-                keyExtractor={item => item.path}
+              {/* Replace FlatList with SectionList */}
+              <SectionList
+                sections={sections}
+                keyExtractor={(item) => 'path' in item ? item.path : item.id}
+                renderItem={renderItem}
+                renderSectionHeader={renderSectionHeader}
                 contentContainerStyle={styles.modelList}
+                stickySectionHeadersEnabled={true}
                 ListEmptyComponent={
                   <View style={styles.emptyContainer}>
                     <MaterialCommunityIcons name="cube-outline" size={48} color={themeColors.secondaryText} />
                     <Text style={[styles.emptyText, { color: themeColors.secondaryText }]}>
-                      No models found. Go to Models → Download Models screen to download a Model.
+                      No local models found. Go to Models → Download Models screen to download a Model.
                     </Text>
                   </View>
                 }
@@ -469,5 +558,18 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(211, 47, 47, 0.1)',
     borderRadius: 12,
     padding: 4,
+  },
+  sectionHeader: {
+    padding: 12,
+    paddingLeft: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(150, 150, 150, 0.1)',
+    marginBottom: 8,
+  },
+  sectionHeaderText: {
+    fontSize: 14,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
 }); 
