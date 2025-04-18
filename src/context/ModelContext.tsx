@@ -60,7 +60,6 @@ export const ModelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setIsModelLoading(true);
       await llamaManager.unloadModel();
       setSelectedModelPath(null);
-      showSnackbar('Model unloaded');
     } catch (error) {
       console.error('Error unloading model:', error);
       showSnackbar('Failed to unload model', 'error');
