@@ -73,6 +73,18 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
       deepseek: false,
       claude: false
     });
+    const [isOnlineModelsExpanded, setIsOnlineModelsExpanded] = useState(false);
+    const [isLocalModelsExpanded, setIsLocalModelsExpanded] = useState(true);
+
+    const hasAnyApiKey = () => {
+      return Object.values(onlineModelStatuses).some(status => status);
+    };
+
+    const toggleOnlineModelsDropdown = () => {
+      if (!hasAnyApiKey()) {
+        setIsOnlineModelsExpanded(!isOnlineModelsExpanded);
+      }
+    };
 
     const loadModels = async () => {
       try {
@@ -91,10 +103,17 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
         
         setModels(completedModels);
         
-        setSections([
-          { title: 'Local Models', data: completedModels },
-          { title: 'Online Models', data: ONLINE_MODELS }
-        ]);
+        const sections: SectionData[] = [];
+        
+        if (completedModels.length > 0) {
+          sections.push({ title: 'Local Models', data: completedModels });
+          setIsLocalModelsExpanded(true);
+        } else {
+          setIsLocalModelsExpanded(false);
+        }
+        
+        sections.push({ title: 'Online Models', data: ONLINE_MODELS });
+        setSections(sections);
       } catch (error) {
         console.error('Error loading models:', error);
       }
@@ -137,12 +156,18 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
         const hasDeepSeekKey = await onlineModelService.hasApiKey('deepseek');
         const hasClaudeKey = await onlineModelService.hasApiKey('claude');
         
-        setOnlineModelStatuses({
+        const newStatuses = {
           gemini: hasGeminiKey,
           chatgpt: hasOpenAIKey,
           deepseek: hasDeepSeekKey,
           claude: hasClaudeKey
-        });
+        };
+        
+        setOnlineModelStatuses(newStatuses);
+        
+        if (Object.values(newStatuses).some(status => status)) {
+          setIsOnlineModelsExpanded(true);
+        }
       } catch (error) {
         console.error('Error checking API keys:', error);
       }
@@ -357,21 +382,75 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
       );
     };
 
-    const renderItem = ({ item }: { item: Model }) => {
+    const toggleLocalModelsDropdown = () => {
+      setIsLocalModelsExpanded(!isLocalModelsExpanded);
+    };
+
+    const renderSectionHeader = ({ section }: { section: SectionData }) => {
+      if (section.title === 'Online Models') {
+        const hasApiKeys = hasAnyApiKey();
+        return (
+          <TouchableOpacity 
+            onPress={toggleOnlineModelsDropdown}
+            style={[
+              styles.sectionHeader, 
+              { backgroundColor: themeColors.background },
+              styles.modelSectionHeader,
+              styles.onlineModelsHeader,
+              hasApiKeys && styles.onlineModelsHeaderWithKeys
+            ]}
+          >
+            <View style={styles.sectionHeaderContent}>
+              <Text style={[styles.sectionHeaderText, { color: themeColors.secondaryText }]}>
+                {section.title}
+              </Text>
+              <MaterialCommunityIcons 
+                name={isOnlineModelsExpanded ? "chevron-up" : "chevron-down"} 
+                size={24} 
+                color={hasApiKeys ? getThemeAwareColor('#2a8c42', currentTheme) : themeColors.secondaryText} 
+              />
+            </View>
+          </TouchableOpacity>
+        );
+      }
+      
+      return (
+        <TouchableOpacity 
+          onPress={toggleLocalModelsDropdown}
+          style={[
+            styles.sectionHeader, 
+            { backgroundColor: themeColors.background },
+            styles.modelSectionHeader
+          ]}
+        >
+          <View style={styles.sectionHeaderContent}>
+            <Text style={[styles.sectionHeaderText, { color: themeColors.secondaryText }]}>
+              {section.title}
+            </Text>
+            <MaterialCommunityIcons 
+              name={isLocalModelsExpanded ? "chevron-up" : "chevron-down"} 
+              size={24} 
+              color={themeColors.secondaryText} 
+            />
+          </View>
+        </TouchableOpacity>
+      );
+    };
+
+    const renderItem = ({ item, section }: { item: Model, section: SectionData }) => {
+      if (section.title === 'Online Models' && !isOnlineModelsExpanded) {
+        return null;
+      }
+      if (section.title === 'Local Models' && !isLocalModelsExpanded) {
+        return null;
+      }
+      
       if ('isOnline' in item) {
         return renderOnlineModelItem({ item });
       } else {
         return renderLocalModelItem({ item });
       }
     };
-
-    const renderSectionHeader = ({ section }: { section: SectionData }) => (
-      <View style={[styles.sectionHeader, { backgroundColor: themeColors.background }]}>
-        <Text style={[styles.sectionHeaderText, { color: themeColors.secondaryText }]}>
-          {section.title}
-        </Text>
-      </View>
-    );
 
     useEffect(() => {
       if (isOpen !== undefined) {
@@ -538,17 +617,29 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
               <SectionList
                 sections={sections}
                 keyExtractor={(item) => 'path' in item ? item.path : item.id}
-                renderItem={renderItem}
+                renderItem={({ item, section }) => renderItem({ item, section })}
                 renderSectionHeader={renderSectionHeader}
                 contentContainerStyle={styles.modelList}
                 stickySectionHeadersEnabled={true}
+                ListHeaderComponent={
+                  models.length === 0 ? (
+                    <View style={styles.emptyContainer}>
+                      <MaterialCommunityIcons name="cube-outline" size={48} color={themeColors.secondaryText} />
+                      <Text style={[styles.emptyText, { color: themeColors.text }]}>
+                        No local models found. Go to the Models → Download Models screen to download a Model.
+                      </Text>
+                    </View>
+                  ) : null
+                }
                 ListEmptyComponent={
-                  <View style={styles.emptyContainer}>
-                    <MaterialCommunityIcons name="cube-outline" size={48} color={themeColors.secondaryText} />
-                    <Text style={[styles.emptyText, { color: themeColors.secondaryText }]}>
-                      No local models found. Go to Models → Download Models screen to download a Model.
-                    </Text>
-                  </View>
+                  sections.length === 0 ? (
+                    <View style={styles.emptyContainer}>
+                      <MaterialCommunityIcons name="cube-outline" size={48} color={themeColors.secondaryText} />
+                      <Text style={[styles.emptyText, { color: themeColors.text }]}>
+                        No models available. Please check your connection.
+                      </Text>
+                    </View>
+                  ) : null
                 }
               />
             </View>
@@ -628,13 +719,15 @@ const styles = StyleSheet.create({
   },
   modelList: {
     paddingBottom: 20,
+    paddingHorizontal: 4,
   },
   modelItem: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 12,
-    borderRadius: 16,
+    borderRadius: 12,
     marginBottom: 8,
+    marginHorizontal: 4,
   },
   selectedModelItem: {
     backgroundColor: 'rgba(74, 6, 96, 0.1)',
@@ -687,11 +780,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 32,
     gap: 16,
+    marginTop: 24,
+    marginBottom: 16,
+    marginHorizontal: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(150, 150, 150, 0.1)',
+    borderRadius: 8,
+    backgroundColor: 'rgba(150, 150, 150, 0.05)',
   },
   emptyText: {
     textAlign: 'center',
     fontSize: 16,
     lineHeight: 24,
+    maxWidth: 300,
+    fontWeight: '500',
   },
   selectorDisabled: {
     opacity: 0.6,
@@ -706,16 +808,30 @@ const styles = StyleSheet.create({
   },
   sectionHeader: {
     padding: 12,
-    paddingLeft: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(150, 150, 150, 0.1)',
+    paddingHorizontal: 16,
     marginBottom: 8,
+  },
+  sectionHeaderContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
   },
   sectionHeaderText: {
     fontSize: 14,
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+  },
+  modelSectionHeader: {
+    backgroundColor: 'rgba(74, 6, 96, 0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(74, 6, 96, 0.1)',
+    borderRadius: 8,
+    marginHorizontal: 4,
+  },
+  onlineModelsHeader: {
+    marginTop: 16,
   },
   modelApiKeyMissing: {
     fontSize: 12,
@@ -744,5 +860,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  onlineModelsHeaderWithKeys: {
+    borderColor: 'rgba(74, 180, 96, 0.3)',
+    backgroundColor: 'rgba(74, 180, 96, 0.05)',
   },
 }); 
