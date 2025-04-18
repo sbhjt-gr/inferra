@@ -217,10 +217,10 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     const getModelNameFromPath = (path: string | null, models: StoredModel[]): string => {
       if (!path) return 'Select a Model';
       
-      if (path === 'gemini') return 'Gemini Pro (Online)';
-      if (path === 'chatgpt') return 'GPT-4o (Online)';
-      if (path === 'deepseek') return 'DeepSeek Coder (Online)';
-      if (path === 'claude') return 'Claude 3 Opus (Online)';
+      if (path === 'gemini') return 'Gemini Pro';
+      if (path === 'chatgpt') return 'GPT-4o';
+      if (path === 'deepseek') return 'DeepSeek Coder';
+      if (path === 'claude') return 'Claude 3 Opus';
       
       const model = models.find(m => m.path === path);
       return model ? getDisplayName(model.name) : getDisplayName(path.split('/').pop() || '');
@@ -247,13 +247,23 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
           />
         </View>
         <View style={styles.modelInfo}>
-          <Text style={[
-            styles.modelName, 
-            { color: themeColors.text },
-            selectedModelPath === item.path && { color: getThemeAwareColor('#4a0660', currentTheme) }
-          ]}>
-            {getDisplayName(item.name)}
-          </Text>
+          <View style={styles.modelNameRow}>
+            <Text style={[
+              styles.modelName, 
+              { color: themeColors.text },
+              selectedModelPath === item.path && { color: getThemeAwareColor('#4a0660', currentTheme) }
+            ]}>
+              {getDisplayName(item.name)}
+            </Text>
+            <View style={[
+              styles.connectionTypeBadge,
+              { backgroundColor: 'rgba(74, 6, 96, 0.1)' }
+            ]}>
+              <Text style={[styles.connectionTypeText, { color: '#4a0660' }]}>
+                LOCAL
+              </Text>
+            </View>
+          </View>
           <View style={styles.modelMetaInfo}>
             <Text style={[styles.modelDetails, { color: themeColors.secondaryText }]}>
               {formatBytes(item.size)}
@@ -269,7 +279,6 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     );
     
     const renderOnlineModelItem = ({ item }: { item: OnlineModel }) => {
-      // Check if this online model is currently selected
       const isSelected = selectedModelPath === item.id;
 
       return (
@@ -295,13 +304,23 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
             />
           </View>
           <View style={styles.modelInfo}>
-            <Text style={[
-              styles.modelName, 
-              { color: themeColors.text },
-              isSelected && { color: getThemeAwareColor('#4a0660', currentTheme) }
-            ]}>
-              {item.name}
-            </Text>
+            <View style={styles.modelNameRow}>
+              <Text style={[
+                styles.modelName, 
+                { color: themeColors.text },
+                isSelected && { color: getThemeAwareColor('#4a0660', currentTheme) }
+              ]}>
+                {item.name}
+              </Text>
+              <View style={[
+                styles.connectionTypeBadge,
+                { backgroundColor: 'rgba(74, 180, 96, 0.15)' }
+              ]}>
+                <Text style={[styles.connectionTypeText, { color: '#2a8c42' }]}>
+                  ONLINE
+                </Text>
+              </View>
+            </View>
             <View style={styles.modelMetaInfo}>
               <View style={[
                 styles.modelTypeBadge,
@@ -432,12 +451,44 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
               <Text style={[styles.selectorLabel, { color: themeColors.secondaryText }]}>
                 Active Model
               </Text>
-              <Text style={[styles.selectorText, { color: themeColors.text }]}>
-                {isModelLoading 
-                  ? 'Loading...' 
-                  : getModelNameFromPath(selectedModelPath, models)
-                }
-              </Text>
+              <View style={styles.modelNameContainer}>
+                <Text style={[styles.selectorText, { color: themeColors.text }]}>
+                  {isModelLoading 
+                    ? 'Loading...' 
+                    : getModelNameFromPath(selectedModelPath, models)
+                  }
+                </Text>
+                {selectedModelPath && !isModelLoading && (
+                  <View style={[
+                    styles.connectionTypeBadge,
+                    { 
+                      backgroundColor: (selectedModelPath === 'gemini' || 
+                                       selectedModelPath === 'chatgpt' || 
+                                       selectedModelPath === 'deepseek' || 
+                                       selectedModelPath === 'claude') ? 
+                        'rgba(74, 180, 96, 0.15)' : 
+                        'rgba(74, 6, 96, 0.1)' 
+                    }
+                  ]}>
+                    <Text style={[
+                      styles.connectionTypeText, 
+                      { 
+                        color: (selectedModelPath === 'gemini' || 
+                                selectedModelPath === 'chatgpt' || 
+                                selectedModelPath === 'deepseek' || 
+                                selectedModelPath === 'claude') ? 
+                          '#2a8c42' : 
+                          '#4a0660' 
+                      }
+                    ]}>
+                      {(selectedModelPath === 'gemini' || 
+                        selectedModelPath === 'chatgpt' || 
+                        selectedModelPath === 'deepseek' || 
+                        selectedModelPath === 'claude') ? 'ONLINE' : 'LOCAL'}
+                    </Text>
+                  </View>
+                )}
+              </View>
             </View>
           </View>
           <View style={styles.selectorActions}>
@@ -668,5 +719,28 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontStyle: 'italic',
     marginLeft: 8,
+  },
+  modelNameContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  connectionTypeBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    backgroundColor: 'rgba(74, 6, 96, 0.1)',
+  },
+  connectionTypeText: {
+    fontSize: 10,
+    color: '#4a0660',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  modelNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
 }); 
