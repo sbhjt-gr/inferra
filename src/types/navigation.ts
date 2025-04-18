@@ -15,6 +15,7 @@ export type RootStackParamList = {
 export type TabParamList = {
   HomeTab: {
     modelPath?: string;
+    loadChatId?: string;
   };
   SettingsTab: undefined;
   ModelTab: undefined;

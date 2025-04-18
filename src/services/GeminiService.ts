@@ -50,7 +50,7 @@ export class GeminiService {
       console.log(`Using Gemini model: ${model}`);
       
       const shouldStream = !!onToken;
-      const shouldStreamTokens = options.streamTokens ?? false;
+      const shouldStreamTokens = options.streamTokens ?? true;
 
       const userMessages = messages.filter(msg => msg.role !== 'system');
       const systemMessage = messages.find(msg => msg.role === 'system');
@@ -81,7 +81,117 @@ export class GeminiService {
         'Content-Type': 'application/json'
       };
 
-      const response = await fetch(url, {
+      if (shouldStreamTokens && shouldStream && typeof onToken === 'function') {
+        console.log("Using simulated streaming for Gemini API");
+        
+        try {
+          const response = await fetch(url.replace('streamGenerateContent', 'generateContent'), {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(requestBody),
+          });
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`Gemini API error (${response.status}): ${errorText}`);
+            console.error(`Request URL: ${url.replace(apiKey, 'API_KEY_REDACTED')}`);
+            console.error(`Request body: ${JSON.stringify(requestBody)}`);
+            throw new Error(`Gemini API error: ${response.status} - ${errorText}`);
+          }
+
+          const jsonResponse = await response.json();
+          console.log("Gemini complete response received, simulating streaming");
+          
+          let completeText = '';
+          let totalTokens = 0;
+          
+          if (Array.isArray(jsonResponse)) {
+            for (let i = 0; i < jsonResponse.length; i++) {
+              const chunk = jsonResponse[i];
+              if (chunk.candidates && chunk.candidates.length > 0 && 
+                  chunk.candidates[0].content && 
+                  chunk.candidates[0].content.parts) {
+                
+                const parts = chunk.candidates[0].content.parts;
+                for (const part of parts) {
+                  if (part.text) {
+                    completeText += part.text;
+                  }
+                }
+                
+                if (chunk.usageMetadata && chunk.usageMetadata.totalTokenCount) {
+                  totalTokens += chunk.usageMetadata.totalTokenCount;
+                }
+              }
+            }
+          } else if (jsonResponse.candidates) {
+            if (jsonResponse.candidates.length > 0 && 
+                jsonResponse.candidates[0].content && 
+                jsonResponse.candidates[0].content.parts) {
+              
+              const parts = jsonResponse.candidates[0].content.parts;
+              for (const part of parts) {
+                if (part.text) {
+                  completeText += part.text;
+                }
+              }
+              
+              if (jsonResponse.usageMetadata && jsonResponse.usageMetadata.totalTokenCount) {
+                totalTokens = jsonResponse.usageMetadata.totalTokenCount;
+              }
+            }
+          } else {
+            console.error("Unexpected response format:", JSON.stringify(jsonResponse).substring(0, 200) + "...");
+            throw new Error('Failed to extract content from Gemini API response');
+          }
+          
+          console.log(`Complete response length: ${completeText.length} characters, now simulating streaming`);
+          
+          const words = completeText.split(/(\s+|[,.!?;:"])/);
+          let currentText = '';
+          
+          for (const word of words) {
+            currentText += word;
+            tokenCount++;
+            
+            const shouldContinue = onToken(currentText);
+            if (shouldContinue === false) {
+              console.log('Simulated streaming canceled by callback');
+              return { 
+                fullResponse: currentText, 
+                tokenCount: totalTokens || tokenCount, 
+                startTime 
+              };
+            }
+            
+            if (word.trim().length > 0) {
+              if (/[.!?]/.test(word)) {
+                await new Promise(resolve => setTimeout(resolve, 70));
+              }
+              else if (/[,;:]/.test(word)) {
+                await new Promise(resolve => setTimeout(resolve, 40));
+              }
+              else {
+                const baseDelay = 20;
+                const randomFactor = Math.random() * 15;
+                await new Promise(resolve => setTimeout(resolve, baseDelay + randomFactor));
+              }
+            }
+          }
+          
+          fullResponse = completeText;
+          return {
+            fullResponse,
+            tokenCount: totalTokens || tokenCount,
+            startTime
+          };
+          
+        } catch (error) {
+          console.error('Error in streaming mode:', error);
+        }
+      }
+      
+      const response = await fetch(url.replace('streamGenerateContent', 'generateContent'), {
         method: 'POST',
         headers,
         body: JSON.stringify(requestBody),
@@ -99,9 +209,9 @@ export class GeminiService {
       console.log("Gemini response received");
       
       const simulateWordByWordStreaming = async (text: string): Promise<boolean> => {
-        if (!shouldStream || !onToken) return true;
+        if (!shouldStream || typeof onToken !== 'function') return true;
         
-        const words = text.split(/(\s+)/);
+        const words = text.split(/(\s+|[,.!?;:"])/);
         let currentText = '';
         
         for (const word of words) {
@@ -114,7 +224,17 @@ export class GeminiService {
           }
           
           if (word.trim().length > 0) {
-            await new Promise(resolve => setTimeout(resolve, 10));
+            if (/[.!?]/.test(word)) {
+              await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            else if (/[,;:]/.test(word)) {
+              await new Promise(resolve => setTimeout(resolve, 50));
+            }
+            else {
+              const baseDelay = 25;
+              const randomFactor = Math.random() * 20;
+              await new Promise(resolve => setTimeout(resolve, baseDelay + randomFactor));
+            }
           }
         }
         
