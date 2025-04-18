@@ -1,6 +1,0 @@
-module ExpoSplashScreen {
-  umbrella header "ExpoSplashScreen-umbrella.h"
-
-  export *
-  module * { export * }
-}

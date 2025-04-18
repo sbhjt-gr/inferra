@@ -1,6 +1,0 @@
-module ExpoDevice {
-  umbrella header "ExpoDevice-umbrella.h"
-
-  export *
-  module * { export * }
-}

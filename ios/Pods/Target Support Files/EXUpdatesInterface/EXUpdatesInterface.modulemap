@@ -1,6 +1,0 @@
-module EXUpdatesInterface {
-  umbrella header "EXUpdatesInterface-umbrella.h"
-
-  export *
-  module * { export * }
-}
