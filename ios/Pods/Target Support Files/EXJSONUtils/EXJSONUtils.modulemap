@@ -1,0 +1,6 @@
+module EXJSONUtils {
+  umbrella header "EXJSONUtils-umbrella.h"
+
+  export *
+  module * { export * }
+}

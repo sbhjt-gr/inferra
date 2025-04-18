@@ -1,0 +1,6 @@
+module ExpoHead {
+  umbrella header "ExpoHead-umbrella.h"
+
+  export *
+  module * { export * }
+}
