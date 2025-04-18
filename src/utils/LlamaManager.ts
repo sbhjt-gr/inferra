@@ -31,7 +31,6 @@ const DEFAULT_SETTINGS: ModelSettings = {
   systemPrompt: 'You are an AI assistant.'
 };
 
-
 const LlamaManagerModule = NativeModules.LlamaManager as LlamaManagerInterface;
 
 class LlamaManager {
