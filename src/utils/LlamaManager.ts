@@ -1,6 +1,7 @@
 import { initLlama, loadLlamaModelInfo, type LlamaContext } from 'ragionare-llama.rn';
 import { Platform, NativeModules } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import EventEmitter from 'eventemitter3';
 
 interface ModelMemoryInfo {
   requiredMemory: number;
@@ -21,13 +22,18 @@ interface ModelSettings {
   systemPrompt: string;
 }
 
+interface LlamaManagerEvents {
+  'model-loaded': (modelPath: string | null) => void;
+  'model-unloaded': () => void;
+}
+
 const DEFAULT_SETTINGS: ModelSettings = {
   maxTokens: 1200,
   temperature: 0.7,
   topK: 40,
   topP: 0.9,
   minP: 0.05,
-  stopWords: ['<|end|>', '<end_of_turn>', '<|im_end|>', '<|endoftext|>', '<｜end▁of▁sentence｜>'],
+  stopWords: ['<|end|>', '<end_of_turn>', '<|im_end|>', '<|endoftext|>', '<\uff5cend\u2581of\u2581sentence\uff5c>'],
   systemPrompt: 'You are an AI assistant.'
 };
 
@@ -37,6 +43,7 @@ class LlamaManager {
   private context: LlamaContext | null = null;
   private modelPath: string | null = null;
   private settings: ModelSettings = { ...DEFAULT_SETTINGS };
+  private events = new EventEmitter<LlamaManagerEvents>();
 
   constructor() {
     
@@ -241,6 +248,36 @@ class LlamaManager {
 
   isInitialized(): boolean {
     return this.context !== null;
+  }
+
+  async loadModel(modelPath: string) {
+    try {
+      await this.release();
+      await this.initializeModel(modelPath);
+      // Emit the model-loaded event
+      this.events.emit('model-loaded', modelPath);
+      return true;
+    } catch (error) {
+      console.error('Error loading model:', error);
+      return false;
+    }
+  }
+
+  async unloadModel() {
+    await this.release();
+    // Emit the model-unloaded event
+    this.events.emit('model-unloaded');
+  }
+
+  // Add this method to support adding event listeners
+  addListener(event: keyof LlamaManagerEvents, listener: any): () => void {
+    this.events.on(event, listener);
+    return () => this.events.off(event, listener);
+  }
+
+  // Add this method to support removing event listeners
+  removeListener(event: keyof LlamaManagerEvents, listener: any): void {
+    this.events.off(event, listener);
   }
 }
 

@@ -22,6 +22,7 @@ export type Message = {
     duration: number;
     tokens: number;
   };
+  isLoading?: boolean;
 };
 
 type ChatViewProps = {
@@ -71,15 +72,18 @@ export default function ChatView({
   const themeColors = theme[currentTheme as 'light' | 'dark'];
 
   const renderMessage = useCallback(({ item }: { item: Message }) => {
-    const messageContent = (isStreaming && item.id === streamingMessageId) 
+    const isCurrentlyStreaming = isStreaming && item.id === streamingMessageId;
+    const showLoadingIndicator = isCurrentlyStreaming && !streamingMessage;
+    
+    const messageContent = isCurrentlyStreaming 
       ? streamingMessage 
       : item.content;
       
-    const thinkingContent = (isStreaming && item.id === streamingMessageId)
+    const thinkingContent = isCurrentlyStreaming
       ? streamingThinking
       : item.thinking;
 
-    const stats = (isStreaming && item.id === streamingMessageId)
+    const stats = isCurrentlyStreaming
       ? streamingStats
       : item.stats;
       
@@ -132,7 +136,7 @@ export default function ChatView({
             </Text>
             <TouchableOpacity 
               style={styles.copyButton} 
-              onPress={() => onCopyText(item.content)}
+              onPress={() => onCopyText(messageContent)}
               hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
             >
               <MaterialCommunityIcons 
@@ -143,7 +147,17 @@ export default function ChatView({
             </TouchableOpacity>
           </View>
 
-          {!hasMarkdownFormatting(messageContent) ? (
+          {showLoadingIndicator ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator 
+                size="small" 
+                color={themeColors.secondaryText} 
+              />
+              <Text style={[styles.loadingText, { color: themeColors.secondaryText }]}>
+                Generating response...
+              </Text>
+            </View>
+          ) : !hasMarkdownFormatting(messageContent) ? (
             <View style={styles.messageContent}>
               <Text 
                 style={[
@@ -469,5 +483,16 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     zIndex: 1,
+  },
+  loadingContainer: {
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    gap: 8,
+  },
+  loadingText: {
+    fontSize: 14,
+    fontStyle: 'italic',
   },
 }); 

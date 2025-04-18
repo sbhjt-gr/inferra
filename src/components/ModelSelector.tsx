@@ -18,6 +18,7 @@ import { ThemeType, ThemeColors } from '../types/theme';
 import { useModel } from '../context/ModelContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getThemeAwareColor } from '../utils/ColorUtils';
+import { onlineModelService } from '../services/OnlineModelService';
 
 interface StoredModel {
   name: string;
@@ -48,6 +49,7 @@ interface ModelSelectorProps {
   onClose?: () => void;
   preselectedModelPath?: string | null;
   isGenerating?: boolean;
+  onModelSelect?: (provider: 'local' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude', modelPath?: string) => void;
 }
 
 const ONLINE_MODELS: OnlineModel[] = [
@@ -63,13 +65,19 @@ interface SectionData {
 }
 
 const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorProps>(
-  ({ isOpen, onClose, preselectedModelPath, isGenerating }, ref) => {
+  ({ isOpen, onClose, preselectedModelPath, isGenerating, onModelSelect }, ref) => {
     const { theme: currentTheme } = useTheme();
     const themeColors = theme[currentTheme as ThemeColors];
     const [modalVisible, setModalVisible] = useState(false);
     const [models, setModels] = useState<StoredModel[]>([]);
     const [sections, setSections] = useState<SectionData[]>([]);
     const { selectedModelPath, isModelLoading, loadModel, unloadModel } = useModel();
+    const [onlineModelStatuses, setOnlineModelStatuses] = useState<{[key: string]: boolean}>({
+      gemini: false,
+      chatgpt: false,
+      deepseek: false,
+      claude: false
+    });
 
     const loadModels = async () => {
       try {
@@ -123,6 +131,25 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
       refreshModels: loadModels
     }));
 
+    useEffect(() => {
+      checkOnlineModelApiKeys();
+    }, []);
+
+    const checkOnlineModelApiKeys = async () => {
+      try {
+        const hasGeminiKey = await onlineModelService.hasApiKey('gemini');
+        
+        setOnlineModelStatuses({
+          gemini: hasGeminiKey,
+          chatgpt: false, // Not implemented yet
+          deepseek: false, // Not implemented yet
+          claude: false // Not implemented yet
+        });
+      } catch (error) {
+        console.error('Error checking API keys:', error);
+      }
+    };
+
     const handleModelSelect = async (model: Model) => {
       if (isGenerating) {
         Alert.alert(
@@ -134,15 +161,27 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
       setModalVisible(false);
       
       if ('isOnline' in model) {
-        Alert.alert(
-          'Online Model Selected',
-          `${model.name} by ${model.provider} requires an API key. Please configure it in Settings.`,
-          [{ text: 'OK' }]
-        );
-        return;
+        if (!onlineModelStatuses[model.id]) {
+          Alert.alert(
+            'API Key Required',
+            `${model.name} by ${model.provider} requires an API key. Please configure it in Settings.`,
+            [
+              { text: 'OK' }
+            ]
+          );
+          return;
+        }
+        
+        if (onModelSelect) {
+          onModelSelect(model.id as 'gemini' | 'chatgpt' | 'deepseek' | 'claude');
+        }
+      } else {
+        if (onModelSelect) {
+          onModelSelect('local', model.path);
+        } else {
+          await loadModel(model.path);
+        }
       }
-      
-      await loadModel(model.path);
     };
 
     const handleUnloadModel = () => {
@@ -181,6 +220,12 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
 
     const getModelNameFromPath = (path: string | null, models: StoredModel[]): string => {
       if (!path) return 'Select a Model';
+      
+      if (path === 'gemini') return 'Gemini Pro (Online)';
+      if (path === 'chatgpt') return 'GPT-4o (Online)';
+      if (path === 'deepseek') return 'DeepSeek Coder (Online)';
+      if (path === 'claude') return 'Claude 3 Opus (Online)';
+      
       const model = models.find(m => m.path === path);
       return model ? getDisplayName(model.name) : getDisplayName(path.split('/').pop() || '');
     };
@@ -227,37 +272,73 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
       </TouchableOpacity>
     );
     
-    const renderOnlineModelItem = ({ item }: { item: OnlineModel }) => (
-      <TouchableOpacity
-        style={[
-          styles.modelItem,
-          { backgroundColor: themeColors.borderColor },
-          isGenerating && styles.modelItemDisabled
-        ]}
-        onPress={() => handleModelSelect(item)}
-        disabled={isGenerating}
-      >
-        <View style={styles.modelIconContainer}>
-          <MaterialCommunityIcons 
-            name="cloud-outline" 
-            size={28} 
-            color={themeColors.text} 
-          />
-        </View>
-        <View style={styles.modelInfo}>
-          <Text style={[styles.modelName, { color: themeColors.text }]}>
-            {item.name}
-          </Text>
-          <View style={styles.modelMetaInfo}>
-            <View style={styles.modelTypeBadge}>
-              <Text style={styles.modelTypeText}>
-                {item.provider}
-              </Text>
+    const renderOnlineModelItem = ({ item }: { item: OnlineModel }) => {
+      // Check if this online model is currently selected
+      const isSelected = selectedModelPath === item.id;
+
+      return (
+        <TouchableOpacity
+          style={[
+            styles.modelItem,
+            { backgroundColor: themeColors.borderColor },
+            isSelected && styles.selectedModelItem,
+            isGenerating && styles.modelItemDisabled
+          ]}
+          onPress={() => handleModelSelect(item)}
+          disabled={isGenerating}
+        >
+          <View style={styles.modelIconContainer}>
+            <MaterialCommunityIcons 
+              name={isSelected ? "cloud" : "cloud-outline"} 
+              size={28} 
+              color={isSelected ? 
+                getThemeAwareColor('#4a0660', currentTheme) : 
+                onlineModelStatuses[item.id] ? 
+                  getThemeAwareColor('#4a0660', currentTheme) : 
+                  themeColors.text} 
+            />
+          </View>
+          <View style={styles.modelInfo}>
+            <Text style={[
+              styles.modelName, 
+              { color: themeColors.text },
+              isSelected && { color: getThemeAwareColor('#4a0660', currentTheme) }
+            ]}>
+              {item.name}
+            </Text>
+            <View style={styles.modelMetaInfo}>
+              <View style={[
+                styles.modelTypeBadge,
+                { backgroundColor: (isSelected || onlineModelStatuses[item.id]) ? 
+                  'rgba(74, 6, 96, 0.1)' : 
+                  'rgba(150, 150, 150, 0.1)' 
+                }
+              ]}>
+                <Text style={[
+                  styles.modelTypeText, 
+                  { color: (isSelected || onlineModelStatuses[item.id]) ? 
+                    '#4a0660' : 
+                    themeColors.secondaryText 
+                  }
+                ]}>
+                  {item.provider}
+                </Text>
+              </View>
+              {!onlineModelStatuses[item.id] && (
+                <Text style={[styles.modelApiKeyMissing, { color: themeColors.secondaryText }]}>
+                  API key required
+                </Text>
+              )}
             </View>
           </View>
-        </View>
-      </TouchableOpacity>
-    );
+          {isSelected && (
+            <View style={styles.selectedIndicator}>
+              <MaterialCommunityIcons name="check-circle" size={24} color={getThemeAwareColor('#4a0660', currentTheme)} />
+            </View>
+          )}
+        </TouchableOpacity>
+      );
+    };
 
     const renderItem = ({ item }: { item: Model }) => {
       if ('isOnline' in item) {
@@ -300,6 +381,16 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
         setModalVisible(false);
       }
     }, [isGenerating]);
+
+    useEffect(() => {
+      const unsubscribe = onlineModelService.addListener('api-key-updated', () => {
+        checkOnlineModelApiKeys();
+      });
+      
+      return () => {
+        unsubscribe();
+      };
+    }, []);
 
     return (
       <>
@@ -571,5 +662,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+  },
+  modelApiKeyMissing: {
+    fontSize: 12,
+    fontStyle: 'italic',
+    marginLeft: 8,
   },
 }); 
