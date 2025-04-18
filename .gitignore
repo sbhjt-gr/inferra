@@ -40,3 +40,21 @@ yarn-error.*
 *.tsbuildinfo
 
 app-example
+
+# iOS
+ios/build/
+ios/Pods/
+ios/DerivedData/
+ios/*.xcuserdatad/
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Android
+android/app/build/
+android/build/
+android/.gradle/
+android/local.properties
+android/app/release/
+*.apk
+*.aab
