@@ -1,1 +1,0 @@
-../../../Target Support Files/ReachabilitySwift/ReachabilitySwift-umbrella.h

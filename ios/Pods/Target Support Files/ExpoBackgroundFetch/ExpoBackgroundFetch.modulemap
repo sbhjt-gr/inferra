@@ -1,6 +1,0 @@
-module ExpoBackgroundFetch {
-  umbrella header "ExpoBackgroundFetch-umbrella.h"
-
-  export *
-  module * { export * }
-}

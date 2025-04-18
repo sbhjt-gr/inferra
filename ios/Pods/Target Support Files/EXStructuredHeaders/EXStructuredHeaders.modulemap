@@ -1,6 +1,0 @@
-module EXStructuredHeaders {
-  umbrella header "EXStructuredHeaders-umbrella.h"
-
-  export *
-  module * { export * }
-}

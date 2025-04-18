@@ -1,6 +1,0 @@
-module EXManifests {
-  umbrella header "EXManifests-umbrella.h"
-
-  export *
-  module * { export * }
-}

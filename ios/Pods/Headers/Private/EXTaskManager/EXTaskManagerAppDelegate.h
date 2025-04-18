@@ -1,1 +1,0 @@
-../../../../../node_modules/expo-task-manager/ios/EXTaskManager/EXTaskManagerAppDelegate.h
