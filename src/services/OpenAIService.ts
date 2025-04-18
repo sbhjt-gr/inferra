@@ -125,7 +125,87 @@ export class OpenAIService {
           }
 
           if (!response.body) {
-            throw new Error('Response body is null');
+            console.error('Response body is null - falling back to non-streaming mode');
+            const nonStreamingRequestBody = { ...requestBody };
+            nonStreamingRequestBody.stream = false;
+            
+            console.log('Retrying with non-streaming OpenAI API request...');
+            const fallbackResponse = await fetch(url, {
+              method: 'POST',
+              headers,
+              body: JSON.stringify(nonStreamingRequestBody),
+            });
+            
+            if (!fallbackResponse.ok) {
+              const errorText = await fallbackResponse.text();
+              console.error(`OpenAI API error (${fallbackResponse.status}): ${errorText}`);
+              
+              if (fallbackResponse.status === 429 || errorText.includes("quota") || errorText.includes("rate limit")) {
+                throw new Error("QUOTA_EXCEEDED: Your OpenAI API quota has been exceeded. Please try again later or upgrade your API plan.");
+              }
+              
+              if (fallbackResponse.status === 401) {
+                throw new Error("AUTHENTICATION_ERROR: Invalid API key or authentication error. Please check your API key in Settings.");
+              }
+              
+              throw new Error(`OpenAI API error: ${fallbackResponse.status} - ${errorText}`);
+            }
+            
+            const jsonResponse = await fallbackResponse.json();
+            console.log('OpenAI non-streaming fallback response received');
+            
+            if (jsonResponse.choices && jsonResponse.choices.length > 0) {
+              const choice = jsonResponse.choices[0];
+              
+              if (choice.message && choice.message.content) {
+                const text = choice.message.content;
+                fullResponse = text;
+                tokenCount = text.split(/\s+/).length;
+                
+                if (onToken) {
+                  const simulateWordByWordStreaming = async (text: string): Promise<boolean> => {
+                    const words = text.split(/(\s+|[,.!?;:"])/);
+                    let currentText = '';
+                    
+                    for (const word of words) {
+                      currentText += word;
+                      
+                      const shouldContinue = onToken(currentText);
+                      if (shouldContinue === false) {
+                        return false;
+                      }
+                      
+                      if (word.trim().length > 0) {
+                        if (/[.!?]/.test(word)) {
+                          await new Promise(resolve => setTimeout(resolve, 100));
+                        }
+                        else if (/[,;:]/.test(word)) {
+                          await new Promise(resolve => setTimeout(resolve, 50));
+                        }
+                        else {
+                          const baseDelay = 25;
+                          const randomFactor = Math.random() * 20;
+                          await new Promise(resolve => setTimeout(resolve, baseDelay + randomFactor));
+                        }
+                      }
+                    }
+                    
+                    return true;
+                  };
+                  
+                  await simulateWordByWordStreaming(text);
+                }
+                
+                return {
+                  fullResponse: text,
+                  tokenCount,
+                  startTime
+                };
+              }
+            }
+            
+            console.error("Unexpected response format in fallback:", JSON.stringify(jsonResponse).substring(0, 200) + "...");
+            throw new Error('Failed to extract content from OpenAI API response in fallback mode');
           }
 
           const reader = response.body.getReader();
