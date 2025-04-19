@@ -75,9 +75,55 @@ export default function ChatView({
     const isCurrentlyStreaming = isStreaming && item.id === streamingMessageId;
     const showLoadingIndicator = isCurrentlyStreaming && !streamingMessage;
     
+    let fileAttachment: { name: string; type?: string } | null = null;
+    
+    const processContent = (content: string): string => {
+      try {
+        const parsedMessage = JSON.parse(content);
+        if (parsedMessage && 
+            parsedMessage.type === 'file_upload' && 
+            parsedMessage.internalInstruction) {
+          
+          console.log('Processing JSON Message:', {
+            internalInstruction: parsedMessage.internalInstruction,
+            userContent: parsedMessage.userContent
+          });
+          
+          const match = parsedMessage.internalInstruction.match(/You're reading a file named: (.+?)\n/);
+          if (match && match[1]) {
+            fileAttachment = { 
+              name: match[1],
+              type: match[1].split('.').pop()?.toLowerCase() || 'txt'
+            };
+          }
+          
+          return parsedMessage.userContent || "";
+        }
+      } catch (e) {
+        // Not json
+      }
+      
+      const internalInstructionMatch = content.match(/<INTERNAL_INSTRUCTION>You're reading a file named: (.+?)\n/);
+      if (internalInstructionMatch && internalInstructionMatch[1]) {
+        const internalInstruction = content.match(/<INTERNAL_INSTRUCTION>([\s\S]*?)<\/INTERNAL_INSTRUCTION>/)?.[1] || '';
+        
+        console.log('Processing Tag-based Message:', {
+          internalInstruction,
+          userContent: content.replace(/<INTERNAL_INSTRUCTION>[\s\S]*?<\/INTERNAL_INSTRUCTION>/g, '')
+        });
+        
+        fileAttachment = { 
+          name: internalInstructionMatch[1],
+          type: internalInstructionMatch[1].split('.').pop()?.toLowerCase() || 'txt'
+        };
+      }
+      
+      return content.replace(/<INTERNAL_INSTRUCTION>[\s\S]*?<\/INTERNAL_INSTRUCTION>/g, '');
+    };
+    
     const messageContent = isCurrentlyStreaming 
       ? streamingMessage 
-      : item.content;
+      : processContent(item.content);
       
     const thinkingContent = isCurrentlyStreaming
       ? streamingThinking
@@ -87,6 +133,50 @@ export default function ChatView({
       ? streamingStats
       : item.stats;
       
+    const renderFileAttachment = () => {
+      if (!fileAttachment) return null;
+      
+      const getFileTypeColor = (type?: string): string => {
+        if (!type) return '#aaaaaa';
+        
+        switch(type.toLowerCase()) {
+          case 'pdf': return '#FF5252';
+          case 'doc': case 'docx': return '#2196F3';
+          case 'xls': case 'xlsx': return '#4CAF50';
+          case 'ppt': case 'pptx': return '#FF9800';
+          case 'jpg': case 'jpeg': case 'png': case 'gif': return '#9C27B0';
+          case 'zip': case 'rar': case '7z': return '#795548';
+          case 'js': case 'ts': return '#FFC107';
+          case 'py': return '#3F51B5';
+          case 'html': case 'css': return '#FF5722';
+          default: return '#9E9E9E';
+        }
+      };
+      
+      const fileTypeBgColor = getFileTypeColor(fileAttachment.type);
+      const fileTypeDisplay = fileAttachment.type ? 
+        (fileAttachment.type.length > 4 ? fileAttachment.type.substring(0, 4) : fileAttachment.type).toUpperCase() 
+        : 'FILE';
+      
+      return (
+        <View style={[styles.fileAttachmentWrapper, { alignSelf: 'flex-end' }]}>
+          <View style={[styles.fileAttachment, { backgroundColor: themeColors.borderColor }]}>
+            <View style={[styles.fileTypeIcon, { backgroundColor: fileTypeBgColor }]}>
+              <Text style={styles.fileTypeText}>{fileTypeDisplay}</Text>
+            </View>
+            <View style={styles.fileAttachmentContent}>
+              <Text style={[styles.fileAttachmentName, { color: themeColors.text }]} numberOfLines={1} ellipsizeMode="middle">
+                {fileAttachment.name}
+              </Text>
+              <Text style={[styles.fileAttachmentType, { color: themeColors.secondaryText }]}>
+                File attachment
+              </Text>
+            </View>
+          </View>
+        </View>
+      );
+    };
+    
     return (
       <View style={styles.messageContainer}>
         {item.role === 'assistant' && thinkingContent && (
@@ -121,6 +211,9 @@ export default function ChatView({
             </Text>
           </View>
         )}
+        
+        {item.role === 'user' && fileAttachment && renderFileAttachment()}
+
         <View style={[
           styles.messageCard,
           { 
@@ -158,17 +251,30 @@ export default function ChatView({
               </Text>
             </View>
           ) : !hasMarkdownFormatting(messageContent) ? (
-            <View style={styles.messageContent}>
-              <Text 
-                style={[
-                  styles.messageText,
-                  { color: item.role === 'user' ? '#fff' : themeColors.text }
-                ]}
-                selectable={true}
-              >
-                {messageContent}
-              </Text>
-            </View>
+            messageContent ? (
+              <View style={styles.messageContent}>
+                <Text 
+                  style={[
+                    styles.messageText,
+                    { color: item.role === 'user' ? '#fff' : themeColors.text }
+                  ]}
+                  selectable={true}
+                >
+                  {messageContent}
+                </Text>
+              </View>
+            ) : item.role === 'user' && fileAttachment ? null : (
+              <View style={styles.messageContent}>
+                <Text 
+                  style={[
+                    styles.messageText,
+                    { color: item.role === 'user' ? '#fff' : themeColors.text, fontStyle: 'italic', opacity: 0.7 }
+                  ]}
+                >
+                  {item.role === 'user' ? 'Sent a file' : 'Empty message'}
+                </Text>
+              </View>
+            )
           ) : (
             <View style={styles.markdownWrapper}>
               <Markdown
@@ -494,5 +600,42 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 14,
     fontStyle: 'italic',
+  },
+  fileAttachmentWrapper: {
+    marginBottom: 8,
+    width: '85%',
+  },
+  fileAttachment: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  fileAttachmentContent: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  fileAttachmentName: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  fileAttachmentType: {
+    fontSize: 12,
+    opacity: 0.7,
+    marginTop: 2,
+  },
+  fileTypeIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  fileTypeText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '600',
   },
 }); 

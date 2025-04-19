@@ -55,8 +55,16 @@ export default function ChatInput({
 
   const handleFileUpload = useCallback((content: string, fileName?: string, userPrompt?: string) => {
     const displayName = fileName || "unnamed file";
-    const formattedContent = `<INTERNAL_INSTRUCTION>You're reading a file named: ${displayName}\n\n--- FILE START ---\n${content}\n--- FILE END ---</INTERNAL_INSTRUCTION>\n\n${userPrompt || ''}`;
-    onSend(formattedContent);
+    
+    const internalInstruction = `<INTERNAL_INSTRUCTION>You're reading a file named: ${displayName}\n\n--- FILE START ---\n${content}\n--- FILE END ---</INTERNAL_INSTRUCTION>`;
+    const message = internalInstruction + (userPrompt || '');
+    
+    console.log('File Upload Message:', {
+      internalInstruction,
+      userContent: userPrompt || ''
+    });
+    
+    onSend(message);
   }, [onSend]);
 
   const pickDocument = useCallback(async () => {
