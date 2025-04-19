@@ -11,9 +11,11 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import { useTheme } from '../context/ThemeContext';
+import { useModel } from '../context/ModelContext';
 import { theme } from '../constants/theme';
 import { getThemeAwareColor } from '../utils/ColorUtils';
 import FileViewerModal from './FileViewerModal';
+import { llamaManager } from '../utils/LlamaManager';
 
 type ChatInputProps = {
   onSend: (text: string) => void;
@@ -38,6 +40,7 @@ export default function ChatInput({
   const [selectedFile, setSelectedFile] = useState<{uri: string, name?: string} | null>(null);
   const inputRef = useRef<TextInput>(null);
   const { theme: currentTheme } = useTheme();
+  const { selectedModelPath, isModelLoading } = useModel();
   const themeColors = useMemo(() => theme[currentTheme as 'light' | 'dark'], [currentTheme]);
   const isDark = currentTheme === 'dark';
 
@@ -68,6 +71,15 @@ export default function ChatInput({
   }, [onSend]);
 
   const pickDocument = useCallback(async () => {
+    if (!selectedModelPath || !llamaManager.isInitialized() || isModelLoading) {
+      Alert.alert(
+        'No Model Loaded',
+        'Please load a model before selecting a file to upload.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: '*/*',
@@ -86,7 +98,7 @@ export default function ChatInput({
       console.error('Error picking document:', error);
       Alert.alert('Error', 'Could not pick the document. Please try again.');
     }
-  }, []);
+  }, [selectedModelPath, isModelLoading]);
 
   const closeFileModal = useCallback(() => {
     setFileModalVisible(false);
