@@ -9,6 +9,8 @@ import {
   Text,
   ActivityIndicator,
   ScrollView,
+  TextInput,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system';
@@ -20,7 +22,7 @@ type TextFileViewerModalProps = {
   onClose: () => void;
   filePath: string;
   fileName?: string;
-  onUpload?: (content: string) => void;
+  onUpload?: (content: string, fileName: string, userPrompt: string) => void;
 };
 
 export default function TextFileViewerModal({
@@ -36,6 +38,8 @@ export default function TextFileViewerModal({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState<string>('');
+  const [userPrompt, setUserPrompt] = useState('');
+  const [promptError, setPromptError] = useState(false);
 
   const displayFileName = fileName || filePath.split('/').pop() || "Document";
 
@@ -58,8 +62,15 @@ export default function TextFileViewerModal({
   };
 
   const handleUpload = () => {
+    if (!userPrompt.trim()) {
+      setPromptError(true);
+      return;
+    }
+    
+    setPromptError(false);
+    
     if (onUpload && fileContent) {
-      onUpload(fileContent);
+      onUpload(fileContent, displayFileName, userPrompt.trim());
       onClose();
     }
   };
@@ -69,6 +80,8 @@ export default function TextFileViewerModal({
       setLoading(true);
       setError(null);
       setFileContent('');
+      setUserPrompt('');
+      setPromptError(false);
 
       const readFile = async () => {
         try {
@@ -108,82 +121,124 @@ export default function TextFileViewerModal({
       transparent={false}
       onRequestClose={onClose}
     >
-      <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#121212' : '#fff' }]}>
-        <View style={styles.header}>
-          <Text 
-            style={[
-              styles.fileNameText, 
-              { color: isDark ? '#ffffff' : '#660880' }
-            ]}
-            numberOfLines={1}
-            ellipsizeMode="middle"
-          >
-            {displayFileName}
-          </Text>
-          <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-            <MaterialCommunityIcons 
-              name="close" 
-              size={24} 
-              color={isDark ? '#ffffff' : "#660880"} 
-            />
-          </TouchableOpacity>
-        </View>
-        
-        <View style={[styles.contentContainer, { backgroundColor: isDark ? '#1e1e1e' : '#f5f5f5' }]}>
-          {loading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#660880" />
-              <Text style={[styles.loadingText, { color: isDark ? '#ffffff' : '#333333' }]}>
-                Loading file...
-              </Text>
-            </View>
-          ) : error ? (
-            <View style={styles.errorContainer}>
+      <KeyboardAvoidingView 
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
+      >
+        <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#121212' : '#fff' }]}>
+          <View style={styles.header}>
+            <Text 
+              style={[
+                styles.fileNameText, 
+                { color: isDark ? '#ffffff' : '#660880' }
+              ]}
+              numberOfLines={1}
+              ellipsizeMode="middle"
+            >
+              {displayFileName}
+            </Text>
+            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
               <MaterialCommunityIcons 
-                name="alert-circle-outline" 
-                size={48} 
+                name="close" 
+                size={24} 
                 color={isDark ? '#ffffff' : "#660880"} 
               />
-              <Text style={[styles.errorText, { color: isDark ? '#ffffff' : '#333333' }]}>
-                {error}
-              </Text>
-              <Text style={[styles.infoText, { color: isDark ? '#bbbbbb' : '#666666' }]}>
-                File format: {displayFileName.split('.').pop()?.toUpperCase() || 'Unknown'}
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.fileContentWrapper}>
-              <ScrollView 
-                style={styles.textScrollView}
-                contentContainerStyle={styles.textContentContainer}
-                scrollIndicatorInsets={{ right: 1 }}
-              >
-                <Text 
-                  style={[styles.fileContentText, { color: isDark ? '#e6e6e6' : '#333333' }]}
-                  selectable={true}
-                  textBreakStrategy="simple"
-                >
-                  {fileContent}
+            </TouchableOpacity>
+          </View>
+          
+          <View style={[styles.contentContainer, { backgroundColor: isDark ? '#1e1e1e' : '#f5f5f5' }]}>
+            {loading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#660880" />
+                <Text style={[styles.loadingText, { color: isDark ? '#ffffff' : '#333333' }]}>
+                  Loading file...
                 </Text>
-              </ScrollView>
-              
-              <View style={[styles.uploadButtonContainer, { 
-                backgroundColor: isDark ? '#1a1a1a' : '#ffffff',
-                borderTopColor: isDark ? '#333333' : '#e0e0e0'
-              }]}>
-                <TouchableOpacity
-                  style={[styles.uploadButton, { backgroundColor: '#660880' }]}
-                  onPress={handleUpload}
-                  disabled={!fileContent || loading || !!error}
-                >
-                  <MaterialCommunityIcons name="upload" size={20} color="#ffffff" style={styles.uploadIcon} />
-                  <Text style={styles.uploadButtonText}>Upload to Chat</Text>
-                </TouchableOpacity>
               </View>
-            </View>
-          )}
-        </View>
-      </SafeAreaView>
+            ) : error ? (
+              <View style={styles.errorContainer}>
+                <MaterialCommunityIcons 
+                  name="alert-circle-outline" 
+                  size={48} 
+                  color={isDark ? '#ffffff' : "#660880"} 
+                />
+                <Text style={[styles.errorText, { color: isDark ? '#ffffff' : '#333333' }]}>
+                  {error}
+                </Text>
+                <Text style={[styles.infoText, { color: isDark ? '#bbbbbb' : '#666666' }]}>
+                  File format: {displayFileName.split('.').pop()?.toUpperCase() || 'Unknown'}
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.fileContentWrapper}>
+                <ScrollView 
+                  style={styles.textScrollView}
+                  contentContainerStyle={styles.textContentContainer}
+                  scrollIndicatorInsets={{ right: 1 }}
+                >
+                  <Text 
+                    style={[styles.fileContentText, { color: isDark ? '#e6e6e6' : '#333333' }]}
+                    selectable={true}
+                    textBreakStrategy="simple"
+                  >
+                    {fileContent}
+                  </Text>
+                </ScrollView>
+                
+                <View style={[styles.uploadButtonContainer, { 
+                  backgroundColor: isDark ? '#1a1a1a' : '#ffffff',
+                  borderTopColor: isDark ? '#333333' : '#e0e0e0'
+                }]}>
+                  <View style={styles.promptContainer}>
+                    <Text style={[styles.promptLabel, { color: isDark ? '#ffffff' : '#333333' }]}>
+                      Add your prompt:
+                    </Text>
+                    <TextInput
+                      style={[
+                        styles.promptInput,
+                        { 
+                          color: isDark ? '#ffffff' : '#333333',
+                          backgroundColor: isDark ? '#2a2a2a' : '#f1f1f1',
+                          borderColor: promptError ? '#ff6b6b' : isDark ? '#444444' : '#dddddd'
+                        }
+                      ]}
+                      placeholder="What would you like to ask about this file?"
+                      placeholderTextColor={isDark ? '#888888' : '#999999'}
+                      value={userPrompt}
+                      onChangeText={(text) => {
+                        setUserPrompt(text);
+                        if (text.trim()) setPromptError(false);
+                      }}
+                      multiline={true}
+                      numberOfLines={3}
+                    />
+                    {promptError && (
+                      <Text style={styles.errorPromptText}>
+                        Please enter a prompt before uploading
+                      </Text>
+                    )}
+                  </View>
+                  
+                  <TouchableOpacity
+                    style={[
+                      styles.uploadButton, 
+                      { 
+                        backgroundColor: '#660880',
+                        opacity: !fileContent || loading || !!error ? 0.5 : 1
+                      }
+                    ]}
+                    onPress={handleUpload}
+                    disabled={!fileContent || loading || !!error}
+                  >
+                    <MaterialCommunityIcons name="upload" size={20} color="#ffffff" style={styles.uploadIcon} />
+                    <Text style={styles.uploadButtonText}>Upload to Chat</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+          </View>
+        </SafeAreaView>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -262,6 +317,27 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderTopWidth: 1,
+  },
+  promptContainer: {
+    marginBottom: 12,
+  },
+  promptLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginBottom: 8,
+  },
+  promptInput: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    minHeight: 100,
+    textAlignVertical: 'top',
+  },
+  errorPromptText: {
+    color: '#ff6b6b',
+    fontSize: 12,
+    marginTop: 4,
   },
   uploadButton: {
     flexDirection: 'row',
