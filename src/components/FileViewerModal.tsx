@@ -9,7 +9,7 @@ type FileViewerModalProps = {
   onClose: () => void;
   filePath: string;
   fileName?: string;
-  onUpload?: (content: string) => void;
+  onUpload?: (content: string, fileName: string, userPrompt: string) => void;
 };
 
 export default function FileViewerModal({
@@ -38,6 +38,7 @@ export default function FileViewerModal({
           onClose={onClose}
           pdfSource={filePath}
           fileName={fileName}
+          onUpload={onUpload}
         />
       );
     case 'text':

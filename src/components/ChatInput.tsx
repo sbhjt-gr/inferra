@@ -53,6 +53,12 @@ export default function ChatInput({
     setInputHeight(height);
   };
 
+  const handleFileUpload = (content: string, fileName?: string, userPrompt?: string) => {
+    const displayName = fileName || "unnamed file";
+    const formattedContent = `<INTERNAL_INSTRUCTION>You're reading a file named: ${displayName}\n\n--- FILE START ---\n${content}\n--- FILE END ---</INTERNAL_INSTRUCTION>\n\n${userPrompt || ''}`;
+    onSend(formattedContent);
+  };
+
   const pickDocument = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
@@ -156,6 +162,7 @@ export default function ChatInput({
           onClose={closeFileModal}
           filePath={selectedFile.uri}
           fileName={selectedFile.name}
+          onUpload={handleFileUpload}
         />
       )}
     </View>
