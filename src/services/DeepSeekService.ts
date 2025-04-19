@@ -45,7 +45,7 @@ export class DeepSeekService {
       const temperature = options.temperature ?? 0.7;
       const maxTokens = options.maxTokens ?? 1024;
       const topP = options.topP ?? 0.9;
-      const model = options.model ?? 'deepseek-chat';
+      const model = options.model ?? 'deepseek-reasoner';
       console.log(`Using DeepSeek model: ${model}`);
 
       const formattedMessages = messages.map(msg => ({

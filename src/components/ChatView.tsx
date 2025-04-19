@@ -281,11 +281,47 @@ export default function ChatView({
                 style={{
                   body: {
                     color: item.role === 'user' ? '#fff' : themeColors.text,
-                    fontSize: 16,
-                    lineHeight: 22,
+                    fontSize: 15,
+                    lineHeight: 20,
                   },
                   paragraph: {
                     marginVertical: 0,
+                  },
+                  heading1: {
+                    fontSize: 18,
+                    lineHeight: 24,
+                    fontWeight: '600',
+                    marginVertical: 8,
+                  },
+                  heading2: {
+                    fontSize: 17,
+                    lineHeight: 22,
+                    fontWeight: '600',
+                    marginVertical: 8,
+                  },
+                  heading3: {
+                    fontSize: 16,
+                    lineHeight: 20,
+                    fontWeight: '600',
+                    marginVertical: 8,
+                  },
+                  heading4: {
+                    fontSize: 15,
+                    lineHeight: 20,
+                    fontWeight: '600',
+                    marginVertical: 8,
+                  },
+                  heading5: {
+                    fontSize: 15,
+                    lineHeight: 20,
+                    fontWeight: '600',
+                    marginVertical: 8,
+                  },
+                  heading6: {
+                    fontSize: 15,
+                    lineHeight: 20,
+                    fontWeight: '600',
+                    marginVertical: 8,
                   },
                   code_block: {
                     backgroundColor: '#000',
@@ -294,6 +330,8 @@ export default function ChatView({
                     marginVertical: 8,
                     position: 'relative',
                     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+                    fontSize: 14,
+                    lineHeight: 20,
                   },
                   fence: {
                     backgroundColor: '#000',
@@ -302,6 +340,8 @@ export default function ChatView({
                     marginVertical: 8,
                     position: 'relative',
                     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+                    fontSize: 14,
+                    lineHeight: 20,
                   },
                   code_inline: {
                     color: '#fff',
@@ -314,12 +354,27 @@ export default function ChatView({
                   },
                   text: {
                     color: item.role === 'user' ? '#fff' : themeColors.text,
+                    fontSize: 15,
+                    lineHeight: 20,
                   },
                   fence_text: {
                     color: '#fff',
+                    fontSize: 14,
+                    lineHeight: 20,
                   },
                   code_block_text: {
                     color: '#fff',
+                    fontSize: 14,
+                    lineHeight: 20,
+                  },
+                  list_item: {
+                    marginVertical: 4,
+                  },
+                  bullet_list: {
+                    marginVertical: 8,
+                  },
+                  ordered_list: {
+                    marginVertical: 8,
                   }
                 }}
                 rules={{

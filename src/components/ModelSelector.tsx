@@ -48,10 +48,10 @@ interface ModelSelectorProps {
 }
 
 const ONLINE_MODELS: OnlineModel[] = [
-  { id: 'gemini', name: 'Gemini Pro', provider: 'Google', isOnline: true },
-  { id: 'chatgpt', name: 'GPT-4o', provider: 'OpenAI', isOnline: true },
-  { id: 'deepseek', name: 'DeepSeek Coder', provider: 'DeepSeek', isOnline: true },
-  { id: 'claude', name: 'Claude 3 Opus', provider: 'Anthropic', isOnline: true },
+  { id: 'gemini', name: 'gemini-2.0-flash', provider: 'Google', isOnline: true },
+  { id: 'chatgpt', name: 'gpt-4o', provider: 'OpenAI', isOnline: true },
+  { id: 'deepseek', name: 'deepseek-r1', provider: 'DeepSeek', isOnline: true },
+  { id: 'claude', name: 'claude-3.7-sonnet', provider: 'Anthropic', isOnline: true },
 ];
 
 interface SectionData {
@@ -242,10 +242,10 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     const getModelNameFromPath = (path: string | null, models: StoredModel[]): string => {
       if (!path) return 'Select a Model';
       
-      if (path === 'gemini') return 'Gemini Pro';
-      if (path === 'chatgpt') return 'GPT-4o';
-      if (path === 'deepseek') return 'DeepSeek Coder';
-      if (path === 'claude') return 'Claude 3 Opus';
+      if (path === 'gemini') return 'gemini-2.0-flash';
+      if (path === 'chatgpt') return 'gpt-4o';
+      if (path === 'deepseek') return 'deepseek-r1';
+      if (path === 'claude') return 'claude-3.7-sonnet';
       
       const model = models.find(m => m.path === path);
       return model ? getDisplayName(model.name) : getDisplayName(path.split('/').pop() || '');
@@ -268,14 +268,14 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
             size={28} 
             color={selectedModelPath === item.path ? 
               currentTheme === 'dark' ? '#fff' : getThemeAwareColor('#4a0660', currentTheme) : 
-              themeColors.text} 
+              currentTheme === 'dark' ? '#fff' : themeColors.text} 
           />
         </View>
         <View style={styles.modelInfo}>
           <View style={styles.modelNameRow}>
             <Text style={[
               styles.modelName, 
-              { color: themeColors.text },
+              { color: currentTheme === 'dark' ? '#fff' : themeColors.text },
               selectedModelPath === item.path && { color: currentTheme === 'dark' ? '#fff' : getThemeAwareColor('#4a0660', currentTheme) }
             ]}>
               {getDisplayName(item.name)}
@@ -290,7 +290,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
             </View>
           </View>
           <View style={styles.modelMetaInfo}>
-            <Text style={[styles.modelDetails, { color: themeColors.secondaryText }]}>
+            <Text style={[styles.modelDetails, { color: currentTheme === 'dark' ? '#fff' : themeColors.secondaryText }]}>
               {formatBytes(item.size)}
             </Text>
           </View>
@@ -328,14 +328,14 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
               size={28} 
               color={isSelected || hasApiKey ? 
                 currentTheme === 'dark' ? '#fff' : getThemeAwareColor('#4a0660', currentTheme) : 
-                themeColors.secondaryText} 
+                currentTheme === 'dark' ? '#fff' : themeColors.secondaryText} 
             />
           </View>
           <View style={styles.modelInfo}>
             <View style={styles.modelNameRow}>
               <Text style={[
                 styles.modelName, 
-                { color: themeColors.text },
+                { color: currentTheme === 'dark' ? '#fff' : themeColors.text },
                 isSelected && { color: currentTheme === 'dark' ? '#fff' : getThemeAwareColor('#4a0660', currentTheme) }
               ]}>
                 {item.name}
@@ -363,7 +363,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                   { 
                     color: (isSelected || hasApiKey) ? 
                       currentTheme === 'dark' ? '#fff' : '#4a0660' : 
-                      themeColors.secondaryText 
+                      currentTheme === 'dark' ? '#fff' : themeColors.secondaryText 
                   }
                 ]}>
                   {item.provider}
@@ -404,17 +404,27 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
               { backgroundColor: themeColors.background },
               styles.modelSectionHeader,
               styles.onlineModelsHeader,
-              hasApiKeys && styles.onlineModelsHeaderWithKeys
+              hasApiKeys && styles.onlineModelsHeaderWithKeys,
+              currentTheme === 'dark' && {
+                backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                borderColor: 'rgba(255, 255, 255, 0.2)'
+              }
             ]}
           >
             <View style={styles.sectionHeaderContent}>
-              <Text style={[styles.sectionHeaderText, { color: themeColors.secondaryText }]}>
+              <Text style={[
+                styles.sectionHeaderText, 
+                { color: currentTheme === 'dark' ? '#fff' : themeColors.secondaryText },
+                currentTheme === 'dark' && { opacity: 0.9 }
+              ]}>
                 {section.title}
               </Text>
               <MaterialCommunityIcons 
                 name={isOnlineModelsExpanded ? "chevron-up" : "chevron-down"} 
                 size={24} 
-                color={hasApiKeys ? getThemeAwareColor('#2a8c42', currentTheme) : themeColors.secondaryText} 
+                color={hasApiKeys ? 
+                  currentTheme === 'dark' ? '#5FD584' : getThemeAwareColor('#2a8c42', currentTheme) : 
+                  currentTheme === 'dark' ? '#fff' : themeColors.secondaryText} 
               />
             </View>
           </TouchableOpacity>
@@ -427,17 +437,25 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
           style={[
             styles.sectionHeader, 
             { backgroundColor: themeColors.background },
-            styles.modelSectionHeader
+            styles.modelSectionHeader,
+            currentTheme === 'dark' && {
+              backgroundColor: 'rgba(255, 255, 255, 0.1)',
+              borderColor: 'rgba(255, 255, 255, 0.2)'
+            }
           ]}
         >
           <View style={styles.sectionHeaderContent}>
-            <Text style={[styles.sectionHeaderText, { color: themeColors.secondaryText }]}>
+            <Text style={[
+              styles.sectionHeaderText, 
+              { color: currentTheme === 'dark' ? '#fff' : themeColors.secondaryText },
+              currentTheme === 'dark' && { opacity: 0.9 }
+            ]}>
               {section.title}
             </Text>
             <MaterialCommunityIcons 
               name={isLocalModelsExpanded ? "chevron-up" : "chevron-down"} 
               size={24} 
-              color={themeColors.secondaryText} 
+              color={currentTheme === 'dark' ? '#fff' : themeColors.secondaryText} 
             />
           </View>
         </TouchableOpacity>
@@ -531,16 +549,16 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                   size={24} 
                   color={selectedModelPath ? 
                     getThemeAwareColor('#4a0660', currentTheme) : 
-                    themeColors.text} 
+                    currentTheme === 'dark' ? '#fff' : themeColors.text} 
                 />
               )}
             </View>
             <View style={styles.selectorTextContainer}>
-              <Text style={[styles.selectorLabel, { color: themeColors.secondaryText }]}>
+              <Text style={[styles.selectorLabel, { color: currentTheme === 'dark' ? '#fff' : themeColors.secondaryText }]}>
                 Active Model
               </Text>
               <View style={styles.modelNameContainer}>
-                <Text style={[styles.selectorText, { color: themeColors.text }]}>
+                <Text style={[styles.selectorText, { color: currentTheme === 'dark' ? '#fff' : themeColors.text }]}>
                   {isModelLoading 
                     ? 'Loading...' 
                     : getModelNameFromPath(selectedModelPath, models)
@@ -566,7 +584,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                                 selectedModelPath === 'deepseek' || 
                                 selectedModelPath === 'claude') ? 
                           '#2a8c42' : 
-                          '#4a0660' 
+                          currentTheme === 'dark' ? '#fff' : '#660880' 
                       }
                     ]}>
                       {(selectedModelPath === 'gemini' || 
@@ -593,11 +611,11 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                   size={20} 
                   color={isGenerating ? 
                     getThemeAwareColor('#d32f2f', currentTheme) : 
-                    themeColors.secondaryText} 
+                    currentTheme === 'dark' ? '#fff' : themeColors.secondaryText} 
                 />
               </TouchableOpacity>
             )}
-            <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
+            <MaterialCommunityIcons name="chevron-right" size={20} color={currentTheme === 'dark' ? '#fff' : themeColors.secondaryText} />
           </View>
         </TouchableOpacity>
 
@@ -610,14 +628,14 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
           <View style={styles.modalOverlay}>
             <View style={[styles.modalContent, { backgroundColor: themeColors.background }]}>
               <View style={styles.modalHeader}>
-                <Text style={[styles.modalTitle, { color: themeColors.text }]}>
+                <Text style={[styles.modalTitle, { color: currentTheme === 'dark' ? '#fff' : themeColors.text }]}>
                   Select Model
                 </Text>
                 <TouchableOpacity 
                   onPress={handleModalClose}
                   style={styles.closeButton}
                 >
-                  <MaterialCommunityIcons name="close" size={24} color={themeColors.text} />
+                  <MaterialCommunityIcons name="close" size={24} color={currentTheme === 'dark' ? '#fff' : themeColors.text} />
                 </TouchableOpacity>
               </View>
 
@@ -631,8 +649,8 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                 ListHeaderComponent={
                   models.length === 0 ? (
                     <View style={styles.emptyContainer}>
-                      <MaterialCommunityIcons name="cube-outline" size={48} color={themeColors.secondaryText} />
-                      <Text style={[styles.emptyText, { color: themeColors.text }]}>
+                      <MaterialCommunityIcons name="cube-outline" size={48} color={currentTheme === 'dark' ? '#fff' : themeColors.secondaryText} />
+                      <Text style={[styles.emptyText, { color: currentTheme === 'dark' ? '#fff' : themeColors.text }]}>
                         No local models found. Go to the Models → Download Models screen to download a Model.
                       </Text>
                     </View>
@@ -641,8 +659,8 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                 ListEmptyComponent={
                   sections.length === 0 ? (
                     <View style={styles.emptyContainer}>
-                      <MaterialCommunityIcons name="cube-outline" size={48} color={themeColors.secondaryText} />
-                      <Text style={[styles.emptyText, { color: themeColors.text }]}>
+                      <MaterialCommunityIcons name="cube-outline" size={48} color={currentTheme === 'dark' ? '#fff' : themeColors.secondaryText} />
+                      <Text style={[styles.emptyText, { color: currentTheme === 'dark' ? '#fff' : themeColors.text }]}>
                         No models available. Please check your connection.
                       </Text>
                     </View>

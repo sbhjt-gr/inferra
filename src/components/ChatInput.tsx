@@ -71,10 +71,20 @@ export default function ChatInput({
   }, [onSend]);
 
   const pickDocument = useCallback(async () => {
-    if (!selectedModelPath || !llamaManager.isInitialized() || isModelLoading) {
+    if (!selectedModelPath) {
       Alert.alert(
-        'No Model Loaded',
-        'Please load a model before selecting a file to upload.',
+        'No Model Selected',
+        'Please select a model before uploading a file.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude'].includes(selectedModelPath);
+    if (!isOnlineModel && (!llamaManager.isInitialized() || isModelLoading)) {
+      Alert.alert(
+        'Model Not Ready',
+        'Please wait for the local model to finish loading before uploading a file.',
         [{ text: 'OK' }]
       );
       return;
