@@ -108,7 +108,7 @@ export const extractPdfPages = async (
           const page = await PdfPageImage.generate(formattedPdfPath, pageIndex, 2.0);
           console.log(`Page ${i+1} extracted:`, page.uri);
           
-          setExtractionProgress(`Saving page ${i+1} image...`);
+          setExtractionProgress(`Pre-processing page ${i+1} of ${pagesToProcess} locally...`);
           const persistentUri = await copyImageToPersistentStorage(page.uri);
           copiedImageUris.push(persistentUri);
           
@@ -151,7 +151,7 @@ export const extractPdfPages = async (
               const page = await PdfPageImage.generate(formattedPdfPath, pageIndex, 2.0);
               console.log('Single page extraction successful with index 0:', page.uri);
               
-              setExtractionProgress('Saving single page image...');
+              setExtractionProgress('Processing single page...');
               const persistentUri = await copyImageToPersistentStorage(page.uri);
               copiedImageUris.push(persistentUri);
               
@@ -165,7 +165,7 @@ export const extractPdfPages = async (
               const page = await PdfPageImage.generate(formattedPdfPath, 1, 2.0);
               console.log('Single page extraction successful with index 1:', page.uri);
               
-              setExtractionProgress('Saving single page image...');
+              setExtractionProgress('Processing single page...');
               const persistentUri = await copyImageToPersistentStorage(page.uri);
               copiedImageUris.push(persistentUri);
               
@@ -261,7 +261,7 @@ export const performOCROnPages = async (
   setExtractionProgress: ExtractionProgress
 ): Promise<string> => {
   try {
-    setExtractionProgress('Preparing for text recognition...');
+    setExtractionProgress('Processing PDF...');
     console.log('Starting OCR on', pages.length, 'pages');
     
     if (pages.length === 0) {
@@ -298,7 +298,7 @@ export const performOCROnPages = async (
         
         console.log(`OCR - Image exists, size: ${fileInfo.size} bytes`);
         
-        setExtractionProgress(`Analyzing text on page ${actualPageNumber}...`);
+        setExtractionProgress(`Processing page ${actualPageNumber}...`);
         console.log(`OCR - Starting text recognition for page ${actualPageNumber}`);
         
         const recognitionResult = await TextRecognition.recognize(imageUri);
@@ -352,7 +352,7 @@ export const cleanupTempFiles = async (tempFileUris: string[]): Promise<void> =>
 
 export const formatExtractedContent = (extractedText: string): string => {
   if (!extractedText || extractedText.trim().length < 20) {
-    return "[No significant text was extracted from this PDF. It may contain primarily images or formatting that couldn't be processed.]";
+    return "[No significant content was found in this PDF. It may contain only images or formatting that can't be processed.]";
   }
   
   let formattedText = extractedText;

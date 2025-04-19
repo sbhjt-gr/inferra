@@ -122,11 +122,11 @@ export default function PDFViewerModal({
     
     let progressTimer: NodeJS.Timeout | null = null;
     const progressMessages = [
-      "Preparing for text recognition...",
-      "Processing PDF content...",
-      "Analyzing text in document...",
-      "Extracting semantic information...",
-      "Preparing content for analysis...",
+      "Preparing...",
+      "Processing PDF...",
+      "Processing PDF...",
+      "Processing PDF...",
+      "Processing PDF...",
       "Almost done..."
     ];
     
@@ -272,7 +272,7 @@ export default function PDFViewerModal({
           <>
             <ActivityIndicator size="small" color="#ffffff" style={styles.uploadIcon} />
             <Text style={styles.uploadButtonText}>
-              {extractionProgress || "Analyzing text..."}
+              {extractionProgress || "Processing..."}
             </Text>
           </>
         ) : (
