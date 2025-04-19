@@ -13,7 +13,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import { getThemeAwareColor } from '../utils/ColorUtils';
-import PDFViewerModal from './PDFViewerModal';
+import FileViewerModal from './FileViewerModal';
 
 type ChatInputProps = {
   onSend: (text: string) => void;
@@ -34,8 +34,8 @@ export default function ChatInput({
 }: ChatInputProps) {
   const [text, setText] = useState('');
   const [inputHeight, setInputHeight] = useState(48);
-  const [pdfModalVisible, setPdfModalVisible] = useState(false);
-  const [selectedPdfUri, setSelectedPdfUri] = useState<string | null>(null);
+  const [fileModalVisible, setFileModalVisible] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<{uri: string, name?: string} | null>(null);
   const inputRef = useRef<TextInput>(null);
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
@@ -53,17 +53,20 @@ export default function ChatInput({
     setInputHeight(height);
   };
 
-  const pickPdfDocument = async () => {
+  const pickDocument = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: 'application/pdf',
+        type: '*/*',
         copyToCacheDirectory: true,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        const pdfUri = result.assets[0].uri;
-        setSelectedPdfUri(pdfUri);
-        setPdfModalVisible(true);
+        const file = result.assets[0];
+        setSelectedFile({
+          uri: file.uri,
+          name: file.name
+        });
+        setFileModalVisible(true);
       }
     } catch (error) {
       console.error('Error picking document:', error);
@@ -71,15 +74,15 @@ export default function ChatInput({
     }
   };
 
-  const closePdfModal = () => {
-    setPdfModalVisible(false);
+  const closeFileModal = () => {
+    setFileModalVisible(false);
   };
 
   return (
     <View style={[styles.container, style]}>
       <TouchableOpacity 
         style={styles.attachmentButton} 
-        onPress={pickPdfDocument}
+        onPress={pickDocument}
         disabled={disabled}
       >
         <MaterialCommunityIcons 
@@ -147,11 +150,12 @@ export default function ChatInput({
         </TouchableOpacity>
       )}
 
-      {selectedPdfUri && (
-        <PDFViewerModal
-          visible={pdfModalVisible}
-          onClose={closePdfModal}
-          pdfSource={selectedPdfUri}
+      {selectedFile && (
+        <FileViewerModal
+          visible={fileModalVisible}
+          onClose={closeFileModal}
+          filePath={selectedFile.uri}
+          fileName={selectedFile.name}
         />
       )}
     </View>
