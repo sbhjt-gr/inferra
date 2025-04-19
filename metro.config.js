@@ -21,7 +21,8 @@ defaultConfig.resolver.assetExts.push(
   'JPEG',
   'PNG',
   'GIF',
-  'WEBP'
+  'WEBP',
+  'pdf'
 );
 
 defaultConfig.transformer.getTransformOptions = async () => ({

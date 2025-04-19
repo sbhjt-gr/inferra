@@ -6,11 +6,14 @@ import {
   TouchableOpacity,
   Platform,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import * as DocumentPicker from 'expo-document-picker';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import { getThemeAwareColor } from '../utils/ColorUtils';
+import PDFViewerModal from './PDFViewerModal';
 
 type ChatInputProps = {
   onSend: (text: string) => void;
@@ -31,6 +34,8 @@ export default function ChatInput({
 }: ChatInputProps) {
   const [text, setText] = useState('');
   const [inputHeight, setInputHeight] = useState(48);
+  const [pdfModalVisible, setPdfModalVisible] = useState(false);
+  const [selectedPdfUri, setSelectedPdfUri] = useState<string | null>(null);
   const inputRef = useRef<TextInput>(null);
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
@@ -48,30 +53,62 @@ export default function ChatInput({
     setInputHeight(height);
   };
 
+  const pickPdfDocument = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: 'application/pdf',
+        copyToCacheDirectory: true,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const pdfUri = result.assets[0].uri;
+        setSelectedPdfUri(pdfUri);
+        setPdfModalVisible(true);
+      }
+    } catch (error) {
+      console.error('Error picking document:', error);
+      Alert.alert('Error', 'Could not pick the document. Please try again.');
+    }
+  };
+
+  const closePdfModal = () => {
+    setPdfModalVisible(false);
+  };
+
   return (
     <View style={[styles.container, style]}>
-      <View style={[
-        styles.inputWrapper,
-        isDark && { backgroundColor: 'rgba(255, 255, 255, 0.1)' },
-        { height: inputHeight }
-      ]}>
+      <TouchableOpacity 
+        style={styles.attachmentButton} 
+        onPress={pickPdfDocument}
+        disabled={disabled}
+      >
+        <MaterialCommunityIcons 
+          name="attachment" 
+          size={24} 
+          color={isDark ? '#ffffff' : "#660880"} 
+        />
+      </TouchableOpacity>
+
+      <View style={styles.inputContainer}>
         <TextInput
           ref={inputRef}
           style={[
             styles.input,
-            isDark && { color: '#fff' },
+            {
+              height: inputHeight,
+              color: isDark ? '#fff' : '#000',
+              backgroundColor: isDark ? '#2a2a2a' : '#f1f1f1',
+            },
           ]}
+          placeholder="Type a message..."
+          placeholderTextColor={placeholderColor}
           value={text}
           onChangeText={setText}
-          placeholder="Send a message..."
-          placeholderTextColor={placeholderColor}
-          multiline
-          editable={!disabled}
-          textAlignVertical="center"
-          returnKeyType="default"
-          blurOnSubmit={false}
           onContentSizeChange={handleContentSizeChange}
-          keyboardAppearance={isDark ? 'dark' : 'light'}
+          multiline
+          maxLength={10000}
+          editable={!disabled}
+          returnKeyType="default"
         />
       </View>
       
@@ -109,6 +146,14 @@ export default function ChatInput({
           />
         </TouchableOpacity>
       )}
+
+      {selectedPdfUri && (
+        <PDFViewerModal
+          visible={pdfModalVisible}
+          onClose={closePdfModal}
+          pdfSource={selectedPdfUri}
+        />
+      )}
     </View>
   );
 }
@@ -117,51 +162,53 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 4,
     paddingVertical: 8,
-    backgroundColor: 'transparent',
-    width: '100%',
+    paddingHorizontal: 10,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0, 0, 0, 0.1)',
   },
-  inputWrapper: {
+  inputContainer: {
     flex: 1,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 24,
+    borderRadius: 20,
     marginRight: 8,
-    paddingHorizontal: 16,
-    minHeight: 48,
-    justifyContent: 'center',
-    marginHorizontal: 12,
+    overflow: 'hidden',
   },
   input: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     fontSize: 16,
-    color: '#000',
-    paddingVertical: 4,
+    borderRadius: 20,
+    minHeight: 48,
   },
   sendButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
-    backgroundColor: 'transparent',
-    marginRight: 8,
+    justifyContent: 'center',
   },
   sendButtonDisabled: {
-    opacity: 0.6,
+    opacity: 0.5,
   },
   loadingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginRight: 8,
   },
   loadingIndicator: {
-    marginRight: 12,
+    marginRight: 8,
   },
   cancelButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
+    width: 40,
+    height: 40,
     alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 20,
+  },
+  attachmentButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
   },
 }); 
