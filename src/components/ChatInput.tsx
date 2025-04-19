@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo, useCallback } from 'react';
 import {
   StyleSheet,
   View,
@@ -38,28 +38,28 @@ export default function ChatInput({
   const [selectedFile, setSelectedFile] = useState<{uri: string, name?: string} | null>(null);
   const inputRef = useRef<TextInput>(null);
   const { theme: currentTheme } = useTheme();
-  const themeColors = theme[currentTheme as 'light' | 'dark'];
+  const themeColors = useMemo(() => theme[currentTheme as 'light' | 'dark'], [currentTheme]);
   const isDark = currentTheme === 'dark';
 
-  const handleSend = () => {
+  const handleSend = useCallback(() => {
     if (!text.trim()) return;
     onSend(text);
     setText('');
     setInputHeight(48);
-  };
+  }, [text, onSend]);
 
-  const handleContentSizeChange = (event: any) => {
+  const handleContentSizeChange = useCallback((event: any) => {
     const height = Math.min(120, Math.max(48, event.nativeEvent.contentSize.height));
     setInputHeight(height);
-  };
+  }, []);
 
-  const handleFileUpload = (content: string, fileName?: string, userPrompt?: string) => {
+  const handleFileUpload = useCallback((content: string, fileName?: string, userPrompt?: string) => {
     const displayName = fileName || "unnamed file";
     const formattedContent = `<INTERNAL_INSTRUCTION>You're reading a file named: ${displayName}\n\n--- FILE START ---\n${content}\n--- FILE END ---</INTERNAL_INSTRUCTION>\n\n${userPrompt || ''}`;
     onSend(formattedContent);
-  };
+  }, [onSend]);
 
-  const pickDocument = async () => {
+  const pickDocument = useCallback(async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: '*/*',
@@ -78,11 +78,33 @@ export default function ChatInput({
       console.error('Error picking document:', error);
       Alert.alert('Error', 'Could not pick the document. Please try again.');
     }
-  };
+  }, []);
 
-  const closeFileModal = () => {
+  const closeFileModal = useCallback(() => {
     setFileModalVisible(false);
-  };
+  }, []);
+
+  const inputContainerStyle = useMemo(() => [
+    styles.input,
+    {
+      height: inputHeight,
+      color: isDark ? '#fff' : '#000',
+      backgroundColor: isDark ? '#2a2a2a' : '#f1f1f1',
+    },
+  ], [inputHeight, isDark]);
+
+  const sendButtonStyle = useMemo(() => [
+    styles.sendButton,
+    !text.trim() && styles.sendButtonDisabled
+  ], [text]);
+
+  const sendButtonColor = useMemo(() => 
+    text.trim() ? getThemeAwareColor('#660880', currentTheme) : isDark ? themeColors.secondaryText : '#999'
+  , [text, currentTheme, isDark, themeColors.secondaryText]);
+
+  const attachmentIconColor = useMemo(() => 
+    isDark ? '#ffffff' : "#660880"
+  , [isDark]);
 
   return (
     <View style={[styles.container, style]}>
@@ -94,21 +116,14 @@ export default function ChatInput({
         <MaterialCommunityIcons 
           name="attachment" 
           size={24} 
-          color={isDark ? '#ffffff' : "#660880"} 
+          color={attachmentIconColor} 
         />
       </TouchableOpacity>
 
       <View style={styles.inputContainer}>
         <TextInput
           ref={inputRef}
-          style={[
-            styles.input,
-            {
-              height: inputHeight,
-              color: isDark ? '#fff' : '#000',
-              backgroundColor: isDark ? '#2a2a2a' : '#f1f1f1',
-            },
-          ]}
+          style={inputContainerStyle}
           placeholder="Type a message..."
           placeholderTextColor={placeholderColor}
           value={text}
@@ -135,23 +150,20 @@ export default function ChatInput({
             <MaterialCommunityIcons 
               name="close" 
               size={24} 
-              color={isDark ? '#ffffff' : "#660880"} 
+              color={attachmentIconColor} 
             />
           </TouchableOpacity>
         </View>
       ) : (
         <TouchableOpacity 
-          style={[
-            styles.sendButton,
-            !text.trim() && styles.sendButtonDisabled
-          ]} 
+          style={sendButtonStyle} 
           onPress={handleSend}
           disabled={!text.trim() || disabled}
         >
           <MaterialCommunityIcons 
             name="send" 
             size={24} 
-            color={text.trim() ? getThemeAwareColor('#660880', currentTheme) : isDark ? themeColors.secondaryText : '#999'} 
+            color={sendButtonColor} 
           />
         </TouchableOpacity>
       )}

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import {
   StyleSheet,
   Platform,
@@ -33,6 +33,29 @@ import ChatView, { Message } from '../components/ChatView';
 import ChatInput from '../components/ChatInput';
 import { onlineModelService } from '../services/OnlineModelService';
 import { useModel } from '../context/ModelContext';
+
+function debounce<T extends (...args: any[]) => any>(func: T, wait: number) {
+  let timeout: NodeJS.Timeout | null = null;
+
+  const debounced = (...args: Parameters<T>) => {
+    if (timeout !== null) {
+      clearTimeout(timeout);
+    }
+    timeout = setTimeout(() => {
+      func(...args);
+      timeout = null;
+    }, wait);
+  };
+
+  debounced.cancel = () => {
+    if (timeout !== null) {
+      clearTimeout(timeout);
+      timeout = null;
+    }
+  };
+
+  return debounced;
+}
 
 type HomeScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList>;
@@ -71,6 +94,26 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   const [activeProvider, setActiveProvider] = useState<'local' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude' | null>(null);
   const { loadModel, unloadModel, setSelectedModelPath } = useModel();
 
+  const saveMessagesDebounced = useRef(debounce(async (messages: ChatMessage[]) => {
+    if (chat) {
+      await chatManager.updateChatMessages(chat.id, messages);
+    }
+  }, 500)).current;
+
+  const updateMessageContentDebounced = useRef(debounce((
+    messageId: string, 
+    content: string, 
+    thinking: string, 
+    stats: { duration: number; tokens: number }
+  ) => {
+    chatManager.updateMessageContent(
+      messageId,
+      content,
+      thinking,
+      stats
+    );
+  }, 300)).current;
+
   useFocusEffect(
     useCallback(() => {
       modelSelectorRef.current?.refreshModels();
@@ -108,11 +151,13 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
 
   useEffect(() => {
     return () => {
+      saveMessagesDebounced.cancel();
+      updateMessageContentDebounced.cancel();
       if (copyToastTimeoutRef.current) {
         clearTimeout(copyToastTimeoutRef.current);
       }
     };
-  }, []);
+  }, [saveMessagesDebounced, updateMessageContentDebounced]);
 
   useEffect(() => {
     const checkSystemMemory = async () => {
@@ -180,10 +225,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   }, []);
 
   const saveMessages = useCallback(async (newMessages: ChatMessage[]) => {
-    if (chat) {
-      await chatManager.updateChatMessages(chat.id, newMessages);
-    }
-  }, [chat]);
+    saveMessagesDebounced(newMessages);
+  }, [saveMessagesDebounced, chat]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', nextAppState => {
@@ -396,8 +439,43 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       let thinking = '';
       let isThinking = false;
       cancelGenerationRef.current = false;
+      
+      let updateCounter = 0;
 
       if (isOnlineModel) {
+        const streamCallback = (partialResponse: string) => {
+          if (cancelGenerationRef.current) {
+            return false;
+          }
+          
+          tokenCount = partialResponse.split(/\s+/).length;
+          fullResponse = partialResponse;
+          
+          setStreamingMessage(partialResponse);
+          setStreamingStats({
+            tokens: tokenCount,
+            duration: (Date.now() - startTime) / 1000
+          });
+          
+          updateCounter++;
+          if (updateCounter % 10 === 0 || 
+              partialResponse.endsWith('.') || 
+              partialResponse.endsWith('!') || 
+              partialResponse.endsWith('?')) {
+            updateMessageContentDebounced(
+              messageId,
+              partialResponse,
+              '',
+              {
+                duration: (Date.now() - startTime) / 1000,
+                tokens: tokenCount,
+              }
+            );
+          }
+          
+          return !cancelGenerationRef.current;
+        };
+
         if (activeProvider === 'gemini') {
           try {
             await onlineModelService.sendMessageToGemini(
@@ -415,34 +493,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                 stream: true,
                 streamTokens: true
               },
-              (partialResponse) => {
-                if (cancelGenerationRef.current) {
-                  return false;
-                }
-                
-                tokenCount = partialResponse.split(/\s+/).length;
-                fullResponse = partialResponse;
-                
-                setStreamingMessage(partialResponse);
-                setStreamingStats({
-                  tokens: tokenCount,
-                  duration: (Date.now() - startTime) / 1000
-                });
-                
-                if (tokenCount % 5 === 0 || partialResponse.endsWith('.') || partialResponse.endsWith('!') || partialResponse.endsWith('?')) {
-                  chatManager.updateMessageContent(
-                    messageId,
-                    partialResponse,
-                    '',
-                    {
-                      duration: (Date.now() - startTime) / 1000,
-                      tokens: tokenCount,
-                    }
-                  );
-                }
-                
-                return !cancelGenerationRef.current;
-              }
+              streamCallback
             );
             
             if (!cancelGenerationRef.current) {
@@ -486,34 +537,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                 stream: true,
                 streamTokens: true
               },
-              (partialResponse) => {
-                if (cancelGenerationRef.current) {
-                  return false;
-                }
-                
-                tokenCount = partialResponse.split(/\s+/).length;
-                fullResponse = partialResponse;
-                
-                setStreamingMessage(partialResponse);
-                setStreamingStats({
-                  tokens: tokenCount,
-                  duration: (Date.now() - startTime) / 1000
-                });
-                
-                if (tokenCount % 5 === 0 || partialResponse.endsWith('.') || partialResponse.endsWith('!') || partialResponse.endsWith('?')) {
-                  chatManager.updateMessageContent(
-                    messageId,
-                    partialResponse,
-                    '',
-                    {
-                      duration: (Date.now() - startTime) / 1000,
-                      tokens: tokenCount,
-                    }
-                  );
-                }
-                
-                return !cancelGenerationRef.current;
-              }
+              streamCallback
             );
             
             if (!cancelGenerationRef.current) {
@@ -557,34 +581,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                 stream: true,
                 streamTokens: true
               },
-              (partialResponse) => {
-                if (cancelGenerationRef.current) {
-                  return false;
-                }
-                
-                tokenCount = partialResponse.split(/\s+/).length;
-                fullResponse = partialResponse;
-                
-                setStreamingMessage(partialResponse);
-                setStreamingStats({
-                  tokens: tokenCount,
-                  duration: (Date.now() - startTime) / 1000
-                });
-                
-                if (tokenCount % 5 === 0 || partialResponse.endsWith('.') || partialResponse.endsWith('!') || partialResponse.endsWith('?')) {
-                  chatManager.updateMessageContent(
-                    messageId,
-                    partialResponse,
-                    '',
-                    {
-                      duration: (Date.now() - startTime) / 1000,
-                      tokens: tokenCount,
-                    }
-                  );
-                }
-                
-                return !cancelGenerationRef.current;
-              }
+              streamCallback
             );
             
             if (!cancelGenerationRef.current) {
@@ -628,34 +625,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                 stream: true,
                 streamTokens: true
               },
-              (partialResponse) => {
-                if (cancelGenerationRef.current) {
-                  return false;
-                }
-                
-                tokenCount = partialResponse.split(/\s+/).length;
-                fullResponse = partialResponse;
-                
-                setStreamingMessage(partialResponse);
-                setStreamingStats({
-                  tokens: tokenCount,
-                  duration: (Date.now() - startTime) / 1000
-                });
-                
-                if (tokenCount % 5 === 0 || partialResponse.endsWith('.') || partialResponse.endsWith('!') || partialResponse.endsWith('?')) {
-                  chatManager.updateMessageContent(
-                    messageId,
-                    partialResponse,
-                    '',
-                    {
-                      duration: (Date.now() - startTime) / 1000,
-                      tokens: tokenCount,
-                    }
-                  );
-                }
-                
-                return !cancelGenerationRef.current;
-              }
+              streamCallback
             );
             
             if (!cancelGenerationRef.current) {
@@ -716,7 +686,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
               setStreamingThinking(thinking.trim());
             } else {
               fullResponse += token;
-              
               setStreamingMessage(fullResponse);
             }
             
@@ -725,8 +694,9 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
               duration: (Date.now() - startTime) / 1000
             });
             
-            if (tokenCount % 10 === 0) {
-              await chatManager.updateMessageContent(
+            updateCounter++;
+            if (updateCounter % 20 === 0) {
+              updateMessageContentDebounced(
                 messageId,
                 fullResponse,
                 thinking.trim(),
@@ -896,7 +866,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
               
               const finalMessages = [...newMessages, finalMessage];
               setMessages(finalMessages);
-              await saveMessages(finalMessages);
+              saveMessages(finalMessages);
             }
           } catch (error) {
             handleApiError(error, 'Gemini');
@@ -965,7 +935,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
               
               const finalMessages = [...newMessages, finalMessage];
               setMessages(finalMessages);
-              await saveMessages(finalMessages);
+              saveMessages(finalMessages);
             }
           } catch (error) {
             handleApiError(error, 'OpenAI');
@@ -1034,7 +1004,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
               
               const finalMessages = [...newMessages, finalMessage];
               setMessages(finalMessages);
-              await saveMessages(finalMessages);
+              saveMessages(finalMessages);
             }
           } catch (error) {
             handleApiError(error, 'DeepSeek');
@@ -1103,7 +1073,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
               
               const finalMessages = [...newMessages, finalMessage];
               setMessages(finalMessages);
-              await saveMessages(finalMessages);
+              saveMessages(finalMessages);
             }
           } catch (error) {
             handleApiError(error, 'Claude');
@@ -1121,7 +1091,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
           
           const finalMessages = [...newMessages, finalMessage];
           setMessages(finalMessages);
-          await saveMessages(finalMessages);
+          saveMessages(finalMessages);
         }
       } else {
         await llamaManager.generateResponse(
