@@ -138,7 +138,7 @@ export default function PDFViewerModal({
       
       setPageCount(pdfInfo.pageCount);
       
-      const pagesToProcess = Math.max(0, pdfInfo.pageCount - 1);
+      const pagesToProcess = pdfInfo.pageCount;
       console.log(`Processing PDF with ${pdfInfo.pageCount} reported pages, accessing pages 1-${pagesToProcess}`);
       
       setExtractionProgress(`Extracting ${pagesToProcess} pages as images...`);
@@ -147,23 +147,21 @@ export default function PDFViewerModal({
       let copiedImageUris: string[] = [];
       
       if (Platform.OS === 'android') {
-        // Android uses one-by-one page extraction to avoid memory issues
-        // Important: PdfPageImage uses 1-based indexing for page numbers
         for (let i = 0; i < pagesToProcess; i++) {
-          const pageIndex = i + 1; // Convert 0-based index to 1-based for API
-          setExtractionProgress(`Extracting page ${pageIndex} of ${pagesToProcess}...`);
+          const pageIndex = i;
+          setExtractionProgress(`Extracting page ${i+1} of ${pagesToProcess}...`);
           
-          if (pageIndex > pagesToProcess) {
+          if (pageIndex >= pagesToProcess) {
             console.warn(`Skipping page ${pageIndex} as it exceeds accessible page count ${pagesToProcess}`);
             continue;
           }
           
           try {
-            console.log(`Attempting to extract page ${pageIndex}`);
+            console.log(`Attempting to extract page ${i+1} (index ${pageIndex})`);
             const page = await PdfPageImage.generate(formattedPdfPath, pageIndex, 2.0);
-            console.log(`Page ${pageIndex} extracted:`, page.uri);
+            console.log(`Page ${i+1} extracted:`, page.uri);
             
-            setExtractionProgress(`Saving page ${pageIndex} image...`);
+            setExtractionProgress(`Saving page ${i+1} image...`);
             const persistentUri = await copyImageToPersistentStorage(page.uri);
             copiedImageUris.push(persistentUri);
             
@@ -172,32 +170,115 @@ export default function PDFViewerModal({
               uri: persistentUri
             });
           } catch (err) {
-            console.error(`Error extracting page ${pageIndex}:`, err);
+            console.error(`Error extracting page ${i+1} (index ${pageIndex}):`, err);
+            
+            try {
+              console.log(`Retry with 1-based index (${i+1})`);
+              const alternatePage = await PdfPageImage.generate(formattedPdfPath, i+1, 2.0);
+              console.log(`Page extracted with alternate index:`, alternatePage.uri);
+              
+              setExtractionProgress(`Saving page with alternate index...`);
+              const persistentUri = await copyImageToPersistentStorage(alternatePage.uri);
+              copiedImageUris.push(persistentUri);
+              
+              extractedPageImages.push({
+                ...alternatePage,
+                uri: persistentUri
+              });
+            } catch (retryErr) {
+              console.error(`Error on retry:`, retryErr);
+            }
           }
         }
       } else {
         try {
           console.log('Generating all pages at once for iOS');
-          const pages = await PdfPageImage.generateAllPages(formattedPdfPath, 2.0);
           
-          console.log(`Extracted ${pages.length} pages from iOS bulk extraction`);
-          
-          if (pages.length !== pagesToProcess) {
-            console.warn(`Warning: Expected ${pagesToProcess} pages but got ${pages.length} pages`);
-          }
-          
-          for (let i = 0; i < pages.length; i++) {
-            setExtractionProgress(`Saving page ${i+1} of ${pages.length}...`);
-            const persistentUri = await copyImageToPersistentStorage(pages[i].uri);
-            copiedImageUris.push(persistentUri);
-            
-            extractedPageImages.push({
-              ...pages[i],
-              uri: persistentUri
-            });
+          if (pagesToProcess === 1) {
+            console.log('Single page PDF detected, using direct page generation');
+            try {
+              const pageIndex = 0;
+              console.log(`Trying to extract with page index ${pageIndex}`);
+              
+              try {
+                const page = await PdfPageImage.generate(formattedPdfPath, pageIndex, 2.0);
+                console.log('Single page extraction successful with index 0:', page.uri);
+                
+                setExtractionProgress('Saving single page image...');
+                const persistentUri = await copyImageToPersistentStorage(page.uri);
+                copiedImageUris.push(persistentUri);
+                
+                extractedPageImages.push({
+                  ...page,
+                  uri: persistentUri
+                });
+              } catch (index0Err) {
+                console.error('Error extracting with index 0, trying index 1:', index0Err);
+                
+                const page = await PdfPageImage.generate(formattedPdfPath, 1, 2.0);
+                console.log('Single page extraction successful with index 1:', page.uri);
+                
+                setExtractionProgress('Saving single page image...');
+                const persistentUri = await copyImageToPersistentStorage(page.uri);
+                copiedImageUris.push(persistentUri);
+                
+                extractedPageImages.push({
+                  ...page,
+                  uri: persistentUri
+                });
+              }
+            } catch (singlePageErr) {
+              console.error('Error extracting single page after retry:', singlePageErr);
+              throw new Error('Failed to extract the single page from PDF.');
+            }
+          } else {
+            try {
+              const pages = await PdfPageImage.generateAllPages(formattedPdfPath, 2.0);
+              
+              console.log(`Extracted ${pages.length} pages from iOS bulk extraction`);
+              
+              if (pages.length !== pagesToProcess) {
+                console.warn(`Warning: Expected ${pagesToProcess} pages but got ${pages.length} pages`);
+              }
+              
+              for (let i = 0; i < pages.length; i++) {
+                setExtractionProgress(`Saving page ${i+1} of ${pages.length}...`);
+                const persistentUri = await copyImageToPersistentStorage(pages[i].uri);
+                copiedImageUris.push(persistentUri);
+                
+                extractedPageImages.push({
+                  ...pages[i],
+                  uri: persistentUri
+                });
+              }
+            } catch (bulkErr) {
+              console.error('Bulk extraction failed, falling back to page-by-page:', bulkErr);
+              
+              for (let i = 0; i < pagesToProcess; i++) {
+                const pageIndex = i;
+                setExtractionProgress(`Extracting page ${i+1} of ${pagesToProcess}...`);
+                
+                try {
+                  console.log(`Attempting to extract page ${i+1} with index ${pageIndex}`);
+                  const page = await PdfPageImage.generate(formattedPdfPath, pageIndex, 2.0);
+                  console.log(`Page ${i+1} extracted:`, page.uri);
+                  
+                  setExtractionProgress(`Saving page ${i+1} image...`);
+                  const persistentUri = await copyImageToPersistentStorage(page.uri);
+                  copiedImageUris.push(persistentUri);
+                  
+                  extractedPageImages.push({
+                    ...page,
+                    uri: persistentUri
+                  });
+                } catch (pageErr) {
+                  console.error(`Error extracting page ${i+1}:`, pageErr);
+                }
+              }
+            }
           }
         } catch (err) {
-          console.error('Error generating all pages:', err);
+          console.error('Error generating pages:', err);
         }
       }
       
@@ -316,8 +397,8 @@ export default function PDFViewerModal({
       console.log('Attempting to upload with extracted content');
       
       if (onUpload && typeof onUpload === 'function') {
-        console.log('Using onUpload with extracted content');
-        onUpload(extractedText || '', fileName, userPromptText);
+        console.log('Using onUpload with extracted content, text length:', extractedText?.length || 0);
+        onUpload(extractedText || '', fileName, userPromptText, pdfPath);
         return true;
       } else {
         console.warn('No onUpload function provided, using fallback...');
@@ -560,15 +641,22 @@ export default function PDFViewerModal({
     
     if (!formattedText.includes('--- Page') && !formattedText.includes('Page')) {
       const lines = formattedText.split('\n');
-      const pageSize = Math.ceil(lines.length / 3);
+      
+      const numPages = lines.length < 3 ? lines.length : 3;
+      const pageSize = numPages > 0 ? Math.ceil(lines.length / numPages) : 1;
       
       let result = '';
-      for (let i = 0; i < Math.min(3, Math.ceil(lines.length / pageSize)); i++) {
-        const pageLines = lines.slice(i * pageSize, (i + 1) * pageSize);
-        result += `--- Page ${i+1} ---\n${pageLines.join('\n')}\n\n`;
+      for (let i = 0; i < numPages; i++) {
+        const startIndex = i * pageSize;
+        const endIndex = Math.min((i + 1) * pageSize, lines.length);
+        const pageLines = lines.slice(startIndex, endIndex);
+        
+        if (pageLines.length > 0) {
+          result += `--- Page ${i+1} ---\n${pageLines.join('\n')}\n\n`;
+        }
       }
       
-      formattedText = result;
+      formattedText = result || formattedText;
     }
     
     return formattedText;
