@@ -10,30 +10,29 @@ import {
   ActivityIndicator,
   TextInput,
   KeyboardAvoidingView,
-  ScrollView,
-  Image,
   Alert,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import PdfRendererView from 'react-native-pdf-renderer';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
-import TextRecognition from '@react-native-ml-kit/text-recognition';
-import * as FileSystem from 'expo-file-system';
-import PdfPageImage from 'react-native-pdf-page-image';
 
-type PageImage = {
-  uri: string;
-  width: number;
-  height: number;
-};
+import PDFGridView from './PDFGridView';
+import {
+  PageImage,
+  formatPdfPath,
+  extractPdfPages,
+  performOCROnPages,
+  cleanupTempFiles,
+  formatExtractedContent
+} from '../utils/PDFOcrUtils';
 
 type PdfViewerModalProps = {
   visible: boolean;
   onClose: () => void;
   pdfSource: string;
   fileName?: string;
-  onUpload?: (pdfPath: string, fileName: string, userPrompt: string, extractedContent?: string) => void;
+  onUpload?: (content: string, fileName: string, userPrompt: string) => void;
 };
 
 export default function PDFViewerModal({
@@ -60,337 +59,11 @@ export default function PDFViewerModal({
     message: string;
     timestamp: number;
   } | null>(null);
-  const [extractedText, setExtractedText] = useState<string>('');
-  const [showTextPreview, setShowTextPreview] = useState(false);
-
-  const formatPdfPath = (path: string): string => {
-    if (!path) return '';
-    
-    if (path.startsWith('file://')) {
-      return path;
-    }
-    return Platform.OS === 'ios' ? `file://${path}` : path;
-  };
-  
-  const formatPathForPdfPageImage = (path: string): string => {
-    if (!path) return '';
-    
-    if (Platform.OS === 'android') {
-      return path.replace(/^file:\/\//, '');
-    }
-    
-    if (!path.startsWith('file://')) {
-      return `file://${path}`;
-    }
-    
-    return path;
-  };
+  const [showGridView, setShowGridView] = useState(false);
+  const [extractedContent, setExtractedContent] = useState('');
+  const [selectedPages, setSelectedPages] = useState<number[]>([]);
 
   const displayFileName = fileName || pdfSource.split('/').pop() || "Document";
-
-  const copyImageToPersistentStorage = async (imageUri: string): Promise<string> => {
-    try {
-      const dirInfo = await FileSystem.getInfoAsync(FileSystem.cacheDirectory + 'pdf_images/');
-      if (!dirInfo.exists) {
-        await FileSystem.makeDirectoryAsync(FileSystem.cacheDirectory + 'pdf_images/', { intermediates: true });
-      }
-      
-      const timestamp = new Date().getTime();
-      const random = Math.floor(Math.random() * 100000);
-      const newFileName = `pdf_page_${timestamp}_${random}.png`;
-      const newUri = FileSystem.cacheDirectory + 'pdf_images/' + newFileName;
-      
-      console.log(`Copying image from ${imageUri} to ${newUri}`);
-      await FileSystem.copyAsync({
-        from: imageUri,
-        to: newUri
-      });
-      
-      console.log(`Successfully copied image to ${newUri}`);
-      return newUri;
-    } catch (err) {
-      console.error('Error copying image file:', err);
-      return imageUri;
-    }
-  };
-
-  const extractPdfPages = async (pdfPath: string) => {
-    try {
-      setLoading(true);
-      setExtractionProgress('Opening PDF document...');
-      
-      const formattedPdfPath = formatPathForPdfPageImage(pdfPath);
-      console.log('Opening PDF at path:', formattedPdfPath);
-      
-      let pdfInfo;
-      try {
-        pdfInfo = await PdfPageImage.open(formattedPdfPath);
-        console.log('PDF info retrieved:', JSON.stringify(pdfInfo));
-      } catch (err) {
-        console.error('Error opening PDF:', err);
-        throw new Error('Failed to open PDF document.');
-      }
-      
-      if (!pdfInfo || !pdfInfo.pageCount || pdfInfo.pageCount <= 0) {
-        console.error('Invalid PDF page count:', pdfInfo?.pageCount);
-        throw new Error('Invalid PDF: The document has no pages or is corrupted.');
-      }
-      
-      setPageCount(pdfInfo.pageCount);
-      
-      const pagesToProcess = pdfInfo.pageCount;
-      console.log(`Processing PDF with ${pdfInfo.pageCount} reported pages, accessing pages 1-${pagesToProcess}`);
-      
-      setExtractionProgress(`Extracting ${pagesToProcess} pages as images...`);
-      
-      let extractedPageImages: PageImage[] = [];
-      let copiedImageUris: string[] = [];
-      
-      if (Platform.OS === 'android') {
-        for (let i = 0; i < pagesToProcess; i++) {
-          const pageIndex = i;
-          setExtractionProgress(`Extracting page ${i+1} of ${pagesToProcess}...`);
-          
-          if (pageIndex >= pagesToProcess) {
-            console.warn(`Skipping page ${pageIndex} as it exceeds accessible page count ${pagesToProcess}`);
-            continue;
-          }
-          
-          try {
-            console.log(`Attempting to extract page ${i+1} (index ${pageIndex})`);
-            const page = await PdfPageImage.generate(formattedPdfPath, pageIndex, 2.0);
-            console.log(`Page ${i+1} extracted:`, page.uri);
-            
-            setExtractionProgress(`Saving page ${i+1} image...`);
-            const persistentUri = await copyImageToPersistentStorage(page.uri);
-            copiedImageUris.push(persistentUri);
-            
-            extractedPageImages.push({
-              ...page,
-              uri: persistentUri
-            });
-          } catch (err) {
-            console.error(`Error extracting page ${i+1} (index ${pageIndex}):`, err);
-            
-            try {
-              console.log(`Retry with 1-based index (${i+1})`);
-              const alternatePage = await PdfPageImage.generate(formattedPdfPath, i+1, 2.0);
-              console.log(`Page extracted with alternate index:`, alternatePage.uri);
-              
-              setExtractionProgress(`Saving page with alternate index...`);
-              const persistentUri = await copyImageToPersistentStorage(alternatePage.uri);
-              copiedImageUris.push(persistentUri);
-              
-              extractedPageImages.push({
-                ...alternatePage,
-                uri: persistentUri
-              });
-            } catch (retryErr) {
-              console.error(`Error on retry:`, retryErr);
-            }
-          }
-        }
-      } else {
-        try {
-          console.log('Generating all pages at once for iOS');
-          
-          if (pagesToProcess === 1) {
-            console.log('Single page PDF detected, using direct page generation');
-            try {
-              const pageIndex = 0;
-              console.log(`Trying to extract with page index ${pageIndex}`);
-              
-              try {
-                const page = await PdfPageImage.generate(formattedPdfPath, pageIndex, 2.0);
-                console.log('Single page extraction successful with index 0:', page.uri);
-                
-                setExtractionProgress('Saving single page image...');
-                const persistentUri = await copyImageToPersistentStorage(page.uri);
-                copiedImageUris.push(persistentUri);
-                
-                extractedPageImages.push({
-                  ...page,
-                  uri: persistentUri
-                });
-              } catch (index0Err) {
-                console.error('Error extracting with index 0, trying index 1:', index0Err);
-                
-                const page = await PdfPageImage.generate(formattedPdfPath, 1, 2.0);
-                console.log('Single page extraction successful with index 1:', page.uri);
-                
-                setExtractionProgress('Saving single page image...');
-                const persistentUri = await copyImageToPersistentStorage(page.uri);
-                copiedImageUris.push(persistentUri);
-                
-                extractedPageImages.push({
-                  ...page,
-                  uri: persistentUri
-                });
-              }
-            } catch (singlePageErr) {
-              console.error('Error extracting single page after retry:', singlePageErr);
-              throw new Error('Failed to extract the single page from PDF.');
-            }
-          } else {
-            try {
-              const pages = await PdfPageImage.generateAllPages(formattedPdfPath, 2.0);
-              
-              console.log(`Extracted ${pages.length} pages from iOS bulk extraction`);
-              
-              if (pages.length !== pagesToProcess) {
-                console.warn(`Warning: Expected ${pagesToProcess} pages but got ${pages.length} pages`);
-              }
-              
-              for (let i = 0; i < pages.length; i++) {
-                setExtractionProgress(`Saving page ${i+1} of ${pages.length}...`);
-                const persistentUri = await copyImageToPersistentStorage(pages[i].uri);
-                copiedImageUris.push(persistentUri);
-                
-                extractedPageImages.push({
-                  ...pages[i],
-                  uri: persistentUri
-                });
-              }
-            } catch (bulkErr) {
-              console.error('Bulk extraction failed, falling back to page-by-page:', bulkErr);
-              
-              for (let i = 0; i < pagesToProcess; i++) {
-                const pageIndex = i;
-                setExtractionProgress(`Extracting page ${i+1} of ${pagesToProcess}...`);
-                
-                try {
-                  console.log(`Attempting to extract page ${i+1} with index ${pageIndex}`);
-                  const page = await PdfPageImage.generate(formattedPdfPath, pageIndex, 2.0);
-                  console.log(`Page ${i+1} extracted:`, page.uri);
-                  
-                  setExtractionProgress(`Saving page ${i+1} image...`);
-                  const persistentUri = await copyImageToPersistentStorage(page.uri);
-                  copiedImageUris.push(persistentUri);
-                  
-                  extractedPageImages.push({
-                    ...page,
-                    uri: persistentUri
-                  });
-                } catch (pageErr) {
-                  console.error(`Error extracting page ${i+1}:`, pageErr);
-                }
-              }
-            }
-          }
-        } catch (err) {
-          console.error('Error generating pages:', err);
-        }
-      }
-      
-      try {
-        await PdfPageImage.close(formattedPdfPath);
-        console.log('PDF closed successfully');
-      } catch (err) {
-        console.error('Error closing PDF:', err);
-      }
-      
-      if (extractedPageImages.length === 0) {
-        console.error('No pages were extracted from the PDF');
-        throw new Error('Failed to extract any pages from the PDF.');
-      }
-      
-      console.log(`Successfully extracted ${extractedPageImages.length} pages`);
-      setExtractedPages(extractedPageImages);
-      setTempFileUris(copiedImageUris);
-      setLoading(false);
-    } catch (err) {
-      console.error('Error extracting PDF pages:', err);
-      setError('Failed to extract PDF pages. The file might be corrupted or not accessible.');
-      setLoading(false);
-    } finally {
-      setExtractionProgress('');
-    }
-  };
-
-  const performOCROnPages = async (pages: PageImage[]): Promise<string> => {
-    try {
-      setExtractionProgress('Preparing for text recognition...');
-      console.log('Starting OCR on', pages.length, 'pages');
-      
-      if (pages.length === 0) {
-        console.error('No pages available for OCR');
-        return "No pages were extracted from this PDF file.";
-      }
-      
-      let allText = '';
-      
-      for (let i = 0; i < pages.length; i++) {
-        setExtractionProgress(`Reading text from page ${i+1} of ${pages.length}...`);
-        
-        let imageUri = pages[i].uri;
-        
-        try {
-          console.log(`OCR - Processing image at: ${imageUri}`);
-          
-          if (Platform.OS === 'android' && !imageUri.startsWith('file://')) {
-            imageUri = `file://${imageUri}`;
-          }
-          
-          const fileInfo = await FileSystem.getInfoAsync(imageUri);
-          if (!fileInfo.exists) {
-            console.error(`OCR - Image file does not exist: ${imageUri}`);
-            allText += `--- Page ${i+1} ---\n[Image file not found]\n\n`;
-            continue;
-          }
-          
-          console.log(`OCR - Image exists, size: ${fileInfo.size} bytes`);
-          
-          setExtractionProgress(`Analyzing text on page ${i+1}...`);
-          console.log(`OCR - Starting text recognition for page ${i+1}`);
-          
-          const recognitionResult = await TextRecognition.recognize(imageUri);
-          console.log(`OCR - Recognition completed for page ${i+1}:`, recognitionResult ? 'Success' : 'No result');
-          
-          if (recognitionResult && recognitionResult.text) {
-            console.log(`OCR - Text found on page ${i+1}, length:`, recognitionResult.text.length);
-            console.log(`OCR - Sample text:`, recognitionResult.text.substring(0, 100));
-            allText += `--- Page ${i+1} ---\n${recognitionResult.text}\n\n`;
-          } else {
-            console.warn(`OCR - No text detected on page ${i+1}`);
-            allText += `--- Page ${i+1} ---\n[No text detected on this page]\n\n`;
-          }
-        } catch (err) {
-          console.error(`OCR - Error recognizing text on page ${i+1}:`, err);
-          allText += `--- Page ${i+1} ---\n[Text recognition failed for this page]\n\n`;
-        }
-      }
-      
-      console.log(`OCR - All pages processed, total text length:`, allText.length);
-      
-      if (allText.trim() === '') {
-        console.warn('OCR - No text extracted from any page');
-        return "No text could be extracted from this PDF. It may contain only images or be scanned at low quality.";
-      }
-      
-      return allText;
-    } catch (error) {
-      console.error("Error in OCR text recognition:", error);
-      return "Failed to perform text recognition on the PDF. Please try again or use a different file.";
-    }
-  };
-
-  const cleanupTempFiles = async () => {
-    try {
-      for (const uri of tempFileUris) {
-        try {
-          const fileInfo = await FileSystem.getInfoAsync(uri);
-          if (fileInfo.exists) {
-            await FileSystem.deleteAsync(uri, { idempotent: true });
-            console.log(`Deleted temp file: ${uri}`);
-          }
-        } catch (err) {
-          console.log(`Error deleting file ${uri}:`, err);
-        }
-      }
-    } catch (err) {
-      console.error('Error cleaning up temp files:', err);
-    }
-  };
 
   const safeUpload = (pdfPath: string, fileName: string, userPromptText: string, extractedText?: string): boolean => {
     try {
@@ -398,7 +71,7 @@ export default function PDFViewerModal({
       
       if (onUpload && typeof onUpload === 'function') {
         console.log('Using onUpload with extracted content, text length:', extractedText?.length || 0);
-        onUpload(extractedText || '', fileName, userPromptText, pdfPath);
+        onUpload(extractedText || '', fileName, userPromptText);
         return true;
       } else {
         console.warn('No onUpload function provided, using fallback...');
@@ -468,11 +141,20 @@ export default function PDFViewerModal({
     }, 3000);
     
     try {
-      console.log('Starting OCR on', extractedPages.length, 'extracted pages');
+      const pagesToProcess = selectedPages.length > 0 
+        ? extractedPages.filter((_, index) => selectedPages.includes(index))
+        : extractedPages;
       
-      setExtractionProgress('Starting text recognition...');
+      console.log('Starting OCR on', pagesToProcess.length, 'selected pages');
       
-      let rawExtractedContent = await performOCROnPages(extractedPages);
+      setExtractionProgress(`Starting text recognition on ${pagesToProcess.length} page(s)...`);
+      
+      let rawExtractedContent = await performOCROnPages(
+        pagesToProcess, 
+        selectedPages, 
+        extractedPages, 
+        setExtractionProgress
+      );
       console.log('OCR completed, raw text length:', rawExtractedContent.length);
       
       let formattedContent = formatExtractedContent(rawExtractedContent);
@@ -487,17 +169,24 @@ export default function PDFViewerModal({
         formattedContent += "\n\n[Note: The text extraction may be incomplete. This PDF might contain complex formatting, scanned pages, or primarily image content.]";
       }
       
-      console.log('Content ready for preview, final text length:', formattedContent.length);
+      console.log('Content ready for upload, final text length:', formattedContent.length);
       console.log('Sample content:', formattedContent.substring(0, 100) + '...');
       
-      setExtractedText(formattedContent);
-      setShowTextPreview(true);
+      setExtractedContent(formattedContent);
       
-      setExtractionResult({
-        success: true,
-        message: `Successfully extracted ${formattedContent.length} characters of text.`,
-        timestamp: Date.now()
-      });
+      const uploadSuccess = safeUpload(pdfSource, displayFileName, userPrompt, formattedContent);
+      
+      if (uploadSuccess) {
+        console.log('Upload completed, closing PDF viewer');
+        onClose();
+      } else {
+        setExtractionResult({
+          success: false,
+          message: 'Failed to upload the extracted content to chat. Please try again.',
+          timestamp: Date.now()
+        });
+        setShowGridView(false);
+      }
     } catch (err) {
       console.error('Error performing OCR on PDF content:', err);
       
@@ -507,14 +196,13 @@ export default function PDFViewerModal({
       
       console.log('Using fallback content due to error');
       
-      setExtractedText(fallbackExtractedContent);
-      setShowTextPreview(true);
-      
+      setExtractedContent(fallbackExtractedContent);
       setExtractionResult({
         success: false,
-        message: 'Failed to extract text from the PDF. The file may be corrupted or in an unsupported format.',
+        message: 'Text extraction failed. The PDF might be complex or scanned.',
         timestamp: Date.now()
       });
+      setShowGridView(false);
     } finally {
       if (progressTimer) clearInterval(progressTimer);
       setIsExtracting(false);
@@ -522,144 +210,47 @@ export default function PDFViewerModal({
     }
   };
 
-  const handleUpload = () => {
-    if (!extractedText) {
+  const handleStartOCR = () => {
+    if (!userPrompt.trim()) {
       Alert.alert(
-        'No Text Available',
-        'Please extract text from the PDF first before uploading.',
-        [{ text: 'OK' }]
+        "Prompt Required",
+        "Please enter a prompt about what you'd like to know from this PDF.",
+        [{ text: "OK" }]
       );
       return;
     }
     
-    const uploadSuccess = safeUpload(pdfSource, displayFileName, userPrompt.trim(), extractedText);
-    
-    if (uploadSuccess) {
-      console.log('Upload complete, closing modal');
-      onClose();
-    } else {
-      console.log('Upload not completed, keeping modal open');
-    }
-  };
-
-  const renderTextPreview = () => {
-    if (!showTextPreview || !extractedText) return null;
-    
-    return (
-      <View style={[
-        styles.textPreviewContainer, 
-        { backgroundColor: isDark ? '#222222' : '#f9f9f9' }
-      ]}>
-        <View style={styles.textPreviewHeader}>
-          <Text style={[styles.textPreviewTitle, { color: isDark ? '#ffffff' : '#333333' }]}>
-            Extracted Text Preview
-          </Text>
-          <TouchableOpacity 
-            style={styles.textPreviewCloseButton}
-            onPress={() => setShowTextPreview(false)}
-          >
-            <MaterialCommunityIcons 
-              name="close" 
-              size={20} 
-              color={isDark ? '#ffffff' : '#333333'} 
-            />
-          </TouchableOpacity>
-        </View>
-        <ScrollView style={styles.textPreviewContent}>
-          <Text style={[styles.textPreviewText, { color: isDark ? '#dddddd' : '#333333' }]}>
-            {extractedText}
-          </Text>
-        </ScrollView>
-        <View style={styles.textPreviewActions}>
-          <TouchableOpacity
-            style={[styles.textPreviewButton, { backgroundColor: isDark ? '#444444' : '#eeeeee' }]}
-            onPress={() => setShowTextPreview(false)}
-          >
-            <Text style={[styles.textPreviewButtonText, { color: isDark ? '#ffffff' : '#333333' }]}>
-              Edit Prompt
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.textPreviewButton, { backgroundColor: '#660880' }]}
-            onPress={handleUpload}
-          >
-            <Text style={[styles.textPreviewButtonText, { color: '#ffffff' }]}>
-              Send to Chat
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  };
-
-  const renderProcessingIndicator = () => {
-    let progressPercent = 10;
-    
-    if (extractionProgress.includes('Starting')) {
-      progressPercent = 10;
-    } else if (extractionProgress.includes('Preparing')) {
-      progressPercent = 25;
-    } else if (extractionProgress.includes('Processing') || extractionProgress.includes('Converting')) {
-      progressPercent = 40;
-    } else if (extractionProgress.includes('Analyzing') || extractionProgress.includes('Reading')) {
-      progressPercent = 60;
-    } else if (extractionProgress.includes('Extracting')) {
-      progressPercent = 80;
-    } else if (extractionProgress.includes('Almost')) {
-      progressPercent = 95;
+    if (selectedPages.length === 0) {
+      Alert.alert(
+        "No Pages Selected",
+        "Please select at least one page to extract text from.",
+        [{ text: "OK" }]
+      );
+      return;
     }
     
-    return (
-      <View style={styles.processingContainer}>
-        <ActivityIndicator size="small" color="#660880" />
-        <Text style={[styles.processingText, { color: isDark ? '#ffffff' : '#333333' }]}>
-          {extractionProgress || "Processing..."}
-        </Text>
-        <View style={styles.progressBar}>
-        <View 
-          style={[
-              styles.progressFill, 
-              { width: `${progressPercent}%`, backgroundColor: '#660880' }
-            ]} 
-          />
-        </View>
-      </View>
-    );
+    setIsExtracting(true);
+    setShowGridView(false);
+    
+    handleExtractText();
   };
 
-  const formatExtractedContent = (extractedText: string): string => {
-    if (!extractedText || extractedText.trim().length < 20) {
-      return "[No significant text was extracted from this PDF. It may contain primarily images or formatting that couldn't be processed.]";
-    }
-    
-    let formattedText = extractedText;
-    
-    formattedText = formattedText
-      .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '')
-      .replace(/\n{3,}/g, '\n\n')
-      .trim();
-    
-    if (!formattedText.includes('--- Page') && !formattedText.includes('Page')) {
-      const lines = formattedText.split('\n');
-      
-      const numPages = lines.length < 3 ? lines.length : 3;
-      const pageSize = numPages > 0 ? Math.ceil(lines.length / numPages) : 1;
-      
-      let result = '';
-      for (let i = 0; i < numPages; i++) {
-        const startIndex = i * pageSize;
-        const endIndex = Math.min((i + 1) * pageSize, lines.length);
-        const pageLines = lines.slice(startIndex, endIndex);
-        
-        if (pageLines.length > 0) {
-          result += `--- Page ${i+1} ---\n${pageLines.join('\n')}\n\n`;
-        }
+  const togglePageSelection = (index: number) => {
+    setSelectedPages(prevSelected => {
+      if (prevSelected.includes(index)) {
+        return prevSelected.filter(i => i !== index);
+      } else {
+        return [...prevSelected, index];
       }
-      
-      formattedText = result || formattedText;
+    });
+  };
+
+  const handleSelectAllPages = () => {
+    if (selectedPages.length === extractedPages.length) {
+      setSelectedPages([]);
+    } else {
+      setSelectedPages(extractedPages.map((_, index) => index));
     }
-    
-    return formattedText;
   };
 
   const renderExtractButton = () => {
@@ -674,7 +265,7 @@ export default function PDFViewerModal({
             opacity: isDisabled ? 0.5 : 1
           }
         ]}
-        onPress={handleExtractText}
+        onPress={() => setShowGridView(true)}
         disabled={isDisabled}
       >
         {isExtracting ? (
@@ -687,13 +278,13 @@ export default function PDFViewerModal({
         ) : (
           <>
             <MaterialCommunityIcons 
-              name="text-recognition" 
+              name="grid" 
               size={20} 
               color="#ffffff" 
               style={styles.uploadIcon} 
             />
             <Text style={styles.uploadButtonText}>
-              {extractedPages.length > 0 ? "Extract Text" : "PDF preparation failed"}
+              {extractedPages.length > 0 ? "Select Pages" : "PDF preparation failed"}
             </Text>
           </>
         )}
@@ -742,154 +333,175 @@ export default function PDFViewerModal({
       setExtractedPages([]);
       setPageCount(0);
       setTempFileUris([]);
+      setShowGridView(false);
+      setExtractedContent('');
+      setSelectedPages([]);
 
       try {
         if (!pdfSource || typeof pdfSource !== 'string') {
           throw new Error('Invalid PDF source');
         }
         
-        extractPdfPages(pdfSource);
+        const loadPdf = async () => {
+          try {
+            const { extractedPages: pages, tempFileUris: uris, pageCount: count } = 
+              await extractPdfPages(pdfSource, setExtractionProgress);
+              
+            setExtractedPages(pages);
+            setTempFileUris(uris);
+            setPageCount(count);
+            setSelectedPages(pages.map((_, index) => index));
+            setLoading(false);
+          } catch (err) {
+            console.error('Error in loadPdf:', err);
+            setError('Failed to load PDF. The file might be corrupted or not accessible.');
+            setLoading(false);
+          }
+        };
+        
+        loadPdf();
       } catch (err) {
         setLoading(false);
         setError('Failed to load PDF. The file might be corrupted or not accessible.');
         console.error('PDF loading error:', err);
       }
     } else {
-      cleanupTempFiles();
+      cleanupTempFiles(tempFileUris);
     }
   }, [visible, pdfSource]);
   
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      transparent={false}
-      onRequestClose={() => {
-        cleanupTempFiles();
-        onClose();
-      }}
-    >
-      <KeyboardAvoidingView 
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
+    <>
+      <Modal
+        visible={visible && !showGridView}
+        animationType="slide"
+        transparent={false}
+        onRequestClose={() => {
+          cleanupTempFiles(tempFileUris);
+          onClose();
+        }}
       >
-        <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#121212' : '#fff' }]}>
-        <View style={styles.header}>
-            <Text 
-              style={[
-                styles.fileNameText, 
-                { color: isDark ? '#ffffff' : '#660880' }
-              ]}
-              numberOfLines={1}
-              ellipsizeMode="middle"
-            >
-              {displayFileName}
-            </Text>
-            <TouchableOpacity style={styles.closeButton} onPress={() => {
-              cleanupTempFiles();
-              onClose();
-            }}>
-            <MaterialCommunityIcons 
-              name="close" 
-              size={24} 
-                color={isDark ? '#ffffff' : "#660880"} 
-            />
-          </TouchableOpacity>
-        </View>
-        
-          <View style={[styles.contentContainer, { backgroundColor: isDark ? '#1e1e1e' : '#f5f5f5' }]}>
-        {loading ? (
-              <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#660880" />
-                <Text style={[styles.loadingText, { color: isDark ? '#ffffff' : '#333333' }]}>
-                  {extractionProgress || "Loading PDF..."}
-                </Text>
-              </View>
-            ) : error ? (
-              <View style={styles.errorContainer}>
+        <KeyboardAvoidingView 
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
+        >
+          <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#121212' : '#fff' }]}>
+            <View style={styles.header}>
+              <Text 
+                style={[
+                  styles.fileNameText, 
+                  { color: isDark ? '#ffffff' : '#660880' }
+                ]}
+                numberOfLines={1}
+                ellipsizeMode="middle"
+              >
+                {displayFileName}
+              </Text>
+              <TouchableOpacity style={styles.closeButton} onPress={() => {
+                cleanupTempFiles(tempFileUris);
+                onClose();
+              }}>
                 <MaterialCommunityIcons 
-                  name="alert-circle-outline" 
-                  size={48} 
+                  name="close" 
+                  size={24} 
                   color={isDark ? '#ffffff' : "#660880"} 
                 />
-                <Text style={[styles.errorText, { color: isDark ? '#ffffff' : '#333333' }]}>
-                  {error}
-            </Text>
-          </View>
-            ) : showTextPreview ? (
-              renderTextPreview()
-            ) : (
-              <View style={styles.fileContentWrapper}>
-                <View style={styles.pdfContainer}>
-                  <PdfRendererView
-                    style={styles.pdfView}
-                    source={formatPdfPath(pdfSource)}
-                    distanceBetweenPages={16}
-                    maxZoom={5}
-                  />
+              </TouchableOpacity>
+            </View>
+            
+            <View style={[styles.contentContainer, { backgroundColor: isDark ? '#1e1e1e' : '#f5f5f5' }]}>
+              {loading ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="large" color="#660880" />
+                  <Text style={[styles.loadingText, { color: isDark ? '#ffffff' : '#333333' }]}>
+                    {extractionProgress || "Loading PDF..."}
+                  </Text>
                 </View>
-                
-                <View style={[styles.uploadButtonContainer, { 
-                  backgroundColor: isDark ? '#1a1a1a' : '#ffffff',
-                  borderTopColor: isDark ? '#333333' : '#e0e0e0'
-                }]}>
-                  {isExtracting ? (
-                    renderProcessingIndicator()
-                  ) : (
-                    <>
-                      {extractionResult ? renderExtractionResult() : (
-                        <View style={styles.statusContainer}>
-                          <Text style={[styles.statusText, { color: isDark ? '#aaaaaa' : '#666666' }]}>
-                            {pageCount > 0 
-                              ? `PDF ready: ${extractedPages.length} of ${pageCount} pages prepared for text recognition`
-                              : 'PDF processing failed. Please try another document.'
-                            }
-                          </Text>
-                        </View>
-                      )}
-                    </>
-                  )}
-                  
-                  <View style={styles.promptContainer}>
-                    <Text style={[styles.promptLabel, { color: isDark ? '#ffffff' : '#333333' }]}>
-                      Add your prompt:
-                    </Text>
-                    <TextInput
-                      style={[
-                        styles.promptInput,
-                        { 
-                          color: isDark ? '#ffffff' : '#333333',
-                          backgroundColor: isDark ? '#2a2a2a' : '#f1f1f1',
-                          borderColor: promptError ? '#ff6b6b' : isDark ? '#444444' : '#dddddd'
-                        }
-                      ]}
-                      placeholder="What would you like to ask about this PDF?"
-                      placeholderTextColor={isDark ? '#888888' : '#999999'}
-                      value={userPrompt}
-                      onChangeText={(text) => {
-                        setUserPrompt(text);
-                        if (text.trim()) setPromptError(false);
-                      }}
-                      multiline={true}
-                      numberOfLines={3}
-                      editable={!isExtracting}
+              ) : error ? (
+                <View style={styles.errorContainer}>
+                  <MaterialCommunityIcons 
+                    name="alert-circle-outline" 
+                    size={48} 
+                    color={isDark ? '#ffffff' : "#660880"} 
+                  />
+                  <Text style={[styles.errorText, { color: isDark ? '#ffffff' : '#333333' }]}>
+                    {error}
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.fileContentWrapper}>
+                  <View style={styles.pdfContainer}>
+                    <PdfRendererView
+                      style={styles.pdfView}
+                      source={formatPdfPath(pdfSource)}
+                      distanceBetweenPages={16}
+                      maxZoom={5}
                     />
-                    {promptError && (
-                      <Text style={styles.errorPromptText}>
-                        Please enter a prompt before extracting text
-                      </Text>
-                    )}
                   </View>
                   
-                  {renderExtractButton()}
+                  <View style={[styles.uploadButtonContainer, { 
+                    backgroundColor: isDark ? '#1a1a1a' : '#ffffff',
+                    borderTopColor: isDark ? '#333333' : '#e0e0e0'
+                  }]}>
+                    {isExtracting ? (
+                      <View style={styles.processingContainer}>
+                        <ActivityIndicator size="small" color="#660880" />
+                        <Text style={[styles.processingText, { color: isDark ? '#ffffff' : '#333333' }]}>
+                          {extractionProgress || "Processing..."}
+                        </Text>
+                        <View style={styles.progressBar}>
+                          <View 
+                            style={[
+                              styles.progressFill, 
+                              { width: '100%', backgroundColor: '#660880' }
+                            ]} 
+                          />
+                        </View>
+                      </View>
+                    ) : (
+                      <>
+                        {extractionResult ? renderExtractionResult() : (
+                          <View style={styles.statusContainer}>
+                            <Text style={[styles.statusText, { color: isDark ? '#aaaaaa' : '#666666' }]}>
+                              {pageCount > 0 
+                                ? `PDF ready: ${extractedPages.length} of ${pageCount} pages are ready to be sent` +
+                                  (selectedPages.length > 0 && selectedPages.length < extractedPages.length 
+                                    ? ` (${selectedPages.length} pages selected for extraction)`
+                                    : '')
+                                : 'PDF processing failed. Please try another document.'
+                              }
+                            </Text>
+                          </View>
+                        )}
+                      </>
+                    )}
+                    
+                    {renderExtractButton()}
+                  </View>
                 </View>
-              </View>
-            )}
-          </View>
-      </SafeAreaView>
-      </KeyboardAvoidingView>
-    </Modal>
+              )}
+            </View>
+          </SafeAreaView>
+        </KeyboardAvoidingView>
+      </Modal>
+      
+      <PDFGridView 
+        visible={showGridView}
+        onClose={() => setShowGridView(false)}
+        displayFileName={displayFileName}
+        isDark={isDark}
+        extractedPages={extractedPages}
+        selectedPages={selectedPages}
+        togglePageSelection={togglePageSelection}
+        handleSelectAllPages={handleSelectAllPages}
+        userPrompt={userPrompt}
+        setUserPrompt={setUserPrompt}
+        promptError={promptError}
+        setPromptError={setPromptError}
+        handleStartOCR={handleStartOCR}
+      />
+    </>
   );
 }
 
@@ -951,30 +563,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
   },
-  infoText: {
-    marginTop: 8,
-    fontSize: 14,
-    textAlign: 'center',
-  },
   uploadButtonContainer: {
     width: '100%',
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderTopWidth: 1,
-  },
-  noteContainer: {
-    marginBottom: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
-    borderRadius: 6,
-    borderLeftWidth: 3,
-    borderLeftColor: '#660880',
-  },
-  noteText: {
-    fontSize: 12,
-    lineHeight: 16,
-    fontStyle: 'italic',
   },
   statusContainer: {
     marginBottom: 10,
@@ -1001,7 +594,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
-    minHeight: 100,
+    minHeight: 80,
     textAlignVertical: 'top',
   },
   errorPromptText: {
@@ -1064,52 +657,5 @@ const styles = StyleSheet.create({
   resultText: {
     fontSize: 14,
     flex: 1,
-  },
-  textPreviewContainer: {
-    flex: 1,
-    borderRadius: 8,
-    margin: 8,
-    overflow: 'hidden',
-  },
-  textPreviewHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
-  },
-  textPreviewTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  textPreviewCloseButton: {
-    padding: 4,
-  },
-  textPreviewContent: {
-    flex: 1,
-    padding: 16,
-  },
-  textPreviewText: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  textPreviewActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    padding: 16,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0, 0, 0, 0.1)',
-  },
-  textPreviewButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    marginLeft: 12,
-  },
-  textPreviewButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
+  }
 });
