@@ -1441,7 +1441,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       <KeyboardAvoidingView
         style={styles.chatContainer}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 50 : 0}
+        keyboardVerticalOffset={50}
       >
         <ChatView
            messages={messages}
