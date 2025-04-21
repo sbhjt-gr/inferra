@@ -20,7 +20,8 @@ type ChatInputProps = {
   onSend: (text: string) => void;
   disabled?: boolean;
   isLoading?: boolean;
-  onCancel?: () => void;
+  isRegenerating?: boolean;
+  onCancel?: () => void | Promise<void>;
   style?: any;
   placeholderColor?: string;
 };
@@ -29,6 +30,7 @@ export default function ChatInput({
   onSend, 
   disabled = false,
   isLoading = false,
+  isRegenerating = false,
   onCancel = () => {},
   style = {},
   placeholderColor = 'rgba(0, 0, 0, 0.6)'
@@ -46,6 +48,8 @@ export default function ChatInput({
   const [dialogVisible, setDialogVisible] = useState(false);
   const [dialogTitle, setDialogTitle] = useState('');
   const [dialogMessage, setDialogMessage] = useState('');
+
+  const isGenerating = isLoading || isRegenerating;
 
   const showDialog = (title: string, message: string) => {
     setDialogTitle(title);
@@ -163,6 +167,12 @@ export default function ChatInput({
     isDark ? '#ffffff' : "#660880"
   , [isDark]);
 
+  const handleCancel = () => {
+    if (onCancel) {
+      onCancel();
+    }
+  };
+
   return (
     <View style={[styles.container, style]}>
       <TouchableOpacity 
@@ -193,7 +203,7 @@ export default function ChatInput({
         />
       </View>
       
-      {isLoading ? (
+      {isGenerating ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator
             size="small"
@@ -201,7 +211,7 @@ export default function ChatInput({
             style={styles.loadingIndicator}
           />
           <TouchableOpacity
-            onPress={onCancel}
+            onPress={handleCancel}
             style={styles.cancelButton}
           >
             <MaterialCommunityIcons 

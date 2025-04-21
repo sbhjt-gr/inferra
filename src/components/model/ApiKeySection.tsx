@@ -54,16 +54,13 @@ const ApiKeySection: React.FC = () => {
     try {
       if (geminiApiKey.trim()) {
         await onlineModelService.saveApiKey('gemini', geminiApiKey.trim());
-        // Alert.alert('Success', 'Gemini API key saved successfully');
         showDialog('Success', 'Gemini API key saved successfully');
       } else {
         await onlineModelService.clearApiKey('gemini');
-        // Alert.alert('Success', 'Gemini API key cleared');
         showDialog('Success', 'Gemini API key cleared');
       }
     } catch (error) {
       console.error('Error saving Gemini API key:', error);
-      // Alert.alert('Error', 'Failed to save Gemini API key');
       showDialog('Error', 'Failed to save Gemini API key');
     }
   };
@@ -72,16 +69,13 @@ const ApiKeySection: React.FC = () => {
     try {
       if (openAIApiKey.trim()) {
         await onlineModelService.saveApiKey('chatgpt', openAIApiKey.trim());
-        // Alert.alert('Success', 'OpenAI API key saved successfully');
         showDialog('Success', 'OpenAI API key saved successfully');
       } else {
         await onlineModelService.clearApiKey('chatgpt');
-        // Alert.alert('Success', 'OpenAI API key cleared');
         showDialog('Success', 'OpenAI API key cleared');
       }
     } catch (error) {
       console.error('Error saving OpenAI API key:', error);
-      // Alert.alert('Error', 'Failed to save OpenAI API key');
       showDialog('Error', 'Failed to save OpenAI API key');
     }
   };
@@ -90,16 +84,13 @@ const ApiKeySection: React.FC = () => {
     try {
       if (deepSeekApiKey.trim()) {
         await onlineModelService.saveApiKey('deepseek', deepSeekApiKey.trim());
-        // Alert.alert('Success', 'DeepSeek API key saved successfully');
         showDialog('Success', 'DeepSeek API key saved successfully');
       } else {
         await onlineModelService.clearApiKey('deepseek');
-        // Alert.alert('Success', 'DeepSeek API key cleared');
         showDialog('Success', 'DeepSeek API key cleared');
       }
     } catch (error) {
       console.error('Error saving DeepSeek API key:', error);
-      // Alert.alert('Error', 'Failed to save DeepSeek API key');
       showDialog('Error', 'Failed to save DeepSeek API key');
     }
   };
@@ -108,16 +99,13 @@ const ApiKeySection: React.FC = () => {
     try {
       if (claudeApiKey.trim()) {
         await onlineModelService.saveApiKey('claude', claudeApiKey.trim());
-        // Alert.alert('Success', 'Claude API key saved successfully');
         showDialog('Success', 'Claude API key saved successfully');
       } else {
         await onlineModelService.clearApiKey('claude');
-        // Alert.alert('Success', 'Claude API key cleared');
         showDialog('Success', 'Claude API key cleared');
       }
     } catch (error) {
       console.error('Error saving Claude API key:', error);
-      // Alert.alert('Error', 'Failed to save Claude API key');
       showDialog('Error', 'Failed to save Claude API key');
     }
   };

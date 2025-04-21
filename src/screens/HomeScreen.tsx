@@ -16,6 +16,7 @@ import {
   AppStateStatus,
   StatusBar,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
@@ -29,7 +30,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList, TabParamList } from '../types/navigation';
 import * as Device from 'expo-device';
-import chatManager, { Chat, ChatMessage, getChatTitle } from '../utils/ChatManager';
+import chatManager, { Chat, ChatMessage } from '../utils/ChatManager';
 import { getThemeAwareColor } from '../utils/ColorUtils';
 import ChatView from '../components/chat/ChatView';
 import ChatInput from '../components/chat/ChatInput';
@@ -104,11 +105,14 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   const insets = useSafeAreaInsets();
   const flatListRef = useRef<FlatList>(null);
 
-  // Dialog State
   const [dialogVisible, setDialogVisible] = useState(false);
   const [dialogTitle, setDialogTitle] = useState('');
   const [dialogMessage, setDialogMessage] = useState('');
   const [dialogActions, setDialogActions] = useState<React.ReactNode[]>([]);
+
+  const [isCooldown, setIsCooldown] = useState(false);
+
+  const [justCancelled, setJustCancelled] = useState(false);
 
   const hideDialog = () => setDialogVisible(false);
 
@@ -296,7 +300,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         }
       }
     } catch (e) {
-      // Not JSON, continue with normal message
+      // Not JSON
     }
     
     return text.replace(/<INTERNAL_INSTRUCTION>[\s\S]*?<\/INTERNAL_INSTRUCTION>/g, '');
@@ -315,11 +319,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       setIsLoading(true);
       Keyboard.dismiss();
       
-      // Process the message for display vs AI consumption
-      const displayContent = processUserMessage(messageText);
       
       const userMessage: Omit<ChatMessage, 'id'> = {
-        // Original content for AI, processed content for display if they differ
         content: messageText,
         role: 'user',
       };
@@ -339,16 +340,53 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     }
   };
 
-  const handleCancelGeneration = useCallback(() => {
+  const handleCancelGeneration = useCallback(async () => {
     cancelGenerationRef.current = true;
+    setIsCooldown(true);
     
-    if (streamingMessageId && (streamingMessage || streamingThinking)) {
+    setJustCancelled(true);
+    
+    const currentMessageId = streamingMessageId;
+    const currentContent = streamingMessage || '';
+    const currentThinking = streamingThinking || '';
+    
+    setIsLoading(false);
+    setIsRegenerating(false);
+    
+    if (currentMessageId) {
+      const updatedMessages = messages.map(msg => {
+        if (msg.id === currentMessageId) {
+          return {
+            ...msg,
+            content: currentContent,
+            thinking: currentThinking,
+            stats: {
+              duration: 0,
+              tokens: 0
+            }
+          };
+        }
+        return msg;
+      });
+      
+      setMessages(updatedMessages);
+    }
+    
+    if (activeProvider === 'local') {
+      try {
+        await llamaManager.cancelGeneration();
+      } catch (error) {
+        console.error('Error cancelling generation:', error);
+      }
+    }
+    
+    if (currentMessageId && (currentContent || currentThinking)) {
       const currentChat = chatManager.getCurrentChat();
       if (currentChat) {
-        chatManager.updateMessageContent(
-          streamingMessageId,
-          streamingMessage || '',
-          streamingThinking || '',
+        await chatManager.updateMessageContent(
+          currentMessageId,
+          currentContent,
+          currentThinking,
           {
             duration: 0,
             tokens: 0,
@@ -357,11 +395,16 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       }
     }
     
-    setIsStreaming(false);
-    setStreamingMessageId(null);
-    setIsLoading(false);
-    setIsRegenerating(false);
-  }, [streamingMessage, streamingThinking, streamingMessageId]);
+    setTimeout(() => {
+      setIsStreaming(false);
+      setStreamingMessageId(null);
+      setStreamingMessage('');
+      setStreamingThinking('');
+      setStreamingStats(null);
+      setIsCooldown(false);
+      setJustCancelled(false);
+    }, 300);
+  }, [streamingMessage, streamingThinking, streamingMessageId, activeProvider, messages]);
 
   const handleApiError = (error: unknown, provider: 'Gemini' | 'OpenAI' | 'DeepSeek' | 'Claude') => {
     console.error(`Error with ${provider} API:`, error);
@@ -719,7 +762,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       } else {
         await llamaManager.generateResponse(
           processedMessages.map(msg => ({ role: msg.role, content: msg.content })),
-          async (token) => {
+          (token) => {
             if (cancelGenerationRef.current) {
               return false;
             }
@@ -1169,7 +1212,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
               setStreamingThinking(thinking.trim());
             } else {
               fullResponse += token;
-              
               setStreamingMessage(fullResponse);
             }
             
@@ -1435,13 +1477,15 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
            onCopyText={copyToClipboard}
            onRegenerateResponse={handleRegenerate}
            isRegenerating={isRegenerating}
+           justCancelled={justCancelled}
            flatListRef={flatListRef}
         />
 
         <ChatInput
           onSend={handleSend}
-          disabled={isLoading || isModelLoading}
+          disabled={isLoading || isModelLoading || isCooldown}
           isLoading={isLoading}
+          isRegenerating={isRegenerating}
           onCancel={handleCancelGeneration}
           style={{ backgroundColor: themeColors.background, borderTopColor: themeColors.borderColor }}
           placeholderColor={themeColors.secondaryText}
@@ -1475,9 +1519,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modelSelectorContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderBottomWidth: 1,
+    paddingBottom: 13,
   },
   chatContainer: {
     flex: 1,
