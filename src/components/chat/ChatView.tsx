@@ -102,25 +102,10 @@ export default function ChatView({
           return parsedMessage.userContent || "";
         }
       } catch (e) {
-        // Not json
+        // Not JSON
       }
       
-      const internalInstructionMatch = content.match(/<INTERNAL_INSTRUCTION>You're reading a file named: (.+?)\n/);
-      if (internalInstructionMatch && internalInstructionMatch[1]) {
-        const internalInstruction = content.match(/<INTERNAL_INSTRUCTION>([\s\S]*?)<\/INTERNAL_INSTRUCTION>/)?.[1] || '';
-        
-        console.log('Processing Tag-based Message:', {
-          internalInstruction,
-          userContent: content.replace(/<INTERNAL_INSTRUCTION>[\s\S]*?<\/INTERNAL_INSTRUCTION>/g, '')
-        });
-        
-        fileAttachment = { 
-          name: internalInstructionMatch[1],
-          type: internalInstructionMatch[1].split('.').pop()?.toLowerCase() || 'txt'
-        };
-      }
-      
-      return content.replace(/<INTERNAL_INSTRUCTION>[\s\S]*?<\/INTERNAL_INSTRUCTION>/g, '');
+      return content;
     };
     
     const messageContent = isCurrentlyStreaming 
