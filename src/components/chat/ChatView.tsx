@@ -35,6 +35,7 @@ type ChatViewProps = {
   onCopyText: (text: string) => void;
   onRegenerateResponse: () => void;
   isRegenerating: boolean;
+  justCancelled?: boolean;
   flatListRef: React.RefObject<FlatList>;
 };
 
@@ -66,14 +67,15 @@ export default function ChatView({
   onCopyText,
   onRegenerateResponse,
   isRegenerating,
+  justCancelled = false,
   flatListRef,
 }: ChatViewProps) {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
 
   const renderMessage = useCallback(({ item }: { item: Message }) => {
-    const isCurrentlyStreaming = isStreaming && item.id === streamingMessageId;
-    const showLoadingIndicator = isCurrentlyStreaming && !streamingMessage;
+    const isCurrentlyStreaming = (isStreaming || justCancelled) && item.id === streamingMessageId;
+    const showLoadingIndicator = isCurrentlyStreaming && !streamingMessage && !justCancelled;
     
     let fileAttachment: { name: string; type?: string } | null = null;
     
@@ -467,7 +469,7 @@ export default function ChatView({
         </View>
       </View>
     );
-  }, [themeColors, messages, isStreaming, streamingMessageId, streamingMessage, streamingThinking, streamingStats, onCopyText, isRegenerating, onRegenerateResponse]);
+  }, [themeColors, messages, isStreaming, streamingMessageId, streamingMessage, streamingThinking, streamingStats, onCopyText, isRegenerating, onRegenerateResponse, justCancelled]);
 
   return (
     <View style={styles.container}>

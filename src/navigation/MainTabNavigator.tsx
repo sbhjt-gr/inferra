@@ -1,68 +1,25 @@
-import React, { useState } from 'react';
-import { BottomNavigation } from 'react-native-paper';
-import { useTheme } from '../context/ThemeContext';
-import { theme } from '../constants/theme';
-import { Platform, Keyboard, StyleSheet } from 'react-native';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { Platform, TouchableOpacity, View, Text, StyleSheet, Keyboard } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import React, { useState, useEffect } from 'react';
 import HomeScreen from '../screens/HomeScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import ModelScreen from '../screens/ModelScreen';
-import { useEffect } from 'react';
-import { NavigationProp, useNavigation, ParamListBase } from '@react-navigation/native';
-import { TabParamList, RootStackParamList } from '../types/navigation';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { TabParamList } from '../types/navigation';
+import { useTheme } from '../context/ThemeContext';
+import { theme } from '../constants/theme';
 
-// Create wrapper components to pass required props to each screen
-const HomeRoute = () => {
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  return (
-    <HomeScreen 
-      navigation={navigation} 
-      route={{ 
-        key: 'home', 
-        name: 'HomeTab', 
-        params: {} 
-      }} 
-    />
-  );
-};
+const Tab = createBottomTabNavigator<TabParamList>();
 
-const ModelsRoute = () => {
-  const navigation = useNavigation<NavigationProp<ParamListBase>>();
-  return <ModelScreen navigation={navigation as any} />;
-};
+// a custom tab bar to avoid the ripple effect on android
 
-const SettingsRoute = () => {
-  const navigation = useNavigation<NavigationProp<ParamListBase>>();
-  return <SettingsScreen navigation={navigation as any} />;
-};
-
-export default function MainTabNavigator() {
+function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme];
-  const [index, setIndex] = useState(0);
+  const insets = useSafeAreaInsets();
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
-
-  // Setup routes for bottom navigation
-  const [routes] = useState([
-    { 
-      key: 'home', 
-      title: 'Chat', 
-      focusedIcon: 'home',
-      unfocusedIcon: 'home-outline'
-    },
-    { 
-      key: 'models', 
-      title: 'Models', 
-      focusedIcon: 'cube',
-      unfocusedIcon: 'cube-outline'
-    },
-    { 
-      key: 'settings', 
-      title: 'Settings', 
-      focusedIcon: 'cog',
-      unfocusedIcon: 'cog-outline'
-    },
-  ]);
 
   useEffect(() => {
     const keyboardWillShowListener = Keyboard.addListener(
@@ -84,37 +41,121 @@ export default function MainTabNavigator() {
     };
   }, []);
 
-  // Use wrapper components that provide proper navigation props
-  const renderScene = BottomNavigation.SceneMap({
-    home: HomeRoute,
-    models: ModelsRoute,
-    settings: SettingsRoute,
-  });
-
-  const handleIndexChange = (newIndex: number) => {
-    setIndex(newIndex);
-  };
+  if (isKeyboardVisible) {
+    return null;
+  }
 
   return (
-    <BottomNavigation
-      navigationState={{ index, routes }}
-      onIndexChange={handleIndexChange}
-      renderScene={renderScene}
-      shifting={false}
-      labeled={true}
-      keyboardHidesNavigationBar={true}
-      activeColor={themeColors.tabBarActiveText}
-      inactiveColor={themeColors.tabBarInactiveText}
-      barStyle={{
+    <View style={[
+      styles.tabBar,
+      {
         backgroundColor: themeColors.tabBarBackground,
+        height: 70 + insets.bottom,
+        paddingBottom: insets.bottom,
+      }
+    ]}>
+      {state.routes.map((route, index) => {
+        const { options } = descriptors[route.key];
+        const label = options.tabBarLabel || route.name;
+        const isFocused = state.index === index;
+
+        let iconName: string;
+        switch (route.name) {
+          case 'HomeTab':
+            iconName = isFocused ? 'home' : 'home-outline';
+            break;
+          case 'ModelTab':
+            iconName = isFocused ? 'cube' : 'cube-outline';
+            break;
+          case 'SettingsTab':
+            iconName = isFocused ? 'cog' : 'cog-outline';
+            break;
+          default:
+            iconName = 'alert-circle';
+        }
+
+        const onPress = () => {
+          const event = navigation.emit({
+            type: 'tabPress',
+            target: route.key,
+            canPreventDefault: true,
+          });
+
+          if (!isFocused && !event.defaultPrevented) {
+            navigation.navigate(route.name);
+          }
+        };
+
+        return (
+          <TouchableOpacity
+            key={index}
+            activeOpacity={1}
+            onPress={onPress}
+            style={styles.tabItem}
+          >
+            <MaterialCommunityIcons
+              name={iconName as any}
+              size={24}
+              color={isFocused ? themeColors.tabBarActiveText : themeColors.tabBarInactiveText}
+            />
+            <Text
+              style={{
+                color: isFocused ? themeColors.tabBarActiveText : themeColors.tabBarInactiveText,
+                fontSize: 12,
+                marginTop: 4,
+              }}
+            >
+              {label as string}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+}
+
+export default function MainTabNavigator() {
+  return (
+    <Tab.Navigator
+      tabBar={props => <CustomTabBar {...props} />}
+      screenOptions={{
+        headerShown: false,
       }}
-      style={styles.bottomNav}
-    />
+    >
+      <Tab.Screen 
+        name="HomeTab" 
+        component={HomeScreen} 
+        options={{ 
+          tabBarLabel: 'Chat'
+        }}
+      />
+      <Tab.Screen 
+        name="ModelTab" 
+        component={ModelScreen}
+        options={{ 
+          tabBarLabel: 'Models'
+        }}
+      />
+      <Tab.Screen 
+        name="SettingsTab" 
+        component={SettingsScreen}
+        options={{ 
+          tabBarLabel: 'Settings'
+        }}
+      />
+    </Tab.Navigator>
   );
 }
 
 const styles = StyleSheet.create({
-  bottomNav: {
+  tabBar: {
+    flexDirection: 'row',
+    paddingTop: 10,
+    borderTopWidth: 0,
+  },
+  tabItem: {
     flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 }); 

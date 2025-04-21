@@ -44,6 +44,7 @@ class LlamaManager {
   private modelPath: string | null = null;
   private settings: ModelSettings = { ...DEFAULT_SETTINGS };
   private events = new EventEmitter<LlamaManagerEvents>();
+  private isCancelled: boolean = false;
 
   constructor() {
     
@@ -171,13 +172,14 @@ class LlamaManager {
 
   async generateResponse(
     messages: Array<{ role: string; content: string }>,
-    onToken?: (token: string) => void
+    onToken?: (token: string) => boolean | void
   ) {
     if (!this.context) {
       throw new Error('Model not initialized');
     }
 
     let fullResponse = '';
+    this.isCancelled = false;
 
     try {
       const result = await this.context.completion(
@@ -194,10 +196,18 @@ class LlamaManager {
           mirostat_eta: 0.1,
         },
         (data) => {
+          if (this.isCancelled) {
+            console.log('[LlamaManager] Generation cancelled');
+            return false;
+          }
           
           if (!this.settings.stopWords.includes(data.token)) {
             fullResponse += data.token;
-            onToken?.(data.token);
+            const shouldContinue = onToken?.(data.token);
+            if (shouldContinue === false) {
+              this.isCancelled = true;
+              return false;
+            }
             return true;
           }
           return false;
@@ -208,11 +218,45 @@ class LlamaManager {
     } catch (error) {
       console.error('Generation error:', error);
       throw error;
+    } finally {
+      this.isCancelled = false;
+    }
+  }
+
+  async cancelGeneration() {
+    console.log('[LlamaManager] Cancelling generation');
+    this.isCancelled = true;
+    
+    if (this.modelPath && this.context) {
+      try {
+        const currentModelPath = this.modelPath;
+        
+        await this.context.release();
+        this.context = null;
+        
+        this.context = await initLlama({
+          model: currentModelPath,
+          use_mlock: true,
+          n_ctx: 6144,
+          n_batch: 512,
+          n_threads: Platform.OS === 'ios' ? 6 : 4,
+          n_gpu_layers: Platform.OS === 'ios' ? 1 : 0,
+          embedding: false,
+          rope_freq_base: 10000,
+          rope_freq_scale: 1,
+        });
+        
+        console.log('[LlamaManager] Context reinitialized after cancellation');
+      } catch (error) {
+        console.error('[LlamaManager] Error reinitializing context after cancellation:', error);
+        this.context = null;
+      }
     }
   }
 
   async release() {
     try {
+      this.isCancelled = true;
       if (this.context) {
         await this.context.release();
         this.context = null;

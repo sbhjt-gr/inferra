@@ -19,7 +19,7 @@ const lightTheme = {
 const darkTheme = {
   background: '#1E1326',
   text: '#fff',
-  headerBackground: '#5A1277',
+  headerBackground: '#660880',
   headerText: '#fff',
   tabBarBackground: '#660880',
   tabBarActiveText: '#fff',

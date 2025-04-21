@@ -63,7 +63,6 @@ export default function PDFViewerModal({
   const [extractedContent, setExtractedContent] = useState('');
   const [selectedPages, setSelectedPages] = useState<number[]>([]);
 
-  // Dialog State
   const [dialogVisible, setDialogVisible] = useState(false);
   const [dialogTitle, setDialogTitle] = useState('');
   const [dialogMessage, setDialogMessage] = useState('');
