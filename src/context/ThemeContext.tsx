@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { useColorScheme, Appearance, Platform } from 'react-native';
+import { useColorScheme, Appearance, Platform, ColorSchemeName } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ThemeType, ThemeColors } from '../types/theme';
 
@@ -21,9 +21,9 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [theme, setTheme] = useState<ThemeColors>(systemColorScheme as ThemeColors || 'light');
 
   useEffect(() => {
-    const updateTheme = ({ colorScheme }: { colorScheme: string | null }) => {
+    const updateTheme = (preferences: { colorScheme: ColorSchemeName }) => {
       if (selectedTheme === 'system') {
-        const newTheme = (colorScheme as ThemeColors) || 'light';
+        const newTheme = (preferences.colorScheme as ThemeColors) || 'light';
         setTheme(newTheme);
 
         if (Platform.OS === 'android') {
