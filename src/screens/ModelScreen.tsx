@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -6,15 +6,12 @@ import {
   FlatList,
   TouchableOpacity,
   Alert,
-  Linking,
-  Modal,
   ActivityIndicator,
   ScrollView,
   Animated,
   Platform,
-  TextInput,
 } from 'react-native';
-import { CompositeNavigationProp, useFocusEffect } from '@react-navigation/native';
+import { CompositeNavigationProp } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList, TabParamList } from '../types/navigation';
@@ -29,49 +26,21 @@ import * as BackgroundFetch from 'expo-background-fetch';
 import * as TaskManager from 'expo-task-manager';
 import * as DocumentPicker from 'expo-document-picker';
 import { downloadNotificationService } from '../services/DownloadNotificationService';
-import { getThemeAwareColor, getDocumentIconColor, getBrowserDownloadTextColor } from '../utils/ColorUtils';
+import { getThemeAwareColor } from '../utils/ColorUtils';
 import { onlineModelService } from '../services/OnlineModelService';
 import DownloadableModelList from '../components/model/DownloadableModelList';
 import ApiKeySection from '../components/model/ApiKeySection';
 import ModelDownloadsDialog from '../components/model/ModelDownloadsDialog';
 import StoredModelItem from '../components/model/StoredModelItem';
 import { getActiveDownloadsCount } from '../utils/ModelUtils';
-import { StoredModel, DownloadProgress } from '../services/ModelDownloaderTypes';
+import { StoredModel } from '../services/ModelDownloaderTypes';
 import { DOWNLOADABLE_MODELS } from '../constants/DownloadableModels';
-import { DownloadableModel } from '../components/model/DownloadableModelItem';
 
 type ModelScreenProps = {
   navigation: CompositeNavigationProp<
     BottomTabNavigationProp<TabParamList, 'ModelTab'>,
     NativeStackNavigationProp<RootStackParamList>
   >;
-};
-
-const formatBytes = (bytes?: number) => {
-  if (bytes === undefined || bytes === null || isNaN(bytes) || bytes === 0) return '0 B';
-  try {
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    if (i < 0 || i >= sizes.length || !isFinite(bytes)) return '0 B';
-    return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
-  } catch (error) {
-    console.error('Error formatting bytes:', error, bytes);
-    return '0 B';
-  }
-};
-
-const getProgressText = (data: DownloadProgress[string]) => {
-  if (!data) return '0% • 0 B / 0 B';
-  
-  const progress = typeof data.progress === 'number' ? data.progress : 0;
-  const bytesDownloaded = typeof data.bytesDownloaded === 'number' ? data.bytesDownloaded : 0;
-  const totalBytes = typeof data.totalBytes === 'number' && data.totalBytes > 0 ? data.totalBytes : 0;
-  
-  const downloadedFormatted = formatBytes(bytesDownloaded);
-  const totalFormatted = formatBytes(totalBytes);
-  
-  return `${progress}% • ${downloadedFormatted} / ${totalFormatted}`;
 };
 
 const BACKGROUND_DOWNLOAD_TASK = 'background-download-task';
@@ -87,13 +56,23 @@ TaskManager.defineTask(BACKGROUND_DOWNLOAD_TASK, async ({ data, error }) => {
 
 const registerBackgroundTask = async () => {
   try {
+    // First check if the task is already registered
+    const isRegistered = await TaskManager.isTaskRegisteredAsync(BACKGROUND_DOWNLOAD_TASK);
+    
+    if (isRegistered) {
+      console.log('Background download task already registered');
+      return;
+    }
+    
+    // If not registered, register with conservative settings
     await BackgroundFetch.registerTaskAsync(BACKGROUND_DOWNLOAD_TASK, {
-      minimumInterval: 1,
+      minimumInterval: 15, // 15 minutes minimum
       stopOnTerminate: false,
       startOnBoot: true,
     });
+    console.log('Background download task registered in ModelScreen');
   } catch (err) {
-    console.error('Task registration failed:', err);
+    console.error('Task registration failed in ModelScreen:', err);
   }
 };
 
@@ -109,11 +88,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [importingModelName, setImportingModelName] = useState<string | null>(null);
   const [geminiApiKey, setGeminiApiKey] = useState('');
-  const [openAIApiKey, setOpenAIApiKey] = useState('');
-  const [deepSeekApiKey, setDeepSeekApiKey] = useState('');
-  const [claudeApiKey, setClaudeApiKey] = useState('');
-  const [isLoadingApiKeys, setIsLoadingApiKeys] = useState(false);
-  const [showGeminiApiKey, setShowGeminiApiKey] = useState(false);
 
   const handleLinkModel = async () => {
     try {
@@ -293,66 +267,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     }
   };
 
-  const saveGeminiApiKey = async () => {
-    try {
-      if (geminiApiKey.trim()) {
-        await onlineModelService.saveApiKey('gemini', geminiApiKey.trim());
-        Alert.alert('Success', 'Gemini API key saved successfully');
-      } else {
-        await onlineModelService.clearApiKey('gemini');
-        Alert.alert('Success', 'Gemini API key cleared');
-      }
-    } catch (error) {
-      console.error('Error saving Gemini API key:', error);
-      Alert.alert('Error', 'Failed to save Gemini API key');
-    }
-  };
-
-  const saveOpenAIApiKey = async () => {
-    try {
-      if (openAIApiKey.trim()) {
-        await onlineModelService.saveApiKey('chatgpt', openAIApiKey.trim());
-        Alert.alert('Success', 'OpenAI API key saved successfully');
-      } else {
-        await onlineModelService.clearApiKey('chatgpt');
-        Alert.alert('Success', 'OpenAI API key cleared');
-      }
-    } catch (error) {
-      console.error('Error saving OpenAI API key:', error);
-      Alert.alert('Error', 'Failed to save OpenAI API key');
-    }
-  };
-
-  const saveDeepSeekApiKey = async () => {
-    try {
-      if (deepSeekApiKey.trim()) {
-        await onlineModelService.saveApiKey('deepseek', deepSeekApiKey.trim());
-        Alert.alert('Success', 'DeepSeek API key saved successfully');
-      } else {
-        await onlineModelService.clearApiKey('deepseek');
-        Alert.alert('Success', 'DeepSeek API key cleared');
-      }
-    } catch (error) {
-      console.error('Error saving DeepSeek API key:', error);
-      Alert.alert('Error', 'Failed to save DeepSeek API key');
-    }
-  };
-
-  const saveClaudeApiKey = async () => {
-    try {
-      if (claudeApiKey.trim()) {
-        await onlineModelService.saveApiKey('claude', claudeApiKey.trim());
-        Alert.alert('Success', 'Claude API key saved successfully');
-      } else {
-        await onlineModelService.clearApiKey('claude');
-        Alert.alert('Success', 'Claude API key cleared');
-      }
-    } catch (error) {
-      console.error('Error saving Claude API key:', error);
-      Alert.alert('Error', 'Failed to save Claude API key');
-    }
-  };
-
   useEffect(() => {
     const handleProgress = async ({ modelName, ...progress }: { 
       modelName: string;
@@ -527,10 +441,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         ]
       );
     }
-  };
-
-  const getDisplayName = (filename: string) => {
-    return filename.split('.')[0];
   };
 
   const renderDownloadableList = () => (

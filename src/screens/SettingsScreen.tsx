@@ -1,36 +1,36 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { StyleSheet, Text, View, Platform, ScrollView, TouchableOpacity, Linking, Alert, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, Platform, ScrollView, TouchableOpacity, Linking, Alert, ActivityIndicator } from 'react-native';
 import { CompositeNavigationProp } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList, TabParamList } from '../types/navigation';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AppHeader from '../components/AppHeader';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import { llamaManager } from '../utils/LlamaManager';
-import SettingSlider from '../components/SettingSlider';
 import ModelSettingDialog from '../components/ModelSettingDialog';
 import StopWordsDialog from '../components/StopWordsDialog';
 import SystemPromptDialog from '../components/SystemPromptDialog';
 import * as FileSystem from 'expo-file-system';
 import { useFocusEffect } from '@react-navigation/native';
 import { modelDownloader } from '../services/ModelDownloader';
-import { getThemeAwareColor } from '../utils/ColorUtils';
+
+// Import the new components
+import ChatSettingsSection from '../components/settings/ChatSettingsSection';
+import AppearanceSection from '../components/settings/AppearanceSection';
+import SupportSection from '../components/settings/SupportSection';
+import ModelSettingsSection from '../components/settings/ModelSettingsSection';
+import SystemInfoSection from '../components/settings/SystemInfoSection';
+import StorageSection from '../components/settings/StorageSection';
 
 type SettingsScreenProps = {
   navigation: CompositeNavigationProp<
     BottomTabNavigationProp<TabParamList, 'SettingsTab'>,
     NativeStackNavigationProp<RootStackParamList>
   >;
-};
-
-type SettingsSectionProps = {
-  title: string;
-  children: React.ReactNode;
 };
 
 type ThemeOption = 'system' | 'light' | 'dark';
@@ -45,27 +45,8 @@ const DEFAULT_SETTINGS = {
   systemPrompt: 'You are an AI assistant.'
 };
 
-const SettingsSection = ({ title, children }: SettingsSectionProps) => {
-  const { theme: currentTheme } = useTheme();
-  const themeColors = theme[currentTheme];
-
-  return (
-    <View style={styles.section}>
-      <Text style={[styles.sectionTitle, { color: themeColors.secondaryText }]}>
-        {title}
-      </Text>
-      <View style={[styles.sectionContent, { backgroundColor: themeColors.borderColor }]}>
-        {children}
-      </View>
-    </View>
-  );
-};
-
 export default function SettingsScreen({ navigation }: SettingsScreenProps) {
   const { theme: currentTheme, selectedTheme, toggleTheme } = useTheme();
-  const themeColors = theme[currentTheme];
-  const iconColor = currentTheme === 'dark' ? '#FFFFFF' : themeColors.primary;
-  const [showSystemInfo, setShowSystemInfo] = useState(false);
   const [showModelSettings, setShowModelSettings] = useState(false);
   const [systemInfo, setSystemInfo] = useState({
     os: Platform.OS,
@@ -189,45 +170,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
       description: "Maximum number of tokens in model responses. More tokens = longer responses but slower generation."
     });
   };
-
-  const ThemeOption = ({ title, description, value, icon }: {
-    title: string;
-    description: string;
-    value: ThemeOption;
-    icon: keyof typeof MaterialCommunityIcons.glyphMap;
-  }) => (
-    <TouchableOpacity 
-      style={[
-        styles.settingItem,
-        value !== 'system' && styles.settingItemBorder
-      ]}
-      onPress={() => handleThemeChange(value)}
-    >
-      <View style={styles.settingLeft}>
-        <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
-          <MaterialCommunityIcons name={icon} size={22} color={iconColor} />
-        </View>
-        <View style={styles.settingTextContainer}>
-          <Text style={[styles.settingText, { color: themeColors.text }]}>
-            {title}
-          </Text>
-          <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
-            {description}
-          </Text>
-        </View>
-      </View>
-      <View style={[
-        styles.radioButton,
-        { borderColor: themeColors.primary },
-        selectedTheme === value && styles.radioButtonSelected,
-        selectedTheme === value && { borderColor: themeColors.primary, backgroundColor: themeColors.primary }
-      ]}>
-        {selectedTheme === value && (
-          <View style={[styles.radioButtonInner, { backgroundColor: '#fff' }]} />
-        )}
-      </View>
-    </TouchableOpacity>
-  );
 
   const formatBytes = (bytes: number) => {
     if (bytes === 0) return '0 B';
@@ -364,488 +306,43 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: themeColors.background }]}>
+    <View style={[styles.container, { backgroundColor: theme[currentTheme].background }]}>
       <AppHeader />
       <ScrollView contentContainerStyle={styles.contentContainer}>
         
-        <SettingsSection title="CHAT SETTINGS">
-          <TouchableOpacity 
-            style={[styles.settingItem]}
-            onPress={() => setShowSystemPromptDialog(true)}
-          >
-            <View style={styles.settingLeft}>
-              <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
-                <MaterialCommunityIcons name="message-text-outline" size={22} color={iconColor} />
-              </View>
-              <View style={styles.settingTextContainer}>
-                <Text style={[styles.settingText, { color: themeColors.text }]}>
-                  System Prompt
-                </Text>
-                <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
-                  Define what should the AI know about you and your preferences
-                </Text>
-                {modelSettings.systemPrompt !== DEFAULT_SETTINGS.systemPrompt && (
-                  <TouchableOpacity
-                    onPress={() => handleSettingsChange({ systemPrompt: DEFAULT_SETTINGS.systemPrompt })}
-                    style={[styles.resetButton, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}
-                  >
-                    <MaterialCommunityIcons name="refresh" size={14} color={iconColor} />
-                    <Text style={[styles.resetText, { color: iconColor }]}>Reset to Default</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            </View>
-            <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
-          </TouchableOpacity>
-        </SettingsSection>
+        <ChatSettingsSection
+          modelSettings={modelSettings}
+          defaultSettings={DEFAULT_SETTINGS}
+          onOpenSystemPromptDialog={() => setShowSystemPromptDialog(true)}
+          onResetSystemPrompt={() => handleSettingsChange({ systemPrompt: DEFAULT_SETTINGS.systemPrompt })}
+        />
 
-        <SettingsSection title="APPEARANCE">
-          <ThemeOption
-            title="System Default"
-            description="Follow system theme settings"
-            value="system"
-            icon="cellphone"
-          />
-          <ThemeOption
-            title="Light Mode"
-            description="Classic light appearance"
-            value="light"
-            icon="white-balance-sunny"
-          />
-          <ThemeOption
-            title="Dark Mode"
-            description="Easier on the eyes in low light"
-            value="dark"
-            icon="moon-waning-crescent"
-          />
-        </SettingsSection>
+        <AppearanceSection
+          selectedTheme={selectedTheme}
+          onThemeChange={handleThemeChange}
+        />
 
-        <SettingsSection title="SUPPORT">
-          <TouchableOpacity 
-            style={[styles.settingItem]}
-            onPress={() => openLink('https://play.google.com/store/apps/details?id=com.gorai.ragionare')}
-          >
-            <View style={styles.settingLeft}>
-              <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
-                <MaterialCommunityIcons name="google-play" size={22} color={iconColor} />
-              </View>
-              <View style={styles.settingTextContainer}>
-                <Text style={[styles.settingText, { color: themeColors.text }]}>
-                  Liked My App?
-                </Text>
-                <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
-                  Please rate my app 5 stars
-                </Text>
-              </View>
-            </View>
-            <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
-          </TouchableOpacity>
+        <SupportSection onOpenLink={openLink} />
 
-          <TouchableOpacity 
-            style={[styles.settingItem, styles.settingItemBorder]}
-            onPress={() => openLink('https://ko-fi.com/subhajitgorai')}
-          >
-            <View style={styles.settingLeft}>
-              <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
-                <MaterialCommunityIcons name="coffee-outline" size={22} color={iconColor} />
-              </View>
-              <View style={styles.settingTextContainer}>
-                <Text style={[styles.settingText, { color: themeColors.text }]}>
-                  Support Development
-                </Text>
-                <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
-                  Buy me a coffee on Ko-fi by donating
-                </Text>
-              </View>
-            </View>
-            <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
-          </TouchableOpacity>
+        <ModelSettingsSection
+          modelSettings={modelSettings}
+          defaultSettings={DEFAULT_SETTINGS}
+          error={error}
+          onSettingsChange={handleSettingsChange}
+          onMaxTokensPress={handleMaxTokensPress}
+          onStopWordsPress={() => setShowStopWordsDialog(true)}
+          onDialogOpen={handleOpenDialog}
+        />
 
-          <TouchableOpacity 
-            style={[styles.settingItem, styles.settingItemBorder]}
-            onPress={() => openLink('https://github.com/ggerganov/llama.cpp')}
-          >
-            <View style={styles.settingLeft}>
-              <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
-                <MaterialCommunityIcons name="github" size={22} color={iconColor} />
-              </View>
-              <View style={styles.settingTextContainer}>
-                <Text style={[styles.settingText, { color: themeColors.text }]}>
-                  GitHub Repository
-                </Text>
-                <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
-                  Contribute to llama.cpp
-                </Text>
-              </View>
-            </View>
-            <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
-          </TouchableOpacity>
+        <SystemInfoSection systemInfo={systemInfo} />
 
-          <TouchableOpacity 
-            style={[styles.settingItem, styles.settingItemBorder]}
-            onPress={() => openLink('https://ragionare.ct.ws/privacy-policy')}
-          >
-            <View style={styles.settingLeft}>
-              <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
-                <MaterialCommunityIcons name="shield-check-outline" size={22} color={iconColor} />
-              </View>
-              <View style={styles.settingTextContainer}>
-                <Text style={[styles.settingText, { color: themeColors.text }]}>
-                  Privacy Policy
-                </Text>
-                <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
-                  View the app's privacy policy page
-                </Text>
-              </View>
-            </View>
-            <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
-          </TouchableOpacity>
-        </SettingsSection>
-
-        <SettingsSection title="MODEL SETTINGS">
-        <TouchableOpacity 
-            style={[styles.settingItem, styles.settingItemBorder]}
-            onPress={handleMaxTokensPress}
-          >
-            <View style={styles.settingLeft}>
-              <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
-                <MaterialCommunityIcons name="text" size={22} color={iconColor} />
-              </View>
-              <View style={styles.settingTextContainer}>
-                <View style={styles.labelRow}>
-                  <Text style={[styles.settingText, { color: themeColors.text }]}>
-                    Max Response Tokens
-                  </Text>
-                  <Text style={[styles.valueText, { color: themeColors.text }]}>
-                    {modelSettings.maxTokens}
-                  </Text>
-                </View>
-                <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
-                  Maximum number of tokens in model responses. More tokens = longer responses but slower generation.
-                </Text>
-                {modelSettings.maxTokens !== DEFAULT_SETTINGS.maxTokens && (
-                  <TouchableOpacity
-                    onPress={() => handleSettingsChange({ maxTokens: DEFAULT_SETTINGS.maxTokens })}
-                    style={[styles.resetButton, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}
-                  >
-                    <MaterialCommunityIcons name="refresh" size={14} color={iconColor} />
-                    <Text style={[styles.resetText, { color: iconColor }]}>Reset to Default</Text>
-                  </TouchableOpacity>
-                )}
-                {error && (
-                  <Text style={[styles.errorText, { color: '#FF3B30' }]}>
-                    {error}
-                  </Text>
-                )}
-              </View>
-            </View>
-            <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={[styles.settingItem, styles.settingItemBorder]}
-            onPress={() => setShowStopWordsDialog(true)}
-          >
-            <View style={styles.settingLeft}>
-              <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
-                <MaterialCommunityIcons name="stop-circle-outline" size={22} color={iconColor} />
-              </View>
-              <View style={styles.settingTextContainer}>
-                <View style={styles.labelRow}>
-                  <Text style={[styles.settingText, { color: themeColors.text }]}>
-                    Stop Words
-                  </Text>
-                  <Text style={[styles.valueText, { color: themeColors.text }]}>
-                    {modelSettings.stopWords.length}
-                  </Text>
-                </View>
-                <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
-                  Words that will cause the model to stop generating. One word per line.
-                </Text>
-                {JSON.stringify(modelSettings.stopWords) !== JSON.stringify(DEFAULT_SETTINGS.stopWords) && (
-                  <TouchableOpacity
-                    onPress={() => handleSettingsChange({ stopWords: DEFAULT_SETTINGS.stopWords })}
-                    style={[styles.resetButton, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}
-                  >
-                    <MaterialCommunityIcons name="refresh" size={14} color={iconColor} />
-                    <Text style={[styles.resetText, { color: iconColor }]}>Reset to Default</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            </View>
-            <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
-          </TouchableOpacity>
-
-          <SettingSlider
-            label="Temperature"
-            value={modelSettings.temperature}
-            defaultValue={DEFAULT_SETTINGS.temperature}
-            onValueChange={(value) => handleSettingsChange({ temperature: value })}
-            minimumValue={0}
-            maximumValue={2}
-            step={0.01}
-            description="Controls randomness in responses. Higher values make the output more creative but less focused."
-            onPressChange={() => handleOpenDialog({
-              key: 'temperature',
-              label: 'Temperature',
-              value: modelSettings.temperature,
-              minimumValue: 0,
-              maximumValue: 2,
-              step: 0.01,
-              description: "Controls randomness in responses. Higher values make the output more creative but less focused."
-            })}
-          />
-
-          <SettingSlider
-            label="Top K"
-            value={modelSettings.topK}
-            defaultValue={DEFAULT_SETTINGS.topK}
-            onValueChange={(value) => handleSettingsChange({ topK: value })}
-            minimumValue={1}
-            maximumValue={100}
-            step={1}
-            description="Limits the cumulative probability of tokens considered for each step of text generation."
-            onPressChange={() => handleOpenDialog({
-              key: 'topK',
-              label: 'Top K',
-              value: modelSettings.topK,
-              minimumValue: 1,
-              maximumValue: 100,
-              step: 1,
-              description: "Limits the cumulative probability of tokens considered for each step of text generation."
-            })}
-          />
-
-          <SettingSlider
-            label="Top P"
-            value={modelSettings.topP}
-            defaultValue={DEFAULT_SETTINGS.topP}
-            onValueChange={(value) => handleSettingsChange({ topP: value })}
-            minimumValue={0}
-            maximumValue={1}
-            step={0.01}
-            description="Controls diversity of responses. Higher values = more diverse but potentially less focused."
-            onPressChange={() => handleOpenDialog({
-              key: 'topP',
-              label: 'Top P',
-              value: modelSettings.topP,
-              minimumValue: 0,
-              maximumValue: 1,
-              step: 0.01,
-              description: "Controls diversity of responses. Higher values = more diverse but potentially less focused."
-            })}
-          />
-
-          <SettingSlider
-            label="Min P"
-            value={modelSettings.minP}
-            defaultValue={DEFAULT_SETTINGS.minP}
-            onValueChange={(value) => handleSettingsChange({ minP: value })}
-            minimumValue={0}
-            maximumValue={1}
-            step={0.01}
-            description="Minimum probability threshold. Higher values = more focused on likely tokens."
-            onPressChange={() => handleOpenDialog({
-              key: 'minP',
-              label: 'Min P',
-              value: modelSettings.minP,
-              minimumValue: 0,
-              maximumValue: 1,
-              step: 0.01,
-              description: "Minimum probability threshold. Higher values = more focused on likely tokens."
-            })}
-          />
-
-          
-        </SettingsSection>
-
-
-        <SettingsSection title="SYSTEM INFO">
-          <TouchableOpacity 
-            style={[styles.settingItem]}
-            onPress={() => setShowSystemInfo(!showSystemInfo)}
-          >
-            <View style={styles.settingLeft}>
-              <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
-                <MaterialCommunityIcons name="information-outline" size={22} color={iconColor} />
-              </View>
-              <View style={styles.settingTextContainer}>
-                <Text style={[styles.settingText, { color: themeColors.text }]}>
-                  Device Information
-                </Text>
-                <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
-                  Tap to {showSystemInfo ? 'hide' : 'view'} system details
-                </Text>
-              </View>
-            </View>
-            <MaterialCommunityIcons 
-              name={showSystemInfo ? "chevron-up" : "chevron-down"} 
-              size={20} 
-              color={themeColors.secondaryText} 
-            />
-          </TouchableOpacity>
-
-          {showSystemInfo && (
-            <>
-              <View style={[styles.settingItem, styles.settingItemBorder]}>
-                <View style={styles.settingLeft}>
-                  <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
-                    <MaterialCommunityIcons name="cellphone" size={22} color={iconColor} />
-                  </View>
-                  <View style={styles.settingTextContainer}>
-                    <Text style={[styles.settingText, { color: themeColors.text }]}>
-                      Platform
-                    </Text>
-                    <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
-                      {systemInfo.os.charAt(0).toUpperCase() + systemInfo.os.slice(1)} {systemInfo.osVersion}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-
-              <View style={[styles.settingItem, styles.settingItemBorder]}>
-                <View style={styles.settingLeft}>
-                  <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
-                    <MaterialCommunityIcons name="chip" size={22} color={iconColor} />
-                  </View>
-                  <View style={styles.settingTextContainer}>
-                    <Text style={[styles.settingText, { color: themeColors.text }]}>
-                      CPU
-                    </Text>
-                    <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
-                      {systemInfo.cpu}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-
-              <View style={[styles.settingItem, styles.settingItemBorder]}>
-                <View style={styles.settingLeft}>
-                  <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
-                    <MaterialCommunityIcons name="content-save-outline" size={22} color={iconColor} />
-                  </View>
-                  <View style={styles.settingTextContainer}>
-                    <Text style={[styles.settingText, { color: themeColors.text }]}>
-                      Memory
-                    </Text>
-                    <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
-                      {systemInfo.memory}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-
-              <View style={[styles.settingItem, styles.settingItemBorder]}>
-                <View style={styles.settingLeft}>
-                  <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
-                    <MaterialCommunityIcons name="cellphone" size={22} color={iconColor} />
-                  </View>
-                  <View style={styles.settingTextContainer}>
-                    <Text style={[styles.settingText, { color: themeColors.text }]}>
-                      Device
-                    </Text>
-                    <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
-                      {systemInfo.device} ({systemInfo.deviceType})
-                    </Text>
-                  </View>
-                </View>
-              </View>
-
-              <View style={[styles.settingItem, styles.settingItemBorder]}>
-                <View style={styles.settingLeft}>
-                  <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
-                    <MaterialCommunityIcons name="apps" size={22} color={iconColor} />
-                  </View>
-                  <View style={styles.settingTextContainer}>
-                    <Text style={[styles.settingText, { color: themeColors.text }]}>
-                      App Version
-                    </Text>
-                    <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
-                      {systemInfo.appVersion}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            </>
-          )}
-        </SettingsSection>
-
-        <SettingsSection title="STORAGE">
-          <TouchableOpacity 
-            style={styles.settingItem}
-            onPress={clearCache}
-            disabled={isClearing}
-          >
-            <View style={styles.settingLeft}>
-              <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
-                <MaterialCommunityIcons name="delete-outline" size={22} color={iconColor} />
-              </View>
-              <View style={styles.settingTextContainer}>
-                <Text style={[styles.settingText, { color: themeColors.text }]}>
-                  Clear Cache
-                </Text>
-                <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
-                  {storageInfo.cacheSize} of cached data
-                </Text>
-              </View>
-            </View>
-            {isClearing ? (
-              <ActivityIndicator size="small" color={themeColors.primary} />
-            ) : (
-              <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
-            )}
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={[styles.settingItem, styles.settingItemBorder]}
-            onPress={clearTempFiles}
-            disabled={isClearing}
-          >
-            <View style={styles.settingLeft}>
-              <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
-                <MaterialCommunityIcons name="folder-outline" size={22} color={iconColor} />
-              </View>
-              <View style={styles.settingTextContainer}>
-                <Text style={[styles.settingText, { color: themeColors.text }]}>
-                  Clear Temporary Files
-                </Text>
-                <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
-                  {storageInfo.tempSize} of temporary data
-                </Text>
-              </View>
-            </View>
-            {isClearing ? (
-              <ActivityIndicator size="small" color={themeColors.primary} />
-            ) : (
-              <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
-            )}
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={[styles.settingItem, styles.settingItemBorder]}
-            onPress={clearAllModels}
-            disabled={isClearing}
-          >
-            <View style={styles.settingLeft}>
-              <View style={[styles.iconContainer, { backgroundColor: '#FF3B3020' }]}>
-                <MaterialCommunityIcons name="alert-circle-outline" size={22} color={getThemeAwareColor('#FF3B30', currentTheme)} />
-              </View>
-              <View style={styles.settingTextContainer}>
-                <Text style={[styles.settingText, { color: themeColors.text }]}>
-                  Clear All Models
-                </Text>
-                <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
-                  {storageInfo.modelsSize} of model data will be permanently deleted
-                </Text>
-              </View>
-            </View>
-            {isClearing ? (
-              <ActivityIndicator size="small" color={getThemeAwareColor('#FF3B30', currentTheme)} />
-            ) : (
-              <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
-            )}
-          </TouchableOpacity>
-        </SettingsSection>
+        <StorageSection
+          storageInfo={storageInfo}
+          isClearing={isClearing}
+          onClearCache={clearCache}
+          onClearTempFiles={clearTempFiles}
+          onClearAllModels={clearAllModels}
+        />
 
         {dialogConfig.setting && (
           <ModelSettingDialog
@@ -901,283 +398,5 @@ const styles = StyleSheet.create({
   contentContainer: {
     paddingBottom: 32,
     paddingTop: 22
-  },
-  header: {
-    padding: 24,
-    paddingTop: 12,
-    alignItems: 'center',
-  },
-  appInfo: {
-    alignItems: 'center',
-  },
-  appName: {
-    fontSize: 28,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  appVersion: {
-    fontSize: 15,
-  },
-  section: {
-    marginBottom: 24,
-    paddingHorizontal: 16,
-  },
-  sectionTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    marginBottom: 8,
-    marginLeft: 12,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  sectionContent: {
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  settingItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-  },
-  settingItemBorder: {
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(150, 150, 150, 0.1)',
-  },
-  settingLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  iconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  settingTextContainer: {
-    flex: 1,
-  },
-  settingText: {
-    fontSize: 16,
-    fontWeight: '500',
-    marginBottom: 2,
-  },
-  settingDescription: {
-    fontSize: 13,
-  },
-  radioButton: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  radioButtonSelected: {
-    borderWidth: 0,
-  },
-  radioButtonInner: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  tokenInput: {
-    width: 60,
-    height: 36,
-    borderWidth: 1,
-    borderRadius: 8,
-    textAlign: 'center',
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  tokenExplanation: {
-    fontSize: 12,
-    marginTop: 4,
-    fontStyle: 'italic',
-  },
-  settingGroup: {
-    marginBottom: 24,
-    padding: 16,
-  },
-  settingLabel: {
-    fontSize: 16,
-    fontWeight: '500',
-    marginBottom: 8,
-  },
-  input: {
-    width: '100%',
-    height: 48,
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    fontSize: 16,
-    marginBottom: 8,
-  },
-  error: {
-    fontSize: 12,
-    marginTop: 8,
-    color: '#FF3B30',
-  },
-  sliderContainer: {
-    marginBottom: 24,
-    padding: 16,
-  },
-  sliderHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  sliderLabel: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  sliderValue: {
-    fontSize: 14,
-  },
-  slider: {
-    width: '100%',
-    height: 40,
-  },
-  sliderDescription: {
-    fontSize: 12,
-    fontStyle: 'italic',
-    marginTop: 4,
-  },
-  resetButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    alignSelf: 'flex-start',
-    padding: 4,
-    borderRadius: 4,
-  },
-  resetText: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  modelSettingGroup: {
-    marginBottom: 24,
-    padding: 16,
-  },
-  modelSettingLabel: {
-    fontSize: 16,
-    fontWeight: '500',
-    marginBottom: 8,
-  },
-  modelSettingInput: {
-    width: '100%',
-    height: 48,
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    fontSize: 16,
-    marginBottom: 8,
-  },
-  modelSettingDescription: {
-    fontSize: 12,
-    fontStyle: 'italic',
-    marginTop: 4,
-  },
-  modelSettingError: {
-    fontSize: 12,
-    marginTop: 8,
-    color: '#FF3B30',
-  },
-  modelResetButton: {
-    marginTop: 8,
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  modelResetButtonText: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  modelSettingReset: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 8,
-  },
-  modelSettingDefaultValue: {
-    fontSize: 12,
-  },
-  modelSettingResetButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    padding: 4,
-    borderRadius: 4,
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
-  },
-  modelSettingResetText: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  labelRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 2,
-  },
-  settingFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 8,
-  },
-  settingMeta: {
-    fontSize: 12,
-  },
-  errorText: {
-    fontSize: 12,
-    marginTop: 8,
-    color: '#FF3B30',
-  },
-  valueText: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  storageInfoContainer: {
-    marginTop: 8,
-  },
-  storageItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(150, 150, 150, 0.2)',
-  },
-  storageLabel: {
-    fontSize: 16,
-    flex: 1,
-  },
-  storageValue: {
-    fontSize: 14,
-    marginRight: 16,
-  },
-  clearButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    minWidth: 80,
-    alignItems: 'center',
-  },
-  clearButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  inputContainer: {
-    marginBottom: 20,
-  },
-  inputLabel: {
-    fontSize: 16,
-    fontWeight: '500',
-    marginBottom: 8,
   },
 }); 

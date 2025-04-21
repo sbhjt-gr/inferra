@@ -26,25 +26,38 @@ initClaudeService();
 
 const BACKGROUND_DOWNLOAD_TASK = 'background-download-check';
 
-try {
-  TaskManager.defineTask(BACKGROUND_DOWNLOAD_TASK, async () => {
-    try {
-      console.log('[Background] Checking downloads status');
-      await modelDownloader.checkBackgroundDownloads();
-      return BackgroundFetch.BackgroundFetchResult.NewData;
-    } catch (error) {
-      console.error('[Background] Error checking downloads:', error);
-      return BackgroundFetch.BackgroundFetchResult.Failed;
-    }
-  });
-} catch (error) {
-  console.error('Error defining background task:', error);
+// Try to define the task only if it's not already defined
+if (!TaskManager.isTaskDefined(BACKGROUND_DOWNLOAD_TASK)) {
+  try {
+    TaskManager.defineTask(BACKGROUND_DOWNLOAD_TASK, async () => {
+      try {
+        console.log('[Background] Checking downloads status');
+        await modelDownloader.checkBackgroundDownloads();
+        return BackgroundFetch.BackgroundFetchResult.NewData;
+      } catch (error) {
+        console.error('[Background] Error checking downloads:', error);
+        return BackgroundFetch.BackgroundFetchResult.Failed;
+      }
+    });
+    console.log('Background task defined successfully');
+  } catch (error) {
+    console.error('Error defining background task:', error);
+  }
 }
 
 async function registerBackgroundFetchAsync() {
   try {
+    // First check if the task is already registered
+    const isRegistered = await BackgroundFetch.isTaskRegisteredAsync(BACKGROUND_DOWNLOAD_TASK);
+    
+    if (isRegistered) {
+      console.log('Background fetch task already registered');
+      return;
+    }
+    
+    // Register the task with more conservative settings to ensure it works
     await BackgroundFetch.registerTaskAsync(BACKGROUND_DOWNLOAD_TASK, {
-      minimumInterval: 30, 
+      minimumInterval: 900, // 15 minutes in seconds
       stopOnTerminate: false, 
       startOnBoot: true 
     });
@@ -87,11 +100,13 @@ function Navigation() {
   };
 
   useEffect(() => {
-    try {
-      registerBackgroundFetchAsync();
-    } catch (error) {
-      console.error('Error registering background fetch:', error);
-    }
+    // Only try to register background fetch after a short delay to ensure
+    // all services are properly initialized
+    const timer = setTimeout(() => {
+      registerBackgroundFetchAsync().catch(error => {
+        console.error('Error registering background fetch:', error);
+      });
+    }, 2000);
 
     const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
       try {
@@ -109,6 +124,7 @@ function Navigation() {
     });
 
     return () => {
+      clearTimeout(timer);
       try {
         llamaManager.release();
         subscription.remove();
