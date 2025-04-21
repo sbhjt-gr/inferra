@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   StyleSheet,
   Platform,
@@ -29,8 +29,8 @@ import { RootStackParamList, TabParamList } from '../types/navigation';
 import * as Device from 'expo-device';
 import chatManager, { Chat, ChatMessage } from '../utils/ChatManager';
 import { getThemeAwareColor } from '../utils/ColorUtils';
-import ChatView, { Message } from '../components/ChatView';
-import ChatInput from '../components/ChatInput';
+import ChatView, { Message } from '../components/chat/ChatView';
+import ChatInput from '../components/chat/ChatInput';
 import { onlineModelService } from '../services/OnlineModelService';
 import { useModel } from '../context/ModelContext';
 
