@@ -26,7 +26,6 @@ initClaudeService();
 
 const BACKGROUND_DOWNLOAD_TASK = 'background-download-check';
 
-// Try to define the task only if it's not already defined
 if (!TaskManager.isTaskDefined(BACKGROUND_DOWNLOAD_TASK)) {
   try {
     TaskManager.defineTask(BACKGROUND_DOWNLOAD_TASK, async () => {
@@ -47,17 +46,15 @@ if (!TaskManager.isTaskDefined(BACKGROUND_DOWNLOAD_TASK)) {
 
 async function registerBackgroundFetchAsync() {
   try {
-    // First check if the task is already registered
-    const isRegistered = await BackgroundFetch.isTaskRegisteredAsync(BACKGROUND_DOWNLOAD_TASK);
+    const isRegistered = await TaskManager.isTaskRegisteredAsync(BACKGROUND_DOWNLOAD_TASK);
     
     if (isRegistered) {
       console.log('Background fetch task already registered');
       return;
     }
     
-    // Register the task with more conservative settings to ensure it works
     await BackgroundFetch.registerTaskAsync(BACKGROUND_DOWNLOAD_TASK, {
-      minimumInterval: 900, // 15 minutes in seconds
+      minimumInterval: 900,
       stopOnTerminate: false, 
       startOnBoot: true 
     });
@@ -100,8 +97,6 @@ function Navigation() {
   };
 
   useEffect(() => {
-    // Only try to register background fetch after a short delay to ensure
-    // all services are properly initialized
     const timer = setTimeout(() => {
       registerBackgroundFetchAsync().catch(error => {
         console.error('Error registering background fetch:', error);
