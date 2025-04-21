@@ -22,7 +22,7 @@ type AppHeaderProps = {
 };
 
 export default function AppHeader({ 
-  title = 'Ragionare', 
+  title = 'Inferra', 
   showBackButton = false,
   showLogo = true,
   onNewChat,
