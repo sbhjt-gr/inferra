@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
-import { Platform, StatusBar, AppState, AppStateStatus, StatusBarStyle } from 'react-native';
+import { AppState, AppStateStatus } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
@@ -18,6 +18,7 @@ import { initGeminiService } from './src/services/GeminiInitializer';
 import { initOpenAIService } from './src/services/OpenAIInitializer';
 import { initDeepSeekService } from './src/services/DeepSeekInitializer';
 import { initClaudeService } from './src/services/ClaudeInitializer';
+import { PaperProvider } from 'react-native-paper';
 
 initGeminiService();
 initOpenAIService();
@@ -151,32 +152,28 @@ function Navigation() {
   }, []);
 
   return (
-    <>
-      <StatusBar
-        backgroundColor={themeColors.statusBarBg}
-        barStyle={(themeColors.statusBarStyle + '-content') as StatusBarStyle}
-      />
       <NavigationContainer 
         theme={currentTheme === 'dark' ? customDarkTheme : customDefaultTheme}
       >
         <RootNavigator />
       </NavigationContainer>
-    </>
   );
 }
 
 export default function App() {
   return (
     <SafeAreaProvider>
-      <ModelProvider>
-        <DownloadProvider>
-          <GestureHandlerRootView style={{ flex: 1 }}>
-            <ThemeProvider>
-              <Navigation />
-            </ThemeProvider>
-          </GestureHandlerRootView>
-        </DownloadProvider>
-      </ModelProvider>
+      <PaperProvider>
+        <ModelProvider>
+          <DownloadProvider>
+            <GestureHandlerRootView style={{ flex: 1 }}>
+              <ThemeProvider>
+                <Navigation />
+              </ThemeProvider>
+            </GestureHandlerRootView>
+          </DownloadProvider>
+        </ModelProvider>
+      </PaperProvider>
     </SafeAreaProvider>
   );
 }

@@ -1,9 +1,8 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import {
   StyleSheet,
   Platform,
   TouchableOpacity,
-  Alert,
   Modal,
   Keyboard,
   AppState,
@@ -13,26 +12,34 @@ import {
   KeyboardAvoidingView,
   ToastAndroid,
   Clipboard,
+  Dimensions,
+  AppStateStatus,
+  StatusBar,
+  ActivityIndicator,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import ModelSelector from '../components/ModelSelector';
+import ModelSelector, { ModelSelectorRef } from '../components/ModelSelector';
 import { llamaManager } from '../utils/LlamaManager';
 import AppHeader from '../components/AppHeader';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, RouteProp } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList, TabParamList } from '../types/navigation';
 import * as Device from 'expo-device';
-import chatManager, { Chat, ChatMessage } from '../utils/ChatManager';
+import chatManager, { Chat, ChatMessage, getChatTitle } from '../utils/ChatManager';
 import { getThemeAwareColor } from '../utils/ColorUtils';
-import ChatView, { Message } from '../components/chat/ChatView';
+import ChatView from '../components/chat/ChatView';
 import ChatInput from '../components/chat/ChatInput';
 import { onlineModelService } from '../services/OnlineModelService';
 import { useModel } from '../context/ModelContext';
+import { Dialog, Portal, PaperProvider, Button, Text as PaperText } from 'react-native-paper';
+import { useDownloads } from '../context/DownloadContext';
+import { modelDownloader } from '../services/ModelDownloader';
+
+const windowWidth = Dimensions.get('window').width;
 
 function debounce<T extends (...args: any[]) => any>(func: T, wait: number) {
   let timeout: NodeJS.Timeout | null = null;
@@ -67,16 +74,15 @@ const generateRandomId = () => {
 };
 
 export default function HomeScreen({ route, navigation }: HomeScreenProps) {
-  const { theme: currentTheme } = useTheme();
+  const { theme: currentTheme, selectedTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
   const [chat, setChat] = useState<Chat | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const flatListRef = useRef<FlatList>(null);
   const [streamingMessage, setStreamingMessage] = useState<string>('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
-  const modelSelectorRef = useRef<{ refreshModels: () => void }>(null);
+  const modelSelectorRef = useRef<ModelSelectorRef>(null);
   const [shouldOpenModelSelector, setShouldOpenModelSelector] = useState(false);
   const [preselectedModelPath, setPreselectedModelPath] = useState<string | null>(null);
   const [showCopyToast, setShowCopyToast] = useState(false);
@@ -85,6 +91,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   const [isRegenerating, setIsRegenerating] = useState(false);
   const cancelGenerationRef = useRef<boolean>(false);
   const [showMemoryWarning, setShowMemoryWarning] = useState(false);
+  const [memoryWarningType, setMemoryWarningType] = useState('');
+  const [onlineModelProvider, setOnlineModelProvider] = useState<string | null>(null);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [streamingThinking, setStreamingThinking] = useState<string>('');
   const [streamingStats, setStreamingStats] = useState<{ tokens: number; duration: number } | null>(null);
@@ -92,7 +100,24 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   const [appState, setAppState] = useState(appStateRef.current);
   const isFirstLaunchRef = useRef(true);
   const [activeProvider, setActiveProvider] = useState<'local' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude' | null>(null);
-  const { loadModel, unloadModel, setSelectedModelPath } = useModel();
+  const { loadModel, unloadModel, setSelectedModelPath, isModelLoading } = useModel();
+  const insets = useSafeAreaInsets();
+  const flatListRef = useRef<FlatList>(null);
+
+  // Dialog State
+  const [dialogVisible, setDialogVisible] = useState(false);
+  const [dialogTitle, setDialogTitle] = useState('');
+  const [dialogMessage, setDialogMessage] = useState('');
+  const [dialogActions, setDialogActions] = useState<React.ReactNode[]>([]);
+
+  const hideDialog = () => setDialogVisible(false);
+
+  const showDialog = (title: string, message: string, actions: React.ReactNode[]) => {
+    setDialogTitle(title);
+    setDialogMessage(message);
+    setDialogActions(actions);
+    setDialogVisible(true);
+  };
 
   const saveMessagesDebounced = useRef(debounce(async (messages: ChatMessage[]) => {
     if (chat) {
@@ -799,7 +824,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     
     const newMessages = messages.slice(0, -1);
     
-    const assistantMessage: Message = {
+    const assistantMessage: ChatMessage = {
       id: generateRandomId(),
       content: '',
       role: 'assistant',
@@ -863,7 +888,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                 });
                 
                 if (tokenCount % 5 === 0 || partialResponse.endsWith('.') || partialResponse.endsWith('!') || partialResponse.endsWith('?')) {
-                  const finalMessage: Message = {
+                  const finalMessage: ChatMessage = {
                     ...assistantMessage,
                     content: partialResponse,
                     stats: {
@@ -882,7 +907,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             );
             
             if (!cancelGenerationRef.current) {
-              const finalMessage: Message = {
+              const finalMessage: ChatMessage = {
                 id: assistantMessage.id,
                 role: assistantMessage.role,
                 content: fullResponse,
@@ -932,7 +957,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                 });
                 
                 if (tokenCount % 5 === 0 || partialResponse.endsWith('.') || partialResponse.endsWith('!') || partialResponse.endsWith('?')) {
-                  const finalMessage: Message = {
+                  const finalMessage: ChatMessage = {
                     ...assistantMessage,
                     content: partialResponse,
                     stats: {
@@ -951,7 +976,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             );
             
             if (!cancelGenerationRef.current) {
-              const finalMessage: Message = {
+              const finalMessage: ChatMessage = {
                 id: assistantMessage.id,
                 role: assistantMessage.role,
                 content: fullResponse,
@@ -1001,7 +1026,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                 });
                 
                 if (tokenCount % 5 === 0 || partialResponse.endsWith('.') || partialResponse.endsWith('!') || partialResponse.endsWith('?')) {
-                  const finalMessage: Message = {
+                  const finalMessage: ChatMessage = {
                     ...assistantMessage,
                     content: partialResponse,
                     stats: {
@@ -1020,7 +1045,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             );
             
             if (!cancelGenerationRef.current) {
-              const finalMessage: Message = {
+              const finalMessage: ChatMessage = {
                 id: assistantMessage.id,
                 role: assistantMessage.role,
                 content: fullResponse,
@@ -1070,7 +1095,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                 });
                 
                 if (tokenCount % 5 === 0 || partialResponse.endsWith('.') || partialResponse.endsWith('!') || partialResponse.endsWith('?')) {
-                  const finalMessage: Message = {
+                  const finalMessage: ChatMessage = {
                     ...assistantMessage,
                     content: partialResponse,
                     stats: {
@@ -1089,7 +1114,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             );
             
             if (!cancelGenerationRef.current) {
-              const finalMessage: Message = {
+              const finalMessage: ChatMessage = {
                 id: assistantMessage.id,
                 role: assistantMessage.role,
                 content: fullResponse,
@@ -1108,7 +1133,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             setIsRegenerating(false);
           }
         } else {
-          const finalMessage: Message = {
+          const finalMessage: ChatMessage = {
             ...assistantMessage,
             content: `This model provider (${activeProvider}) is not yet implemented.`,
             stats: {
@@ -1154,7 +1179,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             });
             
             if (tokenCount % 10 === 0) {
-              const finalMessage: Message = {
+              const finalMessage: ChatMessage = {
                 ...assistantMessage,
                 content: fullResponse,
                 stats: {
@@ -1359,104 +1384,83 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     );
   };
 
+  if (!chat) {
+    return (
+      <View style={[styles.container, styles.loadingContainer, { backgroundColor: themeColors.background }]}>
+        <ActivityIndicator size="large" color={themeColors.primary} />
+        <Text style={{marginTop: 10, color: themeColors.text}}>Loading Chat...</Text>
+      </View>
+    );
+  }
+
   return (
-    <SafeAreaView 
-      style={[styles.container, { backgroundColor: themeColors.background }]}
-      edges={['right', 'left']}
-    >
+    <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]} edges={['bottom', 'left', 'right']}>
       <AppHeader 
         onNewChat={startNewChat}
-        title="Ragionare"
-        showLogo={true}
-      />
-      
-      {showCopyToast && (
-        <View style={styles.copyToast}>
-          <Text style={styles.copyToastText}>{copyToastMessageRef.current}</Text>
-        </View>
-      )}
-
-      <Modal
-        visible={showMemoryWarning}
-        transparent
-        animationType="fade"
-        onRequestClose={handleMemoryWarningClose}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: themeColors.borderColor }]}>
-            <View style={styles.modalHeader}>
-              <MaterialCommunityIcons name="alert-outline" size={32} color={getThemeAwareColor('#FFA726', currentTheme)} />
-              <Text style={[styles.modalTitle, { color: themeColors.text }]}>
-                Low Memory Warning
-              </Text>
-            </View>
-            
-            <Text style={[styles.modalText, { color: themeColors.text }]}>
-              Your device has less than 8GB of RAM. Large language models require significant memory to run efficiently. You may experience:
-            </Text>
-            
-            <View style={styles.bulletPoints}>
-              <Text style={[styles.bulletPoint, { color: themeColors.text }]}>• Slower response times</Text>
-              <Text style={[styles.bulletPoint, { color: themeColors.text }]}>• Potential app crashes</Text>
-              <Text style={[styles.bulletPoint, { color: themeColors.text }]}>• Limited model size support</Text>
-            </View>
-            
-            <Text style={[styles.modalText, { color: themeColors.text, marginTop: 8 }]}>
-              Although, you can still continue using this app, but for optimal performance, consider using a phone with more RAM.
-            </Text>
-
+        rightButtons={
+          <View style={{ flexDirection: 'row', gap: 8 }}>
             <TouchableOpacity
-              style={[styles.modalButton, { backgroundColor: themeColors.headerBackground }]}
-              onPress={handleMemoryWarningClose}
+              style={styles.headerButton}
+              onPress={startNewChat}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <Text style={styles.modalButtonText}>I Understand</Text>
+              <MaterialCommunityIcons name="plus" size={22} color={themeColors.headerText} />
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={styles.headerButton}
+              onPress={() => navigation.navigate('ChatHistory')}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <MaterialCommunityIcons name="clock-outline" size={22} color={themeColors.headerText} />
             </TouchableOpacity>
           </View>
-        </View>
-      </Modal>
+        } 
+      />
+      <View style={[styles.modelSelectorContainer, { borderBottomColor: themeColors.borderColor }]}>
+         {renderModelSelectorComponent()}
+      </View>
+      <KeyboardAvoidingView
+        style={styles.chatContainer}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 50 : 0}
+      >
+        <ChatView
+           messages={messages}
+           isStreaming={isStreaming}
+           streamingMessageId={streamingMessageId}
+           streamingMessage={streamingMessage}
+           streamingThinking={streamingThinking}
+           streamingStats={streamingStats}
+           onCopyText={copyToClipboard}
+           onRegenerateResponse={handleRegenerate}
+           isRegenerating={isRegenerating}
+           flatListRef={flatListRef}
+        />
 
-      {renderModelSelectorComponent()}
-      
-      <KeyboardAvoidingView 
-        style={styles.keyboardAvoidingView}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-        enabled={true}>
-        <View style={[styles.messagesContainer]}>
-          <ChatView
-            messages={messages}
-            isStreaming={isStreaming}
-            streamingMessageId={streamingMessageId}
-            streamingMessage={streamingMessage}
-            streamingThinking={streamingThinking}
-            streamingStats={streamingStats}
-            onCopyText={copyToClipboard}
-            onRegenerateResponse={handleRegenerate}
-            isRegenerating={isRegenerating}
-            flatListRef={flatListRef}
-          />
-        </View>
-
-        <View style={[
-          styles.inputContainer,
-          { 
-            backgroundColor: themeColors.background,
-            borderTopWidth: 1,
-            borderTopColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
-          }
-        ]}>
-          <ChatInput
-            onSend={handleSend}
-            disabled={isLoading || isStreaming}
-            isLoading={isLoading || isStreaming}
-            onCancel={handleCancelGeneration}
-            placeholderColor={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.4)'}
-            style={{ 
-              backgroundColor: themeColors.background,
-            }}
-          />
-        </View>
+        <ChatInput
+          onSend={handleSend}
+          disabled={isLoading || isModelLoading}
+          isLoading={isLoading}
+          onCancel={handleCancelGeneration}
+          style={{ backgroundColor: themeColors.background, borderTopColor: themeColors.borderColor }}
+          placeholderColor={themeColors.secondaryText}
+        />
       </KeyboardAvoidingView>
+
+      <Portal>
+        <Dialog visible={dialogVisible} onDismiss={hideDialog}>
+          <Dialog.Title>{dialogTitle}</Dialog.Title>
+          <Dialog.Content>
+            <PaperText>{dialogMessage}</PaperText>
+          </Dialog.Content>
+          <Dialog.Actions>
+            {dialogActions.map((ActionComponent, index) =>
+              React.isValidElement(ActionComponent) ? React.cloneElement(ActionComponent, { key: index }) : null
+            )}
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
     </SafeAreaView>
   );
 }
@@ -1464,12 +1468,18 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'transparent',
   },
-  keyboardAvoidingView: {
+  loadingContainer: {
     flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  messagesContainer: {
+  modelSelectorContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+  },
+  chatContainer: {
     flex: 1,
   },
   modelSelectorWrapper: {
@@ -1669,5 +1679,13 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     zIndex: 1,
+  },
+  headerButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 }); 

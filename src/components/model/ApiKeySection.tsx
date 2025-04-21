@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text as RNText, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../constants/theme';
 import { onlineModelService } from '../../services/OnlineModelService';
+import { Dialog, Portal, PaperProvider, Button, Text as PaperText } from 'react-native-paper';
 
 const ApiKeySection: React.FC = () => {
   const { theme: currentTheme } = useTheme();
@@ -12,6 +13,17 @@ const ApiKeySection: React.FC = () => {
   const [deepSeekApiKey, setDeepSeekApiKey] = useState('');
   const [claudeApiKey, setClaudeApiKey] = useState('');
   const [isLoadingApiKeys, setIsLoadingApiKeys] = useState(false);
+  const [dialogVisible, setDialogVisible] = useState(false);
+  const [dialogTitle, setDialogTitle] = useState('');
+  const [dialogMessage, setDialogMessage] = useState('');
+
+  const showDialog = (title: string, message: string) => {
+    setDialogTitle(title);
+    setDialogMessage(message);
+    setDialogVisible(true);
+  };
+
+  const hideDialog = () => setDialogVisible(false);
 
   useEffect(() => {
     loadApiKeys();
@@ -42,14 +54,17 @@ const ApiKeySection: React.FC = () => {
     try {
       if (geminiApiKey.trim()) {
         await onlineModelService.saveApiKey('gemini', geminiApiKey.trim());
-        Alert.alert('Success', 'Gemini API key saved successfully');
+        // Alert.alert('Success', 'Gemini API key saved successfully');
+        showDialog('Success', 'Gemini API key saved successfully');
       } else {
         await onlineModelService.clearApiKey('gemini');
-        Alert.alert('Success', 'Gemini API key cleared');
+        // Alert.alert('Success', 'Gemini API key cleared');
+        showDialog('Success', 'Gemini API key cleared');
       }
     } catch (error) {
       console.error('Error saving Gemini API key:', error);
-      Alert.alert('Error', 'Failed to save Gemini API key');
+      // Alert.alert('Error', 'Failed to save Gemini API key');
+      showDialog('Error', 'Failed to save Gemini API key');
     }
   };
 
@@ -57,14 +72,17 @@ const ApiKeySection: React.FC = () => {
     try {
       if (openAIApiKey.trim()) {
         await onlineModelService.saveApiKey('chatgpt', openAIApiKey.trim());
-        Alert.alert('Success', 'OpenAI API key saved successfully');
+        // Alert.alert('Success', 'OpenAI API key saved successfully');
+        showDialog('Success', 'OpenAI API key saved successfully');
       } else {
         await onlineModelService.clearApiKey('chatgpt');
-        Alert.alert('Success', 'OpenAI API key cleared');
+        // Alert.alert('Success', 'OpenAI API key cleared');
+        showDialog('Success', 'OpenAI API key cleared');
       }
     } catch (error) {
       console.error('Error saving OpenAI API key:', error);
-      Alert.alert('Error', 'Failed to save OpenAI API key');
+      // Alert.alert('Error', 'Failed to save OpenAI API key');
+      showDialog('Error', 'Failed to save OpenAI API key');
     }
   };
 
@@ -72,14 +90,17 @@ const ApiKeySection: React.FC = () => {
     try {
       if (deepSeekApiKey.trim()) {
         await onlineModelService.saveApiKey('deepseek', deepSeekApiKey.trim());
-        Alert.alert('Success', 'DeepSeek API key saved successfully');
+        // Alert.alert('Success', 'DeepSeek API key saved successfully');
+        showDialog('Success', 'DeepSeek API key saved successfully');
       } else {
         await onlineModelService.clearApiKey('deepseek');
-        Alert.alert('Success', 'DeepSeek API key cleared');
+        // Alert.alert('Success', 'DeepSeek API key cleared');
+        showDialog('Success', 'DeepSeek API key cleared');
       }
     } catch (error) {
       console.error('Error saving DeepSeek API key:', error);
-      Alert.alert('Error', 'Failed to save DeepSeek API key');
+      // Alert.alert('Error', 'Failed to save DeepSeek API key');
+      showDialog('Error', 'Failed to save DeepSeek API key');
     }
   };
 
@@ -87,27 +108,30 @@ const ApiKeySection: React.FC = () => {
     try {
       if (claudeApiKey.trim()) {
         await onlineModelService.saveApiKey('claude', claudeApiKey.trim());
-        Alert.alert('Success', 'Claude API key saved successfully');
+        // Alert.alert('Success', 'Claude API key saved successfully');
+        showDialog('Success', 'Claude API key saved successfully');
       } else {
         await onlineModelService.clearApiKey('claude');
-        Alert.alert('Success', 'Claude API key cleared');
+        // Alert.alert('Success', 'Claude API key cleared');
+        showDialog('Success', 'Claude API key cleared');
       }
     } catch (error) {
       console.error('Error saving Claude API key:', error);
-      Alert.alert('Error', 'Failed to save Claude API key');
+      // Alert.alert('Error', 'Failed to save Claude API key');
+      showDialog('Error', 'Failed to save Claude API key');
     }
   };
 
   return (
     <View style={styles.apiKeysContainer}>
-      <Text style={[styles.apiKeysTitle, { color: themeColors.text }]}>
+      <RNText style={[styles.apiKeysTitle, { color: themeColors.text }]}>
         API Keys for Online Models
-      </Text>
+      </RNText>
       
       <View style={styles.apiKeyContainer}>
-        <Text style={[styles.apiKeyLabel, { color: themeColors.text }]}>
+        <RNText style={[styles.apiKeyLabel, { color: themeColors.text }]}>
           Gemini API Key
-        </Text>
+        </RNText>
         <TextInput
           style={[
             styles.apiKeyInput,
@@ -131,17 +155,17 @@ const ApiKeySection: React.FC = () => {
           ]}
           onPress={saveGeminiApiKey}
         >
-          <Text style={styles.saveButtonText}>Save</Text>
+          <RNText style={styles.saveButtonText}>Save</RNText>
         </TouchableOpacity>
-        <Text style={[styles.apiKeyHelp, { color: themeColors.secondaryText }]}>
+        <RNText style={[styles.apiKeyHelp, { color: themeColors.secondaryText }]}>
           Get your Gemini API key from https://ai.google.dev/
-        </Text>
+        </RNText>
       </View>
 
       <View style={[styles.apiKeyContainer, { marginTop: 20 }]}>
-        <Text style={[styles.apiKeyLabel, { color: themeColors.text }]}>
+        <RNText style={[styles.apiKeyLabel, { color: themeColors.text }]}>
           OpenAI API Key
-        </Text>
+        </RNText>
         <TextInput
           style={[
             styles.apiKeyInput,
@@ -165,17 +189,17 @@ const ApiKeySection: React.FC = () => {
           ]}
           onPress={saveOpenAIApiKey}
         >
-          <Text style={styles.saveButtonText}>Save</Text>
+          <RNText style={styles.saveButtonText}>Save</RNText>
         </TouchableOpacity>
-        <Text style={[styles.apiKeyHelp, { color: themeColors.secondaryText }]}>
+        <RNText style={[styles.apiKeyHelp, { color: themeColors.secondaryText }]}>
           Get your OpenAI API key from https://platform.openai.com/api-keys
-        </Text>
+        </RNText>
       </View>
 
       <View style={[styles.apiKeyContainer, { marginTop: 20 }]}>
-        <Text style={[styles.apiKeyLabel, { color: themeColors.text }]}>
+        <RNText style={[styles.apiKeyLabel, { color: themeColors.text }]}>
           DeepSeek API Key
-        </Text>
+        </RNText>
         <TextInput
           style={[
             styles.apiKeyInput,
@@ -199,17 +223,17 @@ const ApiKeySection: React.FC = () => {
           ]}
           onPress={saveDeepSeekApiKey}
         >
-          <Text style={styles.saveButtonText}>Save</Text>
+          <RNText style={styles.saveButtonText}>Save</RNText>
         </TouchableOpacity>
-        <Text style={[styles.apiKeyHelp, { color: themeColors.secondaryText }]}>
+        <RNText style={[styles.apiKeyHelp, { color: themeColors.secondaryText }]}>
           Get your DeepSeek API key from https://platform.deepseek.com
-        </Text>
+        </RNText>
       </View>
 
       <View style={[styles.apiKeyContainer, { marginTop: 20 }]}>
-        <Text style={[styles.apiKeyLabel, { color: themeColors.text }]}>
+        <RNText style={[styles.apiKeyLabel, { color: themeColors.text }]}>
           Claude API Key
-        </Text>
+        </RNText>
         <TextInput
           style={[
             styles.apiKeyInput,
@@ -233,12 +257,25 @@ const ApiKeySection: React.FC = () => {
           ]}
           onPress={saveClaudeApiKey}
         >
-          <Text style={styles.saveButtonText}>Save</Text>
+          <RNText style={styles.saveButtonText}>Save</RNText>
         </TouchableOpacity>
-        <Text style={[styles.apiKeyHelp, { color: themeColors.secondaryText }]}>
+        <RNText style={[styles.apiKeyHelp, { color: themeColors.secondaryText }]}>
           Get your Claude API key from https://console.anthropic.com/
-        </Text>
+        </RNText>
       </View>
+
+      {/* Dialog Portal */}
+      <Portal>
+        <Dialog visible={dialogVisible} onDismiss={hideDialog}>
+          <Dialog.Title>{dialogTitle}</Dialog.Title>
+          <Dialog.Content>
+            <PaperText>{dialogMessage}</PaperText>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={hideDialog}>OK</Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
     </View>
   );
 };

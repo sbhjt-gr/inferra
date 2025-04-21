@@ -5,7 +5,6 @@ import {
   TextInput,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
@@ -15,6 +14,7 @@ import { theme } from '../../constants/theme';
 import { getThemeAwareColor } from '../../utils/ColorUtils';
 import FileViewerModal from '../../components/FileViewerModal';
 import { llamaManager } from '../../utils/LlamaManager';
+import { Dialog, Portal, PaperProvider, Text, Button } from 'react-native-paper';
 
 type ChatInputProps = {
   onSend: (text: string) => void;
@@ -43,12 +43,42 @@ export default function ChatInput({
   const themeColors = useMemo(() => theme[currentTheme as 'light' | 'dark'], [currentTheme]);
   const isDark = currentTheme === 'dark';
 
+  const [dialogVisible, setDialogVisible] = useState(false);
+  const [dialogTitle, setDialogTitle] = useState('');
+  const [dialogMessage, setDialogMessage] = useState('');
+
+  const showDialog = (title: string, message: string) => {
+    setDialogTitle(title);
+    setDialogMessage(message);
+    setDialogVisible(true);
+  };
+
+  const hideDialog = () => setDialogVisible(false);
+
   const handleSend = useCallback(() => {
     if (!text.trim()) return;
+
+    if (!selectedModelPath) {
+      showDialog(
+        'No Model Selected',
+        'Please select a model before sending a message.'
+      );
+      return;
+    }
+
+    const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude'].includes(selectedModelPath);
+    if (!isOnlineModel && (!llamaManager.isInitialized() || isModelLoading)) {
+      showDialog(
+        'Model Not Ready',
+        'Please wait for the local model to finish loading before sending a message.'
+      );
+      return;
+    }
+    
     onSend(text);
     setText('');
     setInputHeight(48);
-  }, [text, onSend]);
+  }, [text, onSend, selectedModelPath, isModelLoading]);
 
   const handleContentSizeChange = useCallback((event: any) => {
     const height = Math.min(120, Math.max(48, event.nativeEvent.contentSize.height));
@@ -71,20 +101,18 @@ export default function ChatInput({
 
   const pickDocument = useCallback(async () => {
     if (!selectedModelPath) {
-      Alert.alert(
+      showDialog(
         'No Model Selected',
-        'Please select a model before uploading a file.',
-        [{ text: 'OK' }]
+        'Please select a model before uploading a file.'
       );
       return;
     }
 
     const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude'].includes(selectedModelPath);
     if (!isOnlineModel && (!llamaManager.isInitialized() || isModelLoading)) {
-      Alert.alert(
+      showDialog(
         'Model Not Ready',
-        'Please wait for the local model to finish loading before uploading a file.',
-        [{ text: 'OK' }]
+        'Please wait for the local model to finish loading before uploading a file.'
       );
       return;
     }
@@ -105,7 +133,7 @@ export default function ChatInput({
       }
     } catch (error) {
       console.error('Error picking document:', error);
-      Alert.alert('Error', 'Could not pick the document. Please try again.');
+      showDialog('Error', 'Could not pick the document. Please try again.');
     }
   }, [selectedModelPath, isModelLoading]);
 
@@ -206,6 +234,18 @@ export default function ChatInput({
           onUpload={handleFileUpload}
         />
       )}
+
+      <Portal>
+        <Dialog visible={dialogVisible} onDismiss={hideDialog}>
+          <Dialog.Title>{dialogTitle}</Dialog.Title>
+          <Dialog.Content>
+            <Text variant="bodyMedium">{dialogMessage}</Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={hideDialog}>OK</Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
     </View>
   );
 }

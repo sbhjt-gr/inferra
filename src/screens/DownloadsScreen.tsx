@@ -1,31 +1,27 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
-  Text,
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  Platform,
-  Alert,
   AppState,
   AppStateStatus,
-  StatusBar,
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import { modelDownloader } from '../services/ModelDownloader';
 import { useDownloads } from '../context/DownloadContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { DownloadProgress } from '../services/ModelDownloader';
 import type { DownloadTask } from '@kesha-antonov/react-native-background-downloader';
 import * as FileSystem from 'expo-file-system';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AppHeader from '../components/AppHeader';
 import { getThemeAwareColor } from '../utils/ColorUtils';
+import { Dialog, Portal, PaperProvider, Text, Button } from 'react-native-paper';
 
 const formatBytes = (bytes: number) => {
   if (bytes === undefined || bytes === null || isNaN(bytes) || bytes === 0) return '0 B';
@@ -76,6 +72,20 @@ export default function DownloadsScreen() {
   const { downloadProgress, setDownloadProgress } = useDownloads();
   const buttonProcessingRef = useRef<Set<string>>(new Set());
   const insets = useSafeAreaInsets();
+
+  const [dialogVisible, setDialogVisible] = useState(false);
+  const [dialogTitle, setDialogTitle] = useState('');
+  const [dialogMessage, setDialogMessage] = useState('');
+  const [dialogActions, setDialogActions] = useState<React.ReactNode[]>([]);
+
+  const hideDialog = () => setDialogVisible(false);
+
+  const showDialog = (title: string, message: string, actions: React.ReactNode[]) => {
+    setDialogTitle(title);
+    setDialogMessage(message);
+    setDialogActions(actions);
+    setDialogVisible(true);
+  };
 
   const downloads: DownloadItem[] = Object.entries(downloadProgress)
     .filter(([_, data]) => {
@@ -236,18 +246,15 @@ export default function DownloadsScreen() {
   }, [downloadProgress]);
 
   const handleCancel = async (downloadId: number, modelName: string) => {
-    Alert.alert(
+    showDialog(
       'Cancel Download',
       'Are you sure you want to cancel this download?',
       [
-        {
-          text: 'No',
-          style: 'cancel'
-        },
-        {
-          text: 'Yes',
-          style: 'destructive',
-          onPress: async () => {
+        <Button key="cancel" onPress={hideDialog}>No</Button>,
+        <Button
+          key="confirm"
+          onPress={async () => {
+            hideDialog();
             try {
               await modelDownloader.cancelDownload(downloadId);
               setDownloadProgress(prev => {
@@ -257,10 +264,14 @@ export default function DownloadsScreen() {
               });
             } catch (error) {
               console.error('Error canceling download:', error);
-              Alert.alert('Error', 'Failed to cancel download');
+              showDialog('Error', 'Failed to cancel download', [
+                <Button key="ok" onPress={hideDialog}>OK</Button>
+              ]);
             }
-          }
-        }
+          }}
+        >
+          Yes
+        </Button>
       ]
     );
   };
@@ -319,6 +330,18 @@ export default function DownloadsScreen() {
           )}
         />
       </View>
+
+      <Portal>
+        <Dialog visible={dialogVisible} onDismiss={hideDialog}>
+          <Dialog.Title>{dialogTitle}</Dialog.Title>
+          <Dialog.Content>
+            <Text>{dialogMessage}</Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            {dialogActions}
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
     </View>
   );
 }

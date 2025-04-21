@@ -1,11 +1,9 @@
 import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import {
   View,
-  Text,
   StyleSheet,
   TouchableOpacity,
   Modal,
-  Alert,
   ActivityIndicator,
   SectionList,
 } from 'react-native';
@@ -18,6 +16,7 @@ import { useModel } from '../context/ModelContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getThemeAwareColor } from '../utils/ColorUtils';
 import { onlineModelService } from '../services/OnlineModelService';
+import { Dialog, Portal, PaperProvider, Text, Button } from 'react-native-paper';
 
 interface StoredModel {
   name: string;
@@ -75,6 +74,20 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     });
     const [isOnlineModelsExpanded, setIsOnlineModelsExpanded] = useState(false);
     const [isLocalModelsExpanded, setIsLocalModelsExpanded] = useState(true);
+
+    const [dialogVisible, setDialogVisible] = useState(false);
+    const [dialogTitle, setDialogTitle] = useState('');
+    const [dialogMessage, setDialogMessage] = useState('');
+    const [dialogActions, setDialogActions] = useState<React.ReactNode[]>([]);
+
+    const hideDialog = () => setDialogVisible(false);
+
+    const showDialog = (title: string, message: string, actions: React.ReactNode[]) => {
+      setDialogTitle(title);
+      setDialogMessage(message);
+      setDialogActions(actions);
+      setDialogVisible(true);
+    };
 
     const hasAnyApiKey = () => {
       return Object.values(onlineModelStatuses).some(status => status);
@@ -173,9 +186,10 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
 
     const handleModelSelect = async (model: Model) => {
       if (isGenerating) {
-        Alert.alert(
+        showDialog(
           'Model In Use',
-          'Cannot change model while generating a response. Please wait for the current generation to complete or cancel it.'
+          'Cannot change model while generating a response. Please wait for the current generation to complete or cancel it.',
+          [<Button key="ok" onPress={hideDialog}>OK</Button>]
         );
         return;
       }
@@ -183,13 +197,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
       
       if ('isOnline' in model) {
         if (!onlineModelStatuses[model.id]) {
-          Alert.alert(
-            'API Key Required',
-            `${model.name} by ${model.provider} requires an API key. Please configure it in Settings.`,
-            [
-              { text: 'OK' }
-            ]
-          );
+          handleApiKeyRequired(model);
           return;
         }
         
@@ -206,24 +214,29 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     };
 
     const handleUnloadModel = () => {
-      Alert.alert(
-        'Unload Model',
-        isGenerating 
-          ? 'This will stop the current generation. Are you sure you want to unload the model?'
-          : 'Are you sure you want to unload the current model?',
-        [
-          {
-            text: 'Cancel',
-            style: 'cancel'
-          },
-          {
-            text: 'Unload',
-            onPress: async () => {
-              await unloadModel();
-            },
-            style: 'destructive'
-          }
-        ]
+      const title = 'Unload Model';
+      const message = isGenerating
+        ? 'This will stop the current generation. Are you sure you want to unload the model?'
+        : 'Are you sure you want to unload the current model?';
+
+      const actions = [
+        <Button key="cancel" onPress={hideDialog}>Cancel</Button>,
+        <Button key="unload" onPress={async () => {
+          hideDialog();
+          await unloadModel();
+        }}>
+          Unload
+        </Button>
+      ];
+
+      showDialog(title, message, actions);
+    };
+
+    const handleApiKeyRequired = (model: OnlineModel) => {
+      showDialog(
+        'API Key Required',
+        `${model.name} by ${model.provider} requires an API key. Please configure it in Settings.`,
+        [<Button key="ok" onPress={hideDialog}>OK</Button>]
       );
     };
 
@@ -319,7 +332,13 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
             isSelected && styles.selectedModelItem,
             isGenerating && styles.modelItemDisabled
           ]}
-          onPress={() => handleModelSelect(item)}
+          onPress={() => {
+            if (!onlineModelStatuses[item.id]) {
+              handleApiKeyRequired(item);
+              return;
+            }
+            handleModelSelect(item)
+          }}
           disabled={isGenerating}
         >
           <View style={styles.modelIconContainer}>
@@ -523,9 +542,10 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
           ]}
           onPress={() => {
             if (isGenerating) {
-              Alert.alert(
+              showDialog(
                 'Model In Use',
-                'Cannot change model while generating a response. Please wait for the current generation to complete or cancel it.'
+                'Cannot change model while generating a response. Please wait for the current generation to complete or cancel it.',
+                [<Button key="ok" onPress={hideDialog}>OK</Button>]
               );
               return;
             }
@@ -670,6 +690,19 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
             </View>
           </View>
         </Modal>
+
+        {/* Dialog Portal */}
+        <Portal>
+          <Dialog visible={dialogVisible} onDismiss={hideDialog}>
+            <Dialog.Title>{dialogTitle}</Dialog.Title>
+            <Dialog.Content>
+              <Text variant="bodyMedium">{dialogMessage}</Text>
+            </Dialog.Content>
+            <Dialog.Actions>
+              {dialogActions}
+            </Dialog.Actions>
+          </Dialog>
+        </Portal>
       </>
     );
   }
@@ -684,6 +717,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: 16,
     borderRadius: 12,
+    
   },
   selectorContent: {
     flex: 1,

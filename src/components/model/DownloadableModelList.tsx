@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet, View, Alert } from 'react-native';
+import { ScrollView, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import DownloadableModelItem, { DownloadableModel } from './DownloadableModelItem';
 import { modelDownloader } from '../../services/ModelDownloader';
+import { Dialog, Portal, PaperProvider, Text, Button } from 'react-native-paper';
 
 interface DownloadableModelListProps {
   models: DownloadableModel[];
@@ -18,8 +19,19 @@ const DownloadableModelList: React.FC<DownloadableModelListProps> = ({
   setDownloadProgress
 }) => {
   const navigation = useNavigation();
-  const [downloadingModels, setDownloadingModels] = useState<{ [key: string]: boolean }>({});
   const [initializingDownloads, setInitializingDownloads] = useState<{ [key: string]: boolean }>({});
+
+  const [dialogVisible, setDialogVisible] = useState(false);
+  const [dialogTitle, setDialogTitle] = useState('');
+  const [dialogMessage, setDialogMessage] = useState('');
+
+  const showDialog = (title: string, message: string) => {
+    setDialogTitle(title);
+    setDialogMessage(message);
+    setDialogVisible(true);
+  };
+
+  const hideDialog = () => setDialogVisible(false);
 
   const isModelDownloaded = (modelName: string) => {
     return storedModels.some(storedModel => {
@@ -31,10 +43,9 @@ const DownloadableModelList: React.FC<DownloadableModelListProps> = ({
 
   const handleDownload = async (model: DownloadableModel) => {
     if (isModelDownloaded(model.name)) {
-      Alert.alert(
+      showDialog(
         'Model Already Downloaded',
-        'This model is already in your stored models.',
-        [{ text: 'OK' }]
+        'This model is already in your stored models.'
       );
       return;
     }
@@ -75,7 +86,7 @@ const DownloadableModelList: React.FC<DownloadableModelListProps> = ({
         delete newProgress[model.name];
         return newProgress;
       });
-      Alert.alert('Error', 'Failed to start download');
+      showDialog('Error', 'Failed to start download');
     } finally {
       setInitializingDownloads(prev => ({ ...prev, [model.name]: false }));
     }
@@ -98,6 +109,19 @@ const DownloadableModelList: React.FC<DownloadableModelListProps> = ({
           onDownload={handleDownload}
         />
       ))}
+
+      {/* Dialog Portal */}
+      <Portal>
+        <Dialog visible={dialogVisible} onDismiss={hideDialog}>
+          <Dialog.Title>{dialogTitle}</Dialog.Title>
+          <Dialog.Content>
+            <Text>{dialogMessage}</Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={hideDialog}>OK</Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
     </ScrollView>
   );
 };
