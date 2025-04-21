@@ -10,8 +10,8 @@ import {
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Markdown from 'react-native-markdown-display';
-import { useTheme } from '../context/ThemeContext';
-import { theme } from '../constants/theme';
+import { useTheme } from '../../context/ThemeContext';
+import { theme } from '../../constants/theme';
 
 export type Message = {
   id: string;

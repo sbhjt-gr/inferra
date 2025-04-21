@@ -4,18 +4,17 @@ import {
   View,
   TextInput,
   TouchableOpacity,
-  Platform,
   ActivityIndicator,
   Alert,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
-import { useTheme } from '../context/ThemeContext';
-import { useModel } from '../context/ModelContext';
-import { theme } from '../constants/theme';
-import { getThemeAwareColor } from '../utils/ColorUtils';
-import FileViewerModal from './FileViewerModal';
-import { llamaManager } from '../utils/LlamaManager';
+import { useTheme } from '../../context/ThemeContext';
+import { useModel } from '../../context/ModelContext';
+import { theme } from '../../constants/theme';
+import { getThemeAwareColor } from '../../utils/ColorUtils';
+import FileViewerModal from '../../components/FileViewerModal';
+import { llamaManager } from '../../utils/LlamaManager';
 
 type ChatInputProps = {
   onSend: (text: string) => void;
