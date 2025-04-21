@@ -10,12 +10,12 @@ import {
   ActivityIndicator,
   TextInput,
   KeyboardAvoidingView,
-  Alert,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import PdfRendererView from 'react-native-pdf-renderer';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
+import { Dialog, Portal, PaperProvider, Text as PaperText, Button } from 'react-native-paper';
 
 import PDFGridView from './PDFGridView';
 import {
@@ -63,6 +63,21 @@ export default function PDFViewerModal({
   const [extractedContent, setExtractedContent] = useState('');
   const [selectedPages, setSelectedPages] = useState<number[]>([]);
 
+  // Dialog State
+  const [dialogVisible, setDialogVisible] = useState(false);
+  const [dialogTitle, setDialogTitle] = useState('');
+  const [dialogMessage, setDialogMessage] = useState('');
+  const [dialogActions, setDialogActions] = useState<React.ReactNode[]>([]);
+
+  const hideDialog = () => setDialogVisible(false);
+
+  const showDialog = (title: string, message: string, actions: React.ReactNode[] = [<Button key="ok" onPress={hideDialog}>OK</Button>]) => {
+    setDialogTitle(title);
+    setDialogMessage(message);
+    setDialogActions(actions);
+    setDialogVisible(true);
+  };
+
   const displayFileName = fileName || pdfSource.split('/').pop() || "Document";
 
   const safeUpload = (pdfPath: string, fileName: string, userPromptText: string, extractedText?: string): boolean => {
@@ -86,24 +101,18 @@ export default function PDFViewerModal({
         console.log('PDF content extracted successfully, but no upload function available.');
         console.log('Content:', completeContent.substring(0, 200) + '...');
         
-        Alert.alert(
+        showDialog(
           'Upload Not Available',
-          'Text was successfully extracted from the PDF, but cannot be uploaded to chat. The app may need to be configured properly.',
-          [
-            { text: 'OK', onPress: () => console.log('Alert closed') }
-          ]
+          'Text was successfully extracted from the PDF, but cannot be uploaded to chat. The app may need to be configured properly.'
         );
         
         return false;
       }
     } catch (err) {
       console.error('Error in safeUpload:', err);
-      Alert.alert(
+      showDialog(
         'Upload Failed',
-        'Failed to upload the PDF content. Please try again.',
-        [
-          { text: 'OK', onPress: () => console.log('Error alert closed') }
-        ]
+        'Failed to upload the PDF content. Please try again.'
       );
       return false;
     }
@@ -212,19 +221,17 @@ export default function PDFViewerModal({
 
   const handleStartOCR = () => {
     if (!userPrompt.trim()) {
-      Alert.alert(
+      showDialog(
         "Prompt Required",
-        "Please enter a prompt about what you'd like to know from this PDF.",
-        [{ text: "OK" }]
+        "Please enter a prompt about what you'd like to know from this PDF."
       );
       return;
     }
     
     if (selectedPages.length === 0) {
-      Alert.alert(
+      showDialog(
         "No Pages Selected",
-        "Please select at least one page to extract text from.",
-        [{ text: "OK" }]
+        "Please select at least one page to extract text from."
       );
       return;
     }
@@ -309,7 +316,7 @@ export default function PDFViewerModal({
           color={extractionResult.success ? '#27ae60' : '#e74c3c'}
           style={styles.resultIcon}
         />
-        <Text style={[
+        <PaperText style={[
           styles.resultText, 
           { 
             color: isDark ? '#ffffff' : '#333333',
@@ -317,7 +324,7 @@ export default function PDFViewerModal({
           }
         ]}>
           {extractionResult.message}
-        </Text>
+        </PaperText>
       </View>
     );
   };
@@ -501,6 +508,19 @@ export default function PDFViewerModal({
         setPromptError={setPromptError}
         handleStartOCR={handleStartOCR}
       />
+
+      {/* Dialog Portal */}
+      <Portal>
+        <Dialog visible={dialogVisible} onDismiss={hideDialog}>
+          <Dialog.Title>{dialogTitle}</Dialog.Title>
+          <Dialog.Content>
+            <PaperText>{dialogMessage}</PaperText>
+          </Dialog.Content>
+          <Dialog.Actions>
+            {dialogActions}
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
     </>
   );
 }

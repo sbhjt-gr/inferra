@@ -60,21 +60,6 @@ export default function AppHeader({
     }
   };
 
-  React.useEffect(() => {
-    StatusBar.setBarStyle('light-content');
-    if (!transparent) {
-      StatusBar.setBackgroundColor(themeColors.headerBackground);
-    } else {
-      StatusBar.setBackgroundColor('transparent');
-    }
-    StatusBar.setTranslucent(true);
-    
-    return () => {
-      StatusBar.setBarStyle(themeColors.statusBarStyle === 'light' ? 'light-content' : 'dark-content');
-      StatusBar.setBackgroundColor(themeColors.statusBarBg);
-    };
-  }, [currentTheme, transparent, themeColors]);
-
   return (
     <View style={[
       styles.container, 

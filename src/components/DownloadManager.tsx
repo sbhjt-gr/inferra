@@ -1,16 +1,15 @@
 import React, { useState, useEffect, forwardRef, useImperativeHandle, useRef } from 'react';
 import {
   View,
-  Text,
   StyleSheet,
   TouchableOpacity,
   Modal,
-  Alert,
   NativeModules,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
+import { Dialog, Portal, PaperProvider, Text, Button } from 'react-native-paper';
 
 interface DownloadInfo {
   id: number;
@@ -37,6 +36,10 @@ const DownloadManager = forwardRef<DownloadManagerRef, DownloadManagerProps>(
     const [downloads, setDownloads] = useState<Map<number, DownloadInfo>>(new Map());
     const [isChecking, setIsChecking] = useState(false);
     const checkIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+    const [dialogVisible, setDialogVisible] = useState(false);
+    const [dialogTitle, setDialogTitle] = useState('');
+    const [dialogMessage, setDialogMessage] = useState('');
 
     useImperativeHandle(ref, () => ({
       addDownload: (downloadId: number, name: string) => {
@@ -148,6 +151,16 @@ const DownloadManager = forwardRef<DownloadManagerRef, DownloadManagerProps>(
       }
     }, [downloads.size, isChecking]);
 
+    const showAppDialog = (title: string, message: string) => {
+      setDialogTitle(title);
+      setDialogMessage(message);
+      setDialogVisible(true);
+    };
+
+    const hideAppDialog = () => {
+      setDialogVisible(false);
+    };
+
     const cancelDownload = async (downloadId: number) => {
       try {
         await NativeModules.ModelDownloader.cancelDownload(downloadId);
@@ -158,7 +171,7 @@ const DownloadManager = forwardRef<DownloadManagerRef, DownloadManagerProps>(
         });
       } catch (error) {
         console.error('Error canceling download:', error);
-        Alert.alert('Error', 'Failed to cancel download');
+        showAppDialog('Error', 'Failed to cancel download');
       }
     };
 
@@ -171,60 +184,75 @@ const DownloadManager = forwardRef<DownloadManagerRef, DownloadManagerProps>(
     };
 
     return (
-      <Modal
-        visible={visible}
-        transparent
-        animationType="slide"
-        onRequestClose={onClose}
-      >
-        <View style={styles.overlay}>
-          <View style={[styles.container, { backgroundColor: themeColors.background }]}>
-            <View style={styles.header}>
-              <Text style={[styles.title, { color: themeColors.text }]}>Downloads</Text>
-              <TouchableOpacity onPress={onClose}>
-                <MaterialCommunityIcons name="close" size={24} color={themeColors.text} />
-              </TouchableOpacity>
-            </View>
+      <>
+        <Modal
+          visible={visible}
+          transparent
+          animationType="slide"
+          onRequestClose={onClose}
+        >
+          <View style={styles.overlay}>
+            <View style={[styles.container, { backgroundColor: themeColors.background }]}>
+              <View style={styles.header}>
+                <Text style={[styles.title, { color: themeColors.text }]}>Downloads</Text>
+                <TouchableOpacity onPress={onClose}>
+                  <MaterialCommunityIcons name="close" size={24} color={themeColors.text} />
+                </TouchableOpacity>
+              </View>
 
-            <View style={styles.downloadsList}>
-              {downloads.size === 0 ? (
-                <Text style={[styles.emptyText, { color: themeColors.secondaryText }]}>
-                  No active downloads
-                </Text>
-              ) : (
-                Array.from(downloads.values()).map(download => (
-                  <View key={download.id} style={styles.downloadItem}>
-                    <View style={styles.downloadHeader}>
-                      <Text style={[styles.downloadName, { color: themeColors.text }]}>
-                        {download.name}
+              <View style={styles.downloadsList}>
+                {downloads.size === 0 ? (
+                  <Text style={[styles.emptyText, { color: themeColors.secondaryText }]}>
+                    No active downloads
+                  </Text>
+                ) : (
+                  Array.from(downloads.values()).map(download => (
+                    <View key={download.id} style={styles.downloadItem}>
+                      <View style={styles.downloadHeader}>
+                        <Text style={[styles.downloadName, { color: themeColors.text }]}>
+                          {download.name}
+                        </Text>
+                        <TouchableOpacity 
+                          onPress={() => cancelDownload(download.id)}
+                          style={styles.actionButton}
+                        >
+                          <MaterialCommunityIcons name="close-circle" size={24} color="#ff4444" />
+                        </TouchableOpacity>
+                      </View>
+                      
+                      <Text style={[styles.downloadProgress, { color: themeColors.secondaryText }]}>
+                        {`${download.progress || 0}% • ${formatBytes(download.bytesDownloaded || 0)} / ${formatBytes(download.totalBytes || 0)}`}
                       </Text>
-                      <TouchableOpacity 
-                        onPress={() => cancelDownload(download.id)}
-                        style={styles.actionButton}
-                      >
-                        <MaterialCommunityIcons name="close-circle" size={24} color="#ff4444" />
-                      </TouchableOpacity>
+                      
+                      <View style={[styles.progressBar, { backgroundColor: themeColors.borderColor }]}>
+                        <View 
+                          style={[
+                            styles.progressFill, 
+                            { width: `${download.progress || 0}%`, backgroundColor: '#4a0660' }
+                          ]} 
+                        />
+                      </View>
                     </View>
-                    
-                    <Text style={[styles.downloadProgress, { color: themeColors.secondaryText }]}>
-                      {`${download.progress || 0}% • ${formatBytes(download.bytesDownloaded || 0)} / ${formatBytes(download.totalBytes || 0)}`}
-                    </Text>
-                    
-                    <View style={[styles.progressBar, { backgroundColor: themeColors.borderColor }]}>
-                      <View 
-                        style={[
-                          styles.progressFill, 
-                          { width: `${download.progress || 0}%`, backgroundColor: '#4a0660' }
-                        ]} 
-                      />
-                    </View>
-                  </View>
-                ))
-              )}
+                  ))
+                )}
+              </View>
             </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
+
+        {/* Dialog Portal */}
+        <Portal>
+          <Dialog visible={dialogVisible} onDismiss={hideAppDialog}>
+            <Dialog.Title>{dialogTitle}</Dialog.Title>
+            <Dialog.Content>
+              <Text variant="bodyMedium">{dialogMessage}</Text>
+            </Dialog.Content>
+            <Dialog.Actions>
+              <Button onPress={hideAppDialog}>OK</Button>
+            </Dialog.Actions>
+          </Dialog>
+        </Portal>
+      </>
     );
   }
 );

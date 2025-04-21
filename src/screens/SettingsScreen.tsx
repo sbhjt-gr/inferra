@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { StyleSheet, View, Platform, ScrollView, TouchableOpacity, Linking, Alert, ActivityIndicator } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { StyleSheet, View, Platform, ScrollView, Linking } from 'react-native';
 import { CompositeNavigationProp } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -17,14 +17,13 @@ import SystemPromptDialog from '../components/SystemPromptDialog';
 import * as FileSystem from 'expo-file-system';
 import { useFocusEffect } from '@react-navigation/native';
 import { modelDownloader } from '../services/ModelDownloader';
-
-// Import the new components
 import ChatSettingsSection from '../components/settings/ChatSettingsSection';
 import AppearanceSection from '../components/settings/AppearanceSection';
 import SupportSection from '../components/settings/SupportSection';
 import ModelSettingsSection from '../components/settings/ModelSettingsSection';
 import SystemInfoSection from '../components/settings/SystemInfoSection';
 import StorageSection from '../components/settings/StorageSection';
+import { Dialog, Portal, PaperProvider, Button, Text as PaperText } from 'react-native-paper';
 
 type SettingsScreenProps = {
   navigation: CompositeNavigationProp<
@@ -47,7 +46,6 @@ const DEFAULT_SETTINGS = {
 
 export default function SettingsScreen({ navigation }: SettingsScreenProps) {
   const { theme: currentTheme, selectedTheme, toggleTheme } = useTheme();
-  const [showModelSettings, setShowModelSettings] = useState(false);
   const [systemInfo, setSystemInfo] = useState({
     os: Platform.OS,
     osVersion: Device.osVersion,
@@ -82,6 +80,20 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     cacheSize: '0 B'
   });
   const [isClearing, setIsClearing] = useState(false);
+
+  const [dialogVisible, setDialogVisible] = useState(false);
+  const [dialogTitle, setDialogTitle] = useState('');
+  const [dialogMessage, setDialogMessage] = useState('');
+  const [dialogActions, setDialogActions] = useState<React.ReactNode[]>([]);
+
+  const hideDialog = () => setDialogVisible(false);
+
+  const showDialog = (title: string, message: string, actions: React.ReactNode[]) => {
+    setDialogTitle(title);
+    setDialogMessage(message);
+    setDialogActions(actions);
+    setDialogVisible(true);
+  };
 
   useFocusEffect(
     React.useCallback(() => {
@@ -140,7 +152,9 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
       await llamaManager.updateSettings(updatedSettings);
     } catch (error) {
       console.error('Error updating settings:', error);
-      Alert.alert('Error', 'Failed to save settings');
+      showDialog('Error', 'Failed to save settings', [
+        <Button key="ok" onPress={hideDialog}>OK</Button>
+      ]);
     }
   };
 
@@ -246,9 +260,13 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
         await clearDirectory(FileSystem.cacheDirectory);
       }
       await loadStorageInfo();
-      Alert.alert('Success', 'Cache cleared successfully');
+      showDialog('Success', 'Cache cleared successfully', [
+        <Button key="ok" onPress={hideDialog}>OK</Button>
+      ]);
     } catch (error) {
-      Alert.alert('Error', 'Failed to clear cache');
+      showDialog('Error', 'Failed to clear cache', [
+        <Button key="ok" onPress={hideDialog}>OK</Button>
+      ]);
     } finally {
       setIsClearing(false);
     }
@@ -260,9 +278,13 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
       const tempDir = `${FileSystem.documentDirectory}temp`;
       await clearDirectory(tempDir);
       await loadStorageInfo();
-      Alert.alert('Success', 'Temporary files cleared successfully');
+      showDialog('Success', 'Temporary files cleared successfully', [
+        <Button key="ok" onPress={hideDialog}>OK</Button>
+      ]);
     } catch (error) {
-      Alert.alert('Error', 'Failed to clear temporary files');
+      showDialog('Error', 'Failed to clear temporary files', [
+        <Button key="ok" onPress={hideDialog}>OK</Button>
+      ]);
     } finally {
       setIsClearing(false);
     }
@@ -270,38 +292,41 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
 
   const clearAllModels = async () => {
     try {
-      Alert.alert(
+      showDialog(
         'Clear All Models',
         'Are you sure you want to delete all models? This action cannot be undone.',
         [
-          {
-            text: 'Cancel',
-            style: 'cancel'
-          },
-          {
-            text: 'Delete',
-            style: 'destructive',
-            onPress: async () => {
+          <Button key="cancel" onPress={hideDialog}>Cancel</Button>,
+          <Button
+            key="delete"
+            onPress={async () => {
+              hideDialog();
               try {
                 setIsClearing(true);
                 const modelsDir = `${FileSystem.documentDirectory}models`;
                 await clearDirectory(modelsDir);
-                
                 await modelDownloader.refreshStoredModels();
-                
                 await loadStorageInfo();
-                Alert.alert('Success', 'All models cleared successfully');
+                showDialog('Success', 'All models cleared successfully', [
+                  <Button key="ok" onPress={hideDialog}>OK</Button>
+                ]);
               } catch (error) {
-                Alert.alert('Error', 'Failed to clear models');
+                showDialog('Error', 'Failed to clear models', [
+                  <Button key="ok" onPress={hideDialog}>OK</Button>
+                ]);
               } finally {
                 setIsClearing(false);
               }
-            }
-          }
+            }}
+          >
+            Delete
+          </Button>
         ]
       );
     } catch (error) {
-      Alert.alert('Error', 'Failed to clear models');
+      showDialog('Error', 'Failed to clear models', [
+        <Button key="ok" onPress={hideDialog}>OK</Button>
+      ]);
     }
   };
 
@@ -387,6 +412,21 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           description="Define how the AI assistant should behave. This prompt sets the personality, capabilities, and limitations of the assistant."
         />
       </ScrollView>
+
+      {/* Dialog Portal */}
+      <Portal>
+        <Dialog visible={dialogVisible} onDismiss={hideDialog}>
+          <Dialog.Title>{dialogTitle}</Dialog.Title>
+          <Dialog.Content>
+            <PaperText>{dialogMessage}</PaperText> 
+          </Dialog.Content>
+          <Dialog.Actions>
+            {dialogActions.map((ActionComponent, index) =>
+              React.isValidElement(ActionComponent) ? React.cloneElement(ActionComponent, { key: index }) : null
+            )}
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
     </View>
   );
 }

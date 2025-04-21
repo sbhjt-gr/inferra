@@ -5,12 +5,12 @@ import {
   Text,
   TouchableOpacity,
   Linking,
-  Alert,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../constants/theme';
 import { getThemeAwareColor, getBrowserDownloadTextColor } from '../../utils/ColorUtils';
+import { Dialog, Portal, PaperProvider, Button } from 'react-native-paper';
 
 export interface DownloadableModel {
   name: string;
@@ -74,121 +74,147 @@ const DownloadableModelItem: React.FC<DownloadableModelItemProps> = ({
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
 
+  const [dialogVisible, setDialogVisible] = useState(false);
+  const [dialogTitle, setDialogTitle] = useState('');
+  const [dialogMessage, setDialogMessage] = useState('');
+
+  const showDialog = (title: string, message: string) => {
+    setDialogTitle(title);
+    setDialogMessage(message);
+    setDialogVisible(true);
+  };
+
+  const hideDialog = () => setDialogVisible(false);
+
   const handleBrowserDownload = async (url: string) => {
     try {
       await Linking.openURL(url);
     } catch (error) {
       console.error('Error opening URL:', error);
-      Alert.alert('Error', 'Could not open the download link');
+      showDialog('Error', 'Could not open the download link');
     }
   };
 
   return (
-    <View 
-      key={model.name} 
-      style={[styles.downloadableCard, { backgroundColor: themeColors.borderColor }]}
-    >
-      <View style={styles.downloadableInfo}>
-        <View style={styles.modelHeader}>
-          <View style={styles.modelTitleContainer}>
-            <Text style={[styles.downloadableName, { color: themeColors.text }]}>
-              {model.name.replace(/ \([^)]+\)$/, '')}
-            </Text>
-            <View style={styles.modelBadgesContainer}>
-              <View style={[styles.modelFamily, { backgroundColor: getThemeAwareColor('#4a0660', currentTheme) }]}>
-                <Text style={styles.modelFamilyText}>{model.modelFamily}</Text>
+    <>
+      <View 
+        key={model.name} 
+        style={[styles.downloadableCard, { backgroundColor: themeColors.borderColor }]}
+      >
+        <View style={styles.downloadableInfo}>
+          <View style={styles.modelHeader}>
+            <View style={styles.modelTitleContainer}>
+              <Text style={[styles.downloadableName, { color: themeColors.text }]}>
+                {model.name.replace(/ \([^)]+\)$/, '')}
+              </Text>
+              <View style={styles.modelBadgesContainer}>
+                <View style={[styles.modelFamily, { backgroundColor: getThemeAwareColor('#4a0660', currentTheme) }]}>
+                  <Text style={styles.modelFamilyText}>{model.modelFamily}</Text>
+                </View>
+                <View style={[styles.modelQuantization, { backgroundColor: getThemeAwareColor('#2c7fb8', currentTheme) }]}>
+                  <Text style={styles.modelQuantizationText}>{model.quantization}</Text>
+                </View>
+                {model.tags?.includes('fastest') && (
+                  <View style={[styles.modelTag, { backgroundColor: getThemeAwareColor('#00a67e', currentTheme) }]}>
+                    <MaterialCommunityIcons name="flash" size={12} color={themeColors.headerText} style={{ marginRight: 4 }} />
+                    <Text style={styles.modelTagText}>Fastest</Text>
+                  </View>
+                )}
+                {model.tags?.includes('recommended') && (
+                  <View style={[styles.modelTag, { backgroundColor: getThemeAwareColor('#FF8C00', currentTheme) }]}>
+                    <MaterialCommunityIcons name="star" size={12} color={themeColors.headerText} style={{ marginRight: 4 }} />
+                    <Text style={styles.modelTagText}>Recommended</Text>
+                  </View>
+                )}
+                {isDownloaded && (
+                  <View style={[styles.modelTag, { backgroundColor: getThemeAwareColor('#666', currentTheme) }]}>
+                    <MaterialCommunityIcons name="check" size={12} color={themeColors.headerText} style={{ marginRight: 4 }} />
+                    <Text style={styles.modelTagText}>Downloaded</Text>
+                  </View>
+                )}
               </View>
-              <View style={[styles.modelQuantization, { backgroundColor: getThemeAwareColor('#2c7fb8', currentTheme) }]}>
-                <Text style={styles.modelQuantizationText}>{model.quantization}</Text>
-              </View>
-              {model.tags?.includes('fastest') && (
-                <View style={[styles.modelTag, { backgroundColor: getThemeAwareColor('#00a67e', currentTheme) }]}>
-                  <MaterialCommunityIcons name="flash" size={12} color={themeColors.headerText} style={{ marginRight: 4 }} />
-                  <Text style={styles.modelTagText}>Fastest</Text>
-                </View>
-              )}
-              {model.tags?.includes('recommended') && (
-                <View style={[styles.modelTag, { backgroundColor: getThemeAwareColor('#FF8C00', currentTheme) }]}>
-                  <MaterialCommunityIcons name="star" size={12} color={themeColors.headerText} style={{ marginRight: 4 }} />
-                  <Text style={styles.modelTagText}>Recommended</Text>
-                </View>
-              )}
-              {isDownloaded && (
-                <View style={[styles.modelTag, { backgroundColor: getThemeAwareColor('#666', currentTheme) }]}>
-                  <MaterialCommunityIcons name="check" size={12} color={themeColors.headerText} style={{ marginRight: 4 }} />
-                  <Text style={styles.modelTagText}>Downloaded</Text>
-                </View>
-              )}
+            </View>
+            <View style={styles.downloadButtonsContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.downloadButton, 
+                  { backgroundColor: '#4a0660' },
+                  (isDownloading || isInitializing || isDownloaded) && { opacity: 0.5 }
+                ]}
+                onPress={() => onDownload(model)}
+                disabled={isDownloading || isInitializing || isDownloaded}
+              >
+                <MaterialCommunityIcons 
+                  name={
+                    isDownloaded
+                      ? "check"
+                      : isInitializing 
+                        ? "sync" 
+                        : isDownloading
+                          ? "timer-sand" 
+                          : "cloud-download"
+                  } 
+                  size={20} 
+                  color="#fff" 
+                />
+              </TouchableOpacity>
             </View>
           </View>
-          <View style={styles.downloadButtonsContainer}>
+          <View style={styles.modelMetaInfo}>
+            <View style={styles.metaItem}>
+              <MaterialCommunityIcons name="disc" size={16} color={themeColors.secondaryText} />
+              <Text style={[styles.metaText, { color: themeColors.secondaryText }]}>
+                {model.size}
+              </Text>
+            </View>
             <TouchableOpacity
-              style={[
-                styles.downloadButton, 
-                { backgroundColor: '#4a0660' },
-                (isDownloading || isInitializing || isDownloaded) && { opacity: 0.5 }
-              ]}
-              onPress={() => onDownload(model)}
-              disabled={isDownloading || isInitializing || isDownloaded}
+              style={styles.browserDownloadButton}
+              onPress={() => handleBrowserDownload(model.huggingFaceLink)}
             >
-              <MaterialCommunityIcons 
-                name={
-                  isDownloaded
-                    ? "check"
-                    : isInitializing 
-                      ? "sync" 
-                      : isDownloading
-                        ? "timer-sand" 
-                        : "cloud-download"
-                } 
-                size={20} 
-                color="#fff" 
-              />
+              <MaterialCommunityIcons name="open-in-new" size={14} color={getBrowserDownloadTextColor(currentTheme)} style={{ marginRight: 4 }} />
+              <Text style={[styles.browserDownloadText, { color: getBrowserDownloadTextColor(currentTheme) }]}>Download in browser</Text>
             </TouchableOpacity>
           </View>
-        </View>
-        <View style={styles.modelMetaInfo}>
-          <View style={styles.metaItem}>
-            <MaterialCommunityIcons name="disc" size={16} color={themeColors.secondaryText} />
-            <Text style={[styles.metaText, { color: themeColors.secondaryText }]}>
-              {model.size}
+          
+          {model.description && (
+            <Text style={[styles.modelDescription, { color: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.75)' }]}>
+              {model.description}
             </Text>
-          </View>
-          <TouchableOpacity
-            style={styles.browserDownloadButton}
-            onPress={() => handleBrowserDownload(model.huggingFaceLink)}
-          >
-            <MaterialCommunityIcons name="open-in-new" size={14} color={getBrowserDownloadTextColor(currentTheme)} style={{ marginRight: 4 }} />
-            <Text style={[styles.browserDownloadText, { color: getBrowserDownloadTextColor(currentTheme) }]}>Download in browser</Text>
-          </TouchableOpacity>
-        </View>
-        
-        {model.description && (
-          <Text style={[styles.modelDescription, { color: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.75)' }]}>
-            {model.description}
-          </Text>
-        )}
-        
-        {downloadProgress && downloadProgress.status !== 'completed' && downloadProgress.status !== 'failed' && (
-          <View style={styles.downloadProgress}>
-            <Text style={[styles.modelDetails, { color: themeColors.secondaryText }]}>
-              {getProgressText(downloadProgress)}
-            </Text>
-            <View style={[styles.progressBar, { backgroundColor: themeColors.background }]}>
-              <View 
-                style={[
-                  styles.progressFill, 
-                  { 
-                    width: `${downloadProgress.progress}%`, 
-                    backgroundColor: '#4a0660' 
-                  }
-                ]} 
-              />
+          )}
+          
+          {downloadProgress && downloadProgress.status !== 'completed' && downloadProgress.status !== 'failed' && (
+            <View style={styles.downloadProgress}>
+              <Text style={[styles.modelDetails, { color: themeColors.secondaryText }]}>
+                {getProgressText(downloadProgress)}
+              </Text>
+              <View style={[styles.progressBar, { backgroundColor: themeColors.background }]}>
+                <View 
+                  style={[
+                    styles.progressFill, 
+                    { 
+                      width: `${downloadProgress.progress}%`, 
+                      backgroundColor: '#4a0660' 
+                    }
+                  ]} 
+                />
+              </View>
             </View>
-          </View>
-        )}
+          )}
+        </View>
       </View>
-    </View>
+
+      <Portal>
+        <Dialog visible={dialogVisible} onDismiss={hideDialog}>
+          <Dialog.Title>{dialogTitle}</Dialog.Title>
+          <Dialog.Content>
+            <Text>{dialogMessage}</Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={hideDialog}>OK</Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
+    </>
   );
 };
 
