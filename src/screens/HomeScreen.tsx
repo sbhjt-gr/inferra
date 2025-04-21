@@ -282,30 +282,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     };
   }, [chat, messages, saveMessages, loadCurrentChat]);
 
-  const processUserMessage = (text: string): string => {
-    try {
-      const parsedMessage = JSON.parse(text);
-      
-      if (parsedMessage && 
-          parsedMessage.type === 'file_upload' && 
-          parsedMessage.internalInstruction && 
-          typeof parsedMessage.userContent !== 'undefined') {
-        
-        console.log('Detected file upload with internal instructions');
-        
-        if (parsedMessage.userContent.trim()) {
-          return parsedMessage.userContent;
-        } else {
-          return "";
-        }
-      }
-    } catch (e) {
-      // Not JSON
-    }
-    
-    return text.replace(/<INTERNAL_INSTRUCTION>[\s\S]*?<\/INTERNAL_INSTRUCTION>/g, '');
-  };
-
   const handleSend = async (text: string) => {
     const messageText = text.trim();
     if (!messageText) return;
