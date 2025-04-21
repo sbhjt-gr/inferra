@@ -1375,16 +1375,16 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         iconName = "cube";
       }
     } else if (activeProvider === 'gemini') {
-      modelName = 'Gemini Pro';
+      modelName = 'gemini-2.0-flash';
       iconName = "cloud";
     } else if (activeProvider === 'chatgpt') {
-      modelName = 'GPT-4o';
+      modelName = 'gpt-4o';
       iconName = "cloud";
     } else if (activeProvider === 'deepseek') {
-      modelName = 'DeepSeek Coder';
+      modelName = 'deepseek-r1';
       iconName = "cloud";
     } else if (activeProvider === 'claude') {
-      modelName = 'Claude 3 Opus';
+      modelName = 'claude-3.7-sonnet';
       iconName = "cloud";
     }
     

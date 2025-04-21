@@ -3,9 +3,8 @@
 # dependencies
 node_modules/
 
-
 .env
-.cursorrules
+pr/
 
 # Expo
 .expo/
