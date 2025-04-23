@@ -159,9 +159,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   icon: {
-    width: 24,
-    height: 24,
+    width: 30,
+    height: 30,
     marginRight: 8,
+    borderRadius: 15,
   },
   title: {
     fontSize: 18,
