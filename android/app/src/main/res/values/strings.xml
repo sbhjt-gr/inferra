@@ -1,4 +1,4 @@
 <resources>
-  <string name="app_name">Ragionare</string>
-  <string name="expo_runtime_version">2.0.0</string>
+    <string name="app_name">Inferra</string>
+    <string name="expo_runtime_version" translatable="false">2.0.0</string>
 </resources>

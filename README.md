@@ -1,6 +1,6 @@
-# Inferra LLM Runner
+# Ragionare LLM Runner
 
-Inferra is a mobile application that allows you to download and run large language models (LLMs) directly on your device. No internet connection required for inference - your conversations stay completely private and local.
+Ragionare is a mobile application that allows you to download and run large language models (LLMs) directly on your device. No internet connection required for inference - your conversations stay completely private and local.
 
 <a href="https://play.google.com/store/apps/details?id=com.gorai.ragionare">
   <img src="https://github.com/user-attachments/assets/bdc18fc5-5a99-410c-b383-eaf9c737176e" alt="play_download" width="200"/>

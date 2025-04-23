@@ -7,11 +7,4 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
-    <color name="window_background">@color/white</color>
-    <color name="window_background_dark">@color/black</color>
-    <color name="splashscreen_background">#660880</color>
-    <color name="iconBackground">#660880</color>
-    <color name="colorPrimary">#660880</color>
-    <color name="colorPrimaryDark">#660880</color>
-    <color name="notification_icon_color">#660880</color>
 </resources>

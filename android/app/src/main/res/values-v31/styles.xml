@@ -8,10 +8,10 @@
         <item name="colorPrimary">#660880</item>
         <item name="colorPrimaryDark">#660880</item>
         <item name="colorAccent">#660880</item>
-        <item name="android:windowBackground">@drawable/splashscreen</item>
+        <item name="android:windowBackground">#660880</item>
         <item name="android:forceDarkAllowed">true</item>
         <item name="android:windowLightStatusBar">false</item>
-        <item name="android:statusBarColor">@color/splashscreen_background</item>
+        <item name="android:statusBarColor">#660880</item>
         <item name="android:navigationBarColor">#660880</item>
         <item name="android:windowTranslucentStatus">false</item>
         <item name="android:windowTranslucentNavigation">false</item>
