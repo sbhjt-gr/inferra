@@ -14,7 +14,7 @@ import { theme } from '../../constants/theme';
 import { getThemeAwareColor } from '../../utils/ColorUtils';
 import FileViewerModal from '../../components/FileViewerModal';
 import { llamaManager } from '../../utils/LlamaManager';
-import { Dialog, Portal, PaperProvider, Text, Button } from 'react-native-paper';
+import { Dialog, Portal, Text, Button } from 'react-native-paper';
 
 type ChatInputProps = {
   onSend: (text: string) => void;
