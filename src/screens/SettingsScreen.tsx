@@ -57,6 +57,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     gpu: 'Unknown'
   });
   const [modelSettings, setModelSettings] = useState(llamaManager.getSettings());
+  const [enableRemoteModels, setEnableRemoteModels] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dialogConfig, setDialogConfig] = useState<{
     visible: boolean;
@@ -332,7 +333,9 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
 
   return (
     <View style={[styles.container, { backgroundColor: theme[currentTheme].background }]}>
-      <AppHeader />
+      <AppHeader 
+        title="Settings"
+      />
       <ScrollView contentContainerStyle={styles.contentContainer}>
         
         <ChatSettingsSection
@@ -357,6 +360,8 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           onMaxTokensPress={handleMaxTokensPress}
           onStopWordsPress={() => setShowStopWordsDialog(true)}
           onDialogOpen={handleOpenDialog}
+          enableRemoteModels={enableRemoteModels}
+          onToggleRemoteModels={() => setEnableRemoteModels(prev => !prev)}
         />
 
         <SystemInfoSection systemInfo={systemInfo} />
@@ -413,7 +418,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
         />
       </ScrollView>
 
-      {/* Dialog Portal */}
       <Portal>
         <Dialog visible={dialogVisible} onDismiss={hideDialog}>
           <Dialog.Title>{dialogTitle}</Dialog.Title>
