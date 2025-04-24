@@ -143,13 +143,14 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         const isAndroidContentUri = Platform.OS === 'android' && file.uri.startsWith('content://');
         
         if (isAndroidContentUri) {
-          Alert.alert(
+          showDialog(
             'Importing Model',
             'The model file needs to be copied to the app directory to work properly. This may take a while for large models.',
             [
-              {
-                text: 'Continue',
-                onPress: async () => {
+              <Button
+                key="continue"
+                onPress={async () => {
+                  hideDialog();
                   try {
                     setImportingModelName(file.name);
                     await modelDownloader.linkExternalModel(file.uri, file.name);
@@ -171,13 +172,19 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
                       [<Button key="ok" onPress={hideDialog}>OK</Button>]
                     );
                   }
-                }
-              },
-              {
-                text: 'Cancel',
-                style: 'cancel',
-                onPress: () => setIsLoading(false)
-              }
+                }}
+              >
+                Continue
+              </Button>,
+              <Button
+                key="cancel"
+                onPress={() => {
+                  hideDialog();
+                  setIsLoading(false);
+                }}
+              >
+                Cancel
+              </Button>
             ]
           );
         } else {
@@ -584,6 +591,22 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
   };
 
   useEffect(() => {
+    const handleDownloadStarted = (data: { modelName: string; message: string }) => {
+      showDialog(
+        'Download Started',
+        data.message,
+        [<Button key="ok" onPress={hideDialog}>OK</Button>]
+      );
+    };
+
+    modelDownloader.on('downloadStarted', handleDownloadStarted);
+    
+    return () => {
+      modelDownloader.off('downloadStarted', handleDownloadStarted);
+    };
+  }, []);
+
+  useEffect(() => {
     const handleImportProgress = (progress: { 
       modelName: string; 
       status: 'importing' | 'completed' | 'error';
@@ -595,7 +618,11 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       } else {
         setImportingModelName(null);
         if (progress.status === 'error' && progress.error) {
-          Alert.alert('Error', `Failed to import model: ${progress.error}`);
+          showDialog(
+            'Error',
+            `Failed to import model: ${progress.error}`,
+            [<Button key="ok" onPress={hideDialog}>OK</Button>]
+          );
         }
       }
     };
