@@ -16,7 +16,7 @@ import { useModel } from '../context/ModelContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getThemeAwareColor } from '../utils/ColorUtils';
 import { onlineModelService } from '../services/OnlineModelService';
-import { Dialog, Portal, PaperProvider, Text, Button } from 'react-native-paper';
+import { Dialog, Portal, Text, Button } from 'react-native-paper';
 
 interface StoredModel {
   name: string;
@@ -610,7 +610,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                       {(selectedModelPath === 'gemini' || 
                         selectedModelPath === 'chatgpt' || 
                         selectedModelPath === 'deepseek' || 
-                        selectedModelPath === 'claude') ? 'ONLINE' : 'LOCAL'}
+                        selectedModelPath === 'claude') ? 'REMOTE' : 'LOCAL'}
                     </Text>
                   </View>
                 )}
