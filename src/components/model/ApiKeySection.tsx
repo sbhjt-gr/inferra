@@ -113,7 +113,7 @@ const ApiKeySection: React.FC = () => {
   return (
     <View style={styles.apiKeysContainer}>
       <RNText style={[styles.apiKeysTitle, { color: themeColors.text }]}>
-        API Keys for Online Models
+        API Keys for Remote Models
       </RNText>
       
       <View style={styles.apiKeyContainer}>

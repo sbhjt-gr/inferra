@@ -303,14 +303,22 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       
       const success = await chatManager.addMessage(userMessage);
       if (!success) {
-        Alert.alert('Error', 'Failed to add message to chat');
+        showDialog(
+          'Error',
+          'Failed to add message to chat',
+          [<Button key="ok" onPress={hideDialog}>OK</Button>]
+        );
         return;
       }
       
       await processMessage();
     } catch (error) {
       console.error('Error sending message:', error);
-      Alert.alert('Error', 'Failed to send message');
+      showDialog(
+        'Error',
+        'Failed to send message',
+        [<Button key="ok" onPress={hideDialog}>OK</Button>]
+      );
     } finally {
       setIsLoading(false);
     }
@@ -387,86 +395,110 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     
     if (error instanceof Error) {
       if (error.message.startsWith('QUOTA_EXCEEDED:')) {
-        Alert.alert(
+        showDialog(
           `${provider} API Quota Exceeded`,
           `Your ${provider} API quota has been exceeded. Please try again later or upgrade your API plan.`,
           [
-            { 
-              text: 'Go to Settings', 
-              onPress: () => navigation.navigate('Settings')
-            },
-            { text: 'OK' }
+            <Button 
+              key="settings" 
+              onPress={() => {
+                hideDialog();
+                navigation.navigate('Settings');
+              }}
+            >
+              Go to Settings
+            </Button>,
+            <Button key="ok" onPress={hideDialog}>OK</Button>
           ]
         );
         return;
       }
       
       if (error.message.startsWith('AUTHENTICATION_ERROR:')) {
-        Alert.alert(
+        showDialog(
           `${provider} API Authentication Error`,
           `Your ${provider} API key appears to be invalid. Please check your API key in Settings.`,
           [
-            { 
-              text: 'Go to Settings', 
-              onPress: () => navigation.navigate('Settings')
-            },
-            { text: 'OK' }
+            <Button 
+              key="settings" 
+              onPress={() => {
+                hideDialog();
+                navigation.navigate('Settings');
+              }}
+            >
+              Go to Settings
+            </Button>,
+            <Button key="ok" onPress={hideDialog}>OK</Button>
           ]
         );
         return;
       }
       
       if (error.message.startsWith('CONTENT_FILTERED:')) {
-        Alert.alert(
-          `Content Policy Violation`,
-          `Your request was blocked due to content policy violations. Please modify your message and try again.`
+        showDialog(
+          'Content Policy Violation',
+          'Your request was blocked due to content policy violations. Please modify your message and try again.',
+          [<Button key="ok" onPress={hideDialog}>OK</Button>]
         );
         return;
       }
       
       if (error.message.startsWith('CONTEXT_LENGTH_EXCEEDED:')) {
-        Alert.alert(
-          `Message Too Long`,
-          `Your message is too long for the model's context window. Please shorten your input or start a new chat.`
+        showDialog(
+          'Message Too Long',
+          'Your message is too long for the model\'s context window. Please shorten your input or start a new chat.',
+          [<Button key="ok" onPress={hideDialog}>OK</Button>]
         );
         return;
       }
       
       if (error.message.startsWith('SERVER_ERROR:')) {
-        Alert.alert(
+        showDialog(
           `${provider} Server Error`,
-          `The ${provider} API is currently experiencing issues. Please try again later.`
+          `The ${provider} API is currently experiencing issues. Please try again later.`,
+          [<Button key="ok" onPress={hideDialog}>OK</Button>]
         );
         return;
       }
       
       if (error.message.startsWith('INVALID_REQUEST:')) {
-        Alert.alert(
-          `Invalid Request`,
-          `The request to the ${provider} API was invalid. Please try again with different input.`
+        showDialog(
+          'Invalid Request',
+          `The request to the ${provider} API was invalid. Please try again with different input.`,
+          [<Button key="ok" onPress={hideDialog}>OK</Button>]
         );
         return;
       }
       
       if (error.message.startsWith('PERMISSION_DENIED:')) {
-        Alert.alert(
-          `Permission Denied`,
-          `You don't have permission to access this ${provider} model or feature.`
+        showDialog(
+          'Permission Denied',
+          `You don't have permission to access this ${provider} model or feature.`,
+          [<Button key="ok" onPress={hideDialog}>OK</Button>]
         );
         return;
       }
       
       if (error.message.startsWith('NOT_FOUND:')) {
-        Alert.alert(
-          `Model Not Found`,
-          `The requested ${provider} model was not found. It may be deprecated or unavailable.`
+        showDialog(
+          'Model Not Found',
+          `The requested ${provider} model was not found. It may be deprecated or unavailable.`,
+          [<Button key="ok" onPress={hideDialog}>OK</Button>]
         );
         return;
       }
       
-      Alert.alert(`${provider} API Error`, error.message);
+      showDialog(
+        `${provider} API Error`,
+        error.message,
+        [<Button key="ok" onPress={hideDialog}>OK</Button>]
+      );
     } else {
-      Alert.alert(`${provider} API Error`, 'Unknown error occurred');
+      showDialog(
+        `${provider} API Error`,
+        'Unknown error occurred',
+        [<Button key="ok" onPress={hideDialog}>OK</Button>]
+      );
     }
   };
 
@@ -803,7 +835,11 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       
     } catch (error) {
       console.error('Error processing message:', error);
-      Alert.alert('Error', 'Failed to generate response');
+      showDialog(
+        'Error',
+        'Failed to generate response',
+        [<Button key="ok" onPress={hideDialog}>OK</Button>]
+      );
       setIsStreaming(false);
       setStreamingMessageId(null);
       setStreamingThinking('');
@@ -834,7 +870,11 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     if (messages.length < 2) return;
     
     if (!llamaManager.getModelPath() && !activeProvider) {
-      Alert.alert('No Model Selected', 'Please select a model first to regenerate a response.');
+      showDialog(
+        'No Model Selected',
+        'Please select a model first to regenerate a response.',
+        [<Button key="ok" onPress={hideDialog}>OK</Button>]
+      );
       return;
     }
     
@@ -1218,7 +1258,11 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       
     } catch (error) {
       console.error('Error regenerating response:', error);
-      Alert.alert('Error', 'Failed to regenerate response');
+      showDialog(
+        'Error',
+        'Failed to regenerate response',
+        [<Button key="ok" onPress={hideDialog}>OK</Button>]
+      );
     } finally {
       setIsRegenerating(false);
       setIsStreaming(false);
@@ -1270,7 +1314,11 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       }
     } catch (error) {
       console.error('Error loading chat:', error);
-      Alert.alert('Error', 'Failed to load chat');
+      showDialog(
+        'Error',
+        'Failed to load chat',
+        [<Button key="ok" onPress={hideDialog}>OK</Button>]
+      );
     }
   };
 
@@ -1293,15 +1341,20 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       if (model === 'gemini') {
         const hasApiKey = await onlineModelService.hasApiKey('gemini');
         if (!hasApiKey) {
-          Alert.alert(
+          showDialog(
             'API Key Required',
             'Please set your Gemini API key in Settings before using this model.',
             [
-              { 
-                text: 'Go to Settings', 
-                onPress: () => navigation.navigate('Settings')
-              },
-              { text: 'Cancel', style: 'cancel' }
+              <Button 
+                key="settings" 
+                onPress={() => {
+                  hideDialog();
+                  navigation.navigate('Settings');
+                }}
+              >
+                Go to Settings
+              </Button>,
+              <Button key="cancel" onPress={hideDialog}>Cancel</Button>
             ]
           );
           return;
@@ -1341,18 +1394,28 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       if (activeProvider && activeProvider !== 'local') {
         const hasKey = await onlineModelService.hasApiKey(activeProvider);
         if (!hasKey) {
-          Alert.alert(
+          showDialog(
             'API Key Required',
             `${activeProvider.charAt(0).toUpperCase() + activeProvider.slice(1)} requires an API key to function. Please add your API key in Settings.`,
             [
-              {
-                text: 'Go to Settings',
-                onPress: () => navigation.navigate('Settings')
-              },
-              {
-                text: 'Cancel',
-                onPress: () => setActiveProvider('local')
-              }
+              <Button 
+                key="settings" 
+                onPress={() => {
+                  hideDialog();
+                  navigation.navigate('Settings');
+                }}
+              >
+                Go to Settings
+              </Button>,
+              <Button 
+                key="cancel" 
+                onPress={() => {
+                  hideDialog();
+                  setActiveProvider('local');
+                }}
+              >
+                Cancel
+              </Button>
             ]
           );
         }

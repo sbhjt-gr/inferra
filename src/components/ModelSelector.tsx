@@ -123,7 +123,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
           setIsLocalModelsExpanded(false);
         }
         
-        sections.push({ title: 'Online Models', data: ONLINE_MODELS });
+        sections.push({ title: 'Remote Models', data: ONLINE_MODELS });
         setSections(sections);
       } catch (error) {
         console.error('Error loading models:', error);
@@ -364,7 +364,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                 { backgroundColor: currentTheme === 'dark' ? 'rgba(74, 180, 96, 0.25)' : 'rgba(74, 180, 96, 0.15)' }
               ]}>
                 <Text style={[styles.connectionTypeText, { color: currentTheme === 'dark' ? '#5FD584' : '#2a8c42' }]}>
-                  ONLINE
+                  REMOTE
                 </Text>
               </View>
             </View>
