@@ -36,6 +36,8 @@ import { getActiveDownloadsCount } from '../utils/ModelUtils';
 import { StoredModel } from '../services/ModelDownloaderTypes';
 import { DOWNLOADABLE_MODELS } from '../constants/DownloadableModels';
 import { Dialog, Portal, PaperProvider, Button, Text as PaperText } from 'react-native-paper';
+import LoginDialog from '../components/LoginDialog';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type ModelScreenProps = {
   navigation: CompositeNavigationProp<
@@ -78,7 +80,7 @@ const registerBackgroundTask = async () => {
 export default function ModelScreen({ navigation }: ModelScreenProps) {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
-  const [activeTab, setActiveTab] = useState<'stored' | 'downloadable'>('stored');
+  const [activeTab, setActiveTab] = useState<'stored' | 'downloadable' | 'remote'>('stored');
   const [storedModels, setStoredModels] = useState<StoredModel[]>([]);
   const { downloadProgress, setDownloadProgress } = useDownloads();
   const [customUrlDialogVisible, setCustomUrlDialogVisible] = useState(false);
@@ -97,6 +99,11 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
   const [dialogMessage, setDialogMessage] = useState('');
   const [dialogActions, setDialogActions] = useState<React.ReactNode[]>([]);
 
+  const [isLoginDialogVisible, setIsLoginDialogVisible] = useState(false);
+  const [isLoginLoading, setIsLoginLoading] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [username, setUsername] = useState<string | null>(null);
+
   const hideDialog = () => setDialogVisible(false);
 
   const showDialog = (title: string, message: string, actions: React.ReactNode[]) => {
@@ -104,6 +111,74 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     setDialogMessage(message);
     setDialogActions(actions);
     setDialogVisible(true);
+  };
+  useEffect(() => {
+    checkLoginStatus();
+  }, []);
+
+  const checkLoginStatus = async () => {
+    try {
+      const userJson = await AsyncStorage.getItem('user');
+      if (userJson) {
+        const user = JSON.parse(userJson);
+        setIsLoggedIn(true);
+        setUsername(user.email);
+      }
+    } catch (error) {
+      console.error('Error checking login status:', error);
+    }
+  };
+
+  const handleLoginPress = () => {
+    setIsLoginDialogVisible(true);
+  };
+
+  const handleLoginDismiss = () => {
+    setIsLoginDialogVisible(false);
+  };
+
+  const handleLogin = async (email: string, password: string) => {
+    setIsLoginLoading(true);
+    setTimeout(async () => {
+      try {
+        const user = { email, isAuthenticated: true };
+        await AsyncStorage.setItem('user', JSON.stringify(user));
+        setIsLoggedIn(true);
+        setUsername(email);
+        setIsLoginLoading(false);
+        setIsLoginDialogVisible(false);
+
+        showDialog(
+          'Login Successful',
+          `Welcome back, ${email}!`,
+          [<Button key="ok" onPress={hideDialog}>OK</Button>]
+        );
+      } catch (error) {
+        setIsLoginLoading(false);
+        console.error('Login error:', error);
+        showDialog(
+          'Login Failed',
+          'There was an error processing your login. Please try again.',
+          [<Button key="ok" onPress={hideDialog}>OK</Button>]
+        );
+      }
+    }, 1500);
+  };
+
+  const handleLogout = async () => {
+    try {
+      await AsyncStorage.removeItem('user');
+      setIsLoggedIn(false);
+      setUsername(null);
+      
+      showDialog(
+        'Logged Out',
+        'You have been successfully logged out.',
+        [<Button key="ok" onPress={hideDialog}>OK</Button>]
+      );
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
   };
 
   const handleLinkModel = async () => {
@@ -492,8 +567,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         contentContainerStyle={{ padding: 16, paddingTop: 8 }}
         showsVerticalScrollIndicator={false}
       >
-        <ApiKeySection />
-
         <TouchableOpacity
           style={[styles.customUrlButton, { backgroundColor: themeColors.borderColor }, { marginBottom: 25 }]}
           onPress={() => setCustomUrlDialogVisible(true)}
@@ -526,6 +599,28 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
           onDownloadStart={handleCustomDownload}
           navigation={navigation}
         />
+      </ScrollView>
+    </View>
+  );
+
+  const renderRemoteModelsList = () => (
+    <View style={styles.remoteModelsContainer}>
+      <ScrollView 
+        style={{ flex: 1 }}
+        contentContainerStyle={{ padding: 16, paddingTop: 8 }}
+        showsVerticalScrollIndicator={false}
+      >
+        <RNText style={[styles.sectionTitle, { color: themeColors.text, marginBottom: 16 }]}>
+          API Settings for Remote Models
+        </RNText>
+        <ApiKeySection />
+
+        <View style={{ height: 20 }} />
+
+        <RNText style={[styles.remoteModelsInfo, { color: themeColors.secondaryText }]}>
+          Configure API keys to use remote models like OpenAI, Gemini, Claude, and DeepSeek directly from their servers.
+          These models run on the provider's cloud and require an internet connection.
+        </RNText>
       </ScrollView>
     </View>
   );
@@ -638,9 +733,44 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     loadApiKeys();
   }, []);
 
+  const renderLoginButton = () => {
+    if (isLoggedIn) {
+      return (
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <RNText style={{ color: themeColors.text, marginRight: 10 }}>
+            {username}
+          </RNText>
+          <TouchableOpacity
+            style={styles.headerButton}
+            onPress={handleLogout}
+          >
+            <MaterialCommunityIcons name="logout" size={22} color={themeColors.headerText} />
+          </TouchableOpacity>
+        </View>
+      );
+    } else {
+      return (
+        <TouchableOpacity
+          style={styles.headerButton}
+          onPress={handleLoginPress}
+        >
+          <MaterialCommunityIcons name="login" size={22} color={themeColors.headerText} />
+        </TouchableOpacity>
+      );
+    }
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: themeColors.background }]}>
-      <AppHeader />
+      <AppHeader 
+        title="Models" 
+        rightButtons={
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            {renderLoginButton()}
+            {renderDownloadsButton()}
+          </View>
+        }
+      />
       <View style={styles.content}>
         <View style={styles.tabContainer}>
           <View style={[styles.segmentedControl, { backgroundColor: themeColors.borderColor }]}>
@@ -688,6 +818,28 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
                 Download Models
               </RNText>
             </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.segmentButton,
+                { borderColor: themeColors.primary },
+                activeTab === 'remote' && styles.activeSegment,
+                activeTab === 'remote' && { backgroundColor: themeColors.primary }
+              ]}
+              onPress={() => setActiveTab('remote')}
+            >
+              <MaterialCommunityIcons 
+                name="cloud" 
+                size={18} 
+                color={activeTab === 'remote' ? '#fff' : themeColors.text}
+                style={styles.segmentIcon}
+              />
+              <RNText style={[
+                styles.segmentText,
+                { color: activeTab === 'remote' ? '#fff' : themeColors.text }
+              ]}>
+                Remote Models
+              </RNText>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -712,12 +864,13 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
                 </View>
               }
             />
-          ) : (
+          ) : activeTab === 'downloadable' ? (
             renderDownloadableList()
+          ) : (
+            renderRemoteModelsList()
           )}
         </View>
       </View>
-      {renderDownloadsButton()}
       
       <ModelDownloadsDialog
         visible={isDownloadsVisible}
@@ -753,6 +906,14 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
           </View>
         </View>
       )}
+
+      {/* Login Dialog */}
+      <LoginDialog 
+        visible={isLoginDialogVisible}
+        onDismiss={handleLoginDismiss}
+        onLogin={handleLogin}
+        isLoading={isLoginLoading}
+      />
     </View>
   );
 }
@@ -766,24 +927,21 @@ const styles = StyleSheet.create({
   },
   tabContainer: {
     paddingHorizontal: 16,
-    paddingBottom: 8,
+    paddingBottom: 16,
   },
   segmentedControl: {
     flexDirection: 'row',
-    borderRadius: 12,
-    padding: 4,
+    borderRadius: 8,
+    padding: 2,
     marginTop: 8,
   },
   segmentButton: {
     flex: 1,
-    flexDirection: 'row',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 6,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'transparent',
   },
   activeSegment: {
     shadowColor: "#000",
@@ -853,6 +1011,14 @@ const styles = StyleSheet.create({
   },
   downloadableContainer: {
     flex: 1,
+  },
+  remoteModelsContainer: {
+    flex: 1,
+  },
+  remoteModelsInfo: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 16,
   },
   storedModelsHeader: {
     paddingHorizontal: 16,
@@ -928,5 +1094,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 8,
     textAlign: 'center',
+  },
+  headerButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 16,
   },
 }); 
