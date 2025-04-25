@@ -4,6 +4,7 @@ import { AppState, AppStateStatus } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
+import { RemoteModelProvider } from './src/context/RemoteModelContext';
 import { theme } from './src/constants/theme';
 import { llamaManager } from './src/utils/LlamaManager';
 import { ModelProvider } from './src/context/ModelContext';
@@ -166,11 +167,13 @@ export default function App() {
       <PaperProvider>
         <ModelProvider>
           <DownloadProvider>
-            <GestureHandlerRootView style={{ flex: 1 }}>
-              <ThemeProvider>
-                <Navigation />
-              </ThemeProvider>
-            </GestureHandlerRootView>
+            <RemoteModelProvider>
+              <GestureHandlerRootView style={{ flex: 1 }}>
+                <ThemeProvider>
+                  <Navigation />
+                </ThemeProvider>
+              </GestureHandlerRootView>
+            </RemoteModelProvider>
           </DownloadProvider>
         </ModelProvider>
       </PaperProvider>

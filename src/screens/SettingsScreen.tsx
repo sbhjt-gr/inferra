@@ -5,6 +5,7 @@ import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList, TabParamList } from '../types/navigation';
 import { useTheme } from '../context/ThemeContext';
+import { useRemoteModel } from '../context/RemoteModelContext';
 import { theme } from '../constants/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AppHeader from '../components/AppHeader';
@@ -46,6 +47,7 @@ const DEFAULT_SETTINGS = {
 
 export default function SettingsScreen({ navigation }: SettingsScreenProps) {
   const { theme: currentTheme, selectedTheme, toggleTheme } = useTheme();
+  const { enableRemoteModels, toggleRemoteModels, isLoggedIn } = useRemoteModel();
   const [systemInfo, setSystemInfo] = useState({
     os: Platform.OS,
     osVersion: Device.osVersion,
@@ -57,7 +59,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     gpu: 'Unknown'
   });
   const [modelSettings, setModelSettings] = useState(llamaManager.getSettings());
-  const [enableRemoteModels, setEnableRemoteModels] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dialogConfig, setDialogConfig] = useState<{
     visible: boolean;
@@ -331,6 +332,51 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     }
   };
 
+  const handleRemoteModelsToggle = async () => {
+    if (!isLoggedIn && !enableRemoteModels) {
+      showDialog(
+        'Authentication Required',
+        'You need to sign in to enable remote models.',
+        [
+          <Button key="cancel" onPress={hideDialog}>Cancel</Button>,
+          <Button 
+            key="signup" 
+            onPress={() => {
+              hideDialog();
+              navigation.navigate('Register', {
+                redirectTo: 'MainTabs',
+                redirectParams: { screen: 'SettingsTab' }
+              });
+            }}
+          >
+            Sign Up
+          </Button>,
+          <Button 
+            key="login" 
+            onPress={() => {
+              hideDialog();
+              navigation.navigate('Login', {
+                redirectTo: 'MainTabs',
+                redirectParams: { screen: 'SettingsTab' }
+              });
+            }}
+          >
+            Sign In
+          </Button>
+        ]
+      );
+      return;
+    }
+    
+    const result = await toggleRemoteModels();
+    if (!result.success && result.requiresLogin) {
+      navigation.navigate('Login', {
+        redirectTo: 'MainTabs',
+        redirectParams: { screen: 'SettingsTab' }
+      });
+    }
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: theme[currentTheme].background }]}>
       <AppHeader 
@@ -361,7 +407,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           onStopWordsPress={() => setShowStopWordsDialog(true)}
           onDialogOpen={handleOpenDialog}
           enableRemoteModels={enableRemoteModels}
-          onToggleRemoteModels={() => setEnableRemoteModels(prev => !prev)}
+          onToggleRemoteModels={handleRemoteModelsToggle}
         />
 
         <SystemInfoSection systemInfo={systemInfo} />

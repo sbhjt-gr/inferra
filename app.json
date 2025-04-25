@@ -24,7 +24,7 @@
         ]
       },
       "runtimeVersion": "2.0.0",
-      "bundleIdentifier": "com.gorai.ragionare"
+      "bundleIdentifier": "com.gorai.inferra"
     },
     "android": {
       "versionCode": 200,
