@@ -1,24 +1,17 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { StatusBar } from 'react-native';
 import MainTabNavigator from './MainTabNavigator';
 import SettingsScreen from '../screens/SettingsScreen';
 import ChatHistoryScreen from '../screens/ChatHistoryScreen';
 import DownloadsScreen from '../screens/DownloadsScreen';
-import { useTheme } from '../context/ThemeContext';
-import { theme } from '../constants/theme';
+import LoginScreen from '../screens/LoginScreen';
+import RegisterScreen from '../screens/RegisterScreen';
+import { RootStackParamList } from '../types/navigation';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function RootNavigator() {
-  const { theme: currentTheme } = useTheme();
-  const themeColors = theme[currentTheme];
 
   return (
-    <>
-      <StatusBar
-        backgroundColor={themeColors.statusBarBg}
-        barStyle={`${themeColors.statusBarStyle}-content`}
-      />
       <Stack.Navigator
         screenOptions={{
           headerShown: false,
@@ -34,7 +27,20 @@ export default function RootNavigator() {
           }}
         />
         <Stack.Screen name="Downloads" component={DownloadsScreen} />
+        <Stack.Screen 
+          name="Login" 
+          component={LoginScreen}
+          options={{
+            animation: 'slide_from_bottom'
+          }}
+        />
+        <Stack.Screen 
+          name="Register" 
+          component={RegisterScreen}
+          options={{
+            animation: 'slide_from_bottom'
+          }}
+        />
       </Stack.Navigator>
-    </>
   );
 } 

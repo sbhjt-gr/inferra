@@ -44,6 +44,7 @@ class LlamaManager {
   private modelPath: string | null = null;
   private settings: ModelSettings = { ...DEFAULT_SETTINGS };
   private events = new EventEmitter<LlamaManagerEvents>();
+  private isCancelled: boolean = false;
 
   constructor() {
     
@@ -67,18 +68,15 @@ class LlamaManager {
         } 
         
         else if (Platform.OS === 'android') {
-          
-          
+        
           
           finalModelPath = finalModelPath.replace('file://', '');
         }
       }
       
-      console.log('[LlamaManager] Using final model path:', finalModelPath);
 
       
       const modelInfo = await loadLlamaModelInfo(finalModelPath);
-      console.log('[LlamaManager] Model Info:', modelInfo);
 
       
       if (this.context) {
@@ -101,10 +99,8 @@ class LlamaManager {
         rope_freq_scale: 1,
       });
 
-      console.log('[LlamaManager] Model initialized successfully');
       return this.context;
     } catch (error) {
-      console.error('[LlamaManager] Model initialization error:', error);
       throw new Error(`Failed to initialize model: ${error}`);
     }
   }
@@ -119,15 +115,12 @@ class LlamaManager {
           ...DEFAULT_SETTINGS,
           ...parsedSettings
         };
-        console.log('[LlamaManager] Loaded settings:', this.settings);
       } else {
         
         this.settings = { ...DEFAULT_SETTINGS };
         await this.saveSettings();
-        console.log('[LlamaManager] No saved settings found, using defaults');
       }
     } catch (error) {
-      console.error('[LlamaManager] Error loading settings:', error);
       
       this.settings = { ...DEFAULT_SETTINGS };
     }
@@ -136,9 +129,7 @@ class LlamaManager {
   async saveSettings() {
     try {
       await AsyncStorage.setItem('@model_settings', JSON.stringify(this.settings));
-      console.log('[LlamaManager] Settings saved successfully');
     } catch (error) {
-      console.error('[LlamaManager] Error saving settings:', error);
       throw error;
     }
   }
@@ -146,7 +137,6 @@ class LlamaManager {
   async resetSettings() {
     this.settings = { ...DEFAULT_SETTINGS };
     await this.saveSettings();
-    console.log('[LlamaManager] Settings reset to defaults');
   }
 
   
@@ -157,7 +147,6 @@ class LlamaManager {
   async updateSettings(newSettings: Partial<ModelSettings>) {
     this.settings = { ...this.settings, ...newSettings };
     await this.saveSettings();
-    console.log('[LlamaManager] Settings updated:', this.settings);
   }
 
   
@@ -171,13 +160,14 @@ class LlamaManager {
 
   async generateResponse(
     messages: Array<{ role: string; content: string }>,
-    onToken?: (token: string) => void
+    onToken?: (token: string) => boolean | void
   ) {
     if (!this.context) {
       throw new Error('Model not initialized');
     }
 
     let fullResponse = '';
+    this.isCancelled = false;
 
     try {
       const result = await this.context.completion(
@@ -194,10 +184,17 @@ class LlamaManager {
           mirostat_eta: 0.1,
         },
         (data) => {
+          if (this.isCancelled) {
+            return false;
+          }
           
           if (!this.settings.stopWords.includes(data.token)) {
             fullResponse += data.token;
-            onToken?.(data.token);
+            const shouldContinue = onToken?.(data.token);
+            if (shouldContinue === false) {
+              this.isCancelled = true;
+              return false;
+            }
             return true;
           }
           return false;
@@ -206,13 +203,43 @@ class LlamaManager {
 
       return fullResponse.trim();
     } catch (error) {
-      console.error('Generation error:', error);
       throw error;
+    } finally {
+      this.isCancelled = false;
+    }
+  }
+
+  async cancelGeneration() {
+    this.isCancelled = true;
+    
+    if (this.modelPath && this.context) {
+      try {
+        const currentModelPath = this.modelPath;
+        
+        await this.context.release();
+        this.context = null;
+        
+        this.context = await initLlama({
+          model: currentModelPath,
+          use_mlock: true,
+          n_ctx: 6144,
+          n_batch: 512,
+          n_threads: Platform.OS === 'ios' ? 6 : 4,
+          n_gpu_layers: Platform.OS === 'ios' ? 1 : 0,
+          embedding: false,
+          rope_freq_base: 10000,
+          rope_freq_scale: 1,
+        });
+        
+      } catch (error) {
+        this.context = null;
+      }
     }
   }
 
   async release() {
     try {
+      this.isCancelled = true;
       if (this.context) {
         await this.context.release();
         this.context = null;

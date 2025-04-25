@@ -1,11 +1,9 @@
 import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import {
   View,
-  Text,
   StyleSheet,
   TouchableOpacity,
   Modal,
-  Alert,
   ActivityIndicator,
   SectionList,
 } from 'react-native';
@@ -15,9 +13,14 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { modelDownloader } from '../services/ModelDownloader';
 import { ThemeType, ThemeColors } from '../types/theme';
 import { useModel } from '../context/ModelContext';
+import { useRemoteModel } from '../context/RemoteModelContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getThemeAwareColor } from '../utils/ColorUtils';
 import { onlineModelService } from '../services/OnlineModelService';
+import { Dialog, Portal, Text, Button } from 'react-native-paper';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../types/navigation';
 
 interface StoredModel {
   name: string;
@@ -45,6 +48,7 @@ interface ModelSelectorProps {
   preselectedModelPath?: string | null;
   isGenerating?: boolean;
   onModelSelect?: (provider: 'local' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude', modelPath?: string) => void;
+  navigation?: NativeStackNavigationProp<RootStackParamList>;
 }
 
 const ONLINE_MODELS: OnlineModel[] = [
@@ -60,9 +64,12 @@ interface SectionData {
 }
 
 const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorProps>(
-  ({ isOpen, onClose, preselectedModelPath, isGenerating, onModelSelect }, ref) => {
+  ({ isOpen, onClose, preselectedModelPath, isGenerating, onModelSelect, navigation: propNavigation }, ref) => {
     const { theme: currentTheme } = useTheme();
     const themeColors = theme[currentTheme as ThemeColors];
+    const { enableRemoteModels, isLoggedIn } = useRemoteModel();
+    const defaultNavigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+    const navigation = propNavigation || defaultNavigation;
     const [modalVisible, setModalVisible] = useState(false);
     const [models, setModels] = useState<StoredModel[]>([]);
     const [sections, setSections] = useState<SectionData[]>([]);
@@ -75,6 +82,20 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     });
     const [isOnlineModelsExpanded, setIsOnlineModelsExpanded] = useState(false);
     const [isLocalModelsExpanded, setIsLocalModelsExpanded] = useState(true);
+
+    const [dialogVisible, setDialogVisible] = useState(false);
+    const [dialogTitle, setDialogTitle] = useState('');
+    const [dialogMessage, setDialogMessage] = useState('');
+    const [dialogActions, setDialogActions] = useState<React.ReactNode[]>([]);
+
+    const hideDialog = () => setDialogVisible(false);
+
+    const showDialog = (title: string, message: string, actions: React.ReactNode[]) => {
+      setDialogTitle(title);
+      setDialogMessage(message);
+      setDialogActions(actions);
+      setDialogVisible(true);
+    };
 
     const hasAnyApiKey = () => {
       return Object.values(onlineModelStatuses).some(status => status);
@@ -110,7 +131,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
           setIsLocalModelsExpanded(false);
         }
         
-        sections.push({ title: 'Online Models', data: ONLINE_MODELS });
+        sections.push({ title: 'Remote Models', data: ONLINE_MODELS });
         setSections(sections);
       } catch (error) {
         console.error('Error loading models:', error);
@@ -173,23 +194,41 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
 
     const handleModelSelect = async (model: Model) => {
       if (isGenerating) {
-        Alert.alert(
+        showDialog(
           'Model In Use',
-          'Cannot change model while generating a response. Please wait for the current generation to complete or cancel it.'
+          'Cannot change model while generating a response. Please wait for the current generation to complete or cancel it.',
+          [<Button key="ok" onPress={hideDialog}>OK</Button>]
         );
         return;
       }
-      setModalVisible(false);
       
       if ('isOnline' in model) {
+        if (!enableRemoteModels || !isLoggedIn) {
+          setModalVisible(false);
+          setTimeout(() => {
+            showDialog(
+              'Remote Models Disabled',
+              'Remote models require the "Enable Remote Models" setting to be turned on and you need to be signed in. Would you like to go to Settings to configure this?',
+              [
+                <Button key="cancel" onPress={hideDialog}>Cancel</Button>,
+                <Button 
+                  key="settings" 
+                  onPress={() => {
+                    hideDialog();
+                    if (onClose) onClose();
+                    navigation.navigate('MainTabs', { screen: 'SettingsTab' });
+                  }}
+                >
+                  Go to Settings
+                </Button>
+              ]
+            );
+          }, 300);
+          return;
+        }
+        
         if (!onlineModelStatuses[model.id]) {
-          Alert.alert(
-            'API Key Required',
-            `${model.name} by ${model.provider} requires an API key. Please configure it in Settings.`,
-            [
-              { text: 'OK' }
-            ]
-          );
+          handleApiKeyRequired(model);
           return;
         }
         
@@ -203,27 +242,33 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
           await loadModel(model.path);
         }
       }
+      setModalVisible(false);
     };
 
     const handleUnloadModel = () => {
-      Alert.alert(
-        'Unload Model',
-        isGenerating 
-          ? 'This will stop the current generation. Are you sure you want to unload the model?'
-          : 'Are you sure you want to unload the current model?',
-        [
-          {
-            text: 'Cancel',
-            style: 'cancel'
-          },
-          {
-            text: 'Unload',
-            onPress: async () => {
-              await unloadModel();
-            },
-            style: 'destructive'
-          }
-        ]
+      const title = 'Unload Model';
+      const message = isGenerating
+        ? 'This will stop the current generation. Are you sure you want to unload the model?'
+        : 'Are you sure you want to unload the current model?';
+
+      const actions = [
+        <Button key="cancel" onPress={hideDialog}>Cancel</Button>,
+        <Button key="unload" onPress={async () => {
+          hideDialog();
+          await unloadModel();
+        }}>
+          Unload
+        </Button>
+      ];
+
+      showDialog(title, message, actions);
+    };
+
+    const handleApiKeyRequired = (model: OnlineModel) => {
+      showDialog(
+        'API Key Required',
+        `${model.name} by ${model.provider} requires an API key. Please configure it in Settings.`,
+        [<Button key="ok" onPress={hideDialog}>OK</Button>]
       );
     };
 
@@ -310,6 +355,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     const renderOnlineModelItem = ({ item }: { item: OnlineModel }) => {
       const isSelected = selectedModelPath === item.id;
       const hasApiKey = onlineModelStatuses[item.id];
+      const isRemoteModelsDisabled = !enableRemoteModels || !isLoggedIn;
 
       return (
         <TouchableOpacity
@@ -319,7 +365,37 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
             isSelected && styles.selectedModelItem,
             isGenerating && styles.modelItemDisabled
           ]}
-          onPress={() => handleModelSelect(item)}
+          onPress={() => {
+            if (isRemoteModelsDisabled) {
+              setModalVisible(false);
+              setTimeout(() => {
+                showDialog(
+                  'Remote Models Disabled',
+                  'Remote models require the "Enable Remote Models" setting to be turned on and you need to be signed in. Would you like to go to Settings to configure this?',
+                  [
+                    <Button key="cancel" onPress={hideDialog}>Cancel</Button>,
+                    <Button 
+                      key="settings" 
+                      onPress={() => {
+                        hideDialog();
+                        if (onClose) onClose();
+                        navigation.navigate('MainTabs', { screen: 'SettingsTab' });
+                      }}
+                    >
+                      Go to Settings
+                    </Button>
+                  ]
+                );
+              }, 300);
+              return;
+            }
+            
+            if (!onlineModelStatuses[item.id]) {
+              handleApiKeyRequired(item);
+              return;
+            }
+            handleModelSelect(item);
+          }}
           disabled={isGenerating}
         >
           <View style={styles.modelIconContainer}>
@@ -345,7 +421,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                 { backgroundColor: currentTheme === 'dark' ? 'rgba(74, 180, 96, 0.25)' : 'rgba(74, 180, 96, 0.15)' }
               ]}>
                 <Text style={[styles.connectionTypeText, { color: currentTheme === 'dark' ? '#5FD584' : '#2a8c42' }]}>
-                  ONLINE
+                  REMOTE
                 </Text>
               </View>
             </View>
@@ -369,9 +445,9 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                   {item.provider}
                 </Text>
               </View>
-              {!hasApiKey && (
+              {isRemoteModelsDisabled && (
                 <Text style={[styles.modelApiKeyMissing, { color: currentTheme === 'dark' ? '#FF9494' : '#d32f2f' }]}>
-                  API key required
+                  Remote models disabled
                 </Text>
               )}
             </View>
@@ -523,9 +599,10 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
           ]}
           onPress={() => {
             if (isGenerating) {
-              Alert.alert(
+              showDialog(
                 'Model In Use',
-                'Cannot change model while generating a response. Please wait for the current generation to complete or cancel it.'
+                'Cannot change model while generating a response. Please wait for the current generation to complete or cancel it.',
+                [<Button key="ok" onPress={hideDialog}>OK</Button>]
               );
               return;
             }
@@ -590,7 +667,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                       {(selectedModelPath === 'gemini' || 
                         selectedModelPath === 'chatgpt' || 
                         selectedModelPath === 'deepseek' || 
-                        selectedModelPath === 'claude') ? 'ONLINE' : 'LOCAL'}
+                        selectedModelPath === 'claude') ? 'REMOTE' : 'LOCAL'}
                     </Text>
                   </View>
                 )}
@@ -670,6 +747,19 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
             </View>
           </View>
         </Modal>
+
+        {/* Dialog Portal */}
+        <Portal>
+          <Dialog visible={dialogVisible} onDismiss={hideDialog}>
+            <Dialog.Title>{dialogTitle}</Dialog.Title>
+            <Dialog.Content>
+              <Text variant="bodyMedium">{dialogMessage}</Text>
+            </Dialog.Content>
+            <Dialog.Actions>
+              {dialogActions}
+            </Dialog.Actions>
+          </Dialog>
+        </Portal>
       </>
     );
   }
@@ -684,6 +774,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: 16,
     borderRadius: 12,
+    
   },
   selectorContent: {
     flex: 1,

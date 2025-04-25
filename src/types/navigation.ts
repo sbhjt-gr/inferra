@@ -1,4 +1,12 @@
 export type RootStackParamList = {
+  Login: {
+    redirectTo?: string;
+    redirectParams?: any;
+  };
+  Register: {
+    redirectTo?: string;
+    redirectParams?: any;
+  };
   MainTabs: {
     screen: string;
     params?: {

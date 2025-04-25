@@ -76,7 +76,6 @@ class ChatManager {
       
       this.notifyListeners();
     } catch (error) {
-      console.error('Error loading chats:', error);
       this.chats = [];
     }
   }
@@ -99,7 +98,6 @@ class ChatManager {
       this.notifyListeners();
       return true;
     } catch (error) {
-      console.error('Error saving chats:', error);
       return false;
     }
   }

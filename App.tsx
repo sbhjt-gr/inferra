@@ -1,9 +1,10 @@
 import React, { useEffect, useRef } from 'react';
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
-import { Platform, StatusBar, AppState, AppStateStatus, StatusBarStyle } from 'react-native';
+import { AppState, AppStateStatus } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
+import { RemoteModelProvider } from './src/context/RemoteModelContext';
 import { theme } from './src/constants/theme';
 import { llamaManager } from './src/utils/LlamaManager';
 import { ModelProvider } from './src/context/ModelContext';
@@ -18,6 +19,7 @@ import { initGeminiService } from './src/services/GeminiInitializer';
 import { initOpenAIService } from './src/services/OpenAIInitializer';
 import { initDeepSeekService } from './src/services/DeepSeekInitializer';
 import { initClaudeService } from './src/services/ClaudeInitializer';
+import { PaperProvider } from 'react-native-paper';
 
 initGeminiService();
 initOpenAIService();
@@ -30,17 +32,14 @@ if (!TaskManager.isTaskDefined(BACKGROUND_DOWNLOAD_TASK)) {
   try {
     TaskManager.defineTask(BACKGROUND_DOWNLOAD_TASK, async () => {
       try {
-        console.log('[Background] Checking downloads status');
         await modelDownloader.checkBackgroundDownloads();
         return BackgroundFetch.BackgroundFetchResult.NewData;
       } catch (error) {
-        console.error('[Background] Error checking downloads:', error);
         return BackgroundFetch.BackgroundFetchResult.Failed;
       }
     });
-    console.log('Background task defined successfully');
   } catch (error) {
-    console.error('Error defining background task:', error);
+    // do nothing
   }
 }
 
@@ -49,7 +48,6 @@ async function registerBackgroundFetchAsync() {
     const isRegistered = await TaskManager.isTaskRegisteredAsync(BACKGROUND_DOWNLOAD_TASK);
     
     if (isRegistered) {
-      console.log('Background fetch task already registered');
       return;
     }
     
@@ -59,9 +57,8 @@ async function registerBackgroundFetchAsync() {
       startOnBoot: true 
     });
     
-    console.log('Background fetch task registered with enhanced settings');
   } catch (err) {
-    console.error('Background fetch registration failed:', err);
+          // do nothing
   }
 }
 
@@ -99,22 +96,21 @@ function Navigation() {
   useEffect(() => {
     const timer = setTimeout(() => {
       registerBackgroundFetchAsync().catch(error => {
-        console.error('Error registering background fetch:', error);
+        // do nothing
       });
     }, 2000);
 
     const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
       try {
         if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
-          console.log('App has come to the foreground!');
           modelDownloader.checkBackgroundDownloads();
         } else if (appState.current === 'active' && nextAppState.match(/inactive|background/)) {
-          console.log('App has gone to the background!');
+          // do nothing
         }
         
         appState.current = nextAppState;
       } catch (error) {
-        console.error('Error handling app state change:', error);
+          // do nothing
       }
     });
 
@@ -124,7 +120,7 @@ function Navigation() {
         llamaManager.release();
         subscription.remove();
       } catch (error) {
-        console.error('Error cleaning up resources:', error);
+        // do nothing
       }
     };
   }, []);
@@ -133,9 +129,8 @@ function Navigation() {
     async function initializeNotifications() {
       try {
         await notificationService.initialize();
-        console.log('Notification service initialized');
       } catch (error) {
-        console.error('Error initializing notifications:', error);
+        // do nothing
       }
     }
 
@@ -145,38 +140,36 @@ function Navigation() {
       try {
         BackgroundFetch.unregisterTaskAsync(BACKGROUND_DOWNLOAD_TASK);
       } catch (error) {
-        console.error('Error cleaning up background fetch:', error);
+        // do nothing
       }
     };
   }, []);
 
   return (
-    <>
-      <StatusBar
-        backgroundColor={themeColors.statusBarBg}
-        barStyle={(themeColors.statusBarStyle + '-content') as StatusBarStyle}
-      />
       <NavigationContainer 
         theme={currentTheme === 'dark' ? customDarkTheme : customDefaultTheme}
       >
         <RootNavigator />
       </NavigationContainer>
-    </>
   );
 }
 
 export default function App() {
   return (
     <SafeAreaProvider>
-      <ModelProvider>
-        <DownloadProvider>
-          <GestureHandlerRootView style={{ flex: 1 }}>
-            <ThemeProvider>
-              <Navigation />
-            </ThemeProvider>
-          </GestureHandlerRootView>
-        </DownloadProvider>
-      </ModelProvider>
+      <PaperProvider>
+        <ModelProvider>
+          <DownloadProvider>
+            <RemoteModelProvider>
+              <GestureHandlerRootView style={{ flex: 1 }}>
+                <ThemeProvider>
+                  <Navigation />
+                </ThemeProvider>
+              </GestureHandlerRootView>
+            </RemoteModelProvider>
+          </DownloadProvider>
+        </ModelProvider>
+      </PaperProvider>
     </SafeAreaProvider>
   );
 }

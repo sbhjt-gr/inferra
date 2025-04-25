@@ -13,6 +13,8 @@ import { theme } from '../constants/theme';
 
 const Tab = createBottomTabNavigator<TabParamList>();
 
+// a custom tab bar to avoid the ripple effect on android
+
 function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme];

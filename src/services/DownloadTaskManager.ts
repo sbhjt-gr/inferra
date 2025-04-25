@@ -109,11 +109,10 @@ export class DownloadTaskManager extends EventEmitter {
 
       await this.persistActiveDownloads();
 
-      Alert.alert(
-        'Download Started',
-        'Please do not remove the app from your recents screen while downloading. Doing so will interrupt the download.',
-        [{ text: 'OK', style: 'default' }]
-      );
+      this.emit('downloadStarted', {
+        modelName,
+        message: 'Please do not remove the app from your recents screen while downloading. Doing so will interrupt the download.'
+      });
       
       return { downloadId };
     } catch (error) {
@@ -729,10 +728,24 @@ export class DownloadTaskManager extends EventEmitter {
         const progressData = JSON.parse(savedProgress);
         
         Object.entries(progressData).forEach(([modelName, progress]) => {
-          this.emit('downloadProgress', {
-            modelName,
-            ...progress
-          } as DownloadProgressEvent);
+          if (typeof progress === 'object' && progress !== null) {
+            const downloadProgress = progress as {
+              progress: number;
+              bytesDownloaded: number;
+              totalBytes: number;
+              status: string;
+              downloadId: number;
+            };
+            
+            this.emit('downloadProgress', {
+              modelName,
+              progress: downloadProgress.progress || 0,
+              bytesDownloaded: downloadProgress.bytesDownloaded || 0,
+              totalBytes: downloadProgress.totalBytes || 0,
+              status: downloadProgress.status || 'downloading',
+              downloadId: downloadProgress.downloadId
+            } as DownloadProgressEvent);
+          }
         });
       }
     } catch (error) {

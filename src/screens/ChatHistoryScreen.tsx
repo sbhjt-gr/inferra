@@ -1,15 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
-  Text,
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  Alert,
-  StatusBar,
   ActivityIndicator,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -18,16 +14,30 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import chatManager, { Chat } from '../utils/ChatManager';
 import AppHeader from '../components/AppHeader';
+import { Dialog, Portal, PaperProvider, Text, Button } from 'react-native-paper';
 
 export default function ChatHistoryScreen() {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const insets = useSafeAreaInsets();
 
   const [chats, setChats] = useState<Chat[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
+
+  const [dialogVisible, setDialogVisible] = useState(false);
+  const [dialogTitle, setDialogTitle] = useState('');
+  const [dialogMessage, setDialogMessage] = useState('');
+  const [dialogActions, setDialogActions] = useState<React.ReactNode[]>([]);
+
+  const hideDialog = () => setDialogVisible(false);
+
+  const showDialog = (title: string, message: string, actions: React.ReactNode[]) => {
+    setDialogTitle(title);
+    setDialogMessage(message);
+    setDialogActions(actions);
+    setDialogVisible(true);
+  };
 
   useEffect(() => {
     setIsLoading(true);
@@ -64,7 +74,9 @@ export default function ChatHistoryScreen() {
       });
     } catch (error) {
       console.error('Error selecting chat:', error);
-      Alert.alert('Error', 'Failed to load selected chat');
+      showDialog('Error', 'Failed to load selected chat', [
+        <Button key="ok" onPress={hideDialog}>OK</Button>
+      ]);
     }
   };
 
@@ -78,41 +90,39 @@ export default function ChatHistoryScreen() {
   };
 
   const handleDeleteChat = (chatId: string) => {
-    Alert.alert(
+    showDialog(
       'Delete Chat',
       'Are you sure you want to delete this chat?',
       [
-        {
-          text: 'Cancel',
-          style: 'cancel'
-        },
-        {
-          text: 'Delete',
-          onPress: async () => {
+        <Button key="cancel" onPress={hideDialog}>Cancel</Button>,
+        <Button
+          key="delete"
+          onPress={async () => {
+            hideDialog();
             await chatManager.deleteChat(chatId);
-          },
-          style: 'destructive'
-        }
+          }}
+        >
+          Delete
+        </Button>
       ]
     );
   };
 
   const handleDeleteAllChats = () => {
-    Alert.alert(
+    showDialog(
       'Delete All Chats',
       'Are you sure you want to delete all chat histories? This cannot be undone.',
       [
-        {
-          text: 'Cancel',
-          style: 'cancel'
-        },
-        {
-          text: 'Delete All',
-          onPress: async () => {
+        <Button key="cancel" onPress={hideDialog}>Cancel</Button>,
+        <Button
+          key="delete"
+          onPress={async () => {
+            hideDialog();
             await chatManager.deleteAllChats();
-          },
-          style: 'destructive'
-        }
+          }}
+        >
+          Delete All
+        </Button>
       ]
     );
   };
@@ -217,6 +227,19 @@ export default function ChatHistoryScreen() {
           />
         )}
       </View>
+
+      {/* Dialog Portal */}
+      <Portal>
+        <Dialog visible={dialogVisible} onDismiss={hideDialog}>
+          <Dialog.Title>{dialogTitle}</Dialog.Title>
+          <Dialog.Content>
+            <Text>{dialogMessage}</Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            {dialogActions}
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
     </View>
   );
 }
