@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Platform } from 'react-native';
 import PDFViewerModal from './PDFViewerModal';
 import TextFileViewerModal from './TextFileViewerModal';
 import { getFileType, FileType } from '../utils/fileUtils';
@@ -53,7 +52,6 @@ export default function FileViewerModal({
       );
     case 'unknown':
     default:
-      // Try to open unknown files as text - if they're binary, the text viewer will show an error
       return (
         <TextFileViewerModal
           visible={visible}

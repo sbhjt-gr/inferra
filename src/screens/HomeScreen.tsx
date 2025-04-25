@@ -1,9 +1,8 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import {
   StyleSheet,
   Platform,
   TouchableOpacity,
-  Alert,
   Modal,
   Keyboard,
   AppState,
@@ -13,26 +12,36 @@ import {
   KeyboardAvoidingView,
   ToastAndroid,
   Clipboard,
+  Dimensions,
+  AppStateStatus,
+  StatusBar,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import ModelSelector from '../components/ModelSelector';
+import ModelSelector, { ModelSelectorRef } from '../components/ModelSelector';
 import { llamaManager } from '../utils/LlamaManager';
 import AppHeader from '../components/AppHeader';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, RouteProp } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList, TabParamList } from '../types/navigation';
 import * as Device from 'expo-device';
 import chatManager, { Chat, ChatMessage } from '../utils/ChatManager';
 import { getThemeAwareColor } from '../utils/ColorUtils';
-import ChatView, { Message } from '../components/chat/ChatView';
+import ChatView from '../components/chat/ChatView';
 import ChatInput from '../components/chat/ChatInput';
 import { onlineModelService } from '../services/OnlineModelService';
 import { useModel } from '../context/ModelContext';
+import { Dialog, Portal, PaperProvider, Button, Text as PaperText } from 'react-native-paper';
+import { useDownloads } from '../context/DownloadContext';
+import { modelDownloader } from '../services/ModelDownloader';
+import { useRemoteModel } from '../context/RemoteModelContext';
+
+const windowWidth = Dimensions.get('window').width;
 
 function debounce<T extends (...args: any[]) => any>(func: T, wait: number) {
   let timeout: NodeJS.Timeout | null = null;
@@ -67,16 +76,15 @@ const generateRandomId = () => {
 };
 
 export default function HomeScreen({ route, navigation }: HomeScreenProps) {
-  const { theme: currentTheme } = useTheme();
+  const { theme: currentTheme, selectedTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
   const [chat, setChat] = useState<Chat | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const flatListRef = useRef<FlatList>(null);
   const [streamingMessage, setStreamingMessage] = useState<string>('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
-  const modelSelectorRef = useRef<{ refreshModels: () => void }>(null);
+  const modelSelectorRef = useRef<ModelSelectorRef>(null);
   const [shouldOpenModelSelector, setShouldOpenModelSelector] = useState(false);
   const [preselectedModelPath, setPreselectedModelPath] = useState<string | null>(null);
   const [showCopyToast, setShowCopyToast] = useState(false);
@@ -85,6 +93,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   const [isRegenerating, setIsRegenerating] = useState(false);
   const cancelGenerationRef = useRef<boolean>(false);
   const [showMemoryWarning, setShowMemoryWarning] = useState(false);
+  const [memoryWarningType, setMemoryWarningType] = useState('');
+  const [onlineModelProvider, setOnlineModelProvider] = useState<string | null>(null);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [streamingThinking, setStreamingThinking] = useState<string>('');
   const [streamingStats, setStreamingStats] = useState<{ tokens: number; duration: number } | null>(null);
@@ -92,7 +102,29 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   const [appState, setAppState] = useState(appStateRef.current);
   const isFirstLaunchRef = useRef(true);
   const [activeProvider, setActiveProvider] = useState<'local' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude' | null>(null);
-  const { loadModel, unloadModel, setSelectedModelPath } = useModel();
+  const { loadModel, unloadModel, setSelectedModelPath, isModelLoading } = useModel();
+  const insets = useSafeAreaInsets();
+  const flatListRef = useRef<FlatList>(null);
+
+  const [dialogVisible, setDialogVisible] = useState(false);
+  const [dialogTitle, setDialogTitle] = useState('');
+  const [dialogMessage, setDialogMessage] = useState('');
+  const [dialogActions, setDialogActions] = useState<React.ReactNode[]>([]);
+
+  const [isCooldown, setIsCooldown] = useState(false);
+
+  const [justCancelled, setJustCancelled] = useState(false);
+
+  const { enableRemoteModels, isLoggedIn } = useRemoteModel();
+
+  const hideDialog = () => setDialogVisible(false);
+
+  const showDialog = (title: string, message: string, actions: React.ReactNode[]) => {
+    setDialogTitle(title);
+    setDialogMessage(message);
+    setDialogActions(actions);
+    setDialogVisible(true);
+  };
 
   const saveMessagesDebounced = useRef(debounce(async (messages: ChatMessage[]) => {
     if (chat) {
@@ -253,30 +285,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     };
   }, [chat, messages, saveMessages, loadCurrentChat]);
 
-  const processUserMessage = (text: string): string => {
-    try {
-      const parsedMessage = JSON.parse(text);
-      
-      if (parsedMessage && 
-          parsedMessage.type === 'file_upload' && 
-          parsedMessage.internalInstruction && 
-          typeof parsedMessage.userContent !== 'undefined') {
-        
-        console.log('Detected file upload with internal instructions');
-        
-        if (parsedMessage.userContent.trim()) {
-          return parsedMessage.userContent;
-        } else {
-          return "";
-        }
-      }
-    } catch (e) {
-      // Not JSON, continue with normal message
-    }
-    
-    return text.replace(/<INTERNAL_INSTRUCTION>[\s\S]*?<\/INTERNAL_INSTRUCTION>/g, '');
-  };
-
   const handleSend = async (text: string) => {
     const messageText = text.trim();
     if (!messageText) return;
@@ -290,40 +298,82 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       setIsLoading(true);
       Keyboard.dismiss();
       
-      // Process the message for display vs AI consumption
-      const displayContent = processUserMessage(messageText);
       
       const userMessage: Omit<ChatMessage, 'id'> = {
-        // Original content for AI, processed content for display if they differ
         content: messageText,
         role: 'user',
       };
       
       const success = await chatManager.addMessage(userMessage);
       if (!success) {
-        Alert.alert('Error', 'Failed to add message to chat');
+        showDialog(
+          'Error',
+          'Failed to add message to chat',
+          [<Button key="ok" onPress={hideDialog}>OK</Button>]
+        );
         return;
       }
       
       await processMessage();
     } catch (error) {
       console.error('Error sending message:', error);
-      Alert.alert('Error', 'Failed to send message');
+      showDialog(
+        'Error',
+        'Failed to send message',
+        [<Button key="ok" onPress={hideDialog}>OK</Button>]
+      );
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleCancelGeneration = useCallback(() => {
+  const handleCancelGeneration = useCallback(async () => {
     cancelGenerationRef.current = true;
+    setIsCooldown(true);
     
-    if (streamingMessageId && (streamingMessage || streamingThinking)) {
+    setJustCancelled(true);
+    
+    const currentMessageId = streamingMessageId;
+    const currentContent = streamingMessage || '';
+    const currentThinking = streamingThinking || '';
+    
+    setIsLoading(false);
+    setIsRegenerating(false);
+    
+    if (currentMessageId) {
+      const updatedMessages = messages.map(msg => {
+        if (msg.id === currentMessageId) {
+          return {
+            ...msg,
+            content: currentContent,
+            thinking: currentThinking,
+            stats: {
+              duration: 0,
+              tokens: 0
+            }
+          };
+        }
+        return msg;
+      });
+      
+      setMessages(updatedMessages);
+    }
+    
+    if (activeProvider === 'local') {
+      try {
+        await llamaManager.cancelGeneration();
+      } catch (error) {
+        console.error('Error cancelling generation:', error);
+      }
+    }
+    
+    if (currentMessageId && (currentContent || currentThinking)) {
       const currentChat = chatManager.getCurrentChat();
       if (currentChat) {
-        chatManager.updateMessageContent(
-          streamingMessageId,
-          streamingMessage || '',
-          streamingThinking || '',
+        await chatManager.updateMessageContent(
+          currentMessageId,
+          currentContent,
+          currentThinking,
           {
             duration: 0,
             tokens: 0,
@@ -332,97 +382,126 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       }
     }
     
-    setIsStreaming(false);
-    setStreamingMessageId(null);
-    setIsLoading(false);
-    setIsRegenerating(false);
-  }, [streamingMessage, streamingThinking, streamingMessageId]);
+    setTimeout(() => {
+      setIsStreaming(false);
+      setStreamingMessageId(null);
+      setStreamingMessage('');
+      setStreamingThinking('');
+      setStreamingStats(null);
+      setIsCooldown(false);
+      setJustCancelled(false);
+    }, 300);
+  }, [streamingMessage, streamingThinking, streamingMessageId, activeProvider, messages]);
 
   const handleApiError = (error: unknown, provider: 'Gemini' | 'OpenAI' | 'DeepSeek' | 'Claude') => {
     console.error(`Error with ${provider} API:`, error);
     
     if (error instanceof Error) {
       if (error.message.startsWith('QUOTA_EXCEEDED:')) {
-        Alert.alert(
+        showDialog(
           `${provider} API Quota Exceeded`,
           `Your ${provider} API quota has been exceeded. Please try again later or upgrade your API plan.`,
           [
-            { 
-              text: 'Go to Settings', 
-              onPress: () => navigation.navigate('Settings')
-            },
-            { text: 'OK' }
+            <Button 
+              key="settings" 
+              onPress={() => {
+                hideDialog();
+                navigation.navigate('MainTabs', { screen: 'SettingsTab' });
+              }}
+            >
+              Go to Settings
+            </Button>,
+            <Button key="ok" onPress={hideDialog}>OK</Button>
           ]
         );
         return;
       }
       
       if (error.message.startsWith('AUTHENTICATION_ERROR:')) {
-        Alert.alert(
+        showDialog(
           `${provider} API Authentication Error`,
           `Your ${provider} API key appears to be invalid. Please check your API key in Settings.`,
           [
-            { 
-              text: 'Go to Settings', 
-              onPress: () => navigation.navigate('Settings')
-            },
-            { text: 'OK' }
+            <Button 
+              key="settings" 
+              onPress={() => {
+                hideDialog();
+                navigation.navigate('MainTabs', { screen: 'SettingsTab' });
+              }}
+            >
+              Go to Settings
+            </Button>,
+            <Button key="ok" onPress={hideDialog}>OK</Button>
           ]
         );
         return;
       }
       
       if (error.message.startsWith('CONTENT_FILTERED:')) {
-        Alert.alert(
-          `Content Policy Violation`,
-          `Your request was blocked due to content policy violations. Please modify your message and try again.`
+        showDialog(
+          'Content Policy Violation',
+          'Your request was blocked due to content policy violations. Please modify your message and try again.',
+          [<Button key="ok" onPress={hideDialog}>OK</Button>]
         );
         return;
       }
       
       if (error.message.startsWith('CONTEXT_LENGTH_EXCEEDED:')) {
-        Alert.alert(
-          `Message Too Long`,
-          `Your message is too long for the model's context window. Please shorten your input or start a new chat.`
+        showDialog(
+          'Message Too Long',
+          'Your message is too long for the model\'s context window. Please shorten your input or start a new chat.',
+          [<Button key="ok" onPress={hideDialog}>OK</Button>]
         );
         return;
       }
       
       if (error.message.startsWith('SERVER_ERROR:')) {
-        Alert.alert(
+        showDialog(
           `${provider} Server Error`,
-          `The ${provider} API is currently experiencing issues. Please try again later.`
+          `The ${provider} API is currently experiencing issues. Please try again later.`,
+          [<Button key="ok" onPress={hideDialog}>OK</Button>]
         );
         return;
       }
       
       if (error.message.startsWith('INVALID_REQUEST:')) {
-        Alert.alert(
-          `Invalid Request`,
-          `The request to the ${provider} API was invalid. Please try again with different input.`
+        showDialog(
+          'Invalid Request',
+          `The request to the ${provider} API was invalid. Please try again with different input.`,
+          [<Button key="ok" onPress={hideDialog}>OK</Button>]
         );
         return;
       }
       
       if (error.message.startsWith('PERMISSION_DENIED:')) {
-        Alert.alert(
-          `Permission Denied`,
-          `You don't have permission to access this ${provider} model or feature.`
+        showDialog(
+          'Permission Denied',
+          `You don't have permission to access this ${provider} model or feature.`,
+          [<Button key="ok" onPress={hideDialog}>OK</Button>]
         );
         return;
       }
       
       if (error.message.startsWith('NOT_FOUND:')) {
-        Alert.alert(
-          `Model Not Found`,
-          `The requested ${provider} model was not found. It may be deprecated or unavailable.`
+        showDialog(
+          'Model Not Found',
+          `The requested ${provider} model was not found. It may be deprecated or unavailable.`,
+          [<Button key="ok" onPress={hideDialog}>OK</Button>]
         );
         return;
       }
       
-      Alert.alert(`${provider} API Error`, error.message);
+      showDialog(
+        `${provider} API Error`,
+        error.message,
+        [<Button key="ok" onPress={hideDialog}>OK</Button>]
+      );
     } else {
-      Alert.alert(`${provider} API Error`, 'Unknown error occurred');
+      showDialog(
+        `${provider} API Error`,
+        'Unknown error occurred',
+        [<Button key="ok" onPress={hideDialog}>OK</Button>]
+      );
     }
   };
 
@@ -694,7 +773,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       } else {
         await llamaManager.generateResponse(
           processedMessages.map(msg => ({ role: msg.role, content: msg.content })),
-          async (token) => {
+          (token) => {
             if (cancelGenerationRef.current) {
               return false;
             }
@@ -759,7 +838,11 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       
     } catch (error) {
       console.error('Error processing message:', error);
-      Alert.alert('Error', 'Failed to generate response');
+      showDialog(
+        'Error',
+        'Failed to generate response',
+        [<Button key="ok" onPress={hideDialog}>OK</Button>]
+      );
       setIsStreaming(false);
       setStreamingMessageId(null);
       setStreamingThinking('');
@@ -790,7 +873,11 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     if (messages.length < 2) return;
     
     if (!llamaManager.getModelPath() && !activeProvider) {
-      Alert.alert('No Model Selected', 'Please select a model first to regenerate a response.');
+      showDialog(
+        'No Model Selected',
+        'Please select a model first to regenerate a response.',
+        [<Button key="ok" onPress={hideDialog}>OK</Button>]
+      );
       return;
     }
     
@@ -799,7 +886,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     
     const newMessages = messages.slice(0, -1);
     
-    const assistantMessage: Message = {
+    const assistantMessage: ChatMessage = {
       id: generateRandomId(),
       content: '',
       role: 'assistant',
@@ -863,7 +950,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                 });
                 
                 if (tokenCount % 5 === 0 || partialResponse.endsWith('.') || partialResponse.endsWith('!') || partialResponse.endsWith('?')) {
-                  const finalMessage: Message = {
+                  const finalMessage: ChatMessage = {
                     ...assistantMessage,
                     content: partialResponse,
                     stats: {
@@ -882,7 +969,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             );
             
             if (!cancelGenerationRef.current) {
-              const finalMessage: Message = {
+              const finalMessage: ChatMessage = {
                 id: assistantMessage.id,
                 role: assistantMessage.role,
                 content: fullResponse,
@@ -932,7 +1019,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                 });
                 
                 if (tokenCount % 5 === 0 || partialResponse.endsWith('.') || partialResponse.endsWith('!') || partialResponse.endsWith('?')) {
-                  const finalMessage: Message = {
+                  const finalMessage: ChatMessage = {
                     ...assistantMessage,
                     content: partialResponse,
                     stats: {
@@ -951,7 +1038,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             );
             
             if (!cancelGenerationRef.current) {
-              const finalMessage: Message = {
+              const finalMessage: ChatMessage = {
                 id: assistantMessage.id,
                 role: assistantMessage.role,
                 content: fullResponse,
@@ -1001,7 +1088,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                 });
                 
                 if (tokenCount % 5 === 0 || partialResponse.endsWith('.') || partialResponse.endsWith('!') || partialResponse.endsWith('?')) {
-                  const finalMessage: Message = {
+                  const finalMessage: ChatMessage = {
                     ...assistantMessage,
                     content: partialResponse,
                     stats: {
@@ -1020,7 +1107,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             );
             
             if (!cancelGenerationRef.current) {
-              const finalMessage: Message = {
+              const finalMessage: ChatMessage = {
                 id: assistantMessage.id,
                 role: assistantMessage.role,
                 content: fullResponse,
@@ -1070,7 +1157,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                 });
                 
                 if (tokenCount % 5 === 0 || partialResponse.endsWith('.') || partialResponse.endsWith('!') || partialResponse.endsWith('?')) {
-                  const finalMessage: Message = {
+                  const finalMessage: ChatMessage = {
                     ...assistantMessage,
                     content: partialResponse,
                     stats: {
@@ -1089,7 +1176,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             );
             
             if (!cancelGenerationRef.current) {
-              const finalMessage: Message = {
+              const finalMessage: ChatMessage = {
                 id: assistantMessage.id,
                 role: assistantMessage.role,
                 content: fullResponse,
@@ -1108,7 +1195,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             setIsRegenerating(false);
           }
         } else {
-          const finalMessage: Message = {
+          const finalMessage: ChatMessage = {
             ...assistantMessage,
             content: `This model provider (${activeProvider}) is not yet implemented.`,
             stats: {
@@ -1144,7 +1231,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
               setStreamingThinking(thinking.trim());
             } else {
               fullResponse += token;
-              
               setStreamingMessage(fullResponse);
             }
             
@@ -1154,7 +1240,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             });
             
             if (tokenCount % 10 === 0) {
-              const finalMessage: Message = {
+              const finalMessage: ChatMessage = {
                 ...assistantMessage,
                 content: fullResponse,
                 stats: {
@@ -1175,7 +1261,11 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       
     } catch (error) {
       console.error('Error regenerating response:', error);
-      Alert.alert('Error', 'Failed to regenerate response');
+      showDialog(
+        'Error',
+        'Failed to regenerate response',
+        [<Button key="ok" onPress={hideDialog}>OK</Button>]
+      );
     } finally {
       setIsRegenerating(false);
       setIsStreaming(false);
@@ -1227,7 +1317,11 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       }
     } catch (error) {
       console.error('Error loading chat:', error);
-      Alert.alert('Error', 'Failed to load chat');
+      showDialog(
+        'Error',
+        'Failed to load chat',
+        [<Button key="ok" onPress={hideDialog}>OK</Button>]
+      );
     }
   };
 
@@ -1241,6 +1335,26 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   };
 
   const handleModelSelect = async (model: 'local' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude', modelPath?: string) => {
+    if (model !== 'local' && (!enableRemoteModels || !isLoggedIn)) {
+      showDialog(
+        'Remote Models Disabled',
+        'Remote models require the "Enable Remote Models" setting to be turned on and you need to be signed in. Would you like to go to Settings to configure this?',
+        [
+          <Button key="cancel" onPress={hideDialog}>Cancel</Button>,
+          <Button 
+            key="settings" 
+            onPress={() => {
+              hideDialog();
+              navigation.navigate('MainTabs', { screen: 'SettingsTab' });
+            }}
+          >
+            Go to Settings
+          </Button>
+        ]
+      );
+      return;
+    }
+    
     if (model === 'local') {
       if (modelPath) {
         await loadModel(modelPath);
@@ -1250,15 +1364,20 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       if (model === 'gemini') {
         const hasApiKey = await onlineModelService.hasApiKey('gemini');
         if (!hasApiKey) {
-          Alert.alert(
+          showDialog(
             'API Key Required',
             'Please set your Gemini API key in Settings before using this model.',
             [
-              { 
-                text: 'Go to Settings', 
-                onPress: () => navigation.navigate('Settings')
-              },
-              { text: 'Cancel', style: 'cancel' }
+              <Button 
+                key="settings" 
+                onPress={() => {
+                  hideDialog();
+                  navigation.navigate('MainTabs', { screen: 'SettingsTab' });
+                }}
+              >
+                Go to Settings
+              </Button>,
+              <Button key="cancel" onPress={hideDialog}>Cancel</Button>
             ]
           );
           return;
@@ -1296,20 +1415,57 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   useEffect(() => {
     const checkApiKey = async () => {
       if (activeProvider && activeProvider !== 'local') {
+        if (!enableRemoteModels || !isLoggedIn) {
+          showDialog(
+            'Remote Models Disabled',
+            'Remote models require the "Enable Remote Models" setting to be turned on and you need to be signed in. Would you like to go to Settings to configure this?',
+            [
+              <Button key="cancel" onPress={() => {
+                hideDialog();
+                if (llamaManager.isInitialized()) {
+                  setActiveProvider('local');
+                }
+              }}>
+                Cancel
+              </Button>,
+              <Button 
+                key="settings" 
+                onPress={() => {
+                  hideDialog();
+                  navigation.navigate('MainTabs', { screen: 'SettingsTab' });
+                }}
+              >
+                Go to Settings
+              </Button>
+            ]
+          );
+          return;
+        }
+        
         const hasKey = await onlineModelService.hasApiKey(activeProvider);
         if (!hasKey) {
-          Alert.alert(
+          showDialog(
             'API Key Required',
             `${activeProvider.charAt(0).toUpperCase() + activeProvider.slice(1)} requires an API key to function. Please add your API key in Settings.`,
             [
-              {
-                text: 'Go to Settings',
-                onPress: () => navigation.navigate('Settings')
-              },
-              {
-                text: 'Cancel',
-                onPress: () => setActiveProvider('local')
-              }
+              <Button 
+                key="settings" 
+                onPress={() => {
+                  hideDialog();
+                  navigation.navigate('MainTabs', { screen: 'SettingsTab' });
+                }}
+              >
+                Go to Settings
+              </Button>,
+              <Button 
+                key="cancel" 
+                onPress={() => {
+                  hideDialog();
+                  setActiveProvider('local');
+                }}
+              >
+                Cancel
+              </Button>
             ]
           );
         }
@@ -1317,7 +1473,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     };
     
     checkApiKey();
-  }, [activeProvider, navigation]);
+  }, [activeProvider, navigation, enableRemoteModels, isLoggedIn]);
 
   const renderModelSelectorComponent = () => {
     let modelName = 'Select a Model';
@@ -1332,16 +1488,16 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         iconName = "cube";
       }
     } else if (activeProvider === 'gemini') {
-      modelName = 'Gemini Pro';
+      modelName = 'gemini-2.0-flash';
       iconName = "cloud";
     } else if (activeProvider === 'chatgpt') {
-      modelName = 'GPT-4o';
+      modelName = 'gpt-4o';
       iconName = "cloud";
     } else if (activeProvider === 'deepseek') {
-      modelName = 'DeepSeek Coder';
+      modelName = 'deepseek-r1';
       iconName = "cloud";
     } else if (activeProvider === 'claude') {
-      modelName = 'Claude 3 Opus';
+      modelName = 'claude-3.7-sonnet';
       iconName = "cloud";
     }
     
@@ -1359,104 +1515,85 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     );
   };
 
+  if (!chat) {
+    return (
+      <View style={[styles.container, styles.loadingContainer, { backgroundColor: themeColors.background }]}>
+        <ActivityIndicator size="large" color={themeColors.primary} />
+        <Text style={{marginTop: 10, color: themeColors.text}}>Loading Chat...</Text>
+      </View>
+    );
+  }
+
   return (
-    <SafeAreaView 
-      style={[styles.container, { backgroundColor: themeColors.background }]}
-      edges={['right', 'left']}
-    >
+    <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]} edges={['bottom', 'left', 'right']}>
       <AppHeader 
         onNewChat={startNewChat}
-        title="Ragionare"
-        showLogo={true}
-      />
-      
-      {showCopyToast && (
-        <View style={styles.copyToast}>
-          <Text style={styles.copyToastText}>{copyToastMessageRef.current}</Text>
-        </View>
-      )}
-
-      <Modal
-        visible={showMemoryWarning}
-        transparent
-        animationType="fade"
-        onRequestClose={handleMemoryWarningClose}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: themeColors.borderColor }]}>
-            <View style={styles.modalHeader}>
-              <MaterialCommunityIcons name="alert-outline" size={32} color={getThemeAwareColor('#FFA726', currentTheme)} />
-              <Text style={[styles.modalTitle, { color: themeColors.text }]}>
-                Low Memory Warning
-              </Text>
-            </View>
-            
-            <Text style={[styles.modalText, { color: themeColors.text }]}>
-              Your device has less than 8GB of RAM. Large language models require significant memory to run efficiently. You may experience:
-            </Text>
-            
-            <View style={styles.bulletPoints}>
-              <Text style={[styles.bulletPoint, { color: themeColors.text }]}>• Slower response times</Text>
-              <Text style={[styles.bulletPoint, { color: themeColors.text }]}>• Potential app crashes</Text>
-              <Text style={[styles.bulletPoint, { color: themeColors.text }]}>• Limited model size support</Text>
-            </View>
-            
-            <Text style={[styles.modalText, { color: themeColors.text, marginTop: 8 }]}>
-              Although, you can still continue using this app, but for optimal performance, consider using a phone with more RAM.
-            </Text>
-
+        rightButtons={
+          <View style={{ flexDirection: 'row', gap: 8 }}>
             <TouchableOpacity
-              style={[styles.modalButton, { backgroundColor: themeColors.headerBackground }]}
-              onPress={handleMemoryWarningClose}
+              style={styles.headerButton}
+              onPress={startNewChat}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <Text style={styles.modalButtonText}>I Understand</Text>
+              <MaterialCommunityIcons name="plus" size={22} color={themeColors.headerText} />
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={styles.headerButton}
+              onPress={() => navigation.navigate('ChatHistory')}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <MaterialCommunityIcons name="clock-outline" size={22} color={themeColors.headerText} />
             </TouchableOpacity>
           </View>
-        </View>
-      </Modal>
+        } 
+      />
+      <View style={[styles.modelSelectorContainer, { borderBottomColor: themeColors.borderColor }]}>
+         {renderModelSelectorComponent()}
+      </View>
+      <KeyboardAvoidingView
+        style={styles.chatContainer}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={50}
+      >
+        <ChatView
+           messages={messages}
+           isStreaming={isStreaming}
+           streamingMessageId={streamingMessageId}
+           streamingMessage={streamingMessage}
+           streamingThinking={streamingThinking}
+           streamingStats={streamingStats}
+           onCopyText={copyToClipboard}
+           onRegenerateResponse={handleRegenerate}
+           isRegenerating={isRegenerating}
+           justCancelled={justCancelled}
+           flatListRef={flatListRef}
+        />
 
-      {renderModelSelectorComponent()}
-      
-      <KeyboardAvoidingView 
-        style={styles.keyboardAvoidingView}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-        enabled={true}>
-        <View style={[styles.messagesContainer]}>
-          <ChatView
-            messages={messages}
-            isStreaming={isStreaming}
-            streamingMessageId={streamingMessageId}
-            streamingMessage={streamingMessage}
-            streamingThinking={streamingThinking}
-            streamingStats={streamingStats}
-            onCopyText={copyToClipboard}
-            onRegenerateResponse={handleRegenerate}
-            isRegenerating={isRegenerating}
-            flatListRef={flatListRef}
-          />
-        </View>
-
-        <View style={[
-          styles.inputContainer,
-          { 
-            backgroundColor: themeColors.background,
-            borderTopWidth: 1,
-            borderTopColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
-          }
-        ]}>
-          <ChatInput
-            onSend={handleSend}
-            disabled={isLoading || isStreaming}
-            isLoading={isLoading || isStreaming}
-            onCancel={handleCancelGeneration}
-            placeholderColor={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.4)'}
-            style={{ 
-              backgroundColor: themeColors.background,
-            }}
-          />
-        </View>
+        <ChatInput
+          onSend={handleSend}
+          disabled={isLoading || isModelLoading || isCooldown}
+          isLoading={isLoading}
+          isRegenerating={isRegenerating}
+          onCancel={handleCancelGeneration}
+          style={{ backgroundColor: themeColors.background, borderTopColor: themeColors.borderColor }}
+          placeholderColor={themeColors.secondaryText}
+        />
       </KeyboardAvoidingView>
+
+      <Portal>
+        <Dialog visible={dialogVisible} onDismiss={hideDialog}>
+          <Dialog.Title>{dialogTitle}</Dialog.Title>
+          <Dialog.Content>
+            <PaperText>{dialogMessage}</PaperText>
+          </Dialog.Content>
+          <Dialog.Actions>
+            {dialogActions.map((ActionComponent, index) =>
+              React.isValidElement(ActionComponent) ? React.cloneElement(ActionComponent, { key: index }) : null
+            )}
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
     </SafeAreaView>
   );
 }
@@ -1464,12 +1601,16 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'transparent',
   },
-  keyboardAvoidingView: {
+  loadingContainer: {
     flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  messagesContainer: {
+  modelSelectorContainer: {
+    paddingBottom: 13,
+  },
+  chatContainer: {
     flex: 1,
   },
   modelSelectorWrapper: {
@@ -1669,5 +1810,13 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     zIndex: 1,
+  },
+  headerButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 }); 

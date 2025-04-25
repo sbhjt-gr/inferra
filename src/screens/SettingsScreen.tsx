@@ -1,10 +1,11 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { StyleSheet, View, Platform, ScrollView, TouchableOpacity, Linking, Alert, ActivityIndicator } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { StyleSheet, View, Platform, ScrollView, Linking } from 'react-native';
 import { CompositeNavigationProp } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList, TabParamList } from '../types/navigation';
 import { useTheme } from '../context/ThemeContext';
+import { useRemoteModel } from '../context/RemoteModelContext';
 import { theme } from '../constants/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AppHeader from '../components/AppHeader';
@@ -17,14 +18,14 @@ import SystemPromptDialog from '../components/SystemPromptDialog';
 import * as FileSystem from 'expo-file-system';
 import { useFocusEffect } from '@react-navigation/native';
 import { modelDownloader } from '../services/ModelDownloader';
-
-// Import the new components
 import ChatSettingsSection from '../components/settings/ChatSettingsSection';
 import AppearanceSection from '../components/settings/AppearanceSection';
+import RemoteModelsSection from '../components/settings/RemoteModelsSection';
 import SupportSection from '../components/settings/SupportSection';
 import ModelSettingsSection from '../components/settings/ModelSettingsSection';
 import SystemInfoSection from '../components/settings/SystemInfoSection';
 import StorageSection from '../components/settings/StorageSection';
+import { Dialog, Portal, PaperProvider, Button, Text as PaperText } from 'react-native-paper';
 
 type SettingsScreenProps = {
   navigation: CompositeNavigationProp<
@@ -47,7 +48,7 @@ const DEFAULT_SETTINGS = {
 
 export default function SettingsScreen({ navigation }: SettingsScreenProps) {
   const { theme: currentTheme, selectedTheme, toggleTheme } = useTheme();
-  const [showModelSettings, setShowModelSettings] = useState(false);
+  const { enableRemoteModels, toggleRemoteModels, isLoggedIn } = useRemoteModel();
   const [systemInfo, setSystemInfo] = useState({
     os: Platform.OS,
     osVersion: Device.osVersion,
@@ -82,6 +83,20 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     cacheSize: '0 B'
   });
   const [isClearing, setIsClearing] = useState(false);
+
+  const [dialogVisible, setDialogVisible] = useState(false);
+  const [dialogTitle, setDialogTitle] = useState('');
+  const [dialogMessage, setDialogMessage] = useState('');
+  const [dialogActions, setDialogActions] = useState<React.ReactNode[]>([]);
+
+  const hideDialog = () => setDialogVisible(false);
+
+  const showDialog = (title: string, message: string, actions: React.ReactNode[]) => {
+    setDialogTitle(title);
+    setDialogMessage(message);
+    setDialogActions(actions);
+    setDialogVisible(true);
+  };
 
   useFocusEffect(
     React.useCallback(() => {
@@ -140,7 +155,9 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
       await llamaManager.updateSettings(updatedSettings);
     } catch (error) {
       console.error('Error updating settings:', error);
-      Alert.alert('Error', 'Failed to save settings');
+      showDialog('Error', 'Failed to save settings', [
+        <Button key="ok" onPress={hideDialog}>OK</Button>
+      ]);
     }
   };
 
@@ -246,9 +263,13 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
         await clearDirectory(FileSystem.cacheDirectory);
       }
       await loadStorageInfo();
-      Alert.alert('Success', 'Cache cleared successfully');
+      showDialog('Success', 'Cache cleared successfully', [
+        <Button key="ok" onPress={hideDialog}>OK</Button>
+      ]);
     } catch (error) {
-      Alert.alert('Error', 'Failed to clear cache');
+      showDialog('Error', 'Failed to clear cache', [
+        <Button key="ok" onPress={hideDialog}>OK</Button>
+      ]);
     } finally {
       setIsClearing(false);
     }
@@ -260,9 +281,13 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
       const tempDir = `${FileSystem.documentDirectory}temp`;
       await clearDirectory(tempDir);
       await loadStorageInfo();
-      Alert.alert('Success', 'Temporary files cleared successfully');
+      showDialog('Success', 'Temporary files cleared successfully', [
+        <Button key="ok" onPress={hideDialog}>OK</Button>
+      ]);
     } catch (error) {
-      Alert.alert('Error', 'Failed to clear temporary files');
+      showDialog('Error', 'Failed to clear temporary files', [
+        <Button key="ok" onPress={hideDialog}>OK</Button>
+      ]);
     } finally {
       setIsClearing(false);
     }
@@ -270,45 +295,105 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
 
   const clearAllModels = async () => {
     try {
-      Alert.alert(
+      showDialog(
         'Clear All Models',
         'Are you sure you want to delete all models? This action cannot be undone.',
         [
-          {
-            text: 'Cancel',
-            style: 'cancel'
-          },
-          {
-            text: 'Delete',
-            style: 'destructive',
-            onPress: async () => {
+          <Button key="cancel" onPress={hideDialog}>Cancel</Button>,
+          <Button
+            key="delete"
+            onPress={async () => {
+              hideDialog();
               try {
                 setIsClearing(true);
                 const modelsDir = `${FileSystem.documentDirectory}models`;
                 await clearDirectory(modelsDir);
-                
                 await modelDownloader.refreshStoredModels();
-                
                 await loadStorageInfo();
-                Alert.alert('Success', 'All models cleared successfully');
+                showDialog('Success', 'All models cleared successfully', [
+                  <Button key="ok" onPress={hideDialog}>OK</Button>
+                ]);
               } catch (error) {
-                Alert.alert('Error', 'Failed to clear models');
+                showDialog('Error', 'Failed to clear models', [
+                  <Button key="ok" onPress={hideDialog}>OK</Button>
+                ]);
               } finally {
                 setIsClearing(false);
               }
-            }
-          }
+            }}
+          >
+            Delete
+          </Button>
         ]
       );
     } catch (error) {
-      Alert.alert('Error', 'Failed to clear models');
+      showDialog('Error', 'Failed to clear models', [
+        <Button key="ok" onPress={hideDialog}>OK</Button>
+      ]);
+    }
+  };
+
+  const handleRemoteModelsToggle = async () => {
+    if (!isLoggedIn && !enableRemoteModels) {
+      showDialog(
+        'Authentication Required',
+        'You need to sign in to enable remote models.',
+        [
+          <Button key="cancel" onPress={hideDialog}>Cancel</Button>,
+          <Button 
+            key="signup" 
+            onPress={() => {
+              hideDialog();
+              navigation.navigate('Register', {
+                redirectTo: 'MainTabs',
+                redirectParams: { screen: 'SettingsTab' }
+              });
+            }}
+          >
+            Sign Up
+          </Button>,
+          <Button 
+            key="login" 
+            onPress={() => {
+              hideDialog();
+              navigation.navigate('Login', {
+                redirectTo: 'MainTabs',
+                redirectParams: { screen: 'SettingsTab' }
+              });
+            }}
+          >
+            Sign In
+          </Button>
+        ]
+      );
+      return;
+    }
+    
+    const result = await toggleRemoteModels();
+    if (!result.success && result.requiresLogin) {
+      navigation.navigate('Login', {
+        redirectTo: 'MainTabs',
+        redirectParams: { screen: 'SettingsTab' }
+      });
     }
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme[currentTheme].background }]}>
-      <AppHeader />
+      <View style={[styles.container, { backgroundColor: theme[currentTheme].background }]}>
+      <AppHeader 
+        title="Settings"
+      />
       <ScrollView contentContainerStyle={styles.contentContainer}>
+        
+       <AppearanceSection
+        selectedTheme={selectedTheme}
+        onThemeChange={handleThemeChange}
+        />
+        
+        <RemoteModelsSection
+          enableRemoteModels={enableRemoteModels}
+          onToggleRemoteModels={handleRemoteModelsToggle}
+        />
         
         <ChatSettingsSection
           modelSettings={modelSettings}
@@ -317,12 +402,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           onResetSystemPrompt={() => handleSettingsChange({ systemPrompt: DEFAULT_SETTINGS.systemPrompt })}
         />
 
-        <AppearanceSection
-          selectedTheme={selectedTheme}
-          onThemeChange={handleThemeChange}
-        />
-
-        <SupportSection onOpenLink={openLink} />
 
         <ModelSettingsSection
           modelSettings={modelSettings}
@@ -334,7 +413,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           onDialogOpen={handleOpenDialog}
         />
 
-        <SystemInfoSection systemInfo={systemInfo} />
 
         <StorageSection
           storageInfo={storageInfo}
@@ -344,9 +422,13 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           onClearAllModels={clearAllModels}
         />
 
+        <SupportSection onOpenLink={openLink} />  
+
+        <SystemInfoSection systemInfo={systemInfo} />
+        
         {dialogConfig.setting && (
           <ModelSettingDialog
-            key={dialogConfig.setting.key}
+          key={dialogConfig.setting.key}
             visible={dialogConfig.visible}
             onClose={handleCloseDialog}
             onSave={(value) => {
@@ -360,8 +442,8 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
             maximumValue={dialogConfig.setting.maximumValue}
             step={dialogConfig.setting.step}
             description={dialogConfig.setting.description}
-          />
-        )}
+            />
+          )}
 
         <StopWordsDialog
           visible={showStopWordsDialog}
@@ -386,7 +468,22 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           defaultValue={DEFAULT_SETTINGS.systemPrompt}
           description="Define how the AI assistant should behave. This prompt sets the personality, capabilities, and limitations of the assistant."
         />
+
       </ScrollView>
+
+      <Portal>
+        <Dialog visible={dialogVisible} onDismiss={hideDialog}>
+          <Dialog.Title>{dialogTitle}</Dialog.Title>
+          <Dialog.Content>
+            <PaperText>{dialogMessage}</PaperText> 
+          </Dialog.Content>
+          <Dialog.Actions>
+            {dialogActions.map((ActionComponent, index) =>
+              React.isValidElement(ActionComponent) ? React.cloneElement(ActionComponent, { key: index }) : null
+            )}
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
     </View>
   );
 }

@@ -1,13 +1,11 @@
 import React, { useState } from 'react';
 import {
   View,
-  Text,
   StyleSheet,
   TouchableOpacity,
   Modal,
   TextInput,
   ActivityIndicator,
-  Alert,
   Linking,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -21,13 +19,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CompositeNavigationProp } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { TabParamList } from '../types/navigation';
+import { Dialog, Portal, PaperProvider, Text, Button } from 'react-native-paper';
 
 interface CustomUrlDialogProps {
   visible: boolean;
   onClose: () => void;
   onDownloadStart: (downloadId: number, modelName: string) => void;
   navigation: CompositeNavigationProp<
-    BottomTabNavigationProp<TabParamList, 'Model'>,
+    BottomTabNavigationProp<TabParamList, 'ModelTab'>,
     NativeStackNavigationProp<RootStackParamList>
   >;
 }
@@ -44,6 +43,20 @@ const CustomUrlDialog = ({ visible, onClose, onDownloadStart, navigation }: Cust
   const [url, setUrl] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isValid, setIsValid] = useState(false);
+
+  const [dialogVisible, setDialogVisible] = useState(false);
+  const [dialogTitle, setDialogTitle] = useState('');
+  const [dialogMessage, setDialogMessage] = useState('');
+
+  const showAppDialog = (title: string, message: string) => {
+    setDialogTitle(title);
+    setDialogMessage(message);
+    setDialogVisible(true);
+  };
+
+  const hideAppDialog = () => {
+    setDialogVisible(false);
+  };
 
   const validateUrl = (input: string) => {
     setUrl(input);
@@ -76,10 +89,11 @@ const CustomUrlDialog = ({ visible, onClose, onDownloadStart, navigation }: Cust
       }
 
       if (!filename.toLowerCase().endsWith('.gguf')) {
-        Alert.alert(
+        showAppDialog(
           'Invalid File',
           'Only direct download links to GGUF models are supported. Please make sure opening the link in a browser downloads a GGUF model file directly.'
         );
+        setIsLoading(false);
         return;
       }
       
@@ -106,8 +120,7 @@ const CustomUrlDialog = ({ visible, onClose, onDownloadStart, navigation }: Cust
       onDownloadStart(downloadId, filename);
       setUrl('');
     } catch (error) {
-      console.error('Custom download error:', error);
-      Alert.alert('Error', 'Failed to start download');
+      showAppDialog('Error', 'Failed to start download');
     } finally {
       setIsLoading(false);
     }
@@ -188,6 +201,18 @@ const CustomUrlDialog = ({ visible, onClose, onDownloadStart, navigation }: Cust
           </TouchableOpacity>
         </View>
       </View>
+
+      <Portal>
+        <Dialog visible={dialogVisible} onDismiss={hideAppDialog}>
+          <Dialog.Title>{dialogTitle}</Dialog.Title>
+          <Dialog.Content>
+            <Text variant="bodyMedium">{dialogMessage}</Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={hideAppDialog}>OK</Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
     </Modal>
   );
 };

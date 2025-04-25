@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import {
   StyleSheet,
   View,
-  Text,
+  Text as RNText,
   FlatList,
   TouchableOpacity,
   Alert,
@@ -16,6 +16,7 @@ import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList, TabParamList } from '../types/navigation';
 import { useTheme } from '../context/ThemeContext';
+import { useRemoteModel } from '../context/RemoteModelContext';
 import { theme } from '../constants/theme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AppHeader from '../components/AppHeader';
@@ -35,6 +36,9 @@ import StoredModelItem from '../components/model/StoredModelItem';
 import { getActiveDownloadsCount } from '../utils/ModelUtils';
 import { StoredModel } from '../services/ModelDownloaderTypes';
 import { DOWNLOADABLE_MODELS } from '../constants/DownloadableModels';
+import { Dialog, Portal, PaperProvider, Button, Text as PaperText } from 'react-native-paper';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { logoutUser, getUserFromSecureStorage } from '../services/FirebaseService';
 
 type ModelScreenProps = {
   navigation: CompositeNavigationProp<
@@ -56,7 +60,6 @@ TaskManager.defineTask(BACKGROUND_DOWNLOAD_TASK, async ({ data, error }) => {
 
 const registerBackgroundTask = async () => {
   try {
-    // First check if the task is already registered
     const isRegistered = await TaskManager.isTaskRegisteredAsync(BACKGROUND_DOWNLOAD_TASK);
     
     if (isRegistered) {
@@ -64,9 +67,8 @@ const registerBackgroundTask = async () => {
       return;
     }
     
-    // If not registered, register with conservative settings
     await BackgroundFetch.registerTaskAsync(BACKGROUND_DOWNLOAD_TASK, {
-      minimumInterval: 15, // 15 minutes minimum
+      minimumInterval: 15,
       stopOnTerminate: false,
       startOnBoot: true,
     });
@@ -78,8 +80,9 @@ const registerBackgroundTask = async () => {
 
 export default function ModelScreen({ navigation }: ModelScreenProps) {
   const { theme: currentTheme } = useTheme();
+  const { enableRemoteModels, isLoggedIn, checkLoginStatus } = useRemoteModel();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
-  const [activeTab, setActiveTab] = useState<'stored' | 'downloadable'>('stored');
+  const [activeTab, setActiveTab] = useState<'stored' | 'downloadable' | 'remote'>('stored');
   const [storedModels, setStoredModels] = useState<StoredModel[]>([]);
   const { downloadProgress, setDownloadProgress } = useDownloads();
   const [customUrlDialogVisible, setCustomUrlDialogVisible] = useState(false);
@@ -87,7 +90,85 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
   const buttonScale = useRef(new Animated.Value(1)).current;
   const [isLoading, setIsLoading] = useState(false);
   const [importingModelName, setImportingModelName] = useState<string | null>(null);
+  const [isLoadingApiKeys, setIsLoadingApiKeys] = useState(false);
   const [geminiApiKey, setGeminiApiKey] = useState('');
+  const [openAIApiKey, setOpenAIApiKey] = useState('');
+  const [deepSeekApiKey, setDeepSeekApiKey] = useState('');
+  const [claudeApiKey, setClaudeApiKey] = useState('');
+
+  const [dialogVisible, setDialogVisible] = useState(false);
+  const [dialogTitle, setDialogTitle] = useState('');
+  const [dialogMessage, setDialogMessage] = useState('');
+  const [dialogActions, setDialogActions] = useState<React.ReactNode[]>([]);
+
+  const [username, setUsername] = useState<string | null>(null);
+
+  const hideDialog = () => setDialogVisible(false);
+
+  const showDialog = (title: string, message: string, actions: React.ReactNode[]) => {
+    setDialogTitle(title);
+    setDialogMessage(message);
+    setDialogActions(actions);
+    setDialogVisible(true);
+  };
+  useEffect(() => {
+    checkLoginStatusAndUpdateUsername();
+  }, []);
+
+  const checkLoginStatusAndUpdateUsername = async () => {
+    try {
+      const userData = await getUserFromSecureStorage();
+      if (userData) {
+        setUsername(userData.email || userData.displayName);
+        return;
+      }
+      
+      const userJson = await AsyncStorage.getItem('user');
+      if (userJson) {
+        const user = JSON.parse(userJson);
+        setUsername(user.email);
+      }
+    } catch (error) {
+      console.error('Error checking login status:', error);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      const result = await logoutUser();
+      
+      await AsyncStorage.removeItem('user');
+      
+      setUsername(null);
+      
+      await checkLoginStatus();
+      
+      if (activeTab === 'remote') {
+        setActiveTab('stored');
+      }
+      
+      if (result.success) {
+        showDialog(
+          'Logged Out',
+          'You have been successfully logged out.',
+          [<Button key="ok" onPress={hideDialog}>OK</Button>]
+        );
+      } else {
+        showDialog(
+          'Logout Issue',
+          result.error || 'There was an issue logging out. Please try again.',
+          [<Button key="ok" onPress={hideDialog}>OK</Button>]
+        );
+      }
+    } catch (error) {
+      console.error('Logout error:', error);
+      showDialog(
+        'Error',
+        'Failed to log out. Please try again.',
+        [<Button key="ok" onPress={hideDialog}>OK</Button>]
+      );
+    }
+  };
 
   const handleLinkModel = async () => {
     try {
@@ -112,9 +193,10 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       });
 
       if (!fileName.endsWith('.gguf')) {
-        Alert.alert(
+        showDialog(
           'Invalid File',
-          'Please select a valid GGUF model file (with .gguf extension)'
+          'Please select a valid GGUF model file (with .gguf extension)',
+          [<Button key="ok" onPress={hideDialog}>OK</Button>]
         );
         return;
       }
@@ -125,61 +207,79 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         const isAndroidContentUri = Platform.OS === 'android' && file.uri.startsWith('content://');
         
         if (isAndroidContentUri) {
-          Alert.alert(
+          showDialog(
             'Importing Model',
             'The model file needs to be copied to the app directory to work properly. This may take a while for large models.',
             [
-              {
-                text: 'Continue',
-                onPress: async () => {
+              <Button
+                key="continue"
+                onPress={async () => {
+                  hideDialog();
                   try {
+                    setImportingModelName(file.name);
                     await modelDownloader.linkExternalModel(file.uri, file.name);
                     setIsLoading(false);
-                    Alert.alert(
+                    setImportingModelName(null);
+                    showDialog(
                       'Model Imported',
-                      'The model has been successfully imported. Consider deleting the original file from your device to save space.'
+                      'The model has been successfully imported. Consider deleting the original file from your device to save space.',
+                      [<Button key="ok" onPress={hideDialog}>OK</Button>]
                     );
                     await loadStoredModels();
                   } catch (error) {
                     setIsLoading(false);
+                    setImportingModelName(null);
                     console.error('[ModelScreen] Error importing model:', error);
-                    Alert.alert(
+                    showDialog(
                       'Error',
-                      `Failed to import the model: ${error instanceof Error ? error.message : 'Unknown error'}`
+                      `Failed to import the model: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                      [<Button key="ok" onPress={hideDialog}>OK</Button>]
                     );
                   }
-                }
-              },
-              {
-                text: 'Cancel',
-                style: 'cancel',
-                onPress: () => setIsLoading(false)
-              }
+                }}
+              >
+                Continue
+              </Button>,
+              <Button
+                key="cancel"
+                onPress={() => {
+                  hideDialog();
+                  setIsLoading(false);
+                }}
+              >
+                Cancel
+              </Button>
             ]
           );
         } else {
+          setImportingModelName(file.name);
           await modelDownloader.linkExternalModel(file.uri, file.name);
           setIsLoading(false);
-          Alert.alert(
+          setImportingModelName(null);
+          showDialog(
             'Model Linked',
-            'The model has been successfully linked to the app. It will remain in its original location.'
+            'The model has been successfully linked to the app. It will remain in its original location.',
+            [<Button key="ok" onPress={hideDialog}>OK</Button>]
           );
           await loadStoredModels();
         }
       } catch (error) {
         setIsLoading(false);
-        console.error('[ModelScreen] Error linking model:', error);
-        Alert.alert(
+        setImportingModelName(null);
+        console.error('[ModelScreen] Error picking document:', error);
+        showDialog(
           'Error',
-          `Failed to link the model: ${error instanceof Error ? error.message : 'Unknown error'}`
+          'Failed to access the file. Please try again or choose a different file.',
+          [<Button key="ok" onPress={hideDialog}>OK</Button>]
         );
       }
     } catch (error) {
       setIsLoading(false);
-      console.error('[ModelScreen] Error picking document:', error);
-      Alert.alert(
+      console.error('[ModelScreen] DocumentPicker error:', error);
+      showDialog(
         'Error',
-        'Failed to access the file. Please try again or choose a different file.'
+        'Could not open the file picker. Please ensure the app has storage permissions.',
+        [<Button key="ok" onPress={hideDialog}>OK</Button>]
       );
     }
   };
@@ -219,7 +319,9 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       await loadStoredModels();
     } catch (error) {
       console.error('Error canceling download:', error);
-      Alert.alert('Error', 'Failed to cancel download');
+      showDialog('Error', 'Failed to cancel download', [
+        <Button key="ok" onPress={hideDialog}>OK</Button>
+      ]);
     }
   };
 
@@ -239,9 +341,10 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       setStoredModels(models);
     } catch (error) {
       console.error('[ModelScreen] Error loading stored models:', error);
-      Alert.alert(
+      showDialog(
         'Error Loading Models',
-        'There was a problem loading your stored models. Please try again.'
+        'There was a problem loading your stored models. Please try again.',
+        [<Button key="ok" onPress={hideDialog}>OK</Button>]
       );
     }
   };
@@ -412,21 +515,20 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         loadStoredModels();
       } catch (error) {
         console.error(`[ModelScreen] Error removing linkage for model ${model.name}:`, error);
-        Alert.alert('Error', 'Failed to remove model linkage');
+        showDialog('Error', 'Failed to remove model linkage', [
+          <Button key="ok" onPress={hideDialog}>OK</Button>
+        ]);
       }
     } else {
-      Alert.alert(
+      showDialog(
         'Delete Model',
         `Are you sure you want to delete ${model.name}?`,
         [
-          {
-            text: 'Cancel',
-            style: 'cancel',
-          },
-          {
-            text: 'Delete',
-            style: 'destructive',
-            onPress: async () => {
+          <Button key="cancel" onPress={hideDialog}>Cancel</Button>,
+          <Button
+            key="delete"
+            onPress={async () => {
+              hideDialog();
               try {
                 console.log(`[ModelScreen] User confirmed deletion of model: ${model.name}`);
                 await modelDownloader.deleteModel(model.path);
@@ -434,10 +536,14 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
                 await loadStoredModels();
               } catch (error) {
                 console.error(`[ModelScreen] Error deleting model ${model.name}:`, error);
-                Alert.alert('Error', 'Failed to delete model');
+                showDialog('Error', 'Failed to delete model', [
+                  <Button key="ok" onPress={hideDialog}>OK</Button>
+                ]);
               }
-            },
-          },
+            }}
+          >
+            Delete
+          </Button>
         ]
       );
     }
@@ -450,8 +556,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         contentContainerStyle={{ padding: 16, paddingTop: 8 }}
         showsVerticalScrollIndicator={false}
       >
-        <ApiKeySection />
-
         <TouchableOpacity
           style={[styles.customUrlButton, { backgroundColor: themeColors.borderColor }, { marginBottom: 25 }]}
           onPress={() => setCustomUrlDialogVisible(true)}
@@ -461,12 +565,12 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
               <MaterialCommunityIcons name="plus-circle-outline" size={24} color={getThemeAwareColor('#4a0660', currentTheme)} />
             </View>
             <View style={styles.customUrlTextContainer}>
-              <Text style={[styles.customUrlButtonTitle, { color: themeColors.text }]}>
+              <RNText style={[styles.customUrlButtonTitle, { color: themeColors.text }]}>
                 Download from URL
-              </Text>
-              <Text style={[styles.customUrlButtonSubtitle, { color: themeColors.secondaryText }]}>
+              </RNText>
+              <RNText style={[styles.customUrlButtonSubtitle, { color: themeColors.secondaryText }]}>
                 Download a custom GGUF model from a URL
-              </Text>
+              </RNText>
             </View>
           </View>
         </TouchableOpacity>
@@ -488,6 +592,28 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     </View>
   );
 
+  const renderRemoteModelsList = () => (
+    <View style={styles.remoteModelsContainer}>
+      <ScrollView 
+        style={{ flex: 1 }}
+        contentContainerStyle={{ padding: 16, paddingTop: 8 }}
+        showsVerticalScrollIndicator={false}
+      >
+        <RNText style={[styles.sectionTitle, { color: themeColors.text, marginBottom: 16 }]}>
+          API Settings for Remote Models
+        </RNText>
+        <ApiKeySection />
+
+        <View style={{ height: 20 }} />
+
+        <RNText style={[styles.remoteModelsInfo, { color: themeColors.secondaryText }]}>
+          Configure API keys to use remote models like OpenAI, Gemini, Claude, and DeepSeek directly from their servers.
+          These models run on the provider's cloud and require an internet connection.
+        </RNText>
+      </ScrollView>
+    </View>
+  );
+
   const StoredModelsHeader = () => (
     <View style={styles.storedModelsHeader}>
       <TouchableOpacity
@@ -499,12 +625,12 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
             <MaterialCommunityIcons name="link" size={24} color={getThemeAwareColor('#4a0660', currentTheme)} />
           </View>
           <View style={styles.customUrlTextContainer}>
-            <Text style={[styles.customUrlButtonTitle, { color: themeColors.text }]}>
+            <RNText style={[styles.customUrlButtonTitle, { color: themeColors.text }]}>
               Import Model
-            </Text>
-            <Text style={[styles.customUrlButtonSubtitle, { color: themeColors.secondaryText }]}>
+            </RNText>
+            <RNText style={[styles.customUrlButtonSubtitle, { color: themeColors.secondaryText }]}>
               Import a GGUF model from the storage
-            </Text>
+            </RNText>
           </View>
         </View>
       </TouchableOpacity>
@@ -519,7 +645,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         path={item.path}
         size={item.size}
         isExternal={Boolean(item.isExternal)}
-        onDelete={(_, path) => handleDelete(_, path)}
+        onDelete={() => handleDelete(item)}
       />
     );
   };
@@ -541,12 +667,28 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         >
           <MaterialCommunityIcons name="cloud-download" size={24} color={themeColors.headerText} />
           <View style={styles.downloadCount}>
-            <Text style={styles.downloadCountText}>{activeCount}</Text>
+            <RNText style={styles.downloadCountText}>{activeCount}</RNText>
           </View>
         </TouchableOpacity>
       </Animated.View>
     );
   };
+
+  useEffect(() => {
+    const handleDownloadStarted = (data: { modelName: string; message: string }) => {
+      showDialog(
+        'Download Started',
+        data.message,
+        [<Button key="ok" onPress={hideDialog}>OK</Button>]
+      );
+    };
+
+    modelDownloader.on('downloadStarted', handleDownloadStarted);
+    
+    return () => {
+      modelDownloader.off('downloadStarted', handleDownloadStarted);
+    };
+  }, []);
 
   useEffect(() => {
     const handleImportProgress = (progress: { 
@@ -560,7 +702,11 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       } else {
         setImportingModelName(null);
         if (progress.status === 'error' && progress.error) {
-          Alert.alert('Error', `Failed to import model: ${progress.error}`);
+          showDialog(
+            'Error',
+            `Failed to import model: ${progress.error}`,
+            [<Button key="ok" onPress={hideDialog}>OK</Button>]
+          );
         }
       }
     };
@@ -576,9 +722,85 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     loadApiKeys();
   }, []);
 
+  const renderLoginButton = () => {
+    if (isLoggedIn) {
+      return (
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <RNText style={{ color: themeColors.text, marginRight: 10 }}>
+            {username}
+          </RNText>
+          <TouchableOpacity
+            style={styles.headerButton}
+            onPress={handleLogout}
+          >
+            <MaterialCommunityIcons name="logout" size={22} color={themeColors.headerText} />
+          </TouchableOpacity>
+        </View>
+      );
+    } else {
+      return (
+        <TouchableOpacity
+          style={styles.headerButton}
+          onPress={() => navigation.navigate('Login', {
+            redirectTo: 'MainTabs',
+            redirectParams: { screen: 'ModelTab' }
+          })}
+        >
+          <MaterialCommunityIcons name="login" size={22} color={themeColors.headerText} />
+        </TouchableOpacity>
+      );
+    }
+  };
+
+  const handleTabPress = (tab: 'stored' | 'downloadable' | 'remote') => {
+    if (tab === 'remote') {
+      if (!isLoggedIn || !enableRemoteModels) {
+        showDialog(
+          'Remote Models Disabled',
+          'Remote models require the "Enable Remote Models" setting to be turned on and you need to be signed in. Would you like to go to Settings to configure this?',
+          [
+            <Button key="cancel" onPress={hideDialog}>Cancel</Button>,
+            <Button 
+              key="settings" 
+              onPress={() => {
+                hideDialog();
+                if (!isLoggedIn) {
+                  navigation.navigate('Login', {
+                    redirectTo: 'MainTabs',
+                    redirectParams: { screen: 'ModelTab' }
+                  });
+                } else {
+                  navigation.navigate('MainTabs', { screen: 'SettingsTab' });
+                }
+              }}
+            >
+              {!isLoggedIn ? "Sign In" : "Go to Settings"}
+            </Button>
+          ]
+        );
+        return;
+      }
+    }
+    setActiveTab(tab);
+  };
+
+  useEffect(() => {
+    if (!enableRemoteModels && activeTab === 'remote') {
+      setActiveTab('stored');
+    }
+  }, [enableRemoteModels, activeTab]);
+
   return (
     <View style={[styles.container, { backgroundColor: themeColors.background }]}>
-      <AppHeader />
+      <AppHeader 
+        title="Models" 
+        rightButtons={
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            {renderLoginButton()}
+            {renderDownloadsButton()}
+          </View>
+        }
+      />
       <View style={styles.content}>
         <View style={styles.tabContainer}>
           <View style={[styles.segmentedControl, { backgroundColor: themeColors.borderColor }]}>
@@ -589,7 +811,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
                 activeTab === 'stored' && styles.activeSegment,
                 activeTab === 'stored' && { backgroundColor: themeColors.primary }
               ]}
-              onPress={() => setActiveTab('stored')}
+              onPress={() => handleTabPress('stored')}
             >
               <MaterialCommunityIcons 
                 name="folder" 
@@ -597,12 +819,12 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
                 color={activeTab === 'stored' ? '#fff' : themeColors.text} 
                 style={styles.segmentIcon}
               />
-              <Text style={[
+              <RNText style={[
                 styles.segmentText,
                 { color: activeTab === 'stored' ? '#fff' : themeColors.text }
               ]}>
                 Stored Models
-              </Text>
+              </RNText>
             </TouchableOpacity>
             <TouchableOpacity
               style={[
@@ -611,7 +833,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
                 activeTab === 'downloadable' && styles.activeSegment,
                 activeTab === 'downloadable' && { backgroundColor: themeColors.primary }
               ]}
-              onPress={() => setActiveTab('downloadable')}
+              onPress={() => handleTabPress('downloadable')}
             >
               <MaterialCommunityIcons 
                 name="cloud-download" 
@@ -619,13 +841,37 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
                 color={activeTab === 'downloadable' ? '#fff' : themeColors.text}
                 style={styles.segmentIcon}
               />
-              <Text style={[
+              <RNText style={[
                 styles.segmentText,
                 { color: activeTab === 'downloadable' ? '#fff' : themeColors.text }
               ]}>
                 Download Models
-              </Text>
+              </RNText>
             </TouchableOpacity>
+            {enableRemoteModels && (
+              <TouchableOpacity
+                style={[
+                  styles.segmentButton,
+                  { borderColor: themeColors.primary },
+                  activeTab === 'remote' && styles.activeSegment,
+                  activeTab === 'remote' && { backgroundColor: themeColors.primary }
+                ]}
+                onPress={() => handleTabPress('remote')}
+              >
+                <MaterialCommunityIcons 
+                  name="cloud" 
+                  size={18} 
+                  color={activeTab === 'remote' ? '#fff' : themeColors.text}
+                  style={styles.segmentIcon}
+                />
+                <RNText style={[
+                  styles.segmentText,
+                  { color: activeTab === 'remote' ? '#fff' : themeColors.text }
+                ]}>
+                  Remote Models
+                </RNText>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
@@ -644,18 +890,19 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
                     size={48} 
                     color={themeColors.secondaryText}
                   />
-                  <Text style={[styles.emptyText, { color: themeColors.secondaryText }]}>
+                  <RNText style={[styles.emptyText, { color: themeColors.secondaryText }]}>
                     No models downloaded yet. Go to the "Download Models" tab to get started.
-                  </Text>
+                  </RNText>
                 </View>
               }
             />
-          ) : (
+          ) : activeTab === 'downloadable' ? (
             renderDownloadableList()
+          ) : (
+            renderRemoteModelsList()
           )}
         </View>
       </View>
-      {renderDownloadsButton()}
       
       <ModelDownloadsDialog
         visible={isDownloadsVisible}
@@ -664,16 +911,30 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         onCancelDownload={cancelDownload}
       />
 
+      <Portal>
+        <Dialog visible={dialogVisible} onDismiss={hideDialog}>
+          <Dialog.Title>{dialogTitle}</Dialog.Title>
+          <Dialog.Content>
+            <PaperText>{dialogMessage}</PaperText>
+          </Dialog.Content>
+          <Dialog.Actions>
+            {dialogActions.map((ActionComponent, index) =>
+              React.isValidElement(ActionComponent) ? React.cloneElement(ActionComponent, { key: index }) : null
+            )}
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
+
       {(isLoading || importingModelName) && (
         <View style={styles.loadingOverlay}>
           <View style={[styles.loadingContainer, { backgroundColor: themeColors.borderColor }]}>
             <ActivityIndicator size="large" color={getThemeAwareColor('#4a0660', currentTheme)} />
-            <Text style={[styles.loadingText, { color: themeColors.text }]}>
+            <RNText style={[styles.loadingText, { color: themeColors.text }]}>
               {importingModelName ? `Importing ${importingModelName}...` : 'Importing model...'}
-            </Text>
-            <Text style={[styles.loadingSubtext, { color: themeColors.secondaryText }]}>
+            </RNText>
+            <RNText style={[styles.loadingSubtext, { color: themeColors.secondaryText }]}>
               {importingModelName ? 'Moving model to app storage' : 'This may take a while for large models'}
-            </Text>
+            </RNText>
           </View>
         </View>
       )}
@@ -690,24 +951,21 @@ const styles = StyleSheet.create({
   },
   tabContainer: {
     paddingHorizontal: 16,
-    paddingBottom: 8,
+    paddingBottom: 16,
   },
   segmentedControl: {
     flexDirection: 'row',
-    borderRadius: 12,
-    padding: 4,
+    borderRadius: 8,
+    padding: 2,
     marginTop: 8,
   },
   segmentButton: {
     flex: 1,
-    flexDirection: 'row',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 6,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'transparent',
   },
   activeSegment: {
     shadowColor: "#000",
@@ -777,6 +1035,14 @@ const styles = StyleSheet.create({
   },
   downloadableContainer: {
     flex: 1,
+  },
+  remoteModelsContainer: {
+    flex: 1,
+  },
+  remoteModelsInfo: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 16,
   },
   storedModelsHeader: {
     paddingHorizontal: 16,
@@ -852,5 +1118,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 8,
     textAlign: 'center',
+  },
+  headerButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 16,
   },
 }); 

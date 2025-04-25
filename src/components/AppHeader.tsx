@@ -22,7 +22,7 @@ type AppHeaderProps = {
 };
 
 export default function AppHeader({ 
-  title = 'Ragionare', 
+  title = 'Inferra', 
   showBackButton = false,
   showLogo = true,
   onNewChat,
@@ -59,21 +59,6 @@ export default function AppHeader({
       navigation.goBack();
     }
   };
-
-  React.useEffect(() => {
-    StatusBar.setBarStyle('light-content');
-    if (!transparent) {
-      StatusBar.setBackgroundColor(themeColors.headerBackground);
-    } else {
-      StatusBar.setBackgroundColor('transparent');
-    }
-    StatusBar.setTranslucent(true);
-    
-    return () => {
-      StatusBar.setBarStyle(themeColors.statusBarStyle === 'light' ? 'light-content' : 'dark-content');
-      StatusBar.setBackgroundColor(themeColors.statusBarBg);
-    };
-  }, [currentTheme, transparent, themeColors]);
 
   return (
     <View style={[
@@ -174,9 +159,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   icon: {
-    width: 24,
-    height: 24,
+    width: 30,
+    height: 30,
     marginRight: 8,
+    borderRadius: 15,
   },
   title: {
     fontSize: 18,

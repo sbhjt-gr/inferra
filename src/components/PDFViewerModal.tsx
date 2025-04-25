@@ -10,12 +10,12 @@ import {
   ActivityIndicator,
   TextInput,
   KeyboardAvoidingView,
-  Alert,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import PdfRendererView from 'react-native-pdf-renderer';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
+import { Dialog, Portal, PaperProvider, Text as PaperText, Button } from 'react-native-paper';
 
 import PDFGridView from './PDFGridView';
 import {
@@ -63,18 +63,29 @@ export default function PDFViewerModal({
   const [extractedContent, setExtractedContent] = useState('');
   const [selectedPages, setSelectedPages] = useState<number[]>([]);
 
+  const [dialogVisible, setDialogVisible] = useState(false);
+  const [dialogTitle, setDialogTitle] = useState('');
+  const [dialogMessage, setDialogMessage] = useState('');
+  const [dialogActions, setDialogActions] = useState<React.ReactNode[]>([]);
+
+  const hideDialog = () => setDialogVisible(false);
+
+  const showDialog = (title: string, message: string, actions: React.ReactNode[] = [<Button key="ok" onPress={hideDialog}>OK</Button>]) => {
+    setDialogTitle(title);
+    setDialogMessage(message);
+    setDialogActions(actions);
+    setDialogVisible(true);
+  };
+
   const displayFileName = fileName || pdfSource.split('/').pop() || "Document";
 
   const safeUpload = (pdfPath: string, fileName: string, userPromptText: string, extractedText?: string): boolean => {
     try {
-      console.log('Attempting to upload with extracted content');
       
       if (onUpload && typeof onUpload === 'function') {
-        console.log('Using onUpload with extracted content, text length:', extractedText?.length || 0);
         onUpload(extractedText || '', fileName, userPromptText);
         return true;
       } else {
-        console.warn('No onUpload function provided, using fallback...');
         
         const timestampStr = new Date().toISOString();
         const infoStr = `PDF: ${fileName}\nExtracted on: ${timestampStr}\n\n`;
@@ -83,27 +94,18 @@ export default function PDFViewerModal({
         
         const completeContent = `${infoStr}${contentStr}\n\n${promptStr}`;
         
-        console.log('PDF content extracted successfully, but no upload function available.');
-        console.log('Content:', completeContent.substring(0, 200) + '...');
-        
-        Alert.alert(
+        showDialog(
           'Upload Not Available',
-          'Text was successfully extracted from the PDF, but cannot be uploaded to chat. The app may need to be configured properly.',
-          [
-            { text: 'OK', onPress: () => console.log('Alert closed') }
-          ]
+          'Text was successfully extracted from the PDF, but cannot be uploaded to chat. The app may need to be configured properly.'
         );
         
         return false;
       }
     } catch (err) {
       console.error('Error in safeUpload:', err);
-      Alert.alert(
+      showDialog(
         'Upload Failed',
-        'Failed to upload the PDF content. Please try again.',
-        [
-          { text: 'OK', onPress: () => console.log('Error alert closed') }
-        ]
+        'Failed to upload the PDF content. Please try again.'
       );
       return false;
     }
@@ -118,7 +120,6 @@ export default function PDFViewerModal({
     setPromptError(false);
     setIsExtracting(true);
     setExtractionResult(null);
-    console.log('Beginning OCR process');
     
     let progressTimer: NodeJS.Timeout | null = null;
     const progressMessages = [
@@ -145,7 +146,6 @@ export default function PDFViewerModal({
         ? extractedPages.filter((_, index) => selectedPages.includes(index))
         : extractedPages;
       
-      console.log('Starting OCR on', pagesToProcess.length, 'selected pages');
       
       setExtractionProgress(`Starting text recognition on ${pagesToProcess.length} page(s)...`);
       
@@ -155,10 +155,8 @@ export default function PDFViewerModal({
         extractedPages, 
         setExtractionProgress
       );
-      console.log('OCR completed, raw text length:', rawExtractedContent.length);
       
       let formattedContent = formatExtractedContent(rawExtractedContent);
-      console.log('Formatted text length:', formattedContent.length);
       
       if (progressTimer) clearInterval(progressTimer);
       
@@ -169,15 +167,11 @@ export default function PDFViewerModal({
         formattedContent += "\n\n[Note: The text extraction may be incomplete. This PDF might contain complex formatting, scanned pages, or primarily image content.]";
       }
       
-      console.log('Content ready for upload, final text length:', formattedContent.length);
-      console.log('Sample content:', formattedContent.substring(0, 100) + '...');
-      
       setExtractedContent(formattedContent);
       
       const uploadSuccess = safeUpload(pdfSource, displayFileName, userPrompt, formattedContent);
       
       if (uploadSuccess) {
-        console.log('Upload completed, closing PDF viewer');
         onClose();
       } else {
         setExtractionResult({
@@ -194,7 +188,6 @@ export default function PDFViewerModal({
       
       const fallbackExtractedContent = "[PDF content extraction failed. This PDF may contain complex formatting, be scanned, or primarily contain images.]";
       
-      console.log('Using fallback content due to error');
       
       setExtractedContent(fallbackExtractedContent);
       setExtractionResult({
@@ -212,19 +205,17 @@ export default function PDFViewerModal({
 
   const handleStartOCR = () => {
     if (!userPrompt.trim()) {
-      Alert.alert(
+      showDialog(
         "Prompt Required",
-        "Please enter a prompt about what you'd like to know from this PDF.",
-        [{ text: "OK" }]
+        "Please enter a prompt about what you'd like to know from this PDF."
       );
       return;
     }
     
     if (selectedPages.length === 0) {
-      Alert.alert(
+      showDialog(
         "No Pages Selected",
-        "Please select at least one page to extract text from.",
-        [{ text: "OK" }]
+        "Please select at least one page to extract text from."
       );
       return;
     }
@@ -309,7 +300,7 @@ export default function PDFViewerModal({
           color={extractionResult.success ? '#27ae60' : '#e74c3c'}
           style={styles.resultIcon}
         />
-        <Text style={[
+        <PaperText style={[
           styles.resultText, 
           { 
             color: isDark ? '#ffffff' : '#333333',
@@ -317,7 +308,7 @@ export default function PDFViewerModal({
           }
         ]}>
           {extractionResult.message}
-        </Text>
+        </PaperText>
       </View>
     );
   };
@@ -501,6 +492,19 @@ export default function PDFViewerModal({
         setPromptError={setPromptError}
         handleStartOCR={handleStartOCR}
       />
+
+      {/* Dialog Portal */}
+      <Portal>
+        <Dialog visible={dialogVisible} onDismiss={hideDialog}>
+          <Dialog.Title>{dialogTitle}</Dialog.Title>
+          <Dialog.Content>
+            <PaperText>{dialogMessage}</PaperText>
+          </Dialog.Content>
+          <Dialog.Actions>
+            {dialogActions}
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
     </>
   );
 }

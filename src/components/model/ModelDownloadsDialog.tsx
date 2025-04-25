@@ -54,7 +54,6 @@ const ModelDownloadsDialog: React.FC<ModelDownloadsDialogProps> = ({
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
 
-  // Filter active downloads
   const activeDownloads = Object.entries(downloads).filter(([_, value]) => {
     const downloadValue = value as any;
     return downloadValue.status !== 'completed' && downloadValue.status !== 'failed';

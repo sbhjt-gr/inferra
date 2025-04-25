@@ -3,9 +3,7 @@ import {
   View,
   TextInput,
   TouchableOpacity,
-  Text,
   StyleSheet,
-  Alert,
   Modal
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
@@ -14,6 +12,8 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { modelDownloader } from '../services/ModelDownloader';
 import { ThemeColors } from '../types/theme';
 import { getThemeAwareColor } from '../utils/ColorUtils';
+import { Dialog, Portal, PaperProvider, Text, Button } from 'react-native-paper';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
 interface ModelDownloaderProps {
   downloadProgress: DownloadProgress;
@@ -36,6 +36,20 @@ const ModelDownloaderComponent = ({ downloadProgress, onDownloadStart }: ModelDo
   const [modalVisible, setModalVisible] = useState(false);
   const [currentDownload, setCurrentDownload] = useState<string | null>(null);
 
+  const [dialogVisible, setDialogVisible] = useState(false);
+  const [dialogTitle, setDialogTitle] = useState('');
+  const [dialogMessage, setDialogMessage] = useState('');
+
+  const showAppDialog = (title: string, message: string) => {
+    setDialogTitle(title);
+    setDialogMessage(message);
+    setDialogVisible(true);
+  };
+
+  const hideAppDialog = () => {
+    setDialogVisible(false);
+  };
+
   useEffect(() => {
     if (currentDownload && 
         (!downloadProgress[currentDownload] || 
@@ -47,7 +61,7 @@ const ModelDownloaderComponent = ({ downloadProgress, onDownloadStart }: ModelDo
 
   const handleDownload = async () => {
     if (!url.trim()) {
-      Alert.alert('Error', 'Please enter a valid URL');
+      showAppDialog('Error', 'Please enter a valid URL');
       return;
     }
 
@@ -56,16 +70,13 @@ const ModelDownloaderComponent = ({ downloadProgress, onDownloadStart }: ModelDo
       const filename = url.split('/').pop() || 'model.bin';
       setCurrentDownload(filename);
       
-      console.log('Starting download:', { url, filename });
       const result = await modelDownloader.downloadModel(url, filename);
-      console.log('Download started:', result);
       
       onDownloadStart(result.downloadId, filename);
       setUrl('');
     } catch (error: any) {
-      console.error('Download error:', error);
       setCurrentDownload(null);
-      Alert.alert('Error', error.message || 'Failed to download file');
+      showAppDialog('Error', error.message || 'Failed to download file');
     }
   };
 
@@ -85,7 +96,6 @@ const ModelDownloaderComponent = ({ downloadProgress, onDownloadStart }: ModelDo
       if (i < 0 || i >= sizes.length || !isFinite(bytes)) return '0 B';
       return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
     } catch (error) {
-      console.error('Error formatting bytes:', error, bytes);
       return '0 B';
     }
   };
@@ -138,6 +148,18 @@ const ModelDownloaderComponent = ({ downloadProgress, onDownloadStart }: ModelDo
           </View>
         </View>
       </Modal>
+
+      <Portal>
+        <Dialog visible={dialogVisible} onDismiss={hideAppDialog}>
+          <Dialog.Title>{dialogTitle}</Dialog.Title>
+          <Dialog.Content>
+            <Text variant="bodyMedium">{dialogMessage}</Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={hideAppDialog}>OK</Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
 
       <View style={styles.container}>
         {currentProgress && (
