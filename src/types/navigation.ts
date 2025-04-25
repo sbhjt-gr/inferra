@@ -1,5 +1,12 @@
 export type RootStackParamList = {
-  Login: undefined;
+  Login: {
+    redirectTo?: string;
+    redirectParams?: any;
+  };
+  Register: {
+    redirectTo?: string;
+    redirectParams?: any;
+  };
   MainTabs: {
     screen: string;
     params?: {

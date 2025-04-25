@@ -16,6 +16,7 @@ import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList, TabParamList } from '../types/navigation';
 import { useTheme } from '../context/ThemeContext';
+import { useRemoteModel } from '../context/RemoteModelContext';
 import { theme } from '../constants/theme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AppHeader from '../components/AppHeader';
@@ -36,7 +37,6 @@ import { getActiveDownloadsCount } from '../utils/ModelUtils';
 import { StoredModel } from '../services/ModelDownloaderTypes';
 import { DOWNLOADABLE_MODELS } from '../constants/DownloadableModels';
 import { Dialog, Portal, PaperProvider, Button, Text as PaperText } from 'react-native-paper';
-import LoginDialog from '../components/LoginDialog';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type ModelScreenProps = {
@@ -79,6 +79,7 @@ const registerBackgroundTask = async () => {
 
 export default function ModelScreen({ navigation }: ModelScreenProps) {
   const { theme: currentTheme } = useTheme();
+  const { enableRemoteModels, isLoggedIn, checkLoginStatus } = useRemoteModel();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
   const [activeTab, setActiveTab] = useState<'stored' | 'downloadable' | 'remote'>('stored');
   const [storedModels, setStoredModels] = useState<StoredModel[]>([]);
@@ -99,9 +100,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
   const [dialogMessage, setDialogMessage] = useState('');
   const [dialogActions, setDialogActions] = useState<React.ReactNode[]>([]);
 
-  const [isLoginDialogVisible, setIsLoginDialogVisible] = useState(false);
-  const [isLoginLoading, setIsLoginLoading] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [username, setUsername] = useState<string | null>(null);
 
   const hideDialog = () => setDialogVisible(false);
@@ -113,15 +111,14 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     setDialogVisible(true);
   };
   useEffect(() => {
-    checkLoginStatus();
+    checkLoginStatusAndUpdateUsername();
   }, []);
 
-  const checkLoginStatus = async () => {
+  const checkLoginStatusAndUpdateUsername = async () => {
     try {
       const userJson = await AsyncStorage.getItem('user');
       if (userJson) {
         const user = JSON.parse(userJson);
-        setIsLoggedIn(true);
         setUsername(user.email);
       }
     } catch (error) {
@@ -129,47 +126,16 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     }
   };
 
-  const handleLoginPress = () => {
-    setIsLoginDialogVisible(true);
-  };
-
-  const handleLoginDismiss = () => {
-    setIsLoginDialogVisible(false);
-  };
-
-  const handleLogin = async (email: string, password: string) => {
-    setIsLoginLoading(true);
-    setTimeout(async () => {
-      try {
-        const user = { email, isAuthenticated: true };
-        await AsyncStorage.setItem('user', JSON.stringify(user));
-        setIsLoggedIn(true);
-        setUsername(email);
-        setIsLoginLoading(false);
-        setIsLoginDialogVisible(false);
-
-        showDialog(
-          'Login Successful',
-          `Welcome back, ${email}!`,
-          [<Button key="ok" onPress={hideDialog}>OK</Button>]
-        );
-      } catch (error) {
-        setIsLoginLoading(false);
-        console.error('Login error:', error);
-        showDialog(
-          'Login Failed',
-          'There was an error processing your login. Please try again.',
-          [<Button key="ok" onPress={hideDialog}>OK</Button>]
-        );
-      }
-    }, 1500);
-  };
-
   const handleLogout = async () => {
     try {
       await AsyncStorage.removeItem('user');
-      setIsLoggedIn(false);
       setUsername(null);
+      
+      await checkLoginStatus();
+      
+      if (activeTab === 'remote') {
+        setActiveTab('stored');
+      }
       
       showDialog(
         'Logged Out',
@@ -752,13 +718,33 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       return (
         <TouchableOpacity
           style={styles.headerButton}
-          onPress={handleLoginPress}
+          onPress={() => navigation.navigate('Login', {
+            redirectTo: 'MainTabs',
+            redirectParams: { screen: 'ModelTab' }
+          })}
         >
           <MaterialCommunityIcons name="login" size={22} color={themeColors.headerText} />
         </TouchableOpacity>
       );
     }
   };
+
+  const handleTabPress = (tab: 'stored' | 'downloadable' | 'remote') => {
+    if (tab === 'remote' && !isLoggedIn) {
+      navigation.navigate('Login', {
+        redirectTo: 'MainTabs',
+        redirectParams: { screen: 'ModelTab' }
+      });
+      return;
+    }
+    setActiveTab(tab);
+  };
+
+  useEffect(() => {
+    if (!enableRemoteModels && activeTab === 'remote') {
+      setActiveTab('stored');
+    }
+  }, [enableRemoteModels, activeTab]);
 
   return (
     <View style={[styles.container, { backgroundColor: themeColors.background }]}>
@@ -781,7 +767,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
                 activeTab === 'stored' && styles.activeSegment,
                 activeTab === 'stored' && { backgroundColor: themeColors.primary }
               ]}
-              onPress={() => setActiveTab('stored')}
+              onPress={() => handleTabPress('stored')}
             >
               <MaterialCommunityIcons 
                 name="folder" 
@@ -803,7 +789,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
                 activeTab === 'downloadable' && styles.activeSegment,
                 activeTab === 'downloadable' && { backgroundColor: themeColors.primary }
               ]}
-              onPress={() => setActiveTab('downloadable')}
+              onPress={() => handleTabPress('downloadable')}
             >
               <MaterialCommunityIcons 
                 name="cloud-download" 
@@ -818,28 +804,30 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
                 Download Models
               </RNText>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.segmentButton,
-                { borderColor: themeColors.primary },
-                activeTab === 'remote' && styles.activeSegment,
-                activeTab === 'remote' && { backgroundColor: themeColors.primary }
-              ]}
-              onPress={() => setActiveTab('remote')}
-            >
-              <MaterialCommunityIcons 
-                name="cloud" 
-                size={18} 
-                color={activeTab === 'remote' ? '#fff' : themeColors.text}
-                style={styles.segmentIcon}
-              />
-              <RNText style={[
-                styles.segmentText,
-                { color: activeTab === 'remote' ? '#fff' : themeColors.text }
-              ]}>
-                Remote Models
-              </RNText>
-            </TouchableOpacity>
+            {enableRemoteModels && (
+              <TouchableOpacity
+                style={[
+                  styles.segmentButton,
+                  { borderColor: themeColors.primary },
+                  activeTab === 'remote' && styles.activeSegment,
+                  activeTab === 'remote' && { backgroundColor: themeColors.primary }
+                ]}
+                onPress={() => handleTabPress('remote')}
+              >
+                <MaterialCommunityIcons 
+                  name="cloud" 
+                  size={18} 
+                  color={activeTab === 'remote' ? '#fff' : themeColors.text}
+                  style={styles.segmentIcon}
+                />
+                <RNText style={[
+                  styles.segmentText,
+                  { color: activeTab === 'remote' ? '#fff' : themeColors.text }
+                ]}>
+                  Remote Models
+                </RNText>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
@@ -906,14 +894,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
           </View>
         </View>
       )}
-
-      {/* Login Dialog */}
-      <LoginDialog 
-        visible={isLoginDialogVisible}
-        onDismiss={handleLoginDismiss}
-        onLogin={handleLogin}
-        isLoading={isLoginLoading}
-      />
     </View>
   );
 }

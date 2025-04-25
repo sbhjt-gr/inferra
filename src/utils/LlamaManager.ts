@@ -68,8 +68,7 @@ class LlamaManager {
         } 
         
         else if (Platform.OS === 'android') {
-          
-          
+        
           
           finalModelPath = finalModelPath.replace('file://', '');
         }
