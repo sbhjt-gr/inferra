@@ -32,17 +32,14 @@ if (!TaskManager.isTaskDefined(BACKGROUND_DOWNLOAD_TASK)) {
   try {
     TaskManager.defineTask(BACKGROUND_DOWNLOAD_TASK, async () => {
       try {
-        console.log('[Background] Checking downloads status');
         await modelDownloader.checkBackgroundDownloads();
         return BackgroundFetch.BackgroundFetchResult.NewData;
       } catch (error) {
-        console.error('[Background] Error checking downloads:', error);
         return BackgroundFetch.BackgroundFetchResult.Failed;
       }
     });
-    console.log('Background task defined successfully');
   } catch (error) {
-    console.error('Error defining background task:', error);
+    // do nothing
   }
 }
 
@@ -51,7 +48,6 @@ async function registerBackgroundFetchAsync() {
     const isRegistered = await TaskManager.isTaskRegisteredAsync(BACKGROUND_DOWNLOAD_TASK);
     
     if (isRegistered) {
-      console.log('Background fetch task already registered');
       return;
     }
     
@@ -61,9 +57,8 @@ async function registerBackgroundFetchAsync() {
       startOnBoot: true 
     });
     
-    console.log('Background fetch task registered with enhanced settings');
   } catch (err) {
-    console.error('Background fetch registration failed:', err);
+          // do nothing
   }
 }
 
@@ -101,22 +96,21 @@ function Navigation() {
   useEffect(() => {
     const timer = setTimeout(() => {
       registerBackgroundFetchAsync().catch(error => {
-        console.error('Error registering background fetch:', error);
+        // do nothing
       });
     }, 2000);
 
     const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
       try {
         if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
-          console.log('App has come to the foreground!');
           modelDownloader.checkBackgroundDownloads();
         } else if (appState.current === 'active' && nextAppState.match(/inactive|background/)) {
-          console.log('App has gone to the background!');
+          // do nothing
         }
         
         appState.current = nextAppState;
       } catch (error) {
-        console.error('Error handling app state change:', error);
+          // do nothing
       }
     });
 
@@ -126,7 +120,7 @@ function Navigation() {
         llamaManager.release();
         subscription.remove();
       } catch (error) {
-        console.error('Error cleaning up resources:', error);
+        // do nothing
       }
     };
   }, []);
@@ -135,9 +129,8 @@ function Navigation() {
     async function initializeNotifications() {
       try {
         await notificationService.initialize();
-        console.log('Notification service initialized');
       } catch (error) {
-        console.error('Error initializing notifications:', error);
+        // do nothing
       }
     }
 
@@ -147,7 +140,7 @@ function Navigation() {
       try {
         BackgroundFetch.unregisterTaskAsync(BACKGROUND_DOWNLOAD_TASK);
       } catch (error) {
-        console.error('Error cleaning up background fetch:', error);
+        // do nothing
       }
     };
   }, []);

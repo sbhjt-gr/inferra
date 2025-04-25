@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View, Switch } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../constants/theme';
@@ -30,8 +30,6 @@ type ModelSettingsSectionProps = {
   onMaxTokensPress: () => void;
   onStopWordsPress: () => void;
   onDialogOpen: (config: any) => void;
-  enableRemoteModels: boolean;
-  onToggleRemoteModels: () => void;
 };
 
 const ModelSettingsSection = ({
@@ -41,9 +39,7 @@ const ModelSettingsSection = ({
   onSettingsChange,
   onMaxTokensPress,
   onStopWordsPress,
-  onDialogOpen,
-  enableRemoteModels,
-  onToggleRemoteModels
+  onDialogOpen
 }: ModelSettingsSectionProps) => {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme];
@@ -51,28 +47,6 @@ const ModelSettingsSection = ({
 
   return (
     <SettingsSection title="MODEL SETTINGS">
-      <View style={[styles.settingItem, styles.settingItemBorder]}>
-        <View style={styles.settingLeft}>
-          <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
-            <MaterialCommunityIcons name="cloud-outline" size={22} color={iconColor} />
-          </View>
-          <View style={styles.settingTextContainer}>
-            <Text style={[styles.settingText, { color: themeColors.text }]}>
-              Enable Remote Models
-            </Text>
-            <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
-              Allow access to cloud-hosted models for enhanced capabilities
-            </Text>
-          </View>
-        </View>
-        <Switch
-          value={enableRemoteModels}
-          onValueChange={onToggleRemoteModels}
-          trackColor={{ false: themeColors.secondaryText + '40', true: themeColors.primary + '80' }}
-          thumbColor={enableRemoteModels ? themeColors.primary : themeColors.secondaryText}
-        />
-      </View>
-
       <TouchableOpacity 
         style={[styles.settingItem, styles.settingItemBorder]}
         onPress={onMaxTokensPress}

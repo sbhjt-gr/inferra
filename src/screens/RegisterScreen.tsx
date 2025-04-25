@@ -5,14 +5,13 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  TouchableOpacity
+  TouchableOpacity,
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import { useRemoteModel } from '../context/RemoteModelContext';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { 
@@ -22,7 +21,10 @@ import {
   Button, 
   HelperText,
   Divider,
+  Dialog,
+  Portal,
 } from 'react-native-paper';
+import { registerWithEmail, signInWithGoogle, signInWithGithub } from '../services/FirebaseService';
 
 type RegisterScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList>;
@@ -42,6 +44,7 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [dialogVisible, setDialogVisible] = useState(false);
 
   const redirectAfterRegister = route.params?.redirectTo || 'MainTabs';
   const redirectParams = route.params?.redirectParams || { screen: 'HomeTab' };
@@ -87,28 +90,67 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
     try {
       setIsLoading(true);
       
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      const result = await registerWithEmail(name, email, password);
       
-      const user = { 
-        name,
-        email, 
-        isAuthenticated: true, 
-        registeredAt: new Date().toISOString()
-      };
-      
-      await AsyncStorage.setItem('user', JSON.stringify(user));
-      
-      await checkLoginStatus();
-      
-      if (redirectAfterRegister === 'MainTabs') {
-        navigation.replace('MainTabs', redirectParams as any);
+      if (result.success) {
+        await checkLoginStatus();
+        
+        setDialogVisible(true);
       } else {
-        navigation.replace(redirectAfterRegister as any);
+        setError(result.error || 'Registration failed. Please try again.');
       }
-      
     } catch (err) {
-      console.error('Registration error:', err);
       setError('Registration failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      const result = await signInWithGoogle();
+      
+      if (result.success) {
+        await checkLoginStatus();
+        
+        if (redirectAfterRegister === 'MainTabs') {
+          navigation.replace('MainTabs', redirectParams as any);
+        } else {
+          navigation.replace(redirectAfterRegister as any);
+        }
+      } else {
+        setError(result.error || 'Google sign-in failed. Please try again.');
+      }
+    } catch (err) {
+      setError('Google sign-in failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGithubSignIn = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      const result = await signInWithGithub();
+      
+      if (result.success) {
+        await checkLoginStatus();
+        
+        if (redirectAfterRegister === 'MainTabs') {
+          navigation.replace('MainTabs', redirectParams as any);
+        } else {
+          navigation.replace(redirectAfterRegister as any);
+        }
+      } else {
+        setError(result.error || 'GitHub sign-in failed. Please try again.');
+      }
+    } catch (err) {
+      setError('GitHub sign-in failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -227,6 +269,7 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
                 contentStyle={styles.buttonContent}
                 loading={isLoading}
                 buttonColor="#8A2BE2"
+                textColor={currentTheme === 'dark' ? '#FFFFFF' : undefined}
               >
                 Create Account
               </Button>
@@ -238,9 +281,10 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
                   <Button
                     mode="outlined"
                     icon="google"
-                    onPress={() => console.log('Google signup')}
                     style={styles.socialButton}
                     contentStyle={styles.socialButtonContent}
+                    onPress={handleGoogleSignIn}
+                    disabled={isLoading}
                   >
                     Google
                   </Button>
@@ -248,9 +292,10 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
                   <Button
                     mode="outlined"
                     icon="github"
-                    onPress={() => console.log('GitHub signup')}
                     style={styles.socialButton}
                     contentStyle={styles.socialButtonContent}
+                    onPress={handleGithubSignIn}
+                    disabled={isLoading}
                   >
                     GitHub
                   </Button>
@@ -267,6 +312,7 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
                   mode="text" 
                   onPress={navigateToLogin}
                   style={styles.loginButton}
+                  textColor={currentTheme === 'dark' ? '#FFFFFF' : undefined}
                 >
                   Sign In
                 </Button>
@@ -274,11 +320,36 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
             </View>
           </Surface>
 
-          <Text style={styles.demoNote} variant="bodySmall" theme={{ colors: { onSurfaceVariant: '#FFFFFF' }}}>
-            All data is stored locally on your device.
-          </Text>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <Portal>
+        <Dialog visible={dialogVisible} onDismiss={() => {
+          setDialogVisible(false);
+          if (redirectAfterRegister === 'MainTabs') {
+            navigation.replace('MainTabs', redirectParams as any);
+          } else {
+            navigation.replace(redirectAfterRegister as any);
+          }
+        }}>
+          <Dialog.Title>Email Verification</Dialog.Title>
+          <Dialog.Content>
+            <Text variant="bodyMedium">
+              A verification email has been sent to your email address. Please verify your email before continuing.
+            </Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => {
+              setDialogVisible(false);
+              if (redirectAfterRegister === 'MainTabs') {
+                navigation.replace('MainTabs', redirectParams as any);
+              } else {
+                navigation.replace(redirectAfterRegister as any);
+              }
+            }}>OK</Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
     </SafeAreaView>
   );
 }

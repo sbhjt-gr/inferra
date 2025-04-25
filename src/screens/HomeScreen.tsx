@@ -39,6 +39,7 @@ import { useModel } from '../context/ModelContext';
 import { Dialog, Portal, PaperProvider, Button, Text as PaperText } from 'react-native-paper';
 import { useDownloads } from '../context/DownloadContext';
 import { modelDownloader } from '../services/ModelDownloader';
+import { useRemoteModel } from '../context/RemoteModelContext';
 
 const windowWidth = Dimensions.get('window').width;
 
@@ -113,6 +114,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   const [isCooldown, setIsCooldown] = useState(false);
 
   const [justCancelled, setJustCancelled] = useState(false);
+
+  const { enableRemoteModels, isLoggedIn } = useRemoteModel();
 
   const hideDialog = () => setDialogVisible(false);
 
@@ -403,7 +406,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
               key="settings" 
               onPress={() => {
                 hideDialog();
-                navigation.navigate('Settings');
+                navigation.navigate('MainTabs', { screen: 'SettingsTab' });
               }}
             >
               Go to Settings
@@ -423,7 +426,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
               key="settings" 
               onPress={() => {
                 hideDialog();
-                navigation.navigate('Settings');
+                navigation.navigate('MainTabs', { screen: 'SettingsTab' });
               }}
             >
               Go to Settings
@@ -1332,6 +1335,26 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   };
 
   const handleModelSelect = async (model: 'local' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude', modelPath?: string) => {
+    if (model !== 'local' && (!enableRemoteModels || !isLoggedIn)) {
+      showDialog(
+        'Remote Models Disabled',
+        'Remote models require the "Enable Remote Models" setting to be turned on and you need to be signed in. Would you like to go to Settings to configure this?',
+        [
+          <Button key="cancel" onPress={hideDialog}>Cancel</Button>,
+          <Button 
+            key="settings" 
+            onPress={() => {
+              hideDialog();
+              navigation.navigate('MainTabs', { screen: 'SettingsTab' });
+            }}
+          >
+            Go to Settings
+          </Button>
+        ]
+      );
+      return;
+    }
+    
     if (model === 'local') {
       if (modelPath) {
         await loadModel(modelPath);
@@ -1349,7 +1372,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                 key="settings" 
                 onPress={() => {
                   hideDialog();
-                  navigation.navigate('Settings');
+                  navigation.navigate('MainTabs', { screen: 'SettingsTab' });
                 }}
               >
                 Go to Settings
@@ -1392,6 +1415,33 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   useEffect(() => {
     const checkApiKey = async () => {
       if (activeProvider && activeProvider !== 'local') {
+        if (!enableRemoteModels || !isLoggedIn) {
+          showDialog(
+            'Remote Models Disabled',
+            'Remote models require the "Enable Remote Models" setting to be turned on and you need to be signed in. Would you like to go to Settings to configure this?',
+            [
+              <Button key="cancel" onPress={() => {
+                hideDialog();
+                if (llamaManager.isInitialized()) {
+                  setActiveProvider('local');
+                }
+              }}>
+                Cancel
+              </Button>,
+              <Button 
+                key="settings" 
+                onPress={() => {
+                  hideDialog();
+                  navigation.navigate('MainTabs', { screen: 'SettingsTab' });
+                }}
+              >
+                Go to Settings
+              </Button>
+            ]
+          );
+          return;
+        }
+        
         const hasKey = await onlineModelService.hasApiKey(activeProvider);
         if (!hasKey) {
           showDialog(
@@ -1402,7 +1452,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                 key="settings" 
                 onPress={() => {
                   hideDialog();
-                  navigation.navigate('Settings');
+                  navigation.navigate('MainTabs', { screen: 'SettingsTab' });
                 }}
               >
                 Go to Settings
@@ -1423,7 +1473,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     };
     
     checkApiKey();
-  }, [activeProvider, navigation]);
+  }, [activeProvider, navigation, enableRemoteModels, isLoggedIn]);
 
   const renderModelSelectorComponent = () => {
     let modelName = 'Select a Model';

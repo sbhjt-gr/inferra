@@ -81,14 +81,11 @@ export default function PDFViewerModal({
 
   const safeUpload = (pdfPath: string, fileName: string, userPromptText: string, extractedText?: string): boolean => {
     try {
-      console.log('Attempting to upload with extracted content');
       
       if (onUpload && typeof onUpload === 'function') {
-        console.log('Using onUpload with extracted content, text length:', extractedText?.length || 0);
         onUpload(extractedText || '', fileName, userPromptText);
         return true;
       } else {
-        console.warn('No onUpload function provided, using fallback...');
         
         const timestampStr = new Date().toISOString();
         const infoStr = `PDF: ${fileName}\nExtracted on: ${timestampStr}\n\n`;
@@ -96,9 +93,6 @@ export default function PDFViewerModal({
         const promptStr = userPromptText || 'No prompt provided';
         
         const completeContent = `${infoStr}${contentStr}\n\n${promptStr}`;
-        
-        console.log('PDF content extracted successfully, but no upload function available.');
-        console.log('Content:', completeContent.substring(0, 200) + '...');
         
         showDialog(
           'Upload Not Available',
@@ -126,7 +120,6 @@ export default function PDFViewerModal({
     setPromptError(false);
     setIsExtracting(true);
     setExtractionResult(null);
-    console.log('Beginning OCR process');
     
     let progressTimer: NodeJS.Timeout | null = null;
     const progressMessages = [
@@ -153,7 +146,6 @@ export default function PDFViewerModal({
         ? extractedPages.filter((_, index) => selectedPages.includes(index))
         : extractedPages;
       
-      console.log('Starting OCR on', pagesToProcess.length, 'selected pages');
       
       setExtractionProgress(`Starting text recognition on ${pagesToProcess.length} page(s)...`);
       
@@ -163,10 +155,8 @@ export default function PDFViewerModal({
         extractedPages, 
         setExtractionProgress
       );
-      console.log('OCR completed, raw text length:', rawExtractedContent.length);
       
       let formattedContent = formatExtractedContent(rawExtractedContent);
-      console.log('Formatted text length:', formattedContent.length);
       
       if (progressTimer) clearInterval(progressTimer);
       
@@ -177,15 +167,11 @@ export default function PDFViewerModal({
         formattedContent += "\n\n[Note: The text extraction may be incomplete. This PDF might contain complex formatting, scanned pages, or primarily image content.]";
       }
       
-      console.log('Content ready for upload, final text length:', formattedContent.length);
-      console.log('Sample content:', formattedContent.substring(0, 100) + '...');
-      
       setExtractedContent(formattedContent);
       
       const uploadSuccess = safeUpload(pdfSource, displayFileName, userPrompt, formattedContent);
       
       if (uploadSuccess) {
-        console.log('Upload completed, closing PDF viewer');
         onClose();
       } else {
         setExtractionResult({
@@ -202,7 +188,6 @@ export default function PDFViewerModal({
       
       const fallbackExtractedContent = "[PDF content extraction failed. This PDF may contain complex formatting, be scanned, or primarily contain images.]";
       
-      console.log('Using fallback content due to error');
       
       setExtractedContent(fallbackExtractedContent);
       setExtractionResult({

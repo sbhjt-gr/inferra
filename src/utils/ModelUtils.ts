@@ -7,7 +7,6 @@ export const formatBytes = (bytes?: number) => {
     if (i < 0 || i >= sizes.length || !isFinite(bytes)) return '0 B';
     return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
   } catch (error) {
-    console.error('Error formatting bytes:', error, bytes);
     return '0 B';
   }
 };

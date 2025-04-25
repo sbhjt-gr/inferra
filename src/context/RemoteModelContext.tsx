@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { isAuthenticated, getUserFromSecureStorage } from '../services/FirebaseService';
 
 interface RemoteModelContextType {
   enableRemoteModels: boolean;
@@ -37,15 +38,17 @@ export const RemoteModelProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const checkLoginStatus = async () => {
     try {
-      const userJson = await AsyncStorage.getItem('user');
-      if (userJson) {
-        const user = JSON.parse(userJson);
-        setIsLoggedIn(true);
-        return true;
-      } else {
-        setIsLoggedIn(false);
-        return false;
+      const authenticated = await isAuthenticated();
+      setIsLoggedIn(authenticated);
+      
+      if (!authenticated) {
+        const userData = await getUserFromSecureStorage();
+        const isLoggedInFromStorage = !!userData;
+        setIsLoggedIn(isLoggedInFromStorage);
+        return isLoggedInFromStorage;
       }
+      
+      return authenticated;
     } catch (error) {
       console.error('Error checking login status:', error);
       setIsLoggedIn(false);

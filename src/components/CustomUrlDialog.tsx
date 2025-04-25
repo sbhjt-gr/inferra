@@ -120,7 +120,6 @@ const CustomUrlDialog = ({ visible, onClose, onDownloadStart, navigation }: Cust
       onDownloadStart(downloadId, filename);
       setUrl('');
     } catch (error) {
-      console.error('Custom download error:', error);
       showAppDialog('Error', 'Failed to start download');
     } finally {
       setIsLoading(false);

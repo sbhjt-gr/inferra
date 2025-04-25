@@ -43,7 +43,6 @@ const DownloadManager = forwardRef<DownloadManagerRef, DownloadManagerProps>(
 
     useImperativeHandle(ref, () => ({
       addDownload: (downloadId: number, name: string) => {
-        console.log('Adding download:', downloadId, name);
         setDownloads(prev => {
           const newDownloads = new Map(prev);
           newDownloads.set(downloadId, {
@@ -79,7 +78,6 @@ const DownloadManager = forwardRef<DownloadManagerRef, DownloadManagerProps>(
     };
 
     const checkDownloads = async () => {
-      console.log('Checking downloads, count:', downloads.size);
       if (downloads.size === 0) {
         stopChecking();
         return;
@@ -91,7 +89,6 @@ const DownloadManager = forwardRef<DownloadManagerRef, DownloadManagerProps>(
       for (const [id, info] of downloads.entries()) {
         try {
           const status = await NativeModules.ModelDownloader.checkDownloadStatus(id);
-          console.log('Download status:', id, status);
           
           if (status.status === 'failed' || status.status === 'completed') {
             updatedDownloads.delete(id);
@@ -125,7 +122,6 @@ const DownloadManager = forwardRef<DownloadManagerRef, DownloadManagerProps>(
             hasActiveDownloads = true;
           }
         } catch (error) {
-          console.error(`Error checking download ${id}:`, error);
           updatedDownloads.delete(id);
         }
       }
@@ -170,7 +166,6 @@ const DownloadManager = forwardRef<DownloadManagerRef, DownloadManagerProps>(
           return newDownloads;
         });
       } catch (error) {
-        console.error('Error canceling download:', error);
         showAppDialog('Error', 'Failed to cancel download');
       }
     };
