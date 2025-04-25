@@ -6,6 +6,7 @@ import {
   Platform,
   ScrollView,
   TouchableOpacity,
+  Image,
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
@@ -188,10 +189,9 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
 
           <Surface style={styles.formSurface} elevation={2}>
             <View style={styles.logoContainer}>
-              <MaterialCommunityIcons
-                name="brain"
-                size={48}
-                color="#660880"
+              <Image
+                source={require('../../assets/icon.png')}
+                style={styles.logoImage}
               />
               <Text style={styles.logoText} variant="headlineMedium">
                 Join Inferra
@@ -379,6 +379,12 @@ const styles = StyleSheet.create({
   logoContainer: {
     alignItems: 'center',
     marginBottom: 24,
+  },
+  logoImage: {
+    width: 80,
+    height: 80,
+    resizeMode: 'contain',
+    borderRadius: 40,
   },
   logoText: {
     fontWeight: 'bold',
