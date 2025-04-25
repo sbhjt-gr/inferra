@@ -12,7 +12,6 @@ import { theme } from '../constants/theme';
 import { useRemoteModel } from '../context/RemoteModelContext';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { 
@@ -23,6 +22,7 @@ import {
   HelperText, 
   Divider,
 } from 'react-native-paper';
+import { loginWithEmail, signInWithGoogle, signInWithGithub } from '../services/FirebaseService';
 
 type LoginScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList>;
@@ -65,21 +65,71 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps) {
       setIsLoading(true);
       setError(null);
       
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      const result = await loginWithEmail(email, password);
       
-      const user = { email, isAuthenticated: true };
-      await AsyncStorage.setItem('user', JSON.stringify(user));
-      
-      await checkLoginStatus();
-      
-      if (redirectAfterLogin === 'MainTabs') {
-        navigation.replace('MainTabs', redirectParams as any);
+      if (result.success) {
+        await checkLoginStatus();
+        
+        if (redirectAfterLogin === 'MainTabs') {
+          navigation.replace('MainTabs', redirectParams as any);
+        } else {
+          navigation.replace(redirectAfterLogin as any);
+        }
       } else {
-        navigation.replace(redirectAfterLogin as any);
+        setError(result.error || 'Login failed. Please try again.');
       }
     } catch (err) {
-      console.error('Login error:', err);
       setError('Login failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      const result = await signInWithGoogle();
+      
+      if (result.success) {
+        await checkLoginStatus();
+        
+        if (redirectAfterLogin === 'MainTabs') {
+          navigation.replace('MainTabs', redirectParams as any);
+        } else {
+          navigation.replace(redirectAfterLogin as any);
+        }
+      } else {
+        setError(result.error || 'Google sign-in failed. Please try again.');
+      }
+    } catch (err) {
+      setError('Google sign-in failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGithubSignIn = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      const result = await signInWithGithub();
+      
+      if (result.success) {
+        await checkLoginStatus();
+        
+        if (redirectAfterLogin === 'MainTabs') {
+          navigation.replace('MainTabs', redirectParams as any);
+        } else {
+          navigation.replace(redirectAfterLogin as any);
+        }
+      } else {
+        setError(result.error || 'GitHub sign-in failed. Please try again.');
+      }
+    } catch (err) {
+      setError('GitHub sign-in failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -165,6 +215,7 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps) {
                 contentStyle={styles.buttonContent}
                 loading={isLoading}
                 buttonColor="#8A2BE2"
+                textColor={currentTheme === 'dark' ? '#FFFFFF' : undefined}
               >
                 Sign In
               </Button>
@@ -176,9 +227,10 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps) {
                   <Button
                     mode="outlined"
                     icon="google"
-                    onPress={() => console.log('Google login')}
                     style={styles.socialButton}
                     contentStyle={styles.socialButtonContent}
+                    onPress={handleGoogleSignIn}
+                    disabled={isLoading}
                   >
                     Google
                   </Button>
@@ -186,9 +238,10 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps) {
                   <Button
                     mode="outlined"
                     icon="github"
-                    onPress={() => console.log('GitHub login')}
                     style={styles.socialButton}
                     contentStyle={styles.socialButtonContent}
+                    onPress={handleGithubSignIn}
+                    disabled={isLoading}
                   >
                     GitHub
                   </Button>
@@ -212,9 +265,6 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps) {
             </View>
           </Surface>
 
-          <Text style={styles.demoNote} variant="bodySmall" theme={{ colors: { onSurfaceVariant: '#FFFFFF' }}}>
-            Enter any email and password to login.
-          </Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

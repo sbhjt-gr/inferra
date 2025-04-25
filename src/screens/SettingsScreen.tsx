@@ -20,6 +20,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { modelDownloader } from '../services/ModelDownloader';
 import ChatSettingsSection from '../components/settings/ChatSettingsSection';
 import AppearanceSection from '../components/settings/AppearanceSection';
+import RemoteModelsSection from '../components/settings/RemoteModelsSection';
 import SupportSection from '../components/settings/SupportSection';
 import ModelSettingsSection from '../components/settings/ModelSettingsSection';
 import SystemInfoSection from '../components/settings/SystemInfoSection';
@@ -378,11 +379,21 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme[currentTheme].background }]}>
+      <View style={[styles.container, { backgroundColor: theme[currentTheme].background }]}>
       <AppHeader 
         title="Settings"
       />
       <ScrollView contentContainerStyle={styles.contentContainer}>
+        
+       <AppearanceSection
+        selectedTheme={selectedTheme}
+        onThemeChange={handleThemeChange}
+        />
+        
+        <RemoteModelsSection
+          enableRemoteModels={enableRemoteModels}
+          onToggleRemoteModels={handleRemoteModelsToggle}
+        />
         
         <ChatSettingsSection
           modelSettings={modelSettings}
@@ -391,12 +402,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           onResetSystemPrompt={() => handleSettingsChange({ systemPrompt: DEFAULT_SETTINGS.systemPrompt })}
         />
 
-        <AppearanceSection
-          selectedTheme={selectedTheme}
-          onThemeChange={handleThemeChange}
-        />
-
-        <SupportSection onOpenLink={openLink} />
 
         <ModelSettingsSection
           modelSettings={modelSettings}
@@ -406,11 +411,8 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           onMaxTokensPress={handleMaxTokensPress}
           onStopWordsPress={() => setShowStopWordsDialog(true)}
           onDialogOpen={handleOpenDialog}
-          enableRemoteModels={enableRemoteModels}
-          onToggleRemoteModels={handleRemoteModelsToggle}
         />
 
-        <SystemInfoSection systemInfo={systemInfo} />
 
         <StorageSection
           storageInfo={storageInfo}
@@ -420,9 +422,13 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           onClearAllModels={clearAllModels}
         />
 
+        <SupportSection onOpenLink={openLink} />  
+
+        <SystemInfoSection systemInfo={systemInfo} />
+        
         {dialogConfig.setting && (
           <ModelSettingDialog
-            key={dialogConfig.setting.key}
+          key={dialogConfig.setting.key}
             visible={dialogConfig.visible}
             onClose={handleCloseDialog}
             onSave={(value) => {
@@ -436,8 +442,8 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
             maximumValue={dialogConfig.setting.maximumValue}
             step={dialogConfig.setting.step}
             description={dialogConfig.setting.description}
-          />
-        )}
+            />
+          )}
 
         <StopWordsDialog
           visible={showStopWordsDialog}
@@ -462,6 +468,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           defaultValue={DEFAULT_SETTINGS.systemPrompt}
           description="Define how the AI assistant should behave. This prompt sets the personality, capabilities, and limitations of the assistant."
         />
+
       </ScrollView>
 
       <Portal>

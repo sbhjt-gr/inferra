@@ -64,7 +64,7 @@ const DownloadsDialog = ({ visible, onClose, downloads, setDownloadProgress }: D
         return newProgress;
       });
     } catch (error) {
-      console.error('Error checking completed downloads:', error);
+      // do nothing
     }
   };
 
@@ -100,7 +100,7 @@ const DownloadsDialog = ({ visible, onClose, downloads, setDownloadProgress }: D
         return newProgress;
       });
     } catch (error) {
-      console.error('Error canceling download:', error);
+      // do nothing
     }
   };
 
@@ -114,7 +114,7 @@ const DownloadsDialog = ({ visible, onClose, downloads, setDownloadProgress }: D
         await modelDownloader.pauseDownload(downloadInfo.downloadId);
       }
     } catch (error) {
-      console.error('Error pausing/resuming download:', error);
+      // do nothing
     }
   };
 

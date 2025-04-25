@@ -38,6 +38,7 @@ import { StoredModel } from '../services/ModelDownloaderTypes';
 import { DOWNLOADABLE_MODELS } from '../constants/DownloadableModels';
 import { Dialog, Portal, PaperProvider, Button, Text as PaperText } from 'react-native-paper';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { logoutUser, getUserFromSecureStorage } from '../services/FirebaseService';
 
 type ModelScreenProps = {
   navigation: CompositeNavigationProp<
@@ -116,6 +117,12 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
 
   const checkLoginStatusAndUpdateUsername = async () => {
     try {
+      const userData = await getUserFromSecureStorage();
+      if (userData) {
+        setUsername(userData.email || userData.displayName);
+        return;
+      }
+      
       const userJson = await AsyncStorage.getItem('user');
       if (userJson) {
         const user = JSON.parse(userJson);
@@ -128,7 +135,10 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
 
   const handleLogout = async () => {
     try {
+      const result = await logoutUser();
+      
       await AsyncStorage.removeItem('user');
+      
       setUsername(null);
       
       await checkLoginStatus();
@@ -137,13 +147,26 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         setActiveTab('stored');
       }
       
-      showDialog(
-        'Logged Out',
-        'You have been successfully logged out.',
-        [<Button key="ok" onPress={hideDialog}>OK</Button>]
-      );
+      if (result.success) {
+        showDialog(
+          'Logged Out',
+          'You have been successfully logged out.',
+          [<Button key="ok" onPress={hideDialog}>OK</Button>]
+        );
+      } else {
+        showDialog(
+          'Logout Issue',
+          result.error || 'There was an issue logging out. Please try again.',
+          [<Button key="ok" onPress={hideDialog}>OK</Button>]
+        );
+      }
     } catch (error) {
       console.error('Logout error:', error);
+      showDialog(
+        'Error',
+        'Failed to log out. Please try again.',
+        [<Button key="ok" onPress={hideDialog}>OK</Button>]
+      );
     }
   };
 
@@ -730,12 +753,33 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
   };
 
   const handleTabPress = (tab: 'stored' | 'downloadable' | 'remote') => {
-    if (tab === 'remote' && !isLoggedIn) {
-      navigation.navigate('Login', {
-        redirectTo: 'MainTabs',
-        redirectParams: { screen: 'ModelTab' }
-      });
-      return;
+    if (tab === 'remote') {
+      if (!isLoggedIn || !enableRemoteModels) {
+        showDialog(
+          'Remote Models Disabled',
+          'Remote models require the "Enable Remote Models" setting to be turned on and you need to be signed in. Would you like to go to Settings to configure this?',
+          [
+            <Button key="cancel" onPress={hideDialog}>Cancel</Button>,
+            <Button 
+              key="settings" 
+              onPress={() => {
+                hideDialog();
+                if (!isLoggedIn) {
+                  navigation.navigate('Login', {
+                    redirectTo: 'MainTabs',
+                    redirectParams: { screen: 'ModelTab' }
+                  });
+                } else {
+                  navigation.navigate('MainTabs', { screen: 'SettingsTab' });
+                }
+              }}
+            >
+              {!isLoggedIn ? "Sign In" : "Go to Settings"}
+            </Button>
+          ]
+        );
+        return;
+      }
     }
     setActiveTab(tab);
   };

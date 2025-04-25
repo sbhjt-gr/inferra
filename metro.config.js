@@ -32,4 +32,6 @@ defaultConfig.transformer.getTransformOptions = async () => ({
   },
 });
 
+defaultConfig.resolver.sourceExts.push('cjs');
+
 module.exports = defaultConfig; 

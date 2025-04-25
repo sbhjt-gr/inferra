@@ -70,14 +70,11 @@ const ModelDownloaderComponent = ({ downloadProgress, onDownloadStart }: ModelDo
       const filename = url.split('/').pop() || 'model.bin';
       setCurrentDownload(filename);
       
-      console.log('Starting download:', { url, filename });
       const result = await modelDownloader.downloadModel(url, filename);
-      console.log('Download started:', result);
       
       onDownloadStart(result.downloadId, filename);
       setUrl('');
     } catch (error: any) {
-      console.error('Download error:', error);
       setCurrentDownload(null);
       showAppDialog('Error', error.message || 'Failed to download file');
     }
@@ -99,7 +96,6 @@ const ModelDownloaderComponent = ({ downloadProgress, onDownloadStart }: ModelDo
       if (i < 0 || i >= sizes.length || !isFinite(bytes)) return '0 B';
       return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
     } catch (error) {
-      console.error('Error formatting bytes:', error, bytes);
       return '0 B';
     }
   };

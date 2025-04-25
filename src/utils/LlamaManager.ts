@@ -74,11 +74,9 @@ class LlamaManager {
         }
       }
       
-      console.log('[LlamaManager] Using final model path:', finalModelPath);
 
       
       const modelInfo = await loadLlamaModelInfo(finalModelPath);
-      console.log('[LlamaManager] Model Info:', modelInfo);
 
       
       if (this.context) {
@@ -101,10 +99,8 @@ class LlamaManager {
         rope_freq_scale: 1,
       });
 
-      console.log('[LlamaManager] Model initialized successfully');
       return this.context;
     } catch (error) {
-      console.error('[LlamaManager] Model initialization error:', error);
       throw new Error(`Failed to initialize model: ${error}`);
     }
   }
@@ -119,15 +115,12 @@ class LlamaManager {
           ...DEFAULT_SETTINGS,
           ...parsedSettings
         };
-        console.log('[LlamaManager] Loaded settings:', this.settings);
       } else {
         
         this.settings = { ...DEFAULT_SETTINGS };
         await this.saveSettings();
-        console.log('[LlamaManager] No saved settings found, using defaults');
       }
     } catch (error) {
-      console.error('[LlamaManager] Error loading settings:', error);
       
       this.settings = { ...DEFAULT_SETTINGS };
     }
@@ -136,9 +129,7 @@ class LlamaManager {
   async saveSettings() {
     try {
       await AsyncStorage.setItem('@model_settings', JSON.stringify(this.settings));
-      console.log('[LlamaManager] Settings saved successfully');
     } catch (error) {
-      console.error('[LlamaManager] Error saving settings:', error);
       throw error;
     }
   }
@@ -146,7 +137,6 @@ class LlamaManager {
   async resetSettings() {
     this.settings = { ...DEFAULT_SETTINGS };
     await this.saveSettings();
-    console.log('[LlamaManager] Settings reset to defaults');
   }
 
   
@@ -157,7 +147,6 @@ class LlamaManager {
   async updateSettings(newSettings: Partial<ModelSettings>) {
     this.settings = { ...this.settings, ...newSettings };
     await this.saveSettings();
-    console.log('[LlamaManager] Settings updated:', this.settings);
   }
 
   
@@ -196,7 +185,6 @@ class LlamaManager {
         },
         (data) => {
           if (this.isCancelled) {
-            console.log('[LlamaManager] Generation cancelled');
             return false;
           }
           
@@ -215,7 +203,6 @@ class LlamaManager {
 
       return fullResponse.trim();
     } catch (error) {
-      console.error('Generation error:', error);
       throw error;
     } finally {
       this.isCancelled = false;
@@ -223,7 +210,6 @@ class LlamaManager {
   }
 
   async cancelGeneration() {
-    console.log('[LlamaManager] Cancelling generation');
     this.isCancelled = true;
     
     if (this.modelPath && this.context) {
@@ -245,9 +231,7 @@ class LlamaManager {
           rope_freq_scale: 1,
         });
         
-        console.log('[LlamaManager] Context reinitialized after cancellation');
       } catch (error) {
-        console.error('[LlamaManager] Error reinitializing context after cancellation:', error);
         this.context = null;
       }
     }

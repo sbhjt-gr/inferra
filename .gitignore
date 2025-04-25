@@ -34,6 +34,7 @@ yarn-error.*
 
 # local env files
 .env*.local
+.env*
 
 # typescript
 *.tsbuildinfo
@@ -57,3 +58,82 @@ android/local.properties
 android/app/release/
 *.apk
 *.aab
+
+google-services.json
+config/
+
+# OSX
+.DS_Store
+
+# Expo
+.expo/
+dist/
+web-build/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+
+# Node
+node_modules/
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# Environment variables
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+*.env.js
+
+# Firebase
+google-services.json
+GoogleService-Info.plist
+firebase-debug.log
+firebase-debug.*.log
+.firebase/
+
+# Android/IntelliJ
+build/
+.idea
+.gradle
+local.properties
+*.iml
+*.hprof
+android/app/release/
+
+# iOS
+pods/
+Pods/
+*.xcworkspace
+*.xcuserstate
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Testing
+coverage/
+.nyc_output/
+
+# Keystores
+*.keystore
+!debug.keystore
+
+# Logs
+logs/
+*.log
