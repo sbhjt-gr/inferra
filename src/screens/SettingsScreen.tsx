@@ -422,12 +422,40 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     }
   };
 
+  const ProfileButton = () => {
+    return (
+      <TouchableOpacity
+        style={styles.headerButton}
+        onPress={() => {
+          if (isLoggedIn) {
+            navigation.navigate('Profile');
+          } else {
+            navigation.navigate('Login', {
+              redirectTo: 'MainTabs',
+              redirectParams: { screen: 'SettingsTab' }
+            });
+          }
+        }}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      >
+        <MaterialCommunityIcons 
+          name={isLoggedIn ? "account-circle" : "login"}
+          size={22} 
+          color={theme[currentTheme].headerText} 
+        />
+      </TouchableOpacity>
+    );
+  };
 
   return (
       <View style={[styles.container, { backgroundColor: theme[currentTheme].background }]}>
       <AppHeader 
         title="Settings"
-        rightButtons={<ProfileButton />}
+        rightButtons={
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <ProfileButton />
+          </View>
+        } 
       />
       <ScrollView contentContainerStyle={styles.contentContainer}>
         

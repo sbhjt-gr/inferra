@@ -13,12 +13,21 @@ import {
   onAuthStateChanged,
   Auth,
   initializeAuth,
-  getReactNativePersistence
+  browserLocalPersistence,
+  setPersistence
 } from 'firebase/auth';
+import { 
+  getFirestore, 
+  collection, 
+  doc, 
+  setDoc, 
+  serverTimestamp 
+} from 'firebase/firestore';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Device from 'expo-device';
 
 const getSecureConfig = () => {
   const config = {
@@ -46,21 +55,112 @@ const getSecureConfig = () => {
 
 let app: FirebaseApp | undefined;
 let auth: Auth | undefined;
+let firestore: any = undefined;
 
 try {
   const firebaseConfig = getSecureConfig();
+  
   app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
   
-  if (Platform.OS === 'web') {
-    auth = getAuth(app);
-  } else {
-    auth = initializeAuth(app, {
-      persistence: getReactNativePersistence(AsyncStorage)
-    });
+  auth = getAuth(app);
+  
+  if (Platform.OS === 'web' && auth) {
+    setPersistence(auth, browserLocalPersistence)
+      .then(() => {
+      })
+      .catch(error => {
+      });
   }
+  
+  firestore = getFirestore(app);
 } catch (error) {
-  console.error('Error initializing Firebase:', error);
+  // do nothing
 }
+
+const getIpAddress = async (): Promise<{ip: string | null, error?: string}> => {
+  try {
+    const response = await fetch('https://api.ipify.org?format=json');
+    if (response.ok) {
+      const data = await response.json();
+      return { ip: data.ip };
+    } else {
+      return { ip: null, error: 'Failed to fetch IP address' };
+    }
+  } catch (error) {
+    return { ip: null, error: 'Network error when fetching IP' };
+  }
+};
+
+const getGeoLocationFromIp = async (ip: string): Promise<{geo: any | null, error?: string}> => {
+  try {
+    const response = await fetch(`https://ipinfo.io/${ip}/json`);
+    if (response.ok) {
+      const data = await response.json();
+      const geoData = {
+        city: data.city,
+        region: data.region,
+        country: data.country,
+        loc: data.loc
+      };
+      return { geo: geoData };
+    } else {
+      return { geo: null, error: 'Failed to get location data' };
+    }
+  } catch (error) {
+    return { geo: null, error: 'Network error when fetching location' };
+  }
+};
+
+const getDeviceInfo = async (): Promise<any> => {
+  try {
+    return {
+      platform: Platform.OS,
+      osVersion: Device.osVersion || Platform.Version.toString(),
+      deviceType: Device.deviceType || 'Unknown',
+      deviceBrand: Device.brand || 'Unknown',
+    };
+  } catch (error) {
+    return { error: 'Failed to get device information' };
+  }
+};
+
+const storeUserSecurityInfo = async (
+  uid: string, 
+  ipData: {ip: string | null, error?: string}, 
+  geoData: {geo: any | null, error?: string}, 
+  deviceInfo: any
+): Promise<void> => {
+  if (!firestore) {
+    return;
+  }
+  
+  try {
+    const securityRecord = {
+      ipAddress: ipData.ip,
+      ipError: ipData.error,
+      geolocation: geoData.geo,
+      geoError: geoData.error,
+      deviceInfo: deviceInfo,
+      timestamp: serverTimestamp(),
+      sessionId: Math.random().toString(36).substring(2, 15),
+    };
+    
+    const userDocRef = doc(firestore, 'users', uid);
+    
+    await setDoc(userDocRef, {
+      createdAt: serverTimestamp(),
+      lastLogin: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+    
+    const securityCollectionRef = collection(userDocRef, 'security_info');
+    const securityDocRef = doc(securityCollectionRef);
+    
+    await setDoc(securityDocRef, securityRecord);
+  } catch (error) {
+    // do nothing
+  }
+};
 
 type UserData = {
   uid: string;
@@ -93,7 +193,6 @@ const storeAuthState = async (user: User | null): Promise<void> => {
 
     await SecureStore.setItemAsync(USER_AUTH_KEY, JSON.stringify(userData));
   } catch (error) {
-    console.error('Error storing auth state:', error);
     throw new Error('Authentication storage failed');
   }
 };
@@ -120,7 +219,6 @@ const checkRateLimiting = async (): Promise<boolean> => {
     
     return true;
   } catch (error) {
-    console.error('Error checking rate limiting:', error);
     return true;
   }
 };
@@ -153,7 +251,7 @@ const incrementAuthAttempts = async (): Promise<void> => {
       JSON.stringify({ attempts: attempts + 1, timestamp })
     );
   } catch (error) {
-    console.error('Error incrementing auth attempts:', error);
+    // do nothing
   }
 };
 
@@ -161,7 +259,7 @@ const resetAuthAttempts = async (): Promise<void> => {
   try {
     await SecureStore.deleteItemAsync(AUTH_ATTEMPTS_KEY);
   } catch (error) {
-    console.error('Error resetting auth attempts:', error);
+    // do nothing
   }
 };
 
@@ -205,6 +303,60 @@ const validateName = (name: string): boolean => {
   return nameRegex.test(name);
 };
 
+const createUserProfile = async (user: User, name: string): Promise<void> => {
+  if (!firestore) {
+    return;
+  }
+  
+  try {
+    const ipData = await getIpAddress();
+    let geoData = { geo: null };
+    if (ipData.ip) {
+      geoData = await getGeoLocationFromIp(ipData.ip);
+    }
+    const deviceInfo = await getDeviceInfo();
+    
+    const userProfile = {
+      uid: user.uid,
+      email: user.email,
+      displayName: name,
+      emailVerified: user.emailVerified,
+      photoURL: user.photoURL,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      lastLoginAt: serverTimestamp(),
+      registrationInfo: {
+        platform: Platform.OS,
+        ipAddress: ipData.ip,
+        geolocation: geoData.geo,
+        deviceInfo: deviceInfo,
+        timestamp: serverTimestamp(),
+      },
+      settings: {
+        emailNotifications: true,
+        pushNotifications: true,
+        theme: 'auto',
+        language: 'en',
+      },
+      status: {
+        isActive: true,
+        lastActive: serverTimestamp(),
+      }
+    };
+    
+    await setDoc(doc(firestore, 'users', user.uid), userProfile, { merge: true });
+    
+    await storeUserSecurityInfo(
+      user.uid, 
+      ipData, 
+      geoData, 
+      deviceInfo
+    );
+  } catch (error) {
+    // do nothing
+  }
+};
+
 export const registerWithEmail = async (
   name: string,
   email: string,
@@ -243,9 +395,24 @@ export const registerWithEmail = async (
     
     await sendEmailVerification(user);
     
+    await createUserProfile(user, name);
+    
     await storeAuthState(user);
     
     await resetAuthAttempts();
+    
+    Promise.all([
+      getIpAddress(),
+      getDeviceInfo()
+    ]).then(async ([ipData, deviceInfo]) => {
+      let geoData = { geo: null };
+      if (ipData.ip) {
+        geoData = await getGeoLocationFromIp(ipData.ip);
+      }
+      
+      await storeUserSecurityInfo(user.uid, ipData, geoData, deviceInfo);
+    }).catch(error => {
+    });
     
     return { success: true };
   } catch (error: any) {
@@ -296,6 +463,31 @@ export const loginWithEmail = async (
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
     
+    if (firestore) {
+      const ipData = await getIpAddress();
+      let geoData = { geo: null };
+      if (ipData.ip) {
+        geoData = await getGeoLocationFromIp(ipData.ip);
+      }
+      const deviceInfo = await getDeviceInfo();
+      
+      await setDoc(doc(firestore, 'users', user.uid), {
+        lastLoginAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        'status.isActive': true,
+        'status.lastActive': serverTimestamp(),
+        lastLoginInfo: {
+          platform: Platform.OS,
+          ipAddress: ipData.ip,
+          geolocation: geoData.geo,
+          deviceInfo: deviceInfo,
+          timestamp: serverTimestamp(),
+        }
+      }, { merge: true });
+      
+      await storeUserSecurityInfo(user.uid, ipData, geoData, deviceInfo);
+    }
+    
     await storeAuthState(user);
     
     await resetAuthAttempts();
@@ -343,11 +535,35 @@ export const signInWithGoogle = async (): Promise<{ success: boolean; error?: st
     const userCredential = await signInWithPopup(auth, provider);
     const user = userCredential.user;
     
+    await createUserProfile(user, user.displayName || 'Google User');
+    
+    if (firestore) {
+      const ipData = await getIpAddress();
+      let geoData = { geo: null };
+      if (ipData.ip) {
+        geoData = await getGeoLocationFromIp(ipData.ip);
+      }
+      const deviceInfo = await getDeviceInfo();
+      
+      await setDoc(doc(firestore, 'users', user.uid), {
+        lastLoginAt: serverTimestamp(),
+        'status.isActive': true,
+        'status.lastActive': serverTimestamp(),
+        lastLoginInfo: {
+          provider: 'google',
+          platform: Platform.OS,
+          ipAddress: ipData.ip,
+          geolocation: geoData.geo,
+          deviceInfo: deviceInfo,
+          timestamp: serverTimestamp(),
+        }
+      }, { merge: true });
+    }
+    
     await storeAuthState(user);
     
     return { success: true };
   } catch (error: any) {
-    console.error('Google sign-in error:', error);
     
     if (error.code === 'auth/popup-closed-by-user') {
       return { success: false, error: 'Sign-in canceled' };
@@ -381,11 +597,35 @@ export const signInWithGithub = async (): Promise<{ success: boolean; error?: st
     const userCredential = await signInWithPopup(auth, provider);
     const user = userCredential.user;
     
+    await createUserProfile(user, user.displayName || 'GitHub User');
+    
+    if (firestore) {
+      const ipData = await getIpAddress();
+      let geoData = { geo: null };
+      if (ipData.ip) {
+        geoData = await getGeoLocationFromIp(ipData.ip);
+      }
+      const deviceInfo = await getDeviceInfo();
+      
+      await setDoc(doc(firestore, 'users', user.uid), {
+        lastLoginAt: serverTimestamp(),
+        'status.isActive': true,
+        'status.lastActive': serverTimestamp(),
+        lastLoginInfo: {
+          provider: 'github',
+          platform: Platform.OS,
+          ipAddress: ipData.ip,
+          geolocation: geoData.geo,
+          deviceInfo: deviceInfo,
+          timestamp: serverTimestamp(),
+        }
+      }, { merge: true });
+    }
+    
     await storeAuthState(user);
     
     return { success: true };
   } catch (error: any) {
-    console.error('GitHub sign-in error:', error);
     
     if (error.code === 'auth/popup-closed-by-user') {
       return { success: false, error: 'Sign-in canceled' };
@@ -413,7 +653,6 @@ export const logoutUser = async (): Promise<{ success: boolean; error?: string }
     await storeAuthState(null);
     return { success: true };
   } catch (error) {
-    console.error('Logout error:', error);
     return { 
       success: false, 
       error: 'Failed to log out. Please try again.' 
@@ -451,7 +690,6 @@ export const getUserFromSecureStorage = async (): Promise<UserData | null> => {
     
     return parsed;
   } catch (error) {
-    console.error('Error getting user from secure storage:', error);
     await SecureStore.deleteItemAsync(USER_AUTH_KEY);
     return null;
   }

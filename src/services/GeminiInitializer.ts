@@ -16,7 +16,6 @@ export const initGeminiService = (): GeminiService => {
   onlineModelService.setGeminiServiceGetter(() => instance);
   
   isInitialized = true;
-  console.log('GeminiService initialized successfully');
   
   geminiService = instance;
   
