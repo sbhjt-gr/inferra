@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { isAuthenticated, getUserFromSecureStorage } from '../services/FirebaseService';
+import { getAuth, onAuthStateChanged } from 'firebase/auth';
 
 interface RemoteModelContextType {
   enableRemoteModels: boolean;
@@ -23,7 +24,24 @@ export const RemoteModelProvider: React.FC<{ children: React.ReactNode }> = ({ c
   useEffect(() => {
     loadRemoteModelPreference();
     checkLoginStatus();
-  }, []);
+    
+    // Set up auth state listener to detect sign out
+    const auth = getAuth();
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      const newLoginState = !!user;
+      setIsLoggedIn(newLoginState);
+      
+      // If user signed out, disable remote models
+      if (!newLoginState && enableRemoteModels) {
+        setEnableRemoteModels(false);
+        AsyncStorage.setItem('@remote_models_enabled', 'false')
+          .catch(error => console.error('Error saving remote model preference:', error));
+      }
+    });
+    
+    // Clean up listener on unmount
+    return () => unsubscribe();
+  }, [enableRemoteModels]);
 
   const loadRemoteModelPreference = async () => {
     try {
