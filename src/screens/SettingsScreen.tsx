@@ -21,6 +21,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { modelDownloader } from '../services/ModelDownloader';
 import ChatSettingsSection from '../components/settings/ChatSettingsSection';
 import AppearanceSection from '../components/settings/AppearanceSection';
+import { getCurrentUser } from '../services/FirebaseService';
 import RemoteModelsSection from '../components/settings/RemoteModelsSection';
 import SupportSection from '../components/settings/SupportSection';
 import ModelSettingsSection from '../components/settings/ModelSettingsSection';
@@ -370,50 +371,57 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
       return;
     }
     
+    if (!enableRemoteModels) {
+      const user = getCurrentUser();
+      if (user && !user.emailVerified) {
+        showDialog(
+          'Email Verification Required',
+          'You need to verify your email address before enabling remote models.',
+          [
+            <Button key="cancel" onPress={hideDialog}>Cancel</Button>,
+            <Button 
+              key="profile" 
+              onPress={() => {
+                hideDialog();
+                navigation.navigate('Profile');
+              }}
+            >
+              Go to Profile
+            </Button>
+          ]
+        );
+        return;
+      }
+    }
+    
     const result = await toggleRemoteModels();
-    if (!result.success && result.requiresLogin) {
-      navigation.navigate('Login', {
-        redirectTo: 'MainTabs',
-        redirectParams: { screen: 'SettingsTab' }
-      });
+    if (!result.success) {
+      if (result.requiresLogin) {
+        navigation.navigate('Login', {
+          redirectTo: 'MainTabs',
+          redirectParams: { screen: 'SettingsTab' }
+        });
+      } else if (result.emailNotVerified) {
+        showDialog(
+          'Email Verification Required',
+          'You need to verify your email address before enabling remote models.',
+          [
+            <Button key="cancel" onPress={hideDialog}>Cancel</Button>,
+            <Button 
+              key="profile" 
+              onPress={() => {
+                hideDialog();
+                navigation.navigate('Profile');
+              }}
+            >
+              Go to Profile
+            </Button>
+          ]
+        );
+      }
     }
   };
 
-  const ProfileButton = () => {
-    return (
-      <TouchableOpacity
-        style={styles.headerButton}
-        onPress={() => {
-          if (isLoggedIn) {
-            navigation.navigate('Profile');
-          } else {
-            showDialog(
-              'Authentication Required',
-              'You need to sign in to view your profile.',
-              [
-                <Button key="cancel" onPress={hideDialog}>Cancel</Button>,
-                <Button 
-                  key="login" 
-                  onPress={() => {
-                    hideDialog();
-                    navigation.navigate('Login', {
-                      redirectTo: 'MainTabs',
-                      redirectParams: { screen: 'SettingsTab' }
-                    });
-                  }}
-                >
-                  Sign In
-                </Button>
-              ]
-            );
-          }
-        }}
-        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-      >
-        <MaterialCommunityIcons name="account-circle" size={22} color={theme[currentTheme].headerText} />
-      </TouchableOpacity>
-    );
-  };
 
   return (
       <View style={[styles.container, { backgroundColor: theme[currentTheme].background }]}>

@@ -1,11 +1,11 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { isAuthenticated, getUserFromSecureStorage } from '../services/FirebaseService';
+import { isAuthenticated, getUserFromSecureStorage, getCurrentUser } from '../services/FirebaseService';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
 
 interface RemoteModelContextType {
   enableRemoteModels: boolean;
-  toggleRemoteModels: () => Promise<{ success: boolean, requiresLogin?: boolean }>;
+  toggleRemoteModels: () => Promise<{ success: boolean, requiresLogin?: boolean, emailNotVerified?: boolean }>;
   isLoggedIn: boolean;
   checkLoginStatus: () => Promise<boolean>;
 }
@@ -79,6 +79,11 @@ export const RemoteModelProvider: React.FC<{ children: React.ReactNode }> = ({ c
       const isUserLoggedIn = await checkLoginStatus();
       if (!isUserLoggedIn) {
         return { success: false, requiresLogin: true };
+      }
+      
+      const user = getCurrentUser();
+      if (user && !user.emailVerified) {
+        return { success: false, emailNotVerified: true };
       }
     }
     
