@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, View, Platform, ScrollView, Linking } from 'react-native';
+import { StyleSheet, View, Platform, ScrollView, Linking, TouchableOpacity } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { CompositeNavigationProp } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -378,10 +379,47 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     }
   };
 
+  const ProfileButton = () => {
+    return (
+      <TouchableOpacity
+        style={styles.headerButton}
+        onPress={() => {
+          if (isLoggedIn) {
+            navigation.navigate('Profile');
+          } else {
+            showDialog(
+              'Authentication Required',
+              'You need to sign in to view your profile.',
+              [
+                <Button key="cancel" onPress={hideDialog}>Cancel</Button>,
+                <Button 
+                  key="login" 
+                  onPress={() => {
+                    hideDialog();
+                    navigation.navigate('Login', {
+                      redirectTo: 'MainTabs',
+                      redirectParams: { screen: 'SettingsTab' }
+                    });
+                  }}
+                >
+                  Sign In
+                </Button>
+              ]
+            );
+          }
+        }}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      >
+        <MaterialCommunityIcons name="account-circle" size={22} color={theme[currentTheme].headerText} />
+      </TouchableOpacity>
+    );
+  };
+
   return (
       <View style={[styles.container, { backgroundColor: theme[currentTheme].background }]}>
       <AppHeader 
         title="Settings"
+        rightButtons={<ProfileButton />}
       />
       <ScrollView contentContainerStyle={styles.contentContainer}>
         
@@ -495,5 +533,13 @@ const styles = StyleSheet.create({
   contentContainer: {
     paddingBottom: 32,
     paddingTop: 22
+  },
+  headerButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 }); 

@@ -5,6 +5,7 @@ import ChatHistoryScreen from '../screens/ChatHistoryScreen';
 import DownloadsScreen from '../screens/DownloadsScreen';
 import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
+import ProfileScreen from '../screens/ProfileScreen';
 import { RootStackParamList } from '../types/navigation';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -39,6 +40,13 @@ export default function RootNavigator() {
           component={RegisterScreen}
           options={{
             animation: 'slide_from_bottom'
+          }}
+        />
+        <Stack.Screen 
+          name="Profile" 
+          component={ProfileScreen}
+          options={{
+            animation: 'slide_from_right'
           }}
         />
       </Stack.Navigator>
