@@ -722,8 +722,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     loadApiKeys();
   }, []);
 
- 
-
   const handleTabPress = (tab: 'stored' | 'downloadable' | 'remote') => {
     if (tab === 'remote') {
       if (!isLoggedIn || !enableRemoteModels) {
@@ -770,30 +768,19 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
           if (isLoggedIn) {
             navigation.navigate('Profile');
           } else {
-            showDialog(
-              'Authentication Required',
-              'You need to sign in to view your profile.',
-              [
-                <Button key="cancel" onPress={hideDialog}>Cancel</Button>,
-                <Button 
-                  key="login" 
-                  onPress={() => {
-                    hideDialog();
-                    navigation.navigate('Login', {
-                      redirectTo: 'MainTabs',
-                      redirectParams: { screen: 'SettingsTab' }
-                    });
-                  }}
-                >
-                  Sign In
-                </Button>
-              ]
-            );
+            navigation.navigate('Login', {
+              redirectTo: 'MainTabs',
+              redirectParams: { screen: 'ModelTab' }
+            });
           }
         }}
         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
       >
-        <MaterialCommunityIcons name="account-circle" size={22} color={theme[currentTheme].headerText} />
+        <MaterialCommunityIcons 
+          name={isLoggedIn ? "account-circle" : "login"} 
+          size={22} 
+          color={theme[currentTheme].headerText} 
+        />
       </TouchableOpacity>
     );
   };
@@ -804,7 +791,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         title="Models" 
         rightButtons={
           <View style={{ flexDirection: 'row', gap: 8 }}>
-            {renderDownloadsButton()}
             <ProfileButton />
           </View>
         }
@@ -936,7 +922,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       {(isLoading || importingModelName) && (
         <View style={styles.loadingOverlay}>
           <View style={[styles.loadingContainer, { backgroundColor: themeColors.borderColor }]}>
-            <ActivityIndicator size="large" color={getThemeAwareColor('#4a0660', currentTheme)} />
+            <ActivityIndicator size="large" color={themeColors.primary} />
             <RNText style={[styles.loadingText, { color: themeColors.text }]}>
               {importingModelName ? `Importing ${importingModelName}...` : 'Importing model...'}
             </RNText>
@@ -946,6 +932,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
           </View>
         </View>
       )}
+      {renderDownloadsButton()}
     </View>
   );
 }

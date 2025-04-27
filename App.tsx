@@ -100,25 +100,50 @@ function Navigation() {
       });
     }, 2000);
 
-    const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
-      try {
-        if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
-          modelDownloader.checkBackgroundDownloads();
-        } else if (appState.current === 'active' && nextAppState.match(/inactive|background/)) {
+    let subscription: { remove: () => void } | undefined;
+    try {
+      subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+        try {
+          if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+            modelDownloader.checkBackgroundDownloads();
+          } else if (appState.current === 'active' && nextAppState.match(/inactive|background/)) {
+            // do nothing
+          }
+          
+          appState.current = nextAppState;
+        } catch (error) {
           // do nothing
         }
-        
-        appState.current = nextAppState;
-      } catch (error) {
+      });
+    } catch (error) {
+      const changeHandler = (nextAppState: AppStateStatus) => {
+        try {
+          if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+            modelDownloader.checkBackgroundDownloads();
+          } else if (appState.current === 'active' && nextAppState.match(/inactive|background/)) {
+            // do nothing
+          }
+          
+          appState.current = nextAppState;
+        } catch (error) {
           // do nothing
+        }
+      };
+      
+      try {
+        subscription = AppState.addEventListener('change', changeHandler);
+      } catch (err) {
+        console.error('Failed to add app state event listener:', err);
       }
-    });
+    }
 
     return () => {
       clearTimeout(timer);
       try {
         llamaManager.release();
-        subscription.remove();
+        if (subscription && typeof subscription.remove === 'function') {
+          subscription.remove();
+        }
       } catch (error) {
         // do nothing
       }

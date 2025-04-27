@@ -25,21 +25,18 @@ export const RemoteModelProvider: React.FC<{ children: React.ReactNode }> = ({ c
     loadRemoteModelPreference();
     checkLoginStatus();
     
-    // Set up auth state listener to detect sign out
     const auth = getAuth();
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       const newLoginState = !!user;
       setIsLoggedIn(newLoginState);
       
-      // If user signed out, disable remote models
       if (!newLoginState && enableRemoteModels) {
         setEnableRemoteModels(false);
         AsyncStorage.setItem('@remote_models_enabled', 'false')
           .catch(error => console.error('Error saving remote model preference:', error));
       }
     });
-    
-    // Clean up listener on unmount
+
     return () => unsubscribe();
   }, [enableRemoteModels]);
 
@@ -50,7 +47,7 @@ export const RemoteModelProvider: React.FC<{ children: React.ReactNode }> = ({ c
         setEnableRemoteModels(savedPreference === 'true');
       }
     } catch (error) {
-      console.error('Error loading remote model preference:', error);
+      // do nothing
     }
   };
 
@@ -68,7 +65,6 @@ export const RemoteModelProvider: React.FC<{ children: React.ReactNode }> = ({ c
       
       return authenticated;
     } catch (error) {
-      console.error('Error checking login status:', error);
       setIsLoggedIn(false);
       return false;
     }
@@ -93,7 +89,6 @@ export const RemoteModelProvider: React.FC<{ children: React.ReactNode }> = ({ c
       await AsyncStorage.setItem('@remote_models_enabled', newValue.toString());
       return { success: true };
     } catch (error) {
-      console.error('Error saving remote model preference:', error);
       return { success: false };
     }
   };

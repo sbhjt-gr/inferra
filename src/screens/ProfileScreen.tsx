@@ -1,15 +1,16 @@
-import React, { useEffect, useState } from 'react';
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Alert, AppState, AppStateStatus } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import AppHeader from '../components/AppHeader';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import { getCurrentUser, logoutUser } from '../services/FirebaseService';
 import { useRemoteModel } from '../context/RemoteModelContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getAuth, sendEmailVerification, onAuthStateChanged, reload } from 'firebase/auth';
 
 type ProfileScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList>;
@@ -28,9 +29,98 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
     lastSignInTime: ''
   });
 
+  const verificationCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+  
+  const refreshUserData = useCallback(async () => {
+    const user = getCurrentUser();
+    if (user) {
+      try {
+        await reload(user);
+        setUserData({
+          displayName: user.displayName || 'User',
+          email: user.email || '',
+          emailVerified: user.emailVerified,
+          creationTime: user.metadata.creationTime || '',
+          lastSignInTime: user.metadata.lastSignInTime || ''
+        });
+      } catch (error) {
+        loadUserData();
+      }
+    }
+  }, []);
+  
+  useEffect(() => {
+    const handleAppStateChange = async (nextAppState: AppStateStatus) => {
+      if (appStateRef.current.match(/inactive|background/) && nextAppState === 'active') {
+        await refreshUserData();
+      }
+      appStateRef.current = nextAppState;
+    };
+
+    let subscription: { remove: () => void } | undefined;
+    
+    try {
+      subscription = AppState.addEventListener('change', handleAppStateChange);
+    } catch (error) {
+      // Do nothing
+    }
+
+    return () => {
+      if (subscription && typeof subscription.remove === 'function') {
+        subscription.remove();
+      }
+    };
+  }, [refreshUserData]);
+  
   useEffect(() => {
     loadUserData();
+    
+    const auth = getAuth();
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setUserData({
+          displayName: user.displayName || 'User',
+          email: user.email || '',
+          emailVerified: user.emailVerified,
+          creationTime: user.metadata.creationTime || '',
+          lastSignInTime: user.metadata.lastSignInTime || ''
+        });
+      }
+    });
+    
+    return () => {
+      unsubscribe();
+      if (verificationCheckIntervalRef.current) {
+        clearInterval(verificationCheckIntervalRef.current);
+      }
+    };
   }, []);
+  
+  useFocusEffect(
+    useCallback(() => {
+      refreshUserData();
+      
+      verificationCheckIntervalRef.current = setInterval(() => {
+        const user = getCurrentUser();
+        if (user && !user.emailVerified) {
+          refreshUserData();
+        } else if (user && user.emailVerified) {
+          if (verificationCheckIntervalRef.current) {
+            clearInterval(verificationCheckIntervalRef.current);
+            verificationCheckIntervalRef.current = null;
+          }
+        }
+      }, 5000);
+      
+      return () => {
+        if (verificationCheckIntervalRef.current) {
+          clearInterval(verificationCheckIntervalRef.current);
+          verificationCheckIntervalRef.current = null;
+        }
+      };
+    }, [])
+  );
 
   const loadUserData = () => {
     const user = getCurrentUser();
@@ -55,6 +145,52 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
       hour: '2-digit',
       minute: '2-digit'
     });
+  };
+
+  const [emailSentTimestamp, setEmailSentTimestamp] = useState<number | null>(null);
+  const EMAIL_COOLDOWN_PERIOD = 60000;
+
+  const resendVerificationEmail = async () => {
+    try {
+      const user = getCurrentUser();
+      if (!user) {
+        Alert.alert('Error', 'You must be logged in to verify your email.');
+        return;
+      }
+      
+      if (user.emailVerified) {
+        Alert.alert('Already Verified', 'Your email is already verified.');
+        return;
+      }
+
+      const currentTime = Date.now();
+      if (emailSentTimestamp && (currentTime - emailSentTimestamp < EMAIL_COOLDOWN_PERIOD)) {
+        const remainingSeconds = Math.ceil((EMAIL_COOLDOWN_PERIOD - (currentTime - emailSentTimestamp)) / 1000);
+        Alert.alert(
+          'Rate Limited',
+          `Please wait ${remainingSeconds} seconds before requesting another verification email.`
+        );
+        return;
+      }
+
+      await sendEmailVerification(user);
+      setEmailSentTimestamp(currentTime);
+      
+      Alert.alert(
+        'Verification Email Sent',
+        'Please check your email and click the verification link. The status will update automatically once verified.'
+      );
+      
+    } catch (error: any) {
+      
+      let errorMessage = 'Failed to send verification email. Please try again later.';
+      
+      if (error?.code === 'auth/too-many-requests') {
+        errorMessage = 'Too many requests. Please try again later.';
+      }
+      
+      Alert.alert('Error', errorMessage);
+    }
   };
 
   const handleSignOut = async () => {
@@ -113,6 +249,16 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
             }]}>
               {userData.emailVerified ? "Email Verified" : "Email Not Verified"}
             </Text>
+            {!userData.emailVerified && (
+              <TouchableOpacity 
+                style={styles.resendButton}
+                onPress={resendVerificationEmail}
+                accessibilityLabel="Resend verification email"
+                accessibilityHint="Sends a new verification email to your address"
+              >
+                <Text style={styles.resendButtonText}>Resend Email</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
@@ -191,6 +337,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    flexWrap: 'wrap',
   },
   verificationText: {
     fontSize: 14,
@@ -235,5 +382,18 @@ const styles = StyleSheet.create({
   signOutText: {
     fontSize: 16,
     fontWeight: '600',
+  },
+  resendButton: {
+    marginLeft: 10,
+    backgroundColor: '#FFC107',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginTop: 5,
+  },
+  resendButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 12,
   },
 });

@@ -126,6 +126,7 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
         setError(result.error || 'Google sign-in failed. Please try again.');
       }
     } catch (err) {
+      console.error('Google sign-in error:', err);
       setError('Google sign-in failed. Please try again.');
     } finally {
       setIsLoading(false);
@@ -151,6 +152,7 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
         setError(result.error || 'GitHub sign-in failed. Please try again.');
       }
     } catch (err) {
+      console.error('GitHub sign-in error:', err);
       setError('GitHub sign-in failed. Please try again.');
     } finally {
       setIsLoading(false);
@@ -262,6 +264,7 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
               )}
 
               <Button
+                key={`register-button-${isLoading}`}
                 mode="contained"
                 onPress={handleRegister}
                 disabled={isLoading}
@@ -279,22 +282,38 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
                 
                 <View style={styles.socialButtonsRow}>
                   <Button
+                    key={`google-button-${isLoading}`}
                     mode="outlined"
                     icon="google"
                     style={styles.socialButton}
                     contentStyle={styles.socialButtonContent}
-                    onPress={handleGoogleSignIn}
+                    onPress={() => {
+                      if (typeof handleGoogleSignIn === 'function') {
+                        handleGoogleSignIn();
+                      } else {
+                        console.error('Google sign-in handler is not defined');
+                        setError('Google sign-in is not available');
+                      }
+                    }}
                     disabled={isLoading}
                   >
                     Google
                   </Button>
                   
                   <Button
+                    key={`github-button-${isLoading}`}
                     mode="outlined"
                     icon="github"
                     style={styles.socialButton}
                     contentStyle={styles.socialButtonContent}
-                    onPress={handleGithubSignIn}
+                    onPress={() => {
+                      if (typeof handleGithubSignIn === 'function') {
+                        handleGithubSignIn();
+                      } else {
+                        console.error('GitHub sign-in handler is not defined');
+                        setError('GitHub sign-in is not available');
+                      }
+                    }}
                     disabled={isLoading}
                   >
                     GitHub
@@ -309,6 +328,7 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
                   Already have an account?
                 </Text>
                 <Button 
+                  key="sign-in-button"
                   mode="text" 
                   onPress={navigateToLogin}
                   style={styles.loginButton}
@@ -339,14 +359,16 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
             </Text>
           </Dialog.Content>
           <Dialog.Actions>
-            <Button onPress={() => {
-              setDialogVisible(false);
-              if (redirectAfterRegister === 'MainTabs') {
-                navigation.replace('MainTabs', redirectParams as any);
-              } else {
-                navigation.replace(redirectAfterRegister as any);
-              }
-            }}>OK</Button>
+            <Button 
+              key="dialog-ok-button"
+              onPress={() => {
+                setDialogVisible(false);
+                if (redirectAfterRegister === 'MainTabs') {
+                  navigation.replace('MainTabs', redirectParams as any);
+                } else {
+                  navigation.replace(redirectAfterRegister as any);
+                }
+              }}>OK</Button>
           </Dialog.Actions>
         </Dialog>
       </Portal>

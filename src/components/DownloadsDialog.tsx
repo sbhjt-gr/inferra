@@ -8,6 +8,7 @@ import {
   ScrollView,
   AppState,
   AppStateStatus,
+  AsyncStorage,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
@@ -75,16 +76,26 @@ const DownloadsDialog = ({ visible, onClose, downloads, setDownloadProgress }: D
   }, [visible]);
 
   useEffect(() => {
-    const subscription = AppState.addEventListener('change', async (nextAppState: AppStateStatus) => {
-      if (nextAppState === 'active') {
-        await checkCompletedDownloads();
-      }
-    });
+    let subscription: { remove: () => void } | undefined;
+    
+    try {
+      subscription = AppState.addEventListener('change', async (nextAppState: AppStateStatus) => {
+        if (appState.current === 'active' && nextAppState !== 'active') {
+          await AsyncStorage.setItem('active_downloads', JSON.stringify(activeDownloads));
+        }
+        
+        appState.current = nextAppState;
+      });
+    } catch (error) {
+      console.error('Error setting up AppState listener in DownloadsDialog:', error);
+    }
 
     return () => {
-      subscription.remove();
+      if (subscription && typeof subscription.remove === 'function') {
+        subscription.remove();
+      }
     };
-  }, []);
+  }, [activeDownloads]);
 
   const activeDownloads = Object.entries(downloads).filter(
     ([_, data]) => data.status !== 'completed' && data.status !== 'failed'

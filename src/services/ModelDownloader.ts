@@ -42,6 +42,14 @@ class ModelDownloader extends EventEmitter {
     });
   }
 
+  private handleAppStateChange = (nextAppState: AppStateStatus): void => {
+    if (nextAppState === 'active') {
+      this.checkBackgroundDownloads().catch(error => {
+        // do nothing
+      });
+    }
+  }
+
   private async initialize() {
     try {
       await this.fileManager.initializeDirectories();
@@ -50,7 +58,11 @@ class ModelDownloader extends EventEmitter {
 
       await this.downloadTaskManager.initialize();
       
-      AppState.addEventListener('change', this.handleAppStateChange);
+      try {
+        AppState.addEventListener('change', this.handleAppStateChange);
+      } catch (error) {
+        console.error('Error setting up AppState listener in ModelDownloader:', error);
+      }
       
       await this.setupNotifications();
       
@@ -60,7 +72,7 @@ class ModelDownloader extends EventEmitter {
       
       this.isInitialized = true;
     } catch (error) {
-      console.error('Error initializing model downloader:', error);
+      // do nothing
     }
   }
 
@@ -80,14 +92,6 @@ class ModelDownloader extends EventEmitter {
     }
     return false;
   }
-
-  private handleAppStateChange = async (nextAppState: AppStateStatus) => {
-    console.log('[ModelDownloader] App state changed to:', nextAppState);
-    
-    if (nextAppState === 'inactive') {
-      console.log('[ModelDownloader] App is being closed');
-    }
-  };
 
   async ensureDownloadsAreRunning(): Promise<void> {
     await this.downloadTaskManager.ensureDownloadsAreRunning();
@@ -109,7 +113,6 @@ class ModelDownloader extends EventEmitter {
       
       return await this.downloadTaskManager.downloadModel(url, modelName);
     } catch (error) {
-      console.error(`[ModelDownloader] Error starting download for ${modelName}:`, error);
       throw error;
     }
   }
@@ -144,7 +147,7 @@ class ModelDownloader extends EventEmitter {
       
       await this.storedModelsManager.refreshStoredModels();
     } catch (error) {
-      console.error('Error checking background downloads:', error);
+      // do nothing
     }
   }
 
@@ -160,7 +163,7 @@ class ModelDownloader extends EventEmitter {
     try {
       await this.downloadTaskManager.processCompletedDownloads();
     } catch (error) {
-      console.error('[ModelDownloader] Error processing completed downloads:', error);
+      // do nothing
     }
   }
 }
