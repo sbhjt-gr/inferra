@@ -19,7 +19,7 @@ import { getThemeAwareColor } from '../utils/ColorUtils';
 import { onlineModelService } from '../services/OnlineModelService';
 import { Dialog, Portal, Text, Button } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { NativeStackNavigationPsettingrop } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 
 interface StoredModel {

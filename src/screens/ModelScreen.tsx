@@ -722,35 +722,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     loadApiKeys();
   }, []);
 
-  const renderLoginButton = () => {
-    if (isLoggedIn) {
-      return (
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <RNText style={{ color: themeColors.text, marginRight: 10 }}>
-            {username}
-          </RNText>
-          <TouchableOpacity
-            style={styles.headerButton}
-            onPress={handleLogout}
-          >
-            <MaterialCommunityIcons name="logout" size={22} color={themeColors.headerText} />
-          </TouchableOpacity>
-        </View>
-      );
-    } else {
-      return (
-        <TouchableOpacity
-          style={styles.headerButton}
-          onPress={() => navigation.navigate('Login', {
-            redirectTo: 'MainTabs',
-            redirectParams: { screen: 'ModelTab' }
-          })}
-        >
-          <MaterialCommunityIcons name="login" size={22} color={themeColors.headerText} />
-        </TouchableOpacity>
-      );
-    }
-  };
+ 
 
   const handleTabPress = (tab: 'stored' | 'downloadable' | 'remote') => {
     if (tab === 'remote') {
@@ -790,14 +762,50 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     }
   }, [enableRemoteModels, activeTab]);
 
+  const ProfileButton = () => {
+    return (
+      <TouchableOpacity
+        style={styles.headerButton}
+        onPress={() => {
+          if (isLoggedIn) {
+            navigation.navigate('Profile');
+          } else {
+            showDialog(
+              'Authentication Required',
+              'You need to sign in to view your profile.',
+              [
+                <Button key="cancel" onPress={hideDialog}>Cancel</Button>,
+                <Button 
+                  key="login" 
+                  onPress={() => {
+                    hideDialog();
+                    navigation.navigate('Login', {
+                      redirectTo: 'MainTabs',
+                      redirectParams: { screen: 'SettingsTab' }
+                    });
+                  }}
+                >
+                  Sign In
+                </Button>
+              ]
+            );
+          }
+        }}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      >
+        <MaterialCommunityIcons name="account-circle" size={22} color={theme[currentTheme].headerText} />
+      </TouchableOpacity>
+    );
+  };
+  
   return (
     <View style={[styles.container, { backgroundColor: themeColors.background }]}>
       <AppHeader 
         title="Models" 
         rightButtons={
           <View style={{ flexDirection: 'row', gap: 8 }}>
-            {renderLoginButton()}
             {renderDownloadsButton()}
+            <ProfileButton />
           </View>
         }
       />
