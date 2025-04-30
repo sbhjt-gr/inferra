@@ -25,7 +25,7 @@ import {
   Dialog,
   Portal,
 } from 'react-native-paper';
-import { registerWithEmail, signInWithGoogle, signInWithGithub } from '../services/FirebaseService';
+import { registerWithEmail, signInWithGoogle, signInWithGithub, isEmailFromTrustedProvider } from '../services/FirebaseService';
 
 type RegisterScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList>;
@@ -46,13 +46,22 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [dialogVisible, setDialogVisible] = useState(false);
+  const [isEmailTrusted, setIsEmailTrusted] = useState(true);
+  const [isEmailFocused, setIsEmailFocused] = useState(false);
+  const [emailTouched, setEmailTouched] = useState(false);
 
   const redirectAfterRegister = route.params?.redirectTo || 'MainTabs';
   const redirectParams = route.params?.redirectParams || { screen: 'HomeTab' };
 
   const validateEmail = (email: string) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const emailRegex = /^[a-zA-Z0-9.!#$%&'*=?^_`{|}~-]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
+  };
+
+  const handleEmailChange = (text: string) => {
+    setEmail(text);
+    setIsEmailTrusted(isEmailFromTrustedProvider(text));
+    setEmailTouched(true);
   };
 
   const handleRegister = async () => {
@@ -217,13 +226,21 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
               <TextInput
                 label="Email"
                 value={email}
-                onChangeText={setEmail}
+                onChangeText={handleEmailChange}
                 mode="outlined"
                 style={styles.input}
                 autoCapitalize="none"
                 keyboardType="email-address"
                 left={<TextInput.Icon icon="email" />}
+                onFocus={() => setIsEmailFocused(true)}
+                onBlur={() => setIsEmailFocused(false)}
               />
+
+              {email && !isEmailTrusted && validateEmail(email) && !isEmailFocused && emailTouched && (
+                <HelperText type="info" visible={true} style={styles.warningText}>
+                  We don't support this email provider. Although, account creation is allowed, no free credits will be provided.
+                </HelperText>
+              )}
 
               <TextInput
                 label="Password"
@@ -469,5 +486,9 @@ const styles = StyleSheet.create({
   },
   socialButtonContent: {
     height: 40,
+  },
+  warningText: {
+    marginBottom: 16,
+    color: '#FF9800',
   },
 }); 
