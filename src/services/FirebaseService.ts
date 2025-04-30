@@ -265,8 +265,33 @@ const resetAuthAttempts = async (): Promise<void> => {
 const validateEmail = (email: string): boolean => {
   if (!email || typeof email !== 'string') return false;
   
-  const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
+  const emailRegex = /^[a-zA-Z0-9.!#$%&'*=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
   return email.length <= 320 && emailRegex.test(email);
+};
+
+const TRUSTED_EMAIL_PROVIDERS = [
+  'gmail.com',
+  'icloud.com',
+  'me.com',
+  'mac.com',
+  'proton.me',
+  'protonmail.com',
+  'zoho.com',
+  'zohomail.com',
+  'yahoo.com',
+  'ymail.com',
+  'rocketmail.com',
+  'gmx.com',
+  'gmx.us',
+  'gmx.co.uk',
+  'aol.com'
+];
+
+export const isEmailFromTrustedProvider = (email: string): boolean => {
+  if (!email || typeof email !== 'string') return false;
+  
+  const domain = email.split('@')[1]?.toLowerCase();
+  return TRUSTED_EMAIL_PROVIDERS.includes(domain);
 };
 
 const validatePassword = (password: string): { valid: boolean; message?: string } => {
@@ -315,6 +340,8 @@ const createUserProfile = async (user: User, name: string): Promise<void> => {
     }
     const deviceInfo = await getDeviceInfo();
     
+    const isTrustedEmail = isEmailFromTrustedProvider(user.email || '');
+    
     const userProfile = {
       uid: user.uid,
       email: user.email,
@@ -324,6 +351,7 @@ const createUserProfile = async (user: User, name: string): Promise<void> => {
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
       lastLoginAt: serverTimestamp(),
+      trustedEmail: isTrustedEmail,
       registrationInfo: {
         platform: Platform.OS,
         ipAddress: ipData.ip,
