@@ -4,6 +4,7 @@ import { GeminiService } from './GeminiService';
 import { OpenAIService } from './OpenAIService';
 import { DeepSeekService } from './DeepSeekService';
 import { ClaudeService } from './ClaudeService';
+import Constants from 'expo-constants';
 
 export interface ChatMessage {
   id: string;
@@ -35,6 +36,12 @@ class OnlineModelService {
   private _openAIServiceGetter: () => OpenAIService | null = () => null;
   private _deepSeekServiceGetter: () => DeepSeekService | null = () => null;
   private _claudeServiceGetter: () => ClaudeService | null = () => null;
+  private defaultKeys = {
+    gemini: Constants.expoConfig?.extra?.GEMINI_API_KEY || '',
+    chatgpt: Constants.expoConfig?.extra?.OPENAI_API_KEY || '',
+    deepseek: Constants.expoConfig?.extra?.DEEPSEEK_API_KEY || '',
+    claude: Constants.expoConfig?.extra?.ANTHROPIC_API_KEY || '',
+  };
 
   setGeminiServiceGetter(getter: () => GeminiService) {
     this._geminiServiceGetter = getter;
@@ -54,9 +61,21 @@ class OnlineModelService {
 
   async getApiKey(provider: string): Promise<string | null> {
     try {
-      return await AsyncStorage.getItem(`@${provider}_api_key`);
+      const customKey = await AsyncStorage.getItem(`@${provider}_api_key`);
+      if (customKey) {
+        return customKey;
+      }
+      
+      const useDefaultKey = await AsyncStorage.getItem(`@${provider}_use_default`);
+      if (useDefaultKey !== 'false') {
+        const defaultKey = this.defaultKeys[provider as keyof typeof this.defaultKeys];
+        if (defaultKey) {
+          return defaultKey;
+        }
+      }
+      
+      return null;
     } catch (error) {
-      console.error(`Error retrieving ${provider} API key:`, error);
       return null;
     }
   }
@@ -64,10 +83,10 @@ class OnlineModelService {
   async saveApiKey(provider: string, apiKey: string): Promise<boolean> {
     try {
       await AsyncStorage.setItem(`@${provider}_api_key`, apiKey);
+      await AsyncStorage.setItem(`@${provider}_use_default`, 'false');
       this.events.emit('api-key-updated', provider);
       return true;
     } catch (error) {
-      console.error(`Error saving ${provider} API key:`, error);
       return false;
     }
   }
@@ -80,12 +99,49 @@ class OnlineModelService {
   async clearApiKey(provider: string): Promise<boolean> {
     try {
       await AsyncStorage.removeItem(`@${provider}_api_key`);
+      if (this.defaultKeys[provider as keyof typeof this.defaultKeys]) {
+        await AsyncStorage.setItem(`@${provider}_use_default`, 'true');
+      } else {
+        await AsyncStorage.removeItem(`@${provider}_use_default`);
+      }
       this.events.emit('api-key-updated', provider);
       return true;
     } catch (error) {
-      console.error(`Error clearing ${provider} API key:`, error);
       return false;
     }
+  }
+
+  async useDefaultKey(provider: string, useDefault: boolean): Promise<boolean> {
+    try {
+      if (useDefault) {
+        await AsyncStorage.setItem(`@${provider}_use_default`, 'true');
+        await AsyncStorage.removeItem(`@${provider}_api_key`);
+      } else {
+        await AsyncStorage.setItem(`@${provider}_use_default`, 'false');
+      }
+      this.events.emit('api-key-updated', provider);
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  async isUsingDefaultKey(provider: string): Promise<boolean> {
+    try {
+      const customKey = await AsyncStorage.getItem(`@${provider}_api_key`);
+      if (customKey) {
+        return false;
+      }
+      
+      const useDefaultKey = await AsyncStorage.getItem(`@${provider}_use_default`);
+      return useDefaultKey !== 'false' && !!this.defaultKeys[provider as keyof typeof this.defaultKeys];
+    } catch (error) {
+      return false;
+    }
+  }
+
+  hasDefaultKey(provider: string): boolean {
+    return !!this.defaultKeys[provider as keyof typeof this.defaultKeys];
   }
 
   addListener(event: keyof OnlineModelServiceEvents, listener: any): () => void {
@@ -110,7 +166,6 @@ class OnlineModelService {
     
     const streamEnabled = options.stream === true && typeof onToken === 'function';
     
-    console.log(`Gemini API call with streaming: ${streamEnabled}, simulated streaming enabled: ${geminiOptions.streamTokens}`);
     
     const { fullResponse } = await geminiService.generateResponse(
       messages, 
@@ -138,7 +193,6 @@ class OnlineModelService {
     
     const streamEnabled = options.stream === true && typeof onToken === 'function';
     
-    console.log(`OpenAI API call with streaming: ${streamEnabled}, streaming enabled: ${openAIOptions.streamTokens}`);
     
     const { fullResponse } = await openAIService.generateResponse(
       messages, 
@@ -166,7 +220,6 @@ class OnlineModelService {
     
     const streamEnabled = options.stream === true && typeof onToken === 'function';
     
-    console.log(`DeepSeek API call with streaming: ${streamEnabled}, streaming enabled: ${deepSeekOptions.streamTokens}`);
     
     const { fullResponse } = await deepSeekService.generateResponse(
       messages, 
@@ -194,7 +247,6 @@ class OnlineModelService {
     
     const streamEnabled = options.stream === true && typeof onToken === 'function';
     
-    console.log(`Claude API call with streaming: ${streamEnabled}, streaming enabled: ${claudeOptions.streamTokens}`);
     
     const { fullResponse } = await claudeService.generateResponse(
       messages, 

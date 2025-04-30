@@ -606,10 +606,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
 
         <View style={{ height: 20 }} />
 
-        <RNText style={[styles.remoteModelsInfo, { color: themeColors.secondaryText }]}>
-          Configure API keys to use remote models like OpenAI, Gemini, Claude, and DeepSeek directly from their servers.
-          These models run on the provider's cloud and require an internet connection.
-        </RNText>
       </ScrollView>
     </View>
   );
