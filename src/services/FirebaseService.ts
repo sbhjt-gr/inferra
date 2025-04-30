@@ -26,7 +26,6 @@ import {
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Device from 'expo-device';
 
 const getSecureConfig = () => {
@@ -335,8 +334,6 @@ const createUserProfile = async (user: User, name: string): Promise<void> => {
       settings: {
         emailNotifications: true,
         pushNotifications: true,
-        theme: 'auto',
-        language: 'en',
       },
       status: {
         isActive: true,

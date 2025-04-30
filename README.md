@@ -69,4 +69,4 @@ Distributed under AGPL-3.0. See `LICENSE` for more information.
 ## Acknowledgement
 
 -   [llama.cpp](https://github.com/ggerganov/llama.cpp) - the underlying engine to run LLMs
--   [ragionare-llama.rn](https://github.com/sbhjt-gr/ragionare-llama.rn) is customized from the original react-native llama.cpp adapter [llama.rn](https://github.com/mybigday/llama.rn)
+-   [inferra-llama.rn](https://github.com/sbhjt-gr/inferra-llama.rn) is customized from the original react-native llama.cpp adapter [llama.rn](https://github.com/mybigday/llama.rn)
