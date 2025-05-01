@@ -5,7 +5,6 @@ import {
   signInWithEmailAndPassword, 
   sendEmailVerification,
   signInWithPopup,
-  GithubAuthProvider,
   GoogleAuthProvider,
   signOut,
   updateProfile,
@@ -27,29 +26,34 @@ import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const getSecureConfig = () => {
-  const config = {
-    apiKey: Constants.expoConfig?.extra?.firebaseApiKey,
-    authDomain: Constants.expoConfig?.extra?.firebaseAuthDomain,
-    projectId: Constants.expoConfig?.extra?.firebaseProjectId,
-    storageBucket: Constants.expoConfig?.extra?.firebaseStorageBucket,
-    messagingSenderId: Constants.expoConfig?.extra?.firebaseMessagingSenderId,
-    appId: Constants.expoConfig?.extra?.firebaseAppId,
-  };
+  try {
+    const config = {
+      apiKey: Constants.expoConfig?.extra?.firebaseApiKey,
+      authDomain: Constants.expoConfig?.extra?.firebaseAuthDomain,
+      projectId: Constants.expoConfig?.extra?.firebaseProjectId,
+      storageBucket: Constants.expoConfig?.extra?.firebaseStorageBucket,
+      messagingSenderId: Constants.expoConfig?.extra?.firebaseMessagingSenderId,
+      appId: Constants.expoConfig?.extra?.firebaseAppId,
+    };
 
-  const missingConfigs = Object.entries(config)
-    .filter(([_, value]) => !value)
-    .map(([key]) => key);
+    const missingConfigs = Object.entries(config)
+      .filter(([_, value]) => !value)
+      .map(([key]) => key);
 
-  if (missingConfigs.length > 0) {
-    throw new Error(
-      `Missing Firebase configuration: ${missingConfigs.join(', ')}. ` +
-      'Make sure you have set up the .env file correctly.'
-    );
+    if (missingConfigs.length > 0) {
+      throw new Error(
+        `Firebase configuration is incomplete. Check your environment variables.`
+      );
+    }
+
+    return config as Record<string, string>;
+  } catch (error) {
+    console.error('Firebase configuration error. Check environment setup.');
+    throw new Error('Firebase initialization failed. Contact support if the issue persists.');
   }
-
-  return config as Record<string, string>;
 };
 
 let app: FirebaseApp | undefined;
@@ -61,19 +65,19 @@ try {
   
   app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
   
-  auth = getAuth(app);
-  
-  if (Platform.OS === 'web' && auth) {
+  if (Platform.OS === 'web') {
+    auth = getAuth(app);
     setPersistence(auth, browserLocalPersistence)
-      .then(() => {
-      })
       .catch(error => {
+        console.error('Error setting auth persistence:', error.code);
       });
+  } else {
+    auth = initializeAuth(app);
   }
   
   firestore = getFirestore(app);
 } catch (error) {
-  // do nothing
+  console.error('Error initializing Firebase services. Please try again later.');
 }
 
 const getIpAddress = async (): Promise<{ip: string | null, error?: string}> => {
@@ -147,6 +151,7 @@ const storeUserSecurityInfo = async (
     const userDocRef = doc(firestore, 'users', uid);
     
     await setDoc(userDocRef, {
+      uid: uid,
       createdAt: serverTimestamp(),
       lastLogin: serverTimestamp(),
       updatedAt: serverTimestamp()
@@ -157,7 +162,7 @@ const storeUserSecurityInfo = async (
     
     await setDoc(securityDocRef, securityRecord);
   } catch (error) {
-    // do nothing
+    console.error('Error storing user security info:', error);
   }
 };
 
@@ -175,11 +180,15 @@ const MAX_AUTH_ATTEMPTS = 5;
 const AUTH_LOCKOUT_DURATION = 15 * 60 * 1000;
 const PASSWORD_MIN_LENGTH = 8;
 
-const storeAuthState = async (user: User | null): Promise<void> => {
+const storeAuthState = async (user: User | null): Promise<boolean> => {
   try {
     if (!user) {
-      await SecureStore.deleteItemAsync(USER_AUTH_KEY);
-      return;
+      if (Platform.OS === 'web') {
+        await SecureStore.deleteItemAsync(USER_AUTH_KEY);
+      } else {
+        await AsyncStorage.removeItem(USER_AUTH_KEY);
+      }
+      return true;
     }
 
     const userData: UserData = {
@@ -190,15 +199,27 @@ const storeAuthState = async (user: User | null): Promise<void> => {
       lastLoginAt: new Date().toISOString(),
     };
 
-    await SecureStore.setItemAsync(USER_AUTH_KEY, JSON.stringify(userData));
+    if (Platform.OS === 'web') {
+      await SecureStore.setItemAsync(USER_AUTH_KEY, JSON.stringify(userData));
+    } else {
+      await AsyncStorage.setItem(USER_AUTH_KEY, JSON.stringify(userData));
+    }
+    return true;
   } catch (error) {
-    throw new Error('Authentication storage failed');
+    console.error('Authentication storage failed:', error);
+    return false;
   }
 };
 
 const checkRateLimiting = async (): Promise<boolean> => {
   try {
-    const attemptsData = await SecureStore.getItemAsync(AUTH_ATTEMPTS_KEY);
+    let attemptsData: string | null = null;
+    
+    if (Platform.OS === 'web') {
+      attemptsData = await SecureStore.getItemAsync(AUTH_ATTEMPTS_KEY);
+    } else {
+      attemptsData = await AsyncStorage.getItem(AUTH_ATTEMPTS_KEY);
+    }
     
     if (!attemptsData) {
       return true;
@@ -208,7 +229,11 @@ const checkRateLimiting = async (): Promise<boolean> => {
     const now = Date.now();
     
     if (now - timestamp > AUTH_LOCKOUT_DURATION) {
-      await SecureStore.deleteItemAsync(AUTH_ATTEMPTS_KEY);
+      if (Platform.OS === 'web') {
+        await SecureStore.deleteItemAsync(AUTH_ATTEMPTS_KEY);
+      } else {
+        await AsyncStorage.removeItem(AUTH_ATTEMPTS_KEY);
+      }
       return true;
     }
     
@@ -224,31 +249,47 @@ const checkRateLimiting = async (): Promise<boolean> => {
 
 const incrementAuthAttempts = async (): Promise<void> => {
   try {
-    const attemptsData = await SecureStore.getItemAsync(AUTH_ATTEMPTS_KEY);
+    let attemptsData: string | null = null;
+    
+    if (Platform.OS === 'web') {
+      attemptsData = await SecureStore.getItemAsync(AUTH_ATTEMPTS_KEY);
+    } else {
+      attemptsData = await AsyncStorage.getItem(AUTH_ATTEMPTS_KEY);
+    }
+    
     const now = Date.now();
     
     if (!attemptsData) {
-      await SecureStore.setItemAsync(
-        AUTH_ATTEMPTS_KEY, 
-        JSON.stringify({ attempts: 1, timestamp: now })
-      );
+      const newData = JSON.stringify({ attempts: 1, timestamp: now });
+      
+      if (Platform.OS === 'web') {
+        await SecureStore.setItemAsync(AUTH_ATTEMPTS_KEY, newData);
+      } else {
+        await AsyncStorage.setItem(AUTH_ATTEMPTS_KEY, newData);
+      }
       return;
     }
     
     const { attempts, timestamp } = JSON.parse(attemptsData);
     
     if (now - timestamp > AUTH_LOCKOUT_DURATION) {
-      await SecureStore.setItemAsync(
-        AUTH_ATTEMPTS_KEY, 
-        JSON.stringify({ attempts: 1, timestamp: now })
-      );
+      const newData = JSON.stringify({ attempts: 1, timestamp: now });
+      
+      if (Platform.OS === 'web') {
+        await SecureStore.setItemAsync(AUTH_ATTEMPTS_KEY, newData);
+      } else {
+        await AsyncStorage.setItem(AUTH_ATTEMPTS_KEY, newData);
+      }
       return;
     }
     
-    await SecureStore.setItemAsync(
-      AUTH_ATTEMPTS_KEY, 
-      JSON.stringify({ attempts: attempts + 1, timestamp })
-    );
+    const newData = JSON.stringify({ attempts: attempts + 1, timestamp });
+    
+    if (Platform.OS === 'web') {
+      await SecureStore.setItemAsync(AUTH_ATTEMPTS_KEY, newData);
+    } else {
+      await AsyncStorage.setItem(AUTH_ATTEMPTS_KEY, newData);
+    }
   } catch (error) {
     // do nothing
   }
@@ -256,7 +297,11 @@ const incrementAuthAttempts = async (): Promise<void> => {
 
 const resetAuthAttempts = async (): Promise<void> => {
   try {
-    await SecureStore.deleteItemAsync(AUTH_ATTEMPTS_KEY);
+    if (Platform.OS === 'web') {
+      await SecureStore.deleteItemAsync(AUTH_ATTEMPTS_KEY);
+    } else {
+      await AsyncStorage.removeItem(AUTH_ATTEMPTS_KEY);
+    }
   } catch (error) {
     // do nothing
   }
@@ -417,27 +462,30 @@ export const registerWithEmail = async (
     const user = userCredential.user;
     
     await updateProfile(user, { displayName: name });
-    
-    await sendEmailVerification(user);
-    
-    await createUserProfile(user, name);
-    
     await storeAuthState(user);
-    
     await resetAuthAttempts();
     
-    Promise.all([
-      getIpAddress(),
-      getDeviceInfo()
-    ]).then(async ([ipData, deviceInfo]) => {
-      let geoData = { geo: null };
-      if (ipData.ip) {
-        geoData = await getGeoLocationFromIp(ipData.ip);
-      }
+    try {
+      await sendEmailVerification(user);
       
-      await storeUserSecurityInfo(user.uid, ipData, geoData, deviceInfo);
-    }).catch(error => {
-    });
+      await createUserProfile(user, name);
+      
+      Promise.all([
+        getIpAddress(),
+        getDeviceInfo()
+      ]).then(async ([ipData, deviceInfo]) => {
+        let geoData = { geo: null };
+        if (ipData.ip) {
+          geoData = await getGeoLocationFromIp(ipData.ip);
+        }
+        
+        await storeUserSecurityInfo(user.uid, ipData, geoData, deviceInfo);
+      }).catch(error => {
+        console.error('Error collecting security info:', error);
+      });
+    } catch (secondaryError) {
+      console.error('Error during secondary registration operations:', secondaryError);
+    }
     
     return { success: true };
   } catch (error: any) {
@@ -488,34 +536,39 @@ export const loginWithEmail = async (
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
     
-    if (firestore) {
-      const ipData = await getIpAddress();
-      let geoData = { geo: null };
-      if (ipData.ip) {
-        geoData = await getGeoLocationFromIp(ipData.ip);
-      }
-      const deviceInfo = await getDeviceInfo();
-      
-      await setDoc(doc(firestore, 'users', user.uid), {
-        lastLoginAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        'status.isActive': true,
-        'status.lastActive': serverTimestamp(),
-        lastLoginInfo: {
-          platform: Platform.OS,
-          ipAddress: ipData.ip,
-          geolocation: geoData.geo,
-          deviceInfo: deviceInfo,
-          timestamp: serverTimestamp(),
-        }
-      }, { merge: true });
-      
-      await storeUserSecurityInfo(user.uid, ipData, geoData, deviceInfo);
-    }
-    
     await storeAuthState(user);
-    
     await resetAuthAttempts();
+    
+    try {
+      if (firestore) {
+        const ipData = await getIpAddress();
+        let geoData = { geo: null };
+        if (ipData.ip) {
+          geoData = await getGeoLocationFromIp(ipData.ip);
+        }
+        const deviceInfo = await getDeviceInfo();
+        
+        await setDoc(doc(firestore, 'users', user.uid), {
+          uid: user.uid,
+          email: user.email,
+          lastLoginAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          'status.isActive': true,
+          'status.lastActive': serverTimestamp(),
+          lastLoginInfo: {
+            platform: Platform.OS,
+            ipAddress: ipData.ip,
+            geolocation: geoData.geo,
+            deviceInfo: deviceInfo,
+            timestamp: serverTimestamp(),
+          }
+        }, { merge: true });
+        
+        await storeUserSecurityInfo(user.uid, ipData, geoData, deviceInfo);
+      }
+    } catch (firestoreError) {
+      console.error('Error updating user data:', firestoreError);
+    }
     
     return { success: true };
   } catch (error: any) {
@@ -535,7 +588,7 @@ export const loginWithEmail = async (
     
     return { 
       success: false, 
-      error: 'Login failed. Please try again.' 
+      error: 'Authentication failed. Please try again.' 
     };
   }
 };
@@ -560,36 +613,41 @@ export const signInWithGoogle = async (): Promise<{ success: boolean; error?: st
     const userCredential = await signInWithPopup(auth, provider);
     const user = userCredential.user;
     
-    await createUserProfile(user, user.displayName || 'Google User');
-    
-    if (firestore) {
-      const ipData = await getIpAddress();
-      let geoData = { geo: null };
-      if (ipData.ip) {
-        geoData = await getGeoLocationFromIp(ipData.ip);
-      }
-      const deviceInfo = await getDeviceInfo();
-      
-      await setDoc(doc(firestore, 'users', user.uid), {
-        lastLoginAt: serverTimestamp(),
-        'status.isActive': true,
-        'status.lastActive': serverTimestamp(),
-        lastLoginInfo: {
-          provider: 'google',
-          platform: Platform.OS,
-          ipAddress: ipData.ip,
-          geolocation: geoData.geo,
-          deviceInfo: deviceInfo,
-          timestamp: serverTimestamp(),
-        }
-      }, { merge: true });
-    }
-    
     await storeAuthState(user);
+    
+    try {
+      await createUserProfile(user, user.displayName || 'Google User');
+      
+      if (firestore) {
+        const ipData = await getIpAddress();
+        let geoData = { geo: null };
+        if (ipData.ip) {
+          geoData = await getGeoLocationFromIp(ipData.ip);
+        }
+        const deviceInfo = await getDeviceInfo();
+        
+        await setDoc(doc(firestore, 'users', user.uid), {
+          uid: user.uid,
+          email: user.email,
+          lastLoginAt: serverTimestamp(),
+          'status.isActive': true,
+          'status.lastActive': serverTimestamp(),
+          lastLoginInfo: {
+            provider: 'google',
+            platform: Platform.OS,
+            ipAddress: ipData.ip,
+            geolocation: geoData.geo,
+            deviceInfo: deviceInfo,
+            timestamp: serverTimestamp(),
+          }
+        }, { merge: true });
+      }
+    } catch (profileError) {
+      console.error('Error updating user profile data:', profileError);
+    }
     
     return { success: true };
   } catch (error: any) {
-    
     if (error.code === 'auth/popup-closed-by-user') {
       return { success: false, error: 'Sign-in canceled' };
     } else if (error.code === 'auth/popup-blocked') {
@@ -598,72 +656,7 @@ export const signInWithGoogle = async (): Promise<{ success: boolean; error?: st
     
     return { 
       success: false, 
-      error: 'Google sign-in failed. Please try again.' 
-    };
-  }
-};
-
-export const signInWithGithub = async (): Promise<{ success: boolean; error?: string }> => {
-  try {
-    if (Platform.OS !== 'web') {
-      return { 
-        success: false, 
-        error: 'GitHub sign-in is not supported on this platform' 
-      };
-    }
-    
-    if (!auth) {
-      return { success: false, error: 'Firebase authentication not initialized' };
-    }
-
-    const provider = new GithubAuthProvider();
-    provider.addScope('user');
-    
-    const userCredential = await signInWithPopup(auth, provider);
-    const user = userCredential.user;
-    
-    await createUserProfile(user, user.displayName || 'GitHub User');
-    
-    if (firestore) {
-      const ipData = await getIpAddress();
-      let geoData = { geo: null };
-      if (ipData.ip) {
-        geoData = await getGeoLocationFromIp(ipData.ip);
-      }
-      const deviceInfo = await getDeviceInfo();
-      
-      await setDoc(doc(firestore, 'users', user.uid), {
-        lastLoginAt: serverTimestamp(),
-        'status.isActive': true,
-        'status.lastActive': serverTimestamp(),
-        lastLoginInfo: {
-          provider: 'github',
-          platform: Platform.OS,
-          ipAddress: ipData.ip,
-          geolocation: geoData.geo,
-          deviceInfo: deviceInfo,
-          timestamp: serverTimestamp(),
-        }
-      }, { merge: true });
-    }
-    
-    await storeAuthState(user);
-    
-    return { success: true };
-  } catch (error: any) {
-    
-    if (error.code === 'auth/popup-closed-by-user') {
-      return { success: false, error: 'Sign-in canceled' };
-    } else if (error.code === 'auth/account-exists-with-different-credential') {
-      return { 
-        success: false, 
-        error: 'An account already exists with the same email address but different sign-in credentials' 
-      };
-    }
-    
-    return { 
-      success: false, 
-      error: 'GitHub sign-in failed. Please try again.' 
+      error: 'Google authentication failed. Please try again.' 
     };
   }
 };
@@ -675,7 +668,9 @@ export const logoutUser = async (): Promise<{ success: boolean; error?: string }
     }
 
     await signOut(auth);
+    
     await storeAuthState(null);
+    
     return { success: true };
   } catch (error) {
     return { 
@@ -702,20 +697,57 @@ export const isAuthenticated = async (): Promise<boolean> => {
 
 export const getUserFromSecureStorage = async (): Promise<UserData | null> => {
   try {
-    const userData = await SecureStore.getItemAsync(USER_AUTH_KEY);
+    let userData: string | null = null;
+    
+    if (Platform.OS === 'web') {
+      userData = await SecureStore.getItemAsync(USER_AUTH_KEY);
+    } else {
+      userData = await AsyncStorage.getItem(USER_AUTH_KEY);
+    }
+    
     if (!userData) {
       return null;
     }
     
     const parsed = JSON.parse(userData);
     if (!parsed.uid) {
-      await SecureStore.deleteItemAsync(USER_AUTH_KEY);
+      if (Platform.OS === 'web') {
+        await SecureStore.deleteItemAsync(USER_AUTH_KEY);
+      } else {
+        await AsyncStorage.removeItem(USER_AUTH_KEY);
+      }
       return null;
     }
     
     return parsed;
   } catch (error) {
-    await SecureStore.deleteItemAsync(USER_AUTH_KEY);
+    if (Platform.OS === 'web') {
+      await SecureStore.deleteItemAsync(USER_AUTH_KEY);
+    } else {
+      await AsyncStorage.removeItem(USER_AUTH_KEY);
+    }
+    return null;
+  }
+};
+
+export const initAuthState = async (): Promise<User | null> => {
+  try {
+    if (!auth) return null;
+    
+    const currentUser = auth.currentUser;
+    if (currentUser) return currentUser;
+    
+    const storedUser = await getUserFromSecureStorage();
+    if (!storedUser) return null;
+    
+    return await new Promise((resolve) => {
+      const unsubscribe = onAuthStateChanged(auth!, (user) => {
+        unsubscribe();
+        resolve(user);
+      });
+    });
+  } catch (error) {
+    console.error('Error initializing auth state:', error);
     return null;
   }
 }; 

@@ -217,21 +217,6 @@ const ApiKeySection: React.FC = () => {
 
   return (
     <Surface style={[styles.container, { backgroundColor: themeColors.background }]}>
-      <View style={styles.headerContainer}>
-        <Text style={[styles.title, { color: themeColors.text }]}>
-          API Keys for Remote Models
-        </Text>
-        <IconButton
-          icon="refresh"
-          size={20}
-          onPress={loadApiKeys}
-          iconColor={themeColors.primary}
-        />
-      </View>
-      
-      <Text style={[styles.subtitle, { color: themeColors.secondaryText }]}>
-        Configure API keys to use online large language models
-      </Text>
 
       {apiKeyItems.map((item) => (
         <List.Accordion
