@@ -4,16 +4,12 @@ import {
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword, 
   sendEmailVerification,
-  signInWithPopup,
-  GoogleAuthProvider,
   signOut,
   updateProfile,
   User,
   onAuthStateChanged,
   Auth,
-  initializeAuth,
-  browserLocalPersistence,
-  setPersistence
+  initializeAuth
 } from 'firebase/auth';
 import { 
   getFirestore, 
@@ -64,17 +60,7 @@ try {
   const firebaseConfig = getSecureConfig();
   
   app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-  
-  if (Platform.OS === 'web') {
-    auth = getAuth(app);
-    setPersistence(auth, browserLocalPersistence)
-      .catch(error => {
-        console.error('Error setting auth persistence:', error.code);
-      });
-  } else {
-    auth = initializeAuth(app);
-  }
-  
+  auth = initializeAuth(app);
   firestore = getFirestore(app);
 } catch (error) {
   console.error('Error initializing Firebase services. Please try again later.');
@@ -183,11 +169,7 @@ const PASSWORD_MIN_LENGTH = 8;
 const storeAuthState = async (user: User | null): Promise<boolean> => {
   try {
     if (!user) {
-      if (Platform.OS === 'web') {
-        await SecureStore.deleteItemAsync(USER_AUTH_KEY);
-      } else {
-        await AsyncStorage.removeItem(USER_AUTH_KEY);
-      }
+      await AsyncStorage.removeItem(USER_AUTH_KEY);
       return true;
     }
 
@@ -199,11 +181,7 @@ const storeAuthState = async (user: User | null): Promise<boolean> => {
       lastLoginAt: new Date().toISOString(),
     };
 
-    if (Platform.OS === 'web') {
-      await SecureStore.setItemAsync(USER_AUTH_KEY, JSON.stringify(userData));
-    } else {
-      await AsyncStorage.setItem(USER_AUTH_KEY, JSON.stringify(userData));
-    }
+    await AsyncStorage.setItem(USER_AUTH_KEY, JSON.stringify(userData));
     return true;
   } catch (error) {
     console.error('Authentication storage failed:', error);
@@ -213,13 +191,7 @@ const storeAuthState = async (user: User | null): Promise<boolean> => {
 
 const checkRateLimiting = async (): Promise<boolean> => {
   try {
-    let attemptsData: string | null = null;
-    
-    if (Platform.OS === 'web') {
-      attemptsData = await SecureStore.getItemAsync(AUTH_ATTEMPTS_KEY);
-    } else {
-      attemptsData = await AsyncStorage.getItem(AUTH_ATTEMPTS_KEY);
-    }
+    const attemptsData = await AsyncStorage.getItem(AUTH_ATTEMPTS_KEY);
     
     if (!attemptsData) {
       return true;
@@ -229,11 +201,7 @@ const checkRateLimiting = async (): Promise<boolean> => {
     const now = Date.now();
     
     if (now - timestamp > AUTH_LOCKOUT_DURATION) {
-      if (Platform.OS === 'web') {
-        await SecureStore.deleteItemAsync(AUTH_ATTEMPTS_KEY);
-      } else {
-        await AsyncStorage.removeItem(AUTH_ATTEMPTS_KEY);
-      }
+      await AsyncStorage.removeItem(AUTH_ATTEMPTS_KEY);
       return true;
     }
     
@@ -249,24 +217,13 @@ const checkRateLimiting = async (): Promise<boolean> => {
 
 const incrementAuthAttempts = async (): Promise<void> => {
   try {
-    let attemptsData: string | null = null;
-    
-    if (Platform.OS === 'web') {
-      attemptsData = await SecureStore.getItemAsync(AUTH_ATTEMPTS_KEY);
-    } else {
-      attemptsData = await AsyncStorage.getItem(AUTH_ATTEMPTS_KEY);
-    }
+    const attemptsData = await AsyncStorage.getItem(AUTH_ATTEMPTS_KEY);
     
     const now = Date.now();
     
     if (!attemptsData) {
       const newData = JSON.stringify({ attempts: 1, timestamp: now });
-      
-      if (Platform.OS === 'web') {
-        await SecureStore.setItemAsync(AUTH_ATTEMPTS_KEY, newData);
-      } else {
-        await AsyncStorage.setItem(AUTH_ATTEMPTS_KEY, newData);
-      }
+      await AsyncStorage.setItem(AUTH_ATTEMPTS_KEY, newData);
       return;
     }
     
@@ -274,22 +231,12 @@ const incrementAuthAttempts = async (): Promise<void> => {
     
     if (now - timestamp > AUTH_LOCKOUT_DURATION) {
       const newData = JSON.stringify({ attempts: 1, timestamp: now });
-      
-      if (Platform.OS === 'web') {
-        await SecureStore.setItemAsync(AUTH_ATTEMPTS_KEY, newData);
-      } else {
-        await AsyncStorage.setItem(AUTH_ATTEMPTS_KEY, newData);
-      }
+      await AsyncStorage.setItem(AUTH_ATTEMPTS_KEY, newData);
       return;
     }
     
     const newData = JSON.stringify({ attempts: attempts + 1, timestamp });
-    
-    if (Platform.OS === 'web') {
-      await SecureStore.setItemAsync(AUTH_ATTEMPTS_KEY, newData);
-    } else {
-      await AsyncStorage.setItem(AUTH_ATTEMPTS_KEY, newData);
-    }
+    await AsyncStorage.setItem(AUTH_ATTEMPTS_KEY, newData);
   } catch (error) {
     // do nothing
   }
@@ -297,11 +244,7 @@ const incrementAuthAttempts = async (): Promise<void> => {
 
 const resetAuthAttempts = async (): Promise<void> => {
   try {
-    if (Platform.OS === 'web') {
-      await SecureStore.deleteItemAsync(AUTH_ATTEMPTS_KEY);
-    } else {
-      await AsyncStorage.removeItem(AUTH_ATTEMPTS_KEY);
-    }
+    await AsyncStorage.removeItem(AUTH_ATTEMPTS_KEY);
   } catch (error) {
     // do nothing
   }
@@ -593,74 +536,6 @@ export const loginWithEmail = async (
   }
 };
 
-export const signInWithGoogle = async (): Promise<{ success: boolean; error?: string }> => {
-  try {
-    if (Platform.OS !== 'web') {
-      return { 
-        success: false, 
-        error: 'Google sign-in is not supported on this platform' 
-      };
-    }
-    
-    if (!auth) {
-      return { success: false, error: 'Firebase authentication not initialized' };
-    }
-
-    const provider = new GoogleAuthProvider();
-    provider.addScope('profile');
-    provider.addScope('email');
-    
-    const userCredential = await signInWithPopup(auth, provider);
-    const user = userCredential.user;
-    
-    await storeAuthState(user);
-    
-    try {
-      await createUserProfile(user, user.displayName || 'Google User');
-      
-      if (firestore) {
-        const ipData = await getIpAddress();
-        let geoData = { geo: null };
-        if (ipData.ip) {
-          geoData = await getGeoLocationFromIp(ipData.ip);
-        }
-        const deviceInfo = await getDeviceInfo();
-        
-        await setDoc(doc(firestore, 'users', user.uid), {
-          uid: user.uid,
-          email: user.email,
-          lastLoginAt: serverTimestamp(),
-          'status.isActive': true,
-          'status.lastActive': serverTimestamp(),
-          lastLoginInfo: {
-            provider: 'google',
-            platform: Platform.OS,
-            ipAddress: ipData.ip,
-            geolocation: geoData.geo,
-            deviceInfo: deviceInfo,
-            timestamp: serverTimestamp(),
-          }
-        }, { merge: true });
-      }
-    } catch (profileError) {
-      console.error('Error updating user profile data:', profileError);
-    }
-    
-    return { success: true };
-  } catch (error: any) {
-    if (error.code === 'auth/popup-closed-by-user') {
-      return { success: false, error: 'Sign-in canceled' };
-    } else if (error.code === 'auth/popup-blocked') {
-      return { success: false, error: 'Pop-up was blocked by your browser' };
-    }
-    
-    return { 
-      success: false, 
-      error: 'Google authentication failed. Please try again.' 
-    };
-  }
-};
-
 export const logoutUser = async (): Promise<{ success: boolean; error?: string }> => {
   try {
     if (!auth) {
@@ -697,13 +572,7 @@ export const isAuthenticated = async (): Promise<boolean> => {
 
 export const getUserFromSecureStorage = async (): Promise<UserData | null> => {
   try {
-    let userData: string | null = null;
-    
-    if (Platform.OS === 'web') {
-      userData = await SecureStore.getItemAsync(USER_AUTH_KEY);
-    } else {
-      userData = await AsyncStorage.getItem(USER_AUTH_KEY);
-    }
+    const userData = await AsyncStorage.getItem(USER_AUTH_KEY);
     
     if (!userData) {
       return null;
@@ -711,21 +580,13 @@ export const getUserFromSecureStorage = async (): Promise<UserData | null> => {
     
     const parsed = JSON.parse(userData);
     if (!parsed.uid) {
-      if (Platform.OS === 'web') {
-        await SecureStore.deleteItemAsync(USER_AUTH_KEY);
-      } else {
-        await AsyncStorage.removeItem(USER_AUTH_KEY);
-      }
+      await AsyncStorage.removeItem(USER_AUTH_KEY);
       return null;
     }
     
     return parsed;
   } catch (error) {
-    if (Platform.OS === 'web') {
-      await SecureStore.deleteItemAsync(USER_AUTH_KEY);
-    } else {
-      await AsyncStorage.removeItem(USER_AUTH_KEY);
-    }
+    await AsyncStorage.removeItem(USER_AUTH_KEY);
     return null;
   }
 };
