@@ -25,7 +25,7 @@ import {
   Dialog,
   Portal,
 } from 'react-native-paper';
-import { registerWithEmail, signInWithGoogle, signInWithGithub, isEmailFromTrustedProvider } from '../services/FirebaseService';
+import { registerWithEmail, signInWithGoogle, isEmailFromTrustedProvider } from '../services/FirebaseService';
 
 type RegisterScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList>;
@@ -137,32 +137,6 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
     } catch (err) {
       console.error('Google sign-in error:', err);
       setError('Google sign-in failed. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleGithubSignIn = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      
-      const result = await signInWithGithub();
-      
-      if (result.success) {
-        await checkLoginStatus();
-        
-        if (redirectAfterRegister === 'MainTabs') {
-          navigation.replace('MainTabs', redirectParams as any);
-        } else {
-          navigation.replace(redirectAfterRegister as any);
-        }
-      } else {
-        setError(result.error || 'GitHub sign-in failed. Please try again.');
-      }
-    } catch (err) {
-      console.error('GitHub sign-in error:', err);
-      setError('GitHub sign-in failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -302,7 +276,7 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
                     key={`google-button-${isLoading}`}
                     mode="outlined"
                     icon="google"
-                    style={styles.socialButton}
+                    style={[styles.socialButton, { marginHorizontal: 0 }]}
                     contentStyle={styles.socialButtonContent}
                     onPress={() => {
                       if (typeof handleGoogleSignIn === 'function') {
@@ -315,25 +289,6 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
                     disabled={isLoading}
                   >
                     Google
-                  </Button>
-                  
-                  <Button
-                    key={`github-button-${isLoading}`}
-                    mode="outlined"
-                    icon="github"
-                    style={styles.socialButton}
-                    contentStyle={styles.socialButtonContent}
-                    onPress={() => {
-                      if (typeof handleGithubSignIn === 'function') {
-                        handleGithubSignIn();
-                      } else {
-                        console.error('GitHub sign-in handler is not defined');
-                        setError('GitHub sign-in is not available');
-                      }
-                    }}
-                    disabled={isLoading}
-                  >
-                    GitHub
                   </Button>
                 </View>
               </View>
