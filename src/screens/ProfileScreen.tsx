@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Alert, AppState, AppStateStatus } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, AppState, AppStateStatus } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import AppHeader from '../components/AppHeader';
@@ -11,6 +11,7 @@ import { getCurrentUser, logoutUser } from '../services/FirebaseService';
 import { useRemoteModel } from '../context/RemoteModelContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getAuth, sendEmailVerification, onAuthStateChanged, reload } from 'firebase/auth';
+import { useDialog } from '../context/DialogContext';
 
 type ProfileScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList>;
@@ -21,6 +22,7 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
   const themeColors = theme[currentTheme];
   const insets = useSafeAreaInsets();
   const { checkLoginStatus } = useRemoteModel();
+  const { showDialog } = useDialog();
   const [userData, setUserData] = useState({
     displayName: '',
     email: '',
@@ -154,32 +156,38 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
     try {
       const user = getCurrentUser();
       if (!user) {
-        Alert.alert('Error', 'You must be logged in to verify your email.');
+        showDialog({
+          title: 'Error',
+          message: 'You must be logged in to verify your email.'
+        });
         return;
       }
       
       if (user.emailVerified) {
-        Alert.alert('Already Verified', 'Your email is already verified.');
+        showDialog({
+          title: 'Already Verified',
+          message: 'Your email is already verified.'
+        });
         return;
       }
 
       const currentTime = Date.now();
       if (emailSentTimestamp && (currentTime - emailSentTimestamp < EMAIL_COOLDOWN_PERIOD)) {
         const remainingSeconds = Math.ceil((EMAIL_COOLDOWN_PERIOD - (currentTime - emailSentTimestamp)) / 1000);
-        Alert.alert(
-          'Rate Limited',
-          `Please wait ${remainingSeconds} seconds before requesting another verification email.`
-        );
+        showDialog({
+          title: 'Rate Limited',
+          message: `Please wait ${remainingSeconds} seconds before requesting another verification email.`
+        });
         return;
       }
 
       await sendEmailVerification(user);
       setEmailSentTimestamp(currentTime);
       
-      Alert.alert(
-        'Verification Email Sent',
-        'Please check your email and click the verification link. The status will update automatically once verified.'
-      );
+      showDialog({
+        title: 'Verification Email Sent',
+        message: 'Please check your email and click the verification link. The status will update automatically once verified.'
+      });
       
     } catch (error: any) {
       
@@ -189,31 +197,32 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
         errorMessage = 'Too many requests. Please try again later.';
       }
       
-      Alert.alert('Error', errorMessage);
+      showDialog({
+        title: 'Error',
+        message: errorMessage
+      });
     }
   };
 
   const handleSignOut = async () => {
-    Alert.alert(
-      'Sign Out',
-      'Are you sure you want to sign out?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Sign Out',
-          style: 'destructive',
-          onPress: async () => {
-            const result = await logoutUser();
-            if (result.success) {
-              await checkLoginStatus();
-              navigation.navigate('MainTabs', { screen: 'SettingsTab' });
-            } else {
-              Alert.alert('Error', result.error || 'Failed to sign out');
-            }
-          }
+    showDialog({
+      title: 'Sign Out',
+      message: 'Are you sure you want to sign out?',
+      confirmText: 'Sign Out',
+      cancelText: 'Cancel',
+      onConfirm: async () => {
+        const result = await logoutUser();
+        if (result.success) {
+          await checkLoginStatus();
+          navigation.navigate('MainTabs', { screen: 'SettingsTab' });
+        } else {
+          showDialog({
+            title: 'Error',
+            message: result.error || 'Failed to sign out'
+          });
         }
-      ]
-    );
+      }
+    });
   };
 
   return (
