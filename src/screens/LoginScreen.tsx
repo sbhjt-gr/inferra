@@ -23,7 +23,7 @@ import {
   HelperText, 
   Divider,
 } from 'react-native-paper';
-import { loginWithEmail, signInWithGoogle, signInWithGithub } from '../services/FirebaseService';
+import { loginWithEmail, signInWithGoogle } from '../services/FirebaseService';
 
 type LoginScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList>;
@@ -106,31 +106,6 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps) {
       }
     } catch (err) {
       setError('Google sign-in failed. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleGithubSignIn = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      
-      const result = await signInWithGithub();
-      
-      if (result.success) {
-        await checkLoginStatus();
-        
-        if (redirectAfterLogin === 'MainTabs') {
-          navigation.replace('MainTabs', redirectParams as any);
-        } else {
-          navigation.replace(redirectAfterLogin as any);
-        }
-      } else {
-        setError(result.error || 'GitHub sign-in failed. Please try again.');
-      }
-    } catch (err) {
-      setError('GitHub sign-in failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -228,23 +203,12 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps) {
                   <Button
                     mode="outlined"
                     icon="google"
-                    style={styles.socialButton}
+                    style={[styles.socialButton, { marginHorizontal: 0 }]}
                     contentStyle={styles.socialButtonContent}
                     onPress={handleGoogleSignIn}
                     disabled={isLoading}
                   >
                     Google
-                  </Button>
-                  
-                  <Button
-                    mode="outlined"
-                    icon="github"
-                    style={styles.socialButton}
-                    contentStyle={styles.socialButtonContent}
-                    onPress={handleGithubSignIn}
-                    disabled={isLoading}
-                  >
-                    GitHub
                   </Button>
                 </View>
               </View>

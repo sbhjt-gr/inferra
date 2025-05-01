@@ -140,9 +140,9 @@ const storeUserSecurityInfo = async (
   try {
     const securityRecord = {
       ipAddress: ipData.ip,
-      ipError: ipData.error,
+      ipError: ipData.error || null,
       geolocation: geoData.geo,
-      geoError: geoData.error,
+      geoError: geoData.error || null,
       deviceInfo: deviceInfo,
       timestamp: serverTimestamp(),
       sessionId: Math.random().toString(36).substring(2, 15),
