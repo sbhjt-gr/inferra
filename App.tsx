@@ -20,6 +20,8 @@ import { initOpenAIService } from './src/services/OpenAIInitializer';
 import { initDeepSeekService } from './src/services/DeepSeekInitializer';
 import { initClaudeService } from './src/services/ClaudeInitializer';
 import { PaperProvider } from 'react-native-paper';
+import { DialogProvider } from './src/context/DialogContext';
+import { ShowDialog } from './src/components/ShowDialog';
 
 initGeminiService();
 initOpenAIService();
@@ -175,6 +177,7 @@ function Navigation() {
         theme={currentTheme === 'dark' ? customDarkTheme : customDefaultTheme}
       >
         <RootNavigator />
+        <ShowDialog />
       </NavigationContainer>
   );
 }
@@ -188,7 +191,9 @@ export default function App() {
             <RemoteModelProvider>
               <GestureHandlerRootView style={{ flex: 1 }}>
                 <ThemeProvider>
-                  <Navigation />
+                  <DialogProvider>
+                    <Navigation />
+                  </DialogProvider>
                 </ThemeProvider>
               </GestureHandlerRootView>
             </RemoteModelProvider>
