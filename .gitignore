@@ -96,7 +96,6 @@ GoogleService-Info.plist
 firebase-debug.log
 firebase-debug.*.log
 .firebase/
-FirebaseService.ts
 
 # Android/IntelliJ
 build/
