@@ -9,15 +9,20 @@ import {
   User,
   onAuthStateChanged,
   Auth,
-  initializeAuth
+  initializeAuth,
+  getReactNativePersistence
 } from 'firebase/auth';
 import { 
   getFirestore, 
   collection, 
   doc, 
   setDoc, 
-  serverTimestamp 
+  serverTimestamp,
+  enableNetwork,
+  disableNetwork,
+  connectFirestoreEmulator
 } from 'firebase/firestore';
+import { initializeFirestore, CACHE_SIZE_UNLIMITED } from 'firebase/firestore';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
@@ -60,8 +65,27 @@ try {
   const firebaseConfig = getSecureConfig();
   
   app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-  auth = initializeAuth(app);
-  firestore = getFirestore(app);
+  
+  try {
+    auth = initializeAuth(app, {
+      persistence: getReactNativePersistence(AsyncStorage)
+    });
+  } catch (authError) {
+    console.warn('Auth already initialized, using existing instance');
+    auth = getAuth(app);
+  }
+  
+  try {
+    firestore = initializeFirestore(app, {
+      cacheSizeBytes: CACHE_SIZE_UNLIMITED,
+      localCache: {
+        kind: 'persistent'
+      }
+    });
+  } catch (firestoreError) {
+    console.warn('Firestore already initialized, using existing instance');
+    firestore = getFirestore(app);
+  }
 } catch (error) {
   console.error('Error initializing Firebase services. Please try again later.');
 }
@@ -611,4 +635,28 @@ export const initAuthState = async (): Promise<User | null> => {
     console.error('Error initializing auth state:', error);
     return null;
   }
+};
+
+export const enableFirestoreNetwork = async (): Promise<void> => {
+  try {
+    if (firestore) {
+      await enableNetwork(firestore);
+    }
+  } catch (error) {
+    console.error('Error enabling Firestore network:', error);
+  }
+};
+
+export const disableFirestoreNetwork = async (): Promise<void> => {
+  try {
+    if (firestore) {
+      await disableNetwork(firestore);
+    }
+  } catch (error) {
+    console.error('Error disabling Firestore network:', error);
+  }
+};
+
+export const getFirestoreInstance = () => {
+  return firestore;
 }; 

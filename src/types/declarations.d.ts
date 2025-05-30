@@ -69,6 +69,10 @@ declare module 'firebase/auth' {
     displayName: string | null;
     phoneNumber: string | null;
     photoURL: string | null;
+    metadata: {
+      creationTime?: string;
+      lastSignInTime?: string;
+    };
   }
   
   export class Auth {}
@@ -85,6 +89,8 @@ declare module 'firebase/auth' {
   }
   
   export function getAuth(app?: FirebaseApp): Auth;
+  export function initializeAuth(app: FirebaseApp, options?: { persistence: any }): Auth;
+  export function getReactNativePersistence(storage: any): any;
   export function createUserWithEmailAndPassword(auth: Auth, email: string, password: string): Promise<{ user: User }>;
   export function signInWithEmailAndPassword(auth: Auth, email: string, password: string): Promise<{ user: User }>;
   export function signInWithPopup(auth: Auth, provider: GoogleAuthProvider | GithubAuthProvider): Promise<{ user: User }>;
@@ -92,4 +98,20 @@ declare module 'firebase/auth' {
   export function updateProfile(user: User, profile: { displayName?: string; photoURL?: string }): Promise<void>;
   export function signOut(auth: Auth): Promise<void>;
   export function onAuthStateChanged(auth: Auth, nextOrObserver: (user: User | null) => void): () => void;
+  export function reload(user: User): Promise<void>;
+}
+
+declare module 'firebase/firestore' {
+  import { FirebaseApp } from 'firebase/app';
+  
+  export function getFirestore(app?: FirebaseApp): any;
+  export function initializeFirestore(app: FirebaseApp, settings: any): any;
+  export function collection(firestore: any, path: string): any;
+  export function doc(firestore: any, path: string, ...pathSegments: string[]): any;
+  export function setDoc(docRef: any, data: any, options?: any): Promise<void>;
+  export function serverTimestamp(): any;
+  export function enableNetwork(firestore: any): Promise<void>;
+  export function disableNetwork(firestore: any): Promise<void>;
+  export function connectFirestoreEmulator(firestore: any, host: string, port: number): void;
+  export const CACHE_SIZE_UNLIMITED: number;
 } 

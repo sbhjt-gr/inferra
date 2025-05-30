@@ -5,14 +5,16 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { RemoteModelProvider } from './src/context/RemoteModelContext';
+import { AuthProvider } from './src/context/AuthContext';
 import { theme } from './src/constants/theme';
 import { llamaManager } from './src/utils/LlamaManager';
 import { ModelProvider } from './src/context/ModelContext';
 import RootNavigator from './src/navigation/RootNavigator';
 import { DownloadProvider } from './src/context/DownloadContext';
 import { modelDownloader } from './src/services/ModelDownloader';
+import { networkService } from './src/services/NetworkService';
 import * as TaskManager from 'expo-task-manager';
-import * as BackgroundFetch from 'expo-background-fetch';
+import * as BackgroundTask from 'expo-background-task';
 import { ThemeColors } from './src/types/theme';
 import { notificationService } from './src/services/NotificationService';
 import { initGeminiService } from './src/services/GeminiInitializer';
@@ -22,6 +24,7 @@ import { initClaudeService } from './src/services/ClaudeInitializer';
 import { PaperProvider } from 'react-native-paper';
 import { DialogProvider } from './src/context/DialogContext';
 import { ShowDialog } from './src/components/ShowDialog';
+import { OfflineIndicator } from './src/components/OfflineIndicator';
 
 initGeminiService();
 initOpenAIService();
@@ -35,9 +38,9 @@ if (!TaskManager.isTaskDefined(BACKGROUND_DOWNLOAD_TASK)) {
     TaskManager.defineTask(BACKGROUND_DOWNLOAD_TASK, async () => {
       try {
         await modelDownloader.checkBackgroundDownloads();
-        return BackgroundFetch.BackgroundFetchResult.NewData;
+        return BackgroundTask.BackgroundTaskResult.Success;
       } catch (error) {
-        return BackgroundFetch.BackgroundFetchResult.Failed;
+        return BackgroundTask.BackgroundTaskResult.Failed;
       }
     });
   } catch (error) {
@@ -53,10 +56,8 @@ async function registerBackgroundFetchAsync() {
       return;
     }
     
-    await BackgroundFetch.registerTaskAsync(BACKGROUND_DOWNLOAD_TASK, {
-      minimumInterval: 900,
-      stopOnTerminate: false, 
-      startOnBoot: true 
+    await BackgroundTask.registerTaskAsync(BACKGROUND_DOWNLOAD_TASK, {
+      minimumInterval: 900
     });
     
   } catch (err) {
@@ -165,7 +166,7 @@ function Navigation() {
 
     return () => {
       try {
-        BackgroundFetch.unregisterTaskAsync(BACKGROUND_DOWNLOAD_TASK);
+        BackgroundTask.unregisterTaskAsync(BACKGROUND_DOWNLOAD_TASK);
       } catch (error) {
         // do nothing
       }
@@ -178,6 +179,7 @@ function Navigation() {
       >
         <RootNavigator />
         <ShowDialog />
+        <OfflineIndicator />
       </NavigationContainer>
   );
 }
@@ -189,13 +191,15 @@ export default function App() {
         <ModelProvider>
           <DownloadProvider>
             <RemoteModelProvider>
-              <GestureHandlerRootView style={{ flex: 1 }}>
-                <ThemeProvider>
-                  <DialogProvider>
-                    <Navigation />
-                  </DialogProvider>
-                </ThemeProvider>
-              </GestureHandlerRootView>
+              <AuthProvider>
+                <GestureHandlerRootView style={{ flex: 1 }}>
+                  <ThemeProvider>
+                    <DialogProvider>
+                      <Navigation />
+                    </DialogProvider>
+                  </ThemeProvider>
+                </GestureHandlerRootView>
+              </AuthProvider>
             </RemoteModelProvider>
           </DownloadProvider>
         </ModelProvider>

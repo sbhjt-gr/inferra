@@ -4,9 +4,11 @@ export default {
   expo: {
     name: "Inferra",
     slug: "inferra",
-    version: "1.0.0",
+    version: "2.0.0",
     orientation: "portrait",
     icon: "./assets/icon.png",
+    userInterfaceStyle: "automatic",
+    newArchEnabled: true,
     splash: {
       image: "./assets/icon.png",
       resizeMode: "contain",
@@ -20,16 +22,34 @@ export default {
     ],
     ios: {
       supportsTablet: true,
-      bundleIdentifier: "com.gorai.inferra"
+      bundleIdentifier: "com.gorai.inferra",
+      buildNumber: "200",
+      runtimeVersion: "2.0.0",
+      infoPlist: {
+        UIBackgroundModes: [
+          "fetch",
+          "remote-notification"
+        ]
+      }
     },
     android: {
+      versionCode: 201,
       adaptiveIcon: {
         foregroundImage: "./assets/icon.png",
         backgroundColor: "#660880"
       },
-      package: "com.gorai.ragionare"
+      package: "com.gorai.ragionare",
+      runtimeVersion: "2.0.0",
+      permissions: [
+        "NOTIFICATIONS",
+        "BACKGROUND_FETCH",
+        "WAKE_LOCK",
+        "FOREGROUND_SERVICE"
+      ]
     },
     web: {
+      bundler: "metro",
+      output: "static",
       favicon: "./assets/icon.png"
     },
     extra: {
@@ -47,11 +67,28 @@ export default {
         projectId: process.env.EAS_PROJECT_ID
       }
     },
+    experiments: {
+      typedRoutes: true
+    },
     plugins: [
+      [
+        "expo-splash-screen",
+        {
+          image: "./assets/icon.png",
+          imageWidth: 200,
+          resizeMode: "contain",
+          backgroundColor: "#ffffff"
+        }
+      ],
       [
         "expo-build-properties",
         {
           android: {
+            compileSdkVersion: 35,
+            targetSdkVersion: 35,
+            buildToolsVersion: '35.0.0',
+            kotlinVersion: '2.0.21',
+            kspVersion: '2.0.21-1.0.20',
             usesCleartextTraffic: false
           },
           ios: {
