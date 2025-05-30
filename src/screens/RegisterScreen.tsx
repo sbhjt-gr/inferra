@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
-import { useRemoteModel } from '../context/RemoteModelContext';
+import { useAuth } from '../context/AuthContext';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -34,7 +34,7 @@ type RegisterScreenProps = {
 
 export default function RegisterScreen({ navigation, route }: RegisterScreenProps) {
   const { theme: currentTheme } = useTheme();
-  const { checkLoginStatus } = useRemoteModel();
+  const { refreshAuthState } = useAuth();
   const themeColors = theme[currentTheme];
 
   const [name, setName] = useState('');
@@ -103,7 +103,7 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
       const result = await registerWithEmail(name, email, password);
       
       if (result.success) {
-        await checkLoginStatus();
+        await refreshAuthState();
         
         setDialogVisible(true);
       } else {
@@ -124,7 +124,7 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
       const result = await signInWithGoogle();
       
       if (result.success) {
-        await checkLoginStatus();
+        await refreshAuthState();
         
         if (redirectAfterRegister === 'MainTabs') {
           navigation.replace('MainTabs', redirectParams as any);

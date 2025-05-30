@@ -23,7 +23,7 @@ import AppHeader from '../components/AppHeader';
 import CustomUrlDialog from '../components/CustomUrlDialog';
 import { modelDownloader } from '../services/ModelDownloader';
 import { useDownloads } from '../context/DownloadContext';
-import * as BackgroundFetch from 'expo-background-fetch';
+import * as BackgroundTask from 'expo-background-task';
 import * as TaskManager from 'expo-task-manager';
 import * as DocumentPicker from 'expo-document-picker';
 import { downloadNotificationService } from '../services/DownloadNotificationService';
@@ -52,10 +52,10 @@ const BACKGROUND_DOWNLOAD_TASK = 'background-download-task';
 TaskManager.defineTask(BACKGROUND_DOWNLOAD_TASK, async ({ data, error }) => {
   if (error) {
     console.error('Background task error:', error);
-    return BackgroundFetch.BackgroundFetchResult.Failed;
+    return BackgroundTask.BackgroundTaskResult.Failed;
   }
   
-  return BackgroundFetch.BackgroundFetchResult.NewData;
+  return BackgroundTask.BackgroundTaskResult.Success;
 });
 
 const registerBackgroundTask = async () => {
@@ -67,10 +67,8 @@ const registerBackgroundTask = async () => {
       return;
     }
     
-    await BackgroundFetch.registerTaskAsync(BACKGROUND_DOWNLOAD_TASK, {
-      minimumInterval: 15,
-      stopOnTerminate: false,
-      startOnBoot: true,
+    await BackgroundTask.registerTaskAsync(BACKGROUND_DOWNLOAD_TASK, {
+      minimumInterval: 15
     });
     console.log('Background download task registered in ModelScreen');
   } catch (err) {
