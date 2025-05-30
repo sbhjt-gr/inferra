@@ -46,7 +46,7 @@ export class GeminiService {
       const temperature = options.temperature ?? 0.7;
       const maxTokens = options.maxTokens ?? 1024;
       const topP = options.topP ?? 0.9;
-      const model = options.model ?? 'gemini-2.0-flash';
+      const model = options.model ?? 'gemini-2.5-flash-preview-05-20';
       console.log(`Using Gemini model: ${model}`);
       
       const shouldStream = !!onToken;
