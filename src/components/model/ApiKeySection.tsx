@@ -3,9 +3,8 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator,
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../constants/theme';
 import { onlineModelService } from '../../services/OnlineModelService';
-import { Dialog, Portal, Button, List, IconButton, Surface, HelperText } from 'react-native-paper';
+import { Dialog, Portal, Button, List, Surface, HelperText } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import Constants from 'expo-constants';
 
 interface ApiKeyItem {
   id: string;
@@ -17,6 +16,8 @@ interface ApiKeyItem {
   defaultKeyAvailable: boolean;
   usingDefaultKey: boolean;
   useCustomKey: boolean;
+  modelName: string;
+  defaultModelName: string;
 }
 
 const ApiKeySection: React.FC = () => {
@@ -37,7 +38,9 @@ const ApiKeySection: React.FC = () => {
       expanded: false,
       defaultKeyAvailable: onlineModelService.hasDefaultKey('gemini'),
       usingDefaultKey: false,
-      useCustomKey: false
+      useCustomKey: true,
+      modelName: '',
+      defaultModelName: ''
     },
     { 
       id: 'chatgpt', 
@@ -48,7 +51,9 @@ const ApiKeySection: React.FC = () => {
       expanded: false,
       defaultKeyAvailable: onlineModelService.hasDefaultKey('chatgpt'),
       usingDefaultKey: false,
-      useCustomKey: false
+      useCustomKey: true,
+      modelName: '',
+      defaultModelName: ''
     },
     { 
       id: 'deepseek', 
@@ -59,7 +64,9 @@ const ApiKeySection: React.FC = () => {
       expanded: false,
       defaultKeyAvailable: onlineModelService.hasDefaultKey('deepseek'),
       usingDefaultKey: false,
-      useCustomKey: false
+      useCustomKey: true,
+      modelName: '',
+      defaultModelName: ''
     },
     { 
       id: 'claude', 
@@ -70,11 +77,14 @@ const ApiKeySection: React.FC = () => {
       expanded: false,
       defaultKeyAvailable: onlineModelService.hasDefaultKey('claude'),
       usingDefaultKey: false,
-      useCustomKey: false
+      useCustomKey: true,
+      modelName: '',
+      defaultModelName: ''
     },
   ]);
   
   const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [savingModel, setSavingModel] = useState<string | null>(null);
   const [keyVisibility, setKeyVisibility] = useState<Record<string, boolean>>({});
 
   const showDialog = (title: string, message: string) => {
@@ -145,18 +155,30 @@ const ApiKeySection: React.FC = () => {
     );
   };
 
+  const updateModelName = (id: string, value: string) => {
+    setApiKeyItems(prevItems =>
+      prevItems.map(item => 
+        item.id === id ? { ...item, modelName: value } : item
+      )
+    );
+  };
+
   const loadApiKeys = async () => {
     setIsLoadingApiKeys(true);
     try {
       const updatedItems = await Promise.all(
         apiKeyItems.map(async (item) => {
           const isUsingDefault = await onlineModelService.isUsingDefaultKey(item.id);
-          const customKey = !isUsingDefault ? await onlineModelService.getApiKey(item.id) : null;
+          const customKey = await onlineModelService.getApiKey(item.id);
+          const modelName = await onlineModelService.getModelName(item.id);
+          const defaultModelName = onlineModelService.getDefaultModelName(item.id);
           
           return { 
             ...item, 
-            key: !isUsingDefault && customKey ? customKey : '',
-            useCustomKey: !isUsingDefault && !!customKey,
+            key: customKey || '',
+            modelName: modelName || defaultModelName,
+            defaultModelName,
+            useCustomKey: !isUsingDefault,
             usingDefaultKey: isUsingDefault,
             defaultKeyAvailable: onlineModelService.hasDefaultKey(item.id)
           };
@@ -206,6 +228,34 @@ const ApiKeySection: React.FC = () => {
     }
   };
 
+  const saveModelName = async (id: string) => {
+    setSavingModel(id);
+    try {
+      const item = apiKeyItems.find(item => item.id === id);
+      if (!item) return;
+
+      if (item.modelName.trim()) {
+        await onlineModelService.saveModelName(id, item.modelName.trim());
+        showDialog('Success', `${item.name} model name saved successfully`);
+      } else {
+        await onlineModelService.clearModelName(id);
+        setApiKeyItems(prevItems =>
+          prevItems.map(prevItem => 
+            prevItem.id === id ? {
+              ...prevItem,
+              modelName: prevItem.defaultModelName
+            } : prevItem
+          )
+        );
+        showDialog('Success', `${item.name} model name reset to default`);
+      }
+    } catch (error) {
+      showDialog('Error', `Failed to save ${id} model name`);
+    } finally {
+      setSavingModel(null);
+    }
+  };
+
   if (isLoadingApiKeys) {
     return (
       <Surface style={styles.loadingContainer}>
@@ -224,8 +274,8 @@ const ApiKeySection: React.FC = () => {
           title={item.name}
           description={
             item.useCustomKey 
-              ? (item.key ? "Custom key is set" : "Custom key not set") 
-              : (item.usingDefaultKey ? "Model is enabled" : "No API key available")
+              ? (item.key ? "Custom key configured" : "Enter your API key") 
+              : (item.usingDefaultKey ? "Using built-in key" : "No API key available")
           }
           descriptionStyle={{ 
             color: (item.useCustomKey && item.key) || item.usingDefaultKey 
@@ -248,7 +298,7 @@ const ApiKeySection: React.FC = () => {
             {item.defaultKeyAvailable && (
               <View style={styles.toggleContainer}>
                 <Text style={[styles.toggleLabel, { color: themeColors.text }]}>
-                  Use custom API key
+                  Use your own API key
                 </Text>
                 <Switch
                   value={item.useCustomKey}
@@ -259,7 +309,7 @@ const ApiKeySection: React.FC = () => {
               </View>
             )}
             
-            {item.useCustomKey && (
+            {(item.useCustomKey || !item.defaultKeyAvailable) && (
               <View style={styles.inputContainer}>
                 <TextInput
                   style={[
@@ -290,9 +340,30 @@ const ApiKeySection: React.FC = () => {
               </View>
             )}
             
+            <View style={styles.inputContainer}>
+              <Text style={[styles.inputLabel, { color: themeColors.text }]}>
+                Model Name
+              </Text>
+              <TextInput
+                style={[
+                  styles.input,
+                  { 
+                    color: themeColors.text,
+                    backgroundColor: themeColors.background,
+                    borderColor: themeColors.borderColor
+                  }
+                ]}
+                placeholder={`Default: ${item.defaultModelName}`}
+                placeholderTextColor={themeColors.secondaryText}
+                value={item.modelName}
+                onChangeText={(text) => updateModelName(item.id, text)}
+                autoCapitalize="none"
+              />
+            </View>
+            
             <View style={styles.actionRow}>
               
-              {item.useCustomKey && (
+              {(item.useCustomKey || !item.defaultKeyAvailable) && (
                 <TouchableOpacity
                   style={[
                     styles.saveButton,
@@ -304,20 +375,35 @@ const ApiKeySection: React.FC = () => {
                   {savingKey === item.id ? (
                     <ActivityIndicator size="small" color="#fff" />
                   ) : (
-                    <Text style={styles.saveButtonText}>Save</Text>
+                    <Text style={styles.saveButtonText}>Save API Key</Text>
                   )}
                 </TouchableOpacity>
               )}
+              
+              <TouchableOpacity
+                style={[
+                  styles.saveButton,
+                  { backgroundColor: themeColors.primary }
+                ]}
+                onPress={() => saveModelName(item.id)}
+                disabled={savingModel === item.id}
+              >
+                {savingModel === item.id ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.saveButtonText}>Save Model</Text>
+                )}
+              </TouchableOpacity>
             </View>
             
             <HelperText type="info" style={{ color: themeColors.secondaryText }}>
               {item.useCustomKey 
                 ? (item.key 
-                    ? "Custom API key is set and ready to use." 
-                    : `Enter your custom API key.`)
+                    ? `Your custom API key is configured. Current model: ${item.modelName || item.defaultModelName}` 
+                    : `Enter your API key to use ${item.name} models. You can also customize the model name above.`)
                 : (item.defaultKeyAvailable 
-                    ? "Toggle switch to use your own API key." 
-                    : "No built-in API key available. You'll need to provide your own.")}
+                    ? `Currently using built-in API key with model: ${item.modelName || item.defaultModelName}. Toggle switch above to use your own key for better privacy and control.` 
+                    : "No built-in API key available. You need to provide your own API key.")}
             </HelperText>
           </Surface>
         </List.Accordion>
@@ -410,6 +496,11 @@ const styles = StyleSheet.create({
     paddingRight: 48,
     fontSize: 16,
   },
+  inputLabel: {
+    fontSize: 16,
+    fontWeight: '500',
+    marginBottom: 8,
+  },
   visibilityButton: {
     position: 'absolute',
     right: 8,
@@ -421,6 +512,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,
+    flexWrap: 'wrap',
+    gap: 8,
   },
   linkButton: {
     flexDirection: 'row',
@@ -440,6 +533,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minWidth: 100,
     height: 40,
+    flex: 1,
+    maxWidth: 150,
   },
   saveButtonText: {
     color: '#fff',

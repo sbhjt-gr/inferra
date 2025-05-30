@@ -144,6 +144,43 @@ class OnlineModelService {
     return !!this.defaultKeys[provider as keyof typeof this.defaultKeys];
   }
 
+  async getModelName(provider: string): Promise<string | null> {
+    try {
+      const modelName = await AsyncStorage.getItem(`@${provider}_model_name`);
+      return modelName;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  async saveModelName(provider: string, modelName: string): Promise<boolean> {
+    try {
+      await AsyncStorage.setItem(`@${provider}_model_name`, modelName);
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  async clearModelName(provider: string): Promise<boolean> {
+    try {
+      await AsyncStorage.removeItem(`@${provider}_model_name`);
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  getDefaultModelName(provider: string): string {
+    const defaults: Record<string, string> = {
+      gemini: 'gemini-2.5-flash-preview-05-20',
+      chatgpt: 'gpt-4o',
+      deepseek: 'deepseek-reasoner',
+      claude: 'claude-opus-4-20250514'
+    };
+    return defaults[provider] || '';
+  }
+
   addListener(event: keyof OnlineModelServiceEvents, listener: any): () => void {
     this.events.on(event, listener);
     return () => this.events.off(event, listener);
@@ -159,8 +196,12 @@ class OnlineModelService {
       throw new Error('GeminiService not initialized');
     }
     
+    const configuredModel = await this.getModelName('gemini');
+    const modelToUse = configuredModel || this.getDefaultModelName('gemini');
+    
     const geminiOptions = {
       ...options,
+      model: options.model || modelToUse,
       streamTokens: options.streamTokens !== false
     };
     
@@ -186,8 +227,12 @@ class OnlineModelService {
       throw new Error('OpenAIService not initialized');
     }
     
+    const configuredModel = await this.getModelName('chatgpt');
+    const modelToUse = configuredModel || this.getDefaultModelName('chatgpt');
+    
     const openAIOptions = {
       ...options,
+      model: options.model || modelToUse,
       streamTokens: options.streamTokens !== false
     };
     
@@ -213,8 +258,12 @@ class OnlineModelService {
       throw new Error('DeepSeekService not initialized');
     }
     
+    const configuredModel = await this.getModelName('deepseek');
+    const modelToUse = configuredModel || this.getDefaultModelName('deepseek');
+    
     const deepSeekOptions = {
       ...options,
+      model: options.model || modelToUse,
       streamTokens: options.streamTokens !== false
     };
     
@@ -240,8 +289,12 @@ class OnlineModelService {
       throw new Error('ClaudeService not initialized');
     }
     
+    const configuredModel = await this.getModelName('claude');
+    const modelToUse = configuredModel || this.getDefaultModelName('claude');
+    
     const claudeOptions = {
       ...options,
+      model: options.model || modelToUse,
       streamTokens: options.streamTokens !== false
     };
     
