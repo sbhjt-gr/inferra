@@ -8,7 +8,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import { getCurrentUser, logoutUser } from '../services/FirebaseService';
-import { useAuth } from '../context/AuthContext';
+import { useRemoteModel } from '../context/RemoteModelContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getAuth, sendEmailVerification, onAuthStateChanged, reload } from 'firebase/auth';
 import { useDialog } from '../context/DialogContext';
@@ -21,7 +21,7 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme];
   const insets = useSafeAreaInsets();
-  const { logout, refreshAuthState } = useAuth();
+  const { checkLoginStatus } = useRemoteModel();
   const { showDialog } = useDialog();
   const [userData, setUserData] = useState({
     displayName: '',
@@ -211,13 +211,14 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
       confirmText: 'Sign Out',
       cancelText: 'Cancel',
       onConfirm: async () => {
-        try {
-          await logout();
+        const result = await logoutUser();
+        if (result.success) {
+          await checkLoginStatus();
           navigation.navigate('MainTabs', { screen: 'SettingsTab' });
-        } catch (error) {
+        } else {
           showDialog({
             title: 'Error',
-            message: 'Failed to sign out'
+            message: result.error || 'Failed to sign out'
           });
         }
       }

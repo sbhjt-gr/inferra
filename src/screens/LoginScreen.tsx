@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
-import { useAuth } from '../context/AuthContext';
+import { useRemoteModel } from '../context/RemoteModelContext';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -32,7 +32,7 @@ type LoginScreenProps = {
 
 export default function LoginScreen({ navigation, route }: LoginScreenProps) {
   const { theme: currentTheme } = useTheme();
-  const { refreshAuthState } = useAuth();
+  const { checkLoginStatus } = useRemoteModel();
   const themeColors = theme[currentTheme];
 
   const [email, setEmail] = useState('');
@@ -69,7 +69,7 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps) {
       const result = await loginWithEmail(email, password);
       
       if (result.success) {
-        await refreshAuthState();
+        await checkLoginStatus();
         
         if (redirectAfterLogin === 'MainTabs') {
           navigation.replace('MainTabs', redirectParams as any);
@@ -94,7 +94,7 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps) {
       const result = await signInWithGoogle();
       
       if (result.success) {
-        await refreshAuthState();
+        await checkLoginStatus();
         
         if (redirectAfterLogin === 'MainTabs') {
           navigation.replace('MainTabs', redirectParams as any);
