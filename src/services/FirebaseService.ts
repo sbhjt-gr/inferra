@@ -1,6 +1,5 @@
 import { initializeApp, getApp, getApps, FirebaseApp } from 'firebase/app';
 import { 
-  getAuth, 
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword, 
   sendEmailVerification,
@@ -8,21 +7,19 @@ import {
   updateProfile,
   User,
   onAuthStateChanged,
-  Auth,
+  Auth
+} from 'firebase/auth';
+import {
   initializeAuth,
   getReactNativePersistence
-} from 'firebase/auth';
+} from 'firebase/auth/react-native';
 import { 
   getFirestore, 
   collection, 
   doc, 
   setDoc, 
-  serverTimestamp,
-  enableNetwork,
-  disableNetwork,
-  connectFirestoreEmulator
+  serverTimestamp 
 } from 'firebase/firestore';
-import { initializeFirestore, CACHE_SIZE_UNLIMITED } from 'firebase/firestore';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
@@ -45,14 +42,17 @@ const getSecureConfig = () => {
       .map(([key]) => key);
 
     if (missingConfigs.length > 0) {
+      console.error('Missing Firebase configuration keys:', missingConfigs);
       throw new Error(
-        `Firebase configuration is incomplete. Check your environment variables.`
+        `Firebase configuration is incomplete. Missing: ${missingConfigs.join(', ')}. Check your environment variables.`
       );
     }
 
+    console.log('Firebase configuration loaded successfully');
     return config as Record<string, string>;
   } catch (error) {
     console.error('Firebase configuration error. Check environment setup.');
+    console.error('Available config:', Constants.expoConfig?.extra);
     throw new Error('Firebase initialization failed. Contact support if the issue persists.');
   }
 };
@@ -60,35 +60,46 @@ const getSecureConfig = () => {
 let app: FirebaseApp | undefined;
 let auth: Auth | undefined;
 let firestore: any = undefined;
+let isFirebaseInitialized = false;
 
-try {
-  const firebaseConfig = getSecureConfig();
-  
-  app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-  
+const initializeFirebase = () => {
+  if (isFirebaseInitialized) {
+    return { app, auth, firestore };
+  }
+
   try {
+    const firebaseConfig = getSecureConfig();
+    
+    app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+    
     auth = initializeAuth(app, {
       persistence: getReactNativePersistence(AsyncStorage)
     });
-  } catch (authError) {
-    console.warn('Auth already initialized, using existing instance');
-    auth = getAuth(app);
-  }
-  
-  try {
-    firestore = initializeFirestore(app, {
-      cacheSizeBytes: CACHE_SIZE_UNLIMITED,
-      localCache: {
-        kind: 'persistent'
-      }
-    });
-  } catch (firestoreError) {
-    console.warn('Firestore already initialized, using existing instance');
+    
     firestore = getFirestore(app);
+    isFirebaseInitialized = true;
+    
+    return { app, auth, firestore };
+  } catch (error) {
+    console.error('Error initializing Firebase services. Please try again later.');
+    throw error;
   }
+};
+
+try {
+  initializeFirebase();
 } catch (error) {
   console.error('Error initializing Firebase services. Please try again later.');
 }
+
+export const getFirebaseServices = () => {
+  if (!isFirebaseInitialized) {
+    return initializeFirebase();
+  }
+  return { app, auth, firestore };
+};
+
+export const isFirebaseReady = () => isFirebaseInitialized;
 
 const getIpAddress = async (): Promise<{ip: string | null, error?: string}> => {
   try {
@@ -587,7 +598,7 @@ export const isAuthenticated = async (): Promise<boolean> => {
   if (!auth) return false;
   
   return new Promise((resolve) => {
-    const unsubscribe = onAuthStateChanged(auth, (user: User | null) => {
+    const unsubscribe = onAuthStateChanged(auth!, (user: User | null) => {
       unsubscribe();
       resolve(!!user);
     });
@@ -635,28 +646,4 @@ export const initAuthState = async (): Promise<User | null> => {
     console.error('Error initializing auth state:', error);
     return null;
   }
-};
-
-export const enableFirestoreNetwork = async (): Promise<void> => {
-  try {
-    if (firestore) {
-      await enableNetwork(firestore);
-    }
-  } catch (error) {
-    console.error('Error enabling Firestore network:', error);
-  }
-};
-
-export const disableFirestoreNetwork = async (): Promise<void> => {
-  try {
-    if (firestore) {
-      await disableNetwork(firestore);
-    }
-  } catch (error) {
-    console.error('Error disabling Firestore network:', error);
-  }
-};
-
-export const getFirestoreInstance = () => {
-  return firestore;
 }; 

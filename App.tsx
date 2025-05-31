@@ -5,18 +5,17 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { RemoteModelProvider } from './src/context/RemoteModelContext';
-import { AuthProvider } from './src/context/AuthContext';
 import { theme } from './src/constants/theme';
 import { llamaManager } from './src/utils/LlamaManager';
 import { ModelProvider } from './src/context/ModelContext';
 import RootNavigator from './src/navigation/RootNavigator';
 import { DownloadProvider } from './src/context/DownloadContext';
 import { modelDownloader } from './src/services/ModelDownloader';
-import { networkService } from './src/services/NetworkService';
 import * as TaskManager from 'expo-task-manager';
-import * as BackgroundTask from 'expo-background-task';
+import * as BackgroundFetch from 'expo-background-task';
 import { ThemeColors } from './src/types/theme';
 import { notificationService } from './src/services/NotificationService';
+import { getFirebaseServices } from './src/services/FirebaseService';
 import { initGeminiService } from './src/services/GeminiInitializer';
 import { initOpenAIService } from './src/services/OpenAIInitializer';
 import { initDeepSeekService } from './src/services/DeepSeekInitializer';
@@ -24,7 +23,12 @@ import { initClaudeService } from './src/services/ClaudeInitializer';
 import { PaperProvider } from 'react-native-paper';
 import { DialogProvider } from './src/context/DialogContext';
 import { ShowDialog } from './src/components/ShowDialog';
-import { OfflineIndicator } from './src/components/OfflineIndicator';
+
+try {
+  getFirebaseServices();
+} catch (error) {
+  console.error('Firebase initialization failed:', error);
+}
 
 initGeminiService();
 initOpenAIService();
@@ -38,9 +42,9 @@ if (!TaskManager.isTaskDefined(BACKGROUND_DOWNLOAD_TASK)) {
     TaskManager.defineTask(BACKGROUND_DOWNLOAD_TASK, async () => {
       try {
         await modelDownloader.checkBackgroundDownloads();
-        return BackgroundTask.BackgroundTaskResult.Success;
+        return BackgroundFetch.BackgroundFetchResult.NewData;
       } catch (error) {
-        return BackgroundTask.BackgroundTaskResult.Failed;
+        return BackgroundFetch.BackgroundFetchResult.Failed;
       }
     });
   } catch (error) {
@@ -56,8 +60,10 @@ async function registerBackgroundFetchAsync() {
       return;
     }
     
-    await BackgroundTask.registerTaskAsync(BACKGROUND_DOWNLOAD_TASK, {
-      minimumInterval: 900
+    await BackgroundFetch.registerTaskAsync(BACKGROUND_DOWNLOAD_TASK, {
+      minimumInterval: 900,
+      stopOnTerminate: false, 
+      startOnBoot: true 
     });
     
   } catch (err) {
@@ -166,7 +172,7 @@ function Navigation() {
 
     return () => {
       try {
-        BackgroundTask.unregisterTaskAsync(BACKGROUND_DOWNLOAD_TASK);
+        BackgroundFetch.unregisterTaskAsync(BACKGROUND_DOWNLOAD_TASK);
       } catch (error) {
         // do nothing
       }
@@ -179,7 +185,6 @@ function Navigation() {
       >
         <RootNavigator />
         <ShowDialog />
-        <OfflineIndicator />
       </NavigationContainer>
   );
 }
@@ -191,15 +196,13 @@ export default function App() {
         <ModelProvider>
           <DownloadProvider>
             <RemoteModelProvider>
-              <AuthProvider>
-                <GestureHandlerRootView style={{ flex: 1 }}>
-                  <ThemeProvider>
-                    <DialogProvider>
-                      <Navigation />
-                    </DialogProvider>
-                  </ThemeProvider>
-                </GestureHandlerRootView>
-              </AuthProvider>
+              <GestureHandlerRootView style={{ flex: 1 }}>
+                <ThemeProvider>
+                  <DialogProvider>
+                    <Navigation />
+                  </DialogProvider>
+                </ThemeProvider>
+              </GestureHandlerRootView>
             </RemoteModelProvider>
           </DownloadProvider>
         </ModelProvider>
