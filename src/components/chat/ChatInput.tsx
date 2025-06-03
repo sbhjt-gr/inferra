@@ -116,10 +116,10 @@ export default function ChatInput({
     }
 
     const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude'].includes(selectedModelPath);
-    if (!isOnlineModel && (!llamaManager.isInitialized() || isModelLoading)) {
+    if (!isOnlineModel) {
       showDialog(
-        'Model Not Ready',
-        'Please wait for the local model to finish loading before uploading a file.'
+        'Feature Not Available',
+        'File attachments for local models are yet to be implemented.'
       );
       return;
     }
@@ -142,7 +142,7 @@ export default function ChatInput({
       console.error('Error picking document:', error);
       showDialog('Error', 'Could not pick the document. Please try again.');
     }
-  }, [selectedModelPath, isModelLoading]);
+  }, [selectedModelPath]);
 
   const closeFileModal = useCallback(() => {
     setFileModalVisible(false);
