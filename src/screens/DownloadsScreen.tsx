@@ -104,17 +104,28 @@ export default function DownloadsScreen() {
 
   useEffect(() => {
     const handleAppStateChange = async (nextAppState: AppStateStatus) => {
-      if (nextAppState === 'active') {
-        await loadSavedDownloadStates();
+      if (appState.current !== nextAppState) {
+        if (nextAppState === 'active') {
+          await loadSavedDownloadStates();
+        }
+        appState.current = nextAppState;
       }
     };
 
-    const subscription = AppState.addEventListener('change', handleAppStateChange);
-
+    let subscription: { remove: () => void } | undefined;
+    
+    try {
+      subscription = AppState.addEventListener('change', handleAppStateChange);
+    } catch (error) {
+      console.error('Error setting up AppState listener in DownloadsScreen:', error);
+    }
+    
     loadSavedDownloadStates();
 
     return () => {
-      subscription.remove();
+      if (subscription && typeof subscription.remove === 'function') {
+        subscription.remove();
+      }
     };
   }, []);
 
@@ -224,10 +235,6 @@ export default function DownloadsScreen() {
       console.error('[DownloadsScreen] Error loading saved download states:', error);
     }
   };
-
-  useEffect(() => {
-    loadSavedDownloadStates();
-  }, []);
 
   useEffect(() => {
     const saveDownloadProgress = async () => {

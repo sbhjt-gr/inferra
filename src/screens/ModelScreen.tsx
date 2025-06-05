@@ -23,7 +23,7 @@ import AppHeader from '../components/AppHeader';
 import CustomUrlDialog from '../components/CustomUrlDialog';
 import { modelDownloader } from '../services/ModelDownloader';
 import { useDownloads } from '../context/DownloadContext';
-import * as BackgroundFetch from 'expo-background-fetch';
+import * as BackgroundTask from 'expo-background-task';
 import * as TaskManager from 'expo-task-manager';
 import * as DocumentPicker from 'expo-document-picker';
 import { downloadNotificationService } from '../services/DownloadNotificationService';
@@ -52,10 +52,10 @@ const BACKGROUND_DOWNLOAD_TASK = 'background-download-task';
 TaskManager.defineTask(BACKGROUND_DOWNLOAD_TASK, async ({ data, error }) => {
   if (error) {
     console.error('Background task error:', error);
-    return BackgroundFetch.BackgroundFetchResult.Failed;
+    return BackgroundTask.BackgroundTaskResult.Failed;
   }
   
-  return BackgroundFetch.BackgroundFetchResult.NewData;
+  return BackgroundTask.BackgroundTaskResult.Success;
 });
 
 const registerBackgroundTask = async () => {
@@ -67,10 +67,8 @@ const registerBackgroundTask = async () => {
       return;
     }
     
-    await BackgroundFetch.registerTaskAsync(BACKGROUND_DOWNLOAD_TASK, {
-      minimumInterval: 15,
-      stopOnTerminate: false,
-      startOnBoot: true,
+    await BackgroundTask.registerTaskAsync(BACKGROUND_DOWNLOAD_TASK, {
+      minimumInterval: 15
     });
     console.log('Background download task registered in ModelScreen');
   } catch (err) {
@@ -606,10 +604,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
 
         <View style={{ height: 20 }} />
 
-        <RNText style={[styles.remoteModelsInfo, { color: themeColors.secondaryText }]}>
-          Configure API keys to use remote models like OpenAI, Gemini, Claude, and DeepSeek directly from their servers.
-          These models run on the provider's cloud and require an internet connection.
-        </RNText>
       </ScrollView>
     </View>
   );
@@ -722,36 +716,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     loadApiKeys();
   }, []);
 
-  const renderLoginButton = () => {
-    if (isLoggedIn) {
-      return (
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <RNText style={{ color: themeColors.text, marginRight: 10 }}>
-            {username}
-          </RNText>
-          <TouchableOpacity
-            style={styles.headerButton}
-            onPress={handleLogout}
-          >
-            <MaterialCommunityIcons name="logout" size={22} color={themeColors.headerText} />
-          </TouchableOpacity>
-        </View>
-      );
-    } else {
-      return (
-        <TouchableOpacity
-          style={styles.headerButton}
-          onPress={() => navigation.navigate('Login', {
-            redirectTo: 'MainTabs',
-            redirectParams: { screen: 'ModelTab' }
-          })}
-        >
-          <MaterialCommunityIcons name="login" size={22} color={themeColors.headerText} />
-        </TouchableOpacity>
-      );
-    }
-  };
-
   const handleTabPress = (tab: 'stored' | 'downloadable' | 'remote') => {
     if (tab === 'remote') {
       if (!isLoggedIn || !enableRemoteModels) {
@@ -790,14 +754,38 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     }
   }, [enableRemoteModels, activeTab]);
 
+  const ProfileButton = () => {
+    return (
+      <TouchableOpacity
+        style={styles.headerButton}
+        onPress={() => {
+          if (isLoggedIn) {
+            navigation.navigate('Profile');
+          } else {
+            navigation.navigate('Login', {
+              redirectTo: 'MainTabs',
+              redirectParams: { screen: 'ModelTab' }
+            });
+          }
+        }}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      >
+        <MaterialCommunityIcons 
+          name={isLoggedIn ? "account-circle" : "login"} 
+          size={22} 
+          color={theme[currentTheme].headerText} 
+        />
+      </TouchableOpacity>
+    );
+  };
+  
   return (
     <View style={[styles.container, { backgroundColor: themeColors.background }]}>
       <AppHeader 
         title="Models" 
         rightButtons={
           <View style={{ flexDirection: 'row', gap: 8 }}>
-            {renderLoginButton()}
-            {renderDownloadsButton()}
+            <ProfileButton />
           </View>
         }
       />
@@ -928,7 +916,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       {(isLoading || importingModelName) && (
         <View style={styles.loadingOverlay}>
           <View style={[styles.loadingContainer, { backgroundColor: themeColors.borderColor }]}>
-            <ActivityIndicator size="large" color={getThemeAwareColor('#4a0660', currentTheme)} />
+            <ActivityIndicator size="large" color={themeColors.primary} />
             <RNText style={[styles.loadingText, { color: themeColors.text }]}>
               {importingModelName ? `Importing ${importingModelName}...` : 'Importing model...'}
             </RNText>
@@ -938,6 +926,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
           </View>
         </View>
       )}
+      {renderDownloadsButton()}
     </View>
   );
 }

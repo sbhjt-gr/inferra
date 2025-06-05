@@ -19,7 +19,6 @@ import { getThemeAwareColor } from '../utils/ColorUtils';
 import { onlineModelService } from '../services/OnlineModelService';
 import { Dialog, Portal, Text, Button } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 
 interface StoredModel {
@@ -52,10 +51,10 @@ interface ModelSelectorProps {
 }
 
 const ONLINE_MODELS: OnlineModel[] = [
-  { id: 'gemini', name: 'gemini-2.0-flash', provider: 'Google', isOnline: true },
-  { id: 'chatgpt', name: 'gpt-4o', provider: 'OpenAI', isOnline: true },
-  { id: 'deepseek', name: 'deepseek-r1', provider: 'DeepSeek', isOnline: true },
-  { id: 'claude', name: 'claude-3.7-sonnet', provider: 'Anthropic', isOnline: true },
+  { id: 'gemini', name: 'Gemini', provider: 'Google', isOnline: true },
+  { id: 'chatgpt', name: 'ChatGPT', provider: 'OpenAI', isOnline: true },
+  { id: 'deepseek', name: 'DeepSeek', provider: 'DeepSeek', isOnline: true },
+  { id: 'claude', name: 'Claude', provider: 'Anthropic', isOnline: true },
 ];
 
 interface SectionData {
@@ -287,10 +286,10 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     const getModelNameFromPath = (path: string | null, models: StoredModel[]): string => {
       if (!path) return 'Select a Model';
       
-      if (path === 'gemini') return 'gemini-2.0-flash';
-      if (path === 'chatgpt') return 'gpt-4o';
-      if (path === 'deepseek') return 'deepseek-r1';
-      if (path === 'claude') return 'claude-3.7-sonnet';
+      if (path === 'gemini') return 'Gemini';
+      if (path === 'chatgpt') return 'ChatGPT';
+      if (path === 'deepseek') return 'DeepSeek';
+      if (path === 'claude') return 'Claude';
       
       const model = models.find(m => m.path === path);
       return model ? getDisplayName(model.name) : getDisplayName(path.split('/').pop() || '');

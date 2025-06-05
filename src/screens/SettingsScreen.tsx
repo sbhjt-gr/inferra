@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, View, Platform, ScrollView, Linking } from 'react-native';
+import { StyleSheet, View, Platform, ScrollView, Linking, TouchableOpacity } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { CompositeNavigationProp } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -20,6 +21,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { modelDownloader } from '../services/ModelDownloader';
 import ChatSettingsSection from '../components/settings/ChatSettingsSection';
 import AppearanceSection from '../components/settings/AppearanceSection';
+import { getCurrentUser } from '../services/FirebaseService';
 import RemoteModelsSection from '../components/settings/RemoteModelsSection';
 import SupportSection from '../components/settings/SupportSection';
 import ModelSettingsSection from '../components/settings/ModelSettingsSection';
@@ -369,19 +371,91 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
       return;
     }
     
-    const result = await toggleRemoteModels();
-    if (!result.success && result.requiresLogin) {
-      navigation.navigate('Login', {
-        redirectTo: 'MainTabs',
-        redirectParams: { screen: 'SettingsTab' }
-      });
+    if (!enableRemoteModels) {
+      const user = getCurrentUser();
+      if (user && !user.emailVerified) {
+        showDialog(
+          'Email Verification Required',
+          'You need to verify your email address before enabling remote models.',
+          [
+            <Button key="cancel" onPress={hideDialog}>Cancel</Button>,
+            <Button 
+              key="profile" 
+              onPress={() => {
+                hideDialog();
+                navigation.navigate('Profile');
+              }}
+            >
+              Go to Profile
+            </Button>
+          ]
+        );
+        return;
+      }
     }
+    
+    const result = await toggleRemoteModels();
+    if (!result.success) {
+      if (result.requiresLogin) {
+        navigation.navigate('Login', {
+          redirectTo: 'MainTabs',
+          redirectParams: { screen: 'SettingsTab' }
+        });
+      } else if (result.emailNotVerified) {
+        showDialog(
+          'Email Verification Required',
+          'You need to verify your email address before enabling remote models.',
+          [
+            <Button key="cancel" onPress={hideDialog}>Cancel</Button>,
+            <Button 
+              key="profile" 
+              onPress={() => {
+                hideDialog();
+                navigation.navigate('Profile');
+              }}
+            >
+              Go to Profile
+            </Button>
+          ]
+        );
+      }
+    }
+  };
+
+  const ProfileButton = () => {
+    return (
+      <TouchableOpacity
+        style={styles.headerButton}
+        onPress={() => {
+          if (isLoggedIn) {
+            navigation.navigate('Profile');
+          } else {
+            navigation.navigate('Login', {
+              redirectTo: 'MainTabs',
+              redirectParams: { screen: 'SettingsTab' }
+            });
+          }
+        }}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      >
+        <MaterialCommunityIcons 
+          name={isLoggedIn ? "account-circle" : "login"}
+          size={22} 
+          color={theme[currentTheme].headerText} 
+        />
+      </TouchableOpacity>
+    );
   };
 
   return (
       <View style={[styles.container, { backgroundColor: theme[currentTheme].background }]}>
       <AppHeader 
         title="Settings"
+        rightButtons={
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <ProfileButton />
+          </View>
+        } 
       />
       <ScrollView contentContainerStyle={styles.contentContainer}>
         
@@ -495,5 +569,13 @@ const styles = StyleSheet.create({
   contentContainer: {
     paddingBottom: 32,
     paddingTop: 22
+  },
+  headerButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 }); 

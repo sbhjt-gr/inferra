@@ -1,10 +1,11 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { isAuthenticated, getUserFromSecureStorage } from '../services/FirebaseService';
+import { isAuthenticated, getUserFromSecureStorage, getCurrentUser, isFirebaseReady, getFirebaseServices } from '../services/FirebaseService';
+import { onAuthStateChanged } from 'firebase/auth';
 
 interface RemoteModelContextType {
   enableRemoteModels: boolean;
-  toggleRemoteModels: () => Promise<{ success: boolean, requiresLogin?: boolean }>;
+  toggleRemoteModels: () => Promise<{ success: boolean, requiresLogin?: boolean, emailNotVerified?: boolean }>;
   isLoggedIn: boolean;
   checkLoginStatus: () => Promise<boolean>;
 }
@@ -23,7 +24,33 @@ export const RemoteModelProvider: React.FC<{ children: React.ReactNode }> = ({ c
   useEffect(() => {
     loadRemoteModelPreference();
     checkLoginStatus();
-  }, []);
+    
+    if (!isFirebaseReady()) {
+      return;
+    }
+
+    try {
+      const { auth } = getFirebaseServices();
+      if (!auth) {
+        return;
+      }
+
+      const unsubscribe = onAuthStateChanged(auth, (user) => {
+        const newLoginState = !!user;
+        setIsLoggedIn(newLoginState);
+        
+        if (!newLoginState && enableRemoteModels) {
+          setEnableRemoteModels(false);
+          AsyncStorage.setItem('@remote_models_enabled', 'false')
+            .catch(error => console.error('Error saving remote model preference:', error));
+        }
+      });
+
+      return () => unsubscribe();
+    } catch (error) {
+      console.error('Error setting up auth state listener:', error);
+    }
+  }, [enableRemoteModels]);
 
   const loadRemoteModelPreference = async () => {
     try {
@@ -32,12 +59,17 @@ export const RemoteModelProvider: React.FC<{ children: React.ReactNode }> = ({ c
         setEnableRemoteModels(savedPreference === 'true');
       }
     } catch (error) {
-      console.error('Error loading remote model preference:', error);
+      // do nothing
     }
   };
 
   const checkLoginStatus = async () => {
     try {
+      if (!isFirebaseReady()) {
+        setIsLoggedIn(false);
+        return false;
+      }
+
       const authenticated = await isAuthenticated();
       setIsLoggedIn(authenticated);
       
@@ -50,7 +82,6 @@ export const RemoteModelProvider: React.FC<{ children: React.ReactNode }> = ({ c
       
       return authenticated;
     } catch (error) {
-      console.error('Error checking login status:', error);
       setIsLoggedIn(false);
       return false;
     }
@@ -62,6 +93,11 @@ export const RemoteModelProvider: React.FC<{ children: React.ReactNode }> = ({ c
       if (!isUserLoggedIn) {
         return { success: false, requiresLogin: true };
       }
+      
+      const user = getCurrentUser();
+      if (user && !user.emailVerified) {
+        return { success: false, emailNotVerified: true };
+      }
     }
     
     const newValue = !enableRemoteModels;
@@ -70,7 +106,6 @@ export const RemoteModelProvider: React.FC<{ children: React.ReactNode }> = ({ c
       await AsyncStorage.setItem('@remote_models_enabled', newValue.toString());
       return { success: true };
     } catch (error) {
-      console.error('Error saving remote model preference:', error);
       return { success: false };
     }
   };
