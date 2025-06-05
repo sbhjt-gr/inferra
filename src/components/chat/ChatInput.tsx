@@ -119,7 +119,7 @@ export default function ChatInput({
     if (!isOnlineModel) {
       showDialog(
         'Feature Not Available',
-        'File attachments for local models are yet to be implemented.'
+        'RAG-based file attachments for local models are yet to be implemented.'
       );
       return;
     }

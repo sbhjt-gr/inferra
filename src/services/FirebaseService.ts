@@ -7,12 +7,9 @@ import {
   updateProfile,
   User,
   onAuthStateChanged,
+  getAuth,
   Auth
 } from 'firebase/auth';
-import {
-  initializeAuth,
-  getReactNativePersistence
-} from 'firebase/auth/react-native';
 import { 
   getFirestore, 
   collection, 
@@ -72,9 +69,8 @@ const initializeFirebase = () => {
     
     app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
     
-    auth = initializeAuth(app, {
-      persistence: getReactNativePersistence(AsyncStorage)
-    });
+    // Use getAuth for Firebase v10+
+    auth = getAuth(app);
     
     firestore = getFirestore(app);
     isFirebaseInitialized = true;
