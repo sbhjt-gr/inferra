@@ -1,4 +1,4 @@
-# Inferra (formerly Ragionare)
+# Ragionare (to be rebranded to "Inferra")
 
 Inferra is a mobile application that allows you to download and run large language models (LLMs) directly on your device. No internet connection required for inference - your conversations stay completely private and local.
 
