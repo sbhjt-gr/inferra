@@ -18,6 +18,7 @@ export type RootStackParamList = {
   Model: undefined;
   ChatHistory: undefined;
   Downloads: undefined;
+  Profile: undefined;
 };
 
 export type TabParamList = {

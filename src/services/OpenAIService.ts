@@ -121,7 +121,66 @@ export class OpenAIService {
       const jsonResponse = await response.json();
       console.log("OpenAI response received");
       
-      if (jsonResponse.choices && jsonResponse.choices.length > 0) {
+      if (jsonResponse.output && jsonResponse.output.length > 0) {
+        const message = jsonResponse.output[0];
+        
+        if (message.content && message.content.length > 0) {
+          const contentItem = message.content[0];
+          
+          if (contentItem.type === 'output_text' && contentItem.text) {
+            const text = contentItem.text;
+            fullResponse = text;
+            
+            if (onToken) {
+              const simulateWordByWordStreaming = async (text: string): Promise<boolean> => {
+                const words = text.split(/(\s+|[,.!?;:"])/);
+                let currentText = '';
+                
+                for (const word of words) {
+                  currentText += word;
+                  tokenCount++;
+                  
+                  const shouldContinue = onToken(currentText);
+                  if (shouldContinue === false) {
+                    return false;
+                  }
+                  
+                  if (word.trim().length > 0) {
+                    if (/[.!?]/.test(word)) {
+                      await new Promise(resolve => setTimeout(resolve, 100));
+                    }
+                    else if (/[,;:]/.test(word)) {
+                      await new Promise(resolve => setTimeout(resolve, 50));
+                    }
+                    else {
+                      const baseDelay = 25;
+                      const randomFactor = Math.random() * 20;
+                      await new Promise(resolve => setTimeout(resolve, baseDelay + randomFactor));
+                    }
+                  }
+                }
+                
+                return true;
+              };
+              
+              const shouldContinue = await simulateWordByWordStreaming(text);
+              if (!shouldContinue) {
+                return { 
+                  fullResponse, 
+                  tokenCount: jsonResponse.usage?.output_tokens || tokenCount, 
+                  startTime 
+                };
+              }
+            }
+            
+            return {
+              fullResponse: text,
+              tokenCount: jsonResponse.usage?.output_tokens || text.split(/\s+/).length,
+              startTime
+            };
+          }
+        }
+      } else if (jsonResponse.choices && jsonResponse.choices.length > 0) {
         const choice = jsonResponse.choices[0];
         
         if (choice.message && choice.message.content) {

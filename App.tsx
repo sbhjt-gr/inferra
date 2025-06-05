@@ -12,14 +12,23 @@ import RootNavigator from './src/navigation/RootNavigator';
 import { DownloadProvider } from './src/context/DownloadContext';
 import { modelDownloader } from './src/services/ModelDownloader';
 import * as TaskManager from 'expo-task-manager';
-import * as BackgroundFetch from 'expo-background-fetch';
+import * as BackgroundFetch from 'expo-background-task';
 import { ThemeColors } from './src/types/theme';
 import { notificationService } from './src/services/NotificationService';
+import { getFirebaseServices } from './src/services/FirebaseService';
 import { initGeminiService } from './src/services/GeminiInitializer';
 import { initOpenAIService } from './src/services/OpenAIInitializer';
 import { initDeepSeekService } from './src/services/DeepSeekInitializer';
 import { initClaudeService } from './src/services/ClaudeInitializer';
 import { PaperProvider } from 'react-native-paper';
+import { DialogProvider } from './src/context/DialogContext';
+import { ShowDialog } from './src/components/ShowDialog';
+
+try {
+  getFirebaseServices();
+} catch (error) {
+  console.error('Firebase initialization failed:', error);
+}
 
 initGeminiService();
 initOpenAIService();
@@ -100,25 +109,50 @@ function Navigation() {
       });
     }, 2000);
 
-    const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
-      try {
-        if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
-          modelDownloader.checkBackgroundDownloads();
-        } else if (appState.current === 'active' && nextAppState.match(/inactive|background/)) {
+    let subscription: { remove: () => void } | undefined;
+    try {
+      subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+        try {
+          if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+            modelDownloader.checkBackgroundDownloads();
+          } else if (appState.current === 'active' && nextAppState.match(/inactive|background/)) {
+            // do nothing
+          }
+          
+          appState.current = nextAppState;
+        } catch (error) {
           // do nothing
         }
-        
-        appState.current = nextAppState;
-      } catch (error) {
+      });
+    } catch (error) {
+      const changeHandler = (nextAppState: AppStateStatus) => {
+        try {
+          if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+            modelDownloader.checkBackgroundDownloads();
+          } else if (appState.current === 'active' && nextAppState.match(/inactive|background/)) {
+            // do nothing
+          }
+          
+          appState.current = nextAppState;
+        } catch (error) {
           // do nothing
+        }
+      };
+      
+      try {
+        subscription = AppState.addEventListener('change', changeHandler);
+      } catch (err) {
+        console.error('Failed to add app state event listener:', err);
       }
-    });
+    }
 
     return () => {
       clearTimeout(timer);
       try {
         llamaManager.release();
-        subscription.remove();
+        if (subscription && typeof subscription.remove === 'function') {
+          subscription.remove();
+        }
       } catch (error) {
         // do nothing
       }
@@ -150,6 +184,7 @@ function Navigation() {
         theme={currentTheme === 'dark' ? customDarkTheme : customDefaultTheme}
       >
         <RootNavigator />
+        <ShowDialog />
       </NavigationContainer>
   );
 }
@@ -163,7 +198,9 @@ export default function App() {
             <RemoteModelProvider>
               <GestureHandlerRootView style={{ flex: 1 }}>
                 <ThemeProvider>
-                  <Navigation />
+                  <DialogProvider>
+                    <Navigation />
+                  </DialogProvider>
                 </ThemeProvider>
               </GestureHandlerRootView>
             </RemoteModelProvider>

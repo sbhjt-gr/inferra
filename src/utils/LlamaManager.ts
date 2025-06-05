@@ -1,4 +1,4 @@
-import { initLlama, loadLlamaModelInfo, type LlamaContext } from 'ragionare-llama.rn';
+import { initLlama, loadLlamaModelInfo, type LlamaContext } from 'inferra-llama.rn';
 import { Platform, NativeModules } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import EventEmitter from 'eventemitter3';

@@ -261,27 +261,35 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   }, [saveMessagesDebounced, chat]);
 
   useEffect(() => {
-    const subscription = AppState.addEventListener('change', nextAppState => {
-      if (
-        appStateRef.current.match(/inactive|background/) && 
-        nextAppState === 'active'
-      ) {
-        loadCurrentChat();
-      } else if (
-        appStateRef.current === 'active' &&
-        nextAppState.match(/inactive|background/)
-      ) {
-        if (chat && messages.some(msg => msg.role === 'user' || msg.role === 'assistant')) {
-          saveMessages(messages);
+    let subscription: { remove: () => void } | undefined;
+    
+    try {
+      subscription = AppState.addEventListener('change', nextAppState => {
+        if (
+          appStateRef.current.match(/inactive|background/) && 
+          nextAppState === 'active'
+        ) {
+          loadCurrentChat();
+        } else if (
+          appStateRef.current === 'active' &&
+          nextAppState.match(/inactive|background/)
+        ) {
+          if (chat && messages.some(msg => msg.role === 'user' || msg.role === 'assistant')) {
+            saveMessages(messages);
+          }
         }
-      }
-      
-      appStateRef.current = nextAppState;
-      setAppState(nextAppState);
-    });
+        
+        appStateRef.current = nextAppState;
+        setAppState(nextAppState);
+      });
+    } catch (error) {
+      console.error('Error setting up AppState listener:', error);
+    }
 
     return () => {
-      subscription.remove();
+      if (subscription && typeof subscription.remove === 'function') {
+        subscription.remove();
+      }
     };
   }, [chat, messages, saveMessages, loadCurrentChat]);
 
@@ -1488,7 +1496,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         iconName = "cube";
       }
     } else if (activeProvider === 'gemini') {
-      modelName = 'gemini-2.0-flash';
+      modelName = 'Gemini';
       iconName = "cloud";
     } else if (activeProvider === 'chatgpt') {
       modelName = 'gpt-4o';
@@ -1497,7 +1505,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       modelName = 'deepseek-r1';
       iconName = "cloud";
     } else if (activeProvider === 'claude') {
-      modelName = 'claude-3.7-sonnet';
+      modelName = 'Claude';
       iconName = "cloud";
     }
     
