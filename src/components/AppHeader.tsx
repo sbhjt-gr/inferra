@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, StatusBar } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -91,7 +91,7 @@ export default function AppHeader({
                 <Image 
                   source={require('../../assets/icon.png')} 
                   style={styles.icon} 
-                  resizeMode="contain"
+                  resizeMode="cover"
                 />
                 <Text style={[styles.title, { color: themeColors.headerText }]}>
                   {title}
