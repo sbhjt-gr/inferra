@@ -276,7 +276,7 @@ PODS:
     - Yoga
   - ExpoAsset (11.1.5):
     - ExpoModulesCore
-  - ExpoBackgroundFetch (13.1.5):
+  - ExpoBackgroundTask (0.2.7):
     - ExpoModulesCore
   - ExpoBlur (14.1.4):
     - ExpoModulesCore
@@ -419,7 +419,7 @@ PODS:
   - hermes-engine (0.79.2):
     - hermes-engine/Pre-built (= 0.79.2)
   - hermes-engine/Pre-built (0.79.2)
-  - llama-rn (1.8.0):
+  - llama-rn (1.8.2):
     - DoubleConversion
     - glog
     - hermes-engine
@@ -2424,7 +2424,7 @@ DEPENDENCIES:
   - expo-dev-menu (from `../node_modules/expo-dev-menu`)
   - expo-dev-menu-interface (from `../node_modules/expo-dev-menu-interface/ios`)
   - ExpoAsset (from `../node_modules/expo-asset/ios`)
-  - ExpoBackgroundFetch (from `../node_modules/expo-background-fetch/ios`)
+  - ExpoBackgroundTask (from `../node_modules/expo-background-task/ios`)
   - ExpoBlur (from `../node_modules/expo-blur/ios`)
   - ExpoDevice (from `../node_modules/expo-device/ios`)
   - ExpoDocumentPicker (from `../node_modules/expo-document-picker/ios`)
@@ -2452,7 +2452,7 @@ DEPENDENCIES:
   - fmt (from `../node_modules/react-native/third-party-podspecs/fmt.podspec`)
   - glog (from `../node_modules/react-native/third-party-podspecs/glog.podspec`)
   - hermes-engine (from `../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec`)
-  - llama-rn (from `../node_modules/inferra-llama.rn`)
+  - llama-rn (from `../node_modules/inferra-llama`)
   - RCT-Folly (from `../node_modules/react-native/third-party-podspecs/RCT-Folly.podspec`)
   - RCT-Folly/Fabric (from `../node_modules/react-native/third-party-podspecs/RCT-Folly.podspec`)
   - RCTDeprecation (from `../node_modules/react-native/ReactApple/Libraries/RCTFoundation/RCTDeprecation`)
@@ -2585,8 +2585,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-dev-menu-interface/ios"
   ExpoAsset:
     :path: "../node_modules/expo-asset/ios"
-  ExpoBackgroundFetch:
-    :path: "../node_modules/expo-background-fetch/ios"
+  ExpoBackgroundTask:
+    :path: "../node_modules/expo-background-task/ios"
   ExpoBlur:
     :path: "../node_modules/expo-blur/ios"
   ExpoDevice:
@@ -2643,7 +2643,7 @@ EXTERNAL SOURCES:
     :podspec: "../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec"
     :tag: hermes-2025-03-03-RNv0.79.0-bc17d964d03743424823d7dd1a9f37633459c5c5
   llama-rn:
-    :path: "../node_modules/inferra-llama.rn"
+    :path: "../node_modules/inferra-llama"
   RCT-Folly:
     :podspec: "../node_modules/react-native/third-party-podspecs/RCT-Folly.podspec"
   RCTDeprecation:
@@ -2810,7 +2810,7 @@ SPEC CHECKSUMS:
   expo-dev-menu: 56d5bdee4af7361bcfb6a6ce42419befd81d45ef
   expo-dev-menu-interface: 609c35ae8b97479cdd4c9e23c8cf6adc44beea0e
   ExpoAsset: 3bc9adb7dbbf27ae82c18ca97eb988a3ae7e73b1
-  ExpoBackgroundFetch: 6ea99684804a3a264b08f18cbb3b45a0ecd410ed
+  ExpoBackgroundTask: 8fb71e8c886f7b6156b12a603f76468e14ff34ee
   ExpoBlur: 7f9379db213e4a56aeceda82e94a7fea1b1d8c48
   ExpoDevice: 7082f03af1c588333ef1417d5aa8287081d94b24
   ExpoDocumentPicker: 5487ce33530198f4ecf724e650d390b2abe84c15
@@ -2844,7 +2844,7 @@ SPEC CHECKSUMS:
   GoogleUtilitiesComponents: 679b2c881db3b615a2777504623df6122dd20afe
   GTMSessionFetcher: 5aea5ba6bd522a239e236100971f10cb71b96ab6
   hermes-engine: 314be5250afa5692b57b4dd1705959e1973a8ebe
-  llama-rn: 9d4827b89f9cdb7c5f6de61b63f236f950723f55
+  llama-rn: 11fd1ddc0505ebe297c2d1e14a9eaa04fe40d2ef
   MLImage: 1824212150da33ef225fbd3dc49f184cf611046c
   MLKitCommon: afec63980417d29ffbb4790529a1b0a2291699e1
   MLKitTextRecognition: c83c18ad25496f2077f6ec93c5940487ff2eb343
@@ -2937,6 +2937,6 @@ SPEC CHECKSUMS:
   UMAppLoader: 55159b69750129faa7a51c493cb8ea55a7b64eb9
   Yoga: c758bfb934100bb4bf9cbaccb52557cee35e8bdf
 
-PODFILE CHECKSUM: b3ef04e691c1be87d0d033d4997c0f9326ec9ba6
+PODFILE CHECKSUM: 38394aa40ef7d66df40189955976b06b160d34fc
 
 COCOAPODS: 1.16.2

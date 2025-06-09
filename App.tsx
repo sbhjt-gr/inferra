@@ -3,6 +3,7 @@ import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/
 import { AppState, AppStateStatus } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { RemoteModelProvider } from './src/context/RemoteModelContext';
 import { theme } from './src/constants/theme';
@@ -183,6 +184,7 @@ function Navigation() {
       <NavigationContainer 
         theme={currentTheme === 'dark' ? customDarkTheme : customDefaultTheme}
       >
+        <StatusBar style="light" backgroundColor="transparent" translucent />
         <RootNavigator />
         <ShowDialog />
       </NavigationContainer>

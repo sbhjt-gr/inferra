@@ -53,7 +53,7 @@
     "expo-updates": "^0.28.13",
     "expo-web-browser": "~14.1.6",
     "firebase": "^10.8.0",
-    "inferra-llama.rn": "^1.8.0",
+    "inferra-llama": "^1.8.2",
     "jest-expo": "~53.0.5",
     "react": "19.0.0",
     "react-dom": "19.0.0",
