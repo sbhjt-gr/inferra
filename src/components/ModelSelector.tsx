@@ -440,7 +440,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     };
 
     const renderSectionHeader = ({ section }: { section: SectionData }) => {
-      if (section.title === 'Online Models') {
+      if (section.title === 'Remote Models') {
         const hasApiKeys = hasAnyApiKey();
         return (
           <TouchableOpacity 
@@ -509,7 +509,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     };
 
     const renderItem = ({ item, section }: { item: Model, section: SectionData }) => {
-      if (section.title === 'Online Models' && !isOnlineModelsExpanded) {
+      if (section.title === 'Remote Models' && !isOnlineModelsExpanded) {
         return null;
       }
       if (section.title === 'Local Models' && !isLocalModelsExpanded) {
