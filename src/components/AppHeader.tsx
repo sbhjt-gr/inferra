@@ -8,6 +8,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import chatManager from '../utils/ChatManager';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { InterFont } from '../hooks/InterFont';
 
 type AppHeaderProps = {
   title?: string;
@@ -37,6 +38,7 @@ export default function AppHeader({
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute();
   const insets = useSafeAreaInsets();
+  const { fonts } = InterFont();
 
   const isHomeScreen = route.name === 'HomeTab';
 
@@ -93,14 +95,14 @@ export default function AppHeader({
                   style={styles.icon} 
                   resizeMode="cover"
                 />
-                <Text style={[styles.title, { color: themeColors.headerText }]}>
+                <Text style={[styles.title, { color: themeColors.headerText }, fonts.bold]}>
                   {title}
                 </Text>
               </>
             )}
             
             {!showLogo && (
-              <Text style={[styles.title, { color: themeColors.headerText }]}>
+              <Text style={[styles.title, { color: themeColors.headerText }, fonts.bold]}>
                 {title}
               </Text>
             )}
@@ -166,7 +168,6 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 18,
-    fontWeight: '700',
     letterSpacing: 0.2,
   },
   rightButtons: {
