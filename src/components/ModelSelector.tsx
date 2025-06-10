@@ -19,6 +19,7 @@ import { getThemeAwareColor } from '../utils/ColorUtils';
 import { onlineModelService } from '../services/OnlineModelService';
 import { Dialog, Portal, Text, Button } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 
 interface StoredModel {
@@ -192,6 +193,8 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     };
 
     const handleModelSelect = async (model: Model) => {
+      setModalVisible(false);
+      
       if (isGenerating) {
         showDialog(
           'Model In Use',
@@ -203,7 +206,6 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
       
       if ('isOnline' in model) {
         if (!enableRemoteModels || !isLoggedIn) {
-          setModalVisible(false);
           setTimeout(() => {
             showDialog(
               'Remote Models Disabled',
@@ -241,7 +243,6 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
           await loadModel(model.path);
         }
       }
-      setModalVisible(false);
     };
 
     const handleUnloadModel = () => {
@@ -364,37 +365,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
             isSelected && styles.selectedModelItem,
             isGenerating && styles.modelItemDisabled
           ]}
-          onPress={() => {
-            if (isRemoteModelsDisabled) {
-              setModalVisible(false);
-              setTimeout(() => {
-                showDialog(
-                  'Remote Models Disabled',
-                  'Remote models require the "Enable Remote Models" setting to be turned on and you need to be signed in. Would you like to go to Settings to configure this?',
-                  [
-                    <Button key="cancel" onPress={hideDialog}>Cancel</Button>,
-                    <Button 
-                      key="settings" 
-                      onPress={() => {
-                        hideDialog();
-                        if (onClose) onClose();
-                        navigation.navigate('MainTabs', { screen: 'SettingsTab' });
-                      }}
-                    >
-                      Go to Settings
-                    </Button>
-                  ]
-                );
-              }, 300);
-              return;
-            }
-            
-            if (!onlineModelStatuses[item.id]) {
-              handleApiKeyRequired(item);
-              return;
-            }
-            handleModelSelect(item);
-          }}
+          onPress={() => handleModelSelect(item)}
           disabled={isGenerating}
         >
           <View style={styles.modelIconContainer}>
@@ -469,7 +440,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     };
 
     const renderSectionHeader = ({ section }: { section: SectionData }) => {
-      if (section.title === 'Online Models') {
+      if (section.title === 'Remote Models') {
         const hasApiKeys = hasAnyApiKey();
         return (
           <TouchableOpacity 
@@ -538,7 +509,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     };
 
     const renderItem = ({ item, section }: { item: Model, section: SectionData }) => {
-      if (section.title === 'Online Models' && !isOnlineModelsExpanded) {
+      if (section.title === 'Remote Models' && !isOnlineModelsExpanded) {
         return null;
       }
       if (section.title === 'Local Models' && !isLocalModelsExpanded) {

@@ -10,6 +10,7 @@ import ModelScreen from '../screens/ModelScreen';
 import { TabParamList } from '../types/navigation';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
+import { InterFont } from '../hooks/InterFont';
 
 const Tab = createBottomTabNavigator<TabParamList>();
 
@@ -20,6 +21,7 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const themeColors = theme[currentTheme];
   const insets = useSafeAreaInsets();
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+  const { fonts } = InterFont();
 
   useEffect(() => {
     const keyboardWillShowListener = Keyboard.addListener(
@@ -99,11 +101,14 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
               color={isFocused ? themeColors.tabBarActiveText : themeColors.tabBarInactiveText}
             />
             <Text
-              style={{
-                color: isFocused ? themeColors.tabBarActiveText : themeColors.tabBarInactiveText,
-                fontSize: 12,
-                marginTop: 4,
-              }}
+              style={[
+                {
+                  color: isFocused ? themeColors.tabBarActiveText : themeColors.tabBarInactiveText,
+                  fontSize: 12,
+                  marginTop: 4,
+                },
+                fonts.medium
+              ]}
             >
               {label as string}
             </Text>

@@ -11,7 +11,7 @@ export default {
     newArchEnabled: true,
     splash: {
       image: "./assets/icon.png",
-      resizeMode: "contain",
+      resizeMode: "cover",
       backgroundColor: "#660880"
     },
     updates: {
@@ -29,7 +29,9 @@ export default {
         UIBackgroundModes: [
           "fetch",
           "remote-notification"
-        ]
+        ],
+        UIStatusBarStyle: "UIStatusBarStyleDefault",
+        UIViewControllerBasedStatusBarAppearance: false
       }
     },
     android: {
@@ -45,7 +47,15 @@ export default {
         "BACKGROUND_FETCH",
         "WAKE_LOCK",
         "FOREGROUND_SERVICE"
-      ]
+      ],
+      statusBar: {
+        barStyle: "default",
+        backgroundColor: "transparent",
+        translucent: true
+      },
+      navigationBar: {
+        backgroundColor: "#660880"
+      }
     },
     web: {
       bundler: "metro",
@@ -76,8 +86,8 @@ export default {
         {
           image: "./assets/icon.png",
           imageWidth: 200,
-          resizeMode: "contain",
-          backgroundColor: "#ffffff"
+          resizeMode: "cover",
+          backgroundColor: "#660880"
         }
       ],
       [
