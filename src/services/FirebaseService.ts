@@ -69,7 +69,6 @@ const initializeFirebase = () => {
     
     app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
     
-    // Use getAuth for Firebase v10+
     auth = getAuth(app);
     
     firestore = getFirestore(app);
