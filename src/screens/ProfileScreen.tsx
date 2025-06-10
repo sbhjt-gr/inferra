@@ -7,7 +7,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
-import { getCurrentUser, logoutUser } from '../services/FirebaseService';
+import { getCurrentUser, logoutUser, getUserFromSecureStorage, getCompleteUserData, refreshUserProfile } from '../services/FirebaseService';
 import { useRemoteModel } from '../context/RemoteModelContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getAuth, sendEmailVerification, onAuthStateChanged, reload } from 'firebase/auth';
@@ -34,11 +34,46 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
   const verificationCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   
+  const formatFirestoreDate = (timestamp: any): string => {
+    if (!timestamp) return '';
+    
+    try {
+      if (timestamp.toDate) {
+        return timestamp.toDate().toISOString();
+      }
+      
+      if (timestamp.seconds) {
+        return new Date(timestamp.seconds * 1000).toISOString();
+      }
+      
+      if (typeof timestamp === 'string') {
+        return timestamp;
+      }
+      
+      return new Date(timestamp).toISOString();
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return '';
+    }
+  };
+  
   const refreshUserData = useCallback(async () => {
-    const user = getCurrentUser();
-    if (user) {
-      try {
+    try {
+      const { user, profile } = await getCompleteUserData();
+      
+      if (user) {
         await reload(user);
+      }
+      
+      if (profile) {
+        setUserData({
+          displayName: profile.displayName || user?.displayName || 'User',
+          email: profile.email || user?.email || '',
+          emailVerified: user?.emailVerified ?? false,
+          creationTime: formatFirestoreDate(profile.createdAt),
+          lastSignInTime: formatFirestoreDate(profile.lastLoginAt || (user?.metadata?.lastSignInTime ? new Date(user.metadata.lastSignInTime).toISOString() : profile.updatedAt))
+        });
+      } else if (user) {
         setUserData({
           displayName: user.displayName || 'User',
           email: user.email || '',
@@ -46,9 +81,10 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
           creationTime: user.metadata.creationTime || '',
           lastSignInTime: user.metadata.lastSignInTime || ''
         });
-      } catch (error) {
-        loadUserData();
       }
+    } catch (error) {
+      console.error('Error refreshing user data:', error);
+      loadUserData();
     }
   }, []);
   
@@ -79,15 +115,26 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
     loadUserData();
     
     const auth = getAuth();
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        setUserData({
-          displayName: user.displayName || 'User',
-          email: user.email || '',
-          emailVerified: user.emailVerified,
-          creationTime: user.metadata.creationTime || '',
-          lastSignInTime: user.metadata.lastSignInTime || ''
-        });
+        const updatedProfile = await refreshUserProfile();
+        if (updatedProfile) {
+          setUserData({
+            displayName: updatedProfile.displayName || user.displayName || 'User',
+            email: updatedProfile.email || user.email || '',
+            emailVerified: user.emailVerified,
+            creationTime: formatFirestoreDate(updatedProfile.createdAt),
+            lastSignInTime: formatFirestoreDate(updatedProfile.lastLoginAt || (user.metadata?.lastSignInTime ? new Date(user.metadata.lastSignInTime).toISOString() : updatedProfile.updatedAt))
+          });
+        } else {
+          setUserData({
+            displayName: user.displayName || 'User',
+            email: user.email || '',
+            emailVerified: user.emailVerified,
+            creationTime: user.metadata.creationTime || '',
+            lastSignInTime: user.metadata.lastSignInTime || ''
+          });
+        }
       }
     });
     
@@ -124,16 +171,40 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
     }, [])
   );
 
-  const loadUserData = () => {
-    const user = getCurrentUser();
-    if (user) {
-      setUserData({
-        displayName: user.displayName || 'User',
-        email: user.email || '',
-        emailVerified: user.emailVerified,
-        creationTime: user.metadata.creationTime || '',
-        lastSignInTime: user.metadata.lastSignInTime || ''
-      });
+  const loadUserData = async () => {
+    try {
+      const profile = await getUserFromSecureStorage();
+      const user = getCurrentUser();
+      
+      if (profile) {
+        setUserData({
+          displayName: profile.displayName || user?.displayName || 'User',
+          email: profile.email || user?.email || '',
+          emailVerified: user?.emailVerified ?? profile.emailVerified ?? false,
+          creationTime: formatFirestoreDate(profile.createdAt),
+          lastSignInTime: formatFirestoreDate(profile.lastLoginAt || (user?.metadata?.lastSignInTime ? new Date(user.metadata.lastSignInTime).toISOString() : profile.updatedAt))
+        });
+      } else if (user) {
+        setUserData({
+          displayName: user.displayName || 'User',
+          email: user.email || '',
+          emailVerified: user.emailVerified,
+          creationTime: user.metadata.creationTime || '',
+          lastSignInTime: user.metadata.lastSignInTime || ''
+        });
+      }
+    } catch (error) {
+      console.error('Error loading user data:', error);
+      const user = getCurrentUser();
+      if (user) {
+        setUserData({
+          displayName: user.displayName || 'User',
+          email: user.email || '',
+          emailVerified: user.emailVerified,
+          creationTime: user.metadata.creationTime || '',
+          lastSignInTime: user.metadata.lastSignInTime || ''
+        });
+      }
     }
   };
 

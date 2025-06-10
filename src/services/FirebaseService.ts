@@ -15,6 +15,7 @@ import {
   collection, 
   doc, 
   setDoc, 
+  getDoc,
   serverTimestamp 
 } from 'firebase/firestore';
 import * as SecureStore from 'expo-secure-store';
@@ -169,7 +170,7 @@ const storeUserSecurityInfo = async (
     await setDoc(userDocRef, {
       uid: uid,
       createdAt: serverTimestamp(),
-      lastLogin: serverTimestamp(),
+      lastLoginAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     }, { merge: true });
     
@@ -188,6 +189,13 @@ type UserData = {
   emailVerified: boolean;
   displayName: string | null;
   lastLoginAt: string;
+  createdAt?: any;
+  updatedAt?: any;
+  trustedEmail?: boolean;
+  settings?: any;
+  status?: any;
+  registrationInfo?: any;
+  lastLoginInfo?: any;
 };
 
 const USER_AUTH_KEY = 'inferra_secure_user_auth_state';
@@ -196,20 +204,29 @@ const MAX_AUTH_ATTEMPTS = 5;
 const AUTH_LOCKOUT_DURATION = 15 * 60 * 1000;
 const PASSWORD_MIN_LENGTH = 8;
 
-const storeAuthState = async (user: User | null): Promise<boolean> => {
+const storeAuthState = async (user: User | null, profileData?: any): Promise<boolean> => {
   try {
     if (!user) {
       await AsyncStorage.removeItem(USER_AUTH_KEY);
       return true;
     }
 
-    const userData: UserData = {
+    let userData: UserData = {
       uid: user.uid,
       email: user.email,
       emailVerified: user.emailVerified,
       displayName: user.displayName,
       lastLoginAt: new Date().toISOString(),
     };
+
+    if (profileData) {
+      userData = {
+        ...userData,
+        ...profileData,
+        emailVerified: user.emailVerified,
+        lastLoginAt: profileData.lastLoginAt || userData.lastLoginAt,
+      };
+    }
 
     await AsyncStorage.setItem(USER_AUTH_KEY, JSON.stringify(userData));
     return true;
@@ -435,13 +452,15 @@ export const registerWithEmail = async (
     const user = userCredential.user;
     
     await updateProfile(user, { displayName: name });
-    await storeAuthState(user);
     await resetAuthAttempts();
     
     try {
       await sendEmailVerification(user);
       
       await createUserProfile(user, name);
+      
+      const profileData = await getUserProfile(user.uid);
+      await storeAuthState(user, profileData);
       
       Promise.all([
         getIpAddress(),
@@ -509,7 +528,6 @@ export const loginWithEmail = async (
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
     
-    await storeAuthState(user);
     await resetAuthAttempts();
     
     try {
@@ -538,9 +556,15 @@ export const loginWithEmail = async (
         }, { merge: true });
         
         await storeUserSecurityInfo(user.uid, ipData, geoData, deviceInfo);
+        
+        const profileData = await getUserProfile(user.uid);
+        await storeAuthState(user, profileData);
+      } else {
+        await storeAuthState(user);
       }
     } catch (firestoreError) {
       console.error('Error updating user data:', firestoreError);
+      await storeAuthState(user);
     }
     
     return { success: true };
@@ -621,24 +645,150 @@ export const getUserFromSecureStorage = async (): Promise<UserData | null> => {
   }
 };
 
-export const initAuthState = async (): Promise<User | null> => {
+export const getUserProfile = async (uid: string): Promise<UserData | null> => {
+  if (!firestore) {
+    console.error('Firestore not initialized');
+    return null;
+  }
+
   try {
-    if (!auth) return null;
+    const userDocRef = doc(firestore, 'users', uid);
+    const userDoc = await getDoc(userDocRef);
+    
+    if (userDoc.exists()) {
+      const data = userDoc.data();
+      const currentUser = getCurrentUser();
+      
+      return {
+        uid: data.uid,
+        email: data.email,
+        emailVerified: (currentUser && currentUser.uid === uid) ? currentUser.emailVerified : (data.emailVerified || false),
+        displayName: data.displayName,
+        lastLoginAt: data.lastLoginAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+        createdAt: data.createdAt,
+        updatedAt: data.updatedAt,
+        trustedEmail: data.trustedEmail,
+        settings: data.settings,
+        status: data.status,
+        registrationInfo: data.registrationInfo,
+        lastLoginInfo: data.lastLoginInfo
+      };
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error fetching user profile:', error);
+    return null;
+  }
+};
+
+export const initAuthState = async (): Promise<{ user: User | null; profile: UserData | null }> => {
+  try {
+    if (!auth) return { user: null, profile: null };
     
     const currentUser = auth.currentUser;
-    if (currentUser) return currentUser;
+    if (currentUser) {
+      const profileData = await getUserProfile(currentUser.uid);
+      if (profileData) {
+        await storeAuthState(currentUser, profileData);
+      }
+      return { user: currentUser, profile: profileData };
+    }
     
     const storedUser = await getUserFromSecureStorage();
-    if (!storedUser) return null;
+    if (!storedUser) return { user: null, profile: null };
     
     return await new Promise((resolve) => {
-      const unsubscribe = onAuthStateChanged(auth!, (user) => {
+      const unsubscribe = onAuthStateChanged(auth!, async (user) => {
         unsubscribe();
-        resolve(user);
+        if (user) {
+          const profileData = await getUserProfile(user.uid);
+          if (profileData) {
+            await storeAuthState(user, profileData);
+          }
+          resolve({ user, profile: profileData });
+        } else {
+          resolve({ user: null, profile: null });
+        }
       });
     });
   } catch (error) {
     console.error('Error initializing auth state:', error);
-    return null;
+    return { user: null, profile: null };
+  }
+};
+
+export const refreshUserProfile = async (): Promise<UserData | null> => {
+  const currentUser = getCurrentUser();
+  if (!currentUser) return null;
+  
+  const profileData = await getUserProfile(currentUser.uid);
+  if (profileData) {
+    await storeAuthState(currentUser, profileData);
+  }
+  
+  return profileData;
+};
+
+export const updateEmailVerificationStatus = async (uid: string, emailVerified: boolean): Promise<void> => {
+  if (!firestore) {
+    return;
+  }
+  
+  try {
+    const userDocRef = doc(firestore, 'users', uid);
+    await setDoc(userDocRef, {
+      emailVerified: emailVerified,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+  } catch (error) {
+    console.error('Error updating email verification status:', error);
+  }
+};
+
+export const getCompleteUserData = async (): Promise<{
+  user: User | null;
+  profile: UserData | null;
+  isAuthenticated: boolean;
+}> => {
+  try {
+    const currentUser = getCurrentUser();
+    
+    if (!currentUser) {
+      const storedProfile = await getUserFromSecureStorage();
+      return {
+        user: null,
+        profile: storedProfile,
+        isAuthenticated: false
+      };
+    }
+
+    let profileData = await getUserFromSecureStorage();
+    
+    if (!profileData || profileData.uid !== currentUser.uid) {
+      profileData = await getUserProfile(currentUser.uid);
+      if (profileData) {
+        await storeAuthState(currentUser, profileData);
+      }
+    }
+    
+    if (profileData && profileData.emailVerified !== currentUser.emailVerified) {
+      await updateEmailVerificationStatus(currentUser.uid, currentUser.emailVerified);
+      profileData.emailVerified = currentUser.emailVerified;
+      await storeAuthState(currentUser, profileData);
+    }
+
+    return {
+      user: currentUser,
+      profile: profileData,
+      isAuthenticated: true
+    };
+  } catch (error) {
+    console.error('Error getting complete user data:', error);
+    return {
+      user: null,
+      profile: null,
+      isAuthenticated: false
+    };
   }
 }; 
