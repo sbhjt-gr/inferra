@@ -8,5 +8,7 @@
     <false/>
     <key>EXUpdatesLaunchWaitMs</key>
     <integer>0</integer>
+    <key>EXUpdatesRuntimeVersion</key>
+    <string>2.0.0</string>
   </dict>
 </plist>

@@ -14,7 +14,6 @@ import {
   Clipboard,
   Dimensions,
   AppStateStatus,
-  StatusBar,
   ActivityIndicator,
   Alert,
 } from 'react-native';

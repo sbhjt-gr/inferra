@@ -1,8 +1,11 @@
 import React, { useEffect, useRef } from 'react';
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
-import { AppState, AppStateStatus } from 'react-native';
+import { AppState, AppStateStatus, Text, TextInput } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
+import { useFonts } from 'expo-font';
+import * as SplashScreen from 'expo-splash-screen';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { RemoteModelProvider } from './src/context/RemoteModelContext';
 import { theme } from './src/constants/theme';
@@ -23,6 +26,8 @@ import { initClaudeService } from './src/services/ClaudeInitializer';
 import { PaperProvider } from 'react-native-paper';
 import { DialogProvider } from './src/context/DialogContext';
 import { ShowDialog } from './src/components/ShowDialog';
+
+SplashScreen.preventAutoHideAsync();
 
 try {
   getFirebaseServices();
@@ -183,6 +188,7 @@ function Navigation() {
       <NavigationContainer 
         theme={currentTheme === 'dark' ? customDarkTheme : customDefaultTheme}
       >
+        <StatusBar style="light" backgroundColor="transparent" translucent />
         <RootNavigator />
         <ShowDialog />
       </NavigationContainer>
@@ -190,6 +196,46 @@ function Navigation() {
 }
 
 export default function App() {
+  const [fontsLoaded, fontError] = useFonts({
+    'Inter-Light': require('./assets/fonts/Inter-Light.ttf'),
+    'Inter-Regular': require('./assets/fonts/Inter-Regular.ttf'),
+    'Inter-Medium': require('./assets/fonts/Inter-Medium.ttf'),
+    'Inter-SemiBold': require('./assets/fonts/Inter-SemiBold.ttf'),
+    'Inter-Bold': require('./assets/fonts/Inter-Bold.ttf'),
+    'Inter-ExtraBold': require('./assets/fonts/Inter-ExtraBold.ttf'),
+  });
+
+  useEffect(() => {
+    if (fontsLoaded || fontError) {
+      SplashScreen.hideAsync();
+    }
+  }, [fontsLoaded, fontError]);
+
+  useEffect(() => {
+    if (fontsLoaded) {
+      const oldTextRender = Text.render;
+      const oldTextInputRender = TextInput.render;
+
+      Text.render = function (props, ref) {
+        return oldTextRender.call(this, {
+          ...props,
+          style: [{ fontFamily: 'Inter-Regular' }, props.style],
+        }, ref);
+      };
+
+      TextInput.render = function (props, ref) {
+        return oldTextInputRender.call(this, {
+          ...props,
+          style: [{ fontFamily: 'Inter-Regular' }, props.style],
+        }, ref);
+      };
+    }
+  }, [fontsLoaded]);
+
+  if (!fontsLoaded && !fontError) {
+    return null;
+  }
+
   return (
     <SafeAreaProvider>
       <PaperProvider>

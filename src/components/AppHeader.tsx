@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, StatusBar } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -8,6 +8,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import chatManager from '../utils/ChatManager';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { InterFont } from '../hooks/InterFont';
 
 type AppHeaderProps = {
   title?: string;
@@ -37,6 +38,7 @@ export default function AppHeader({
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute();
   const insets = useSafeAreaInsets();
+  const { fonts } = InterFont();
 
   const isHomeScreen = route.name === 'HomeTab';
 
@@ -91,16 +93,16 @@ export default function AppHeader({
                 <Image 
                   source={require('../../assets/icon.png')} 
                   style={styles.icon} 
-                  resizeMode="contain"
+                  resizeMode="cover"
                 />
-                <Text style={[styles.title, { color: themeColors.headerText }]}>
+                <Text style={[styles.title, { color: themeColors.headerText }, fonts.bold]}>
                   {title}
                 </Text>
               </>
             )}
             
             {!showLogo && (
-              <Text style={[styles.title, { color: themeColors.headerText }]}>
+              <Text style={[styles.title, { color: themeColors.headerText }, fonts.bold]}>
                 {title}
               </Text>
             )}
@@ -166,7 +168,6 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 18,
-    fontWeight: '700',
     letterSpacing: 0.2,
   },
   rightButtons: {
