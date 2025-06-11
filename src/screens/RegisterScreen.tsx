@@ -25,7 +25,7 @@ import {
   Dialog,
   Portal,
 } from 'react-native-paper';
-import { registerWithEmail, signInWithGoogle, isEmailFromTrustedProvider } from '../services/FirebaseService';
+import { registerWithEmail, signInWithGoogle, isEmailFromTrustedProvider, testFirebaseConnection } from '../services/FirebaseService';
 
 type RegisterScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList>;
@@ -43,6 +43,7 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [passwordWarning, setPasswordWarning] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [dialogVisible, setDialogVisible] = useState(false);
@@ -65,52 +66,51 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
   };
 
   const handleRegister = async () => {
-    setError(null);
-    
-    if (!name.trim()) {
-      setError('Name is required');
-      return;
-    }
-
-    if (!email.trim()) {
-      setError('Email is required');
-      return;
-    }
-
-    if (!validateEmail(email)) {
-      setError('Please enter a valid email address');
-      return;
-    }
-
-    if (!password.trim()) {
-      setError('Password is required');
-      return;
-    }
-
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters');
-      return;
-    }
-
     if (password !== confirmPassword) {
       setError('Passwords do not match');
       return;
     }
 
+    console.log('Starting registration process...');
+    setIsLoading(true);
+    setError('');
+    setPasswordWarning('');
+
     try {
-      setIsLoading(true);
+      console.log('Testing Firebase connection...');
+      const connectionTest = await testFirebaseConnection();
+      
+      if (!connectionTest.connected) {
+        console.error('Firebase connection failed:', connectionTest.error);
+        setError(`Firebase configuration error: ${connectionTest.error}`);
+        setIsLoading(false);
+        return;
+      }
+      
+      console.log('Firebase connection OK, proceeding with registration...');
       
       const result = await registerWithEmail(name, email, password);
       
       if (result.success) {
+        console.log('Registration successful');
         await checkLoginStatus();
+        
+        if (result.passwordWarning) {
+          setPasswordWarning(result.passwordWarning);
+        }
         
         setDialogVisible(true);
       } else {
-        setError(result.error || 'Registration failed. Please try again.');
+        console.error('Registration failed:', result.error);
+        setError(result.error || 'Registration failed');
+        
+        if (result.passwordWarning) {
+          setPasswordWarning(result.passwordWarning);
+        }
       }
-    } catch (err) {
-      setError('Registration failed. Please try again.');
+    } catch (error: any) {
+      console.error('Registration error:', error);
+      setError(error.message || 'Registration failed');
     } finally {
       setIsLoading(false);
     }
@@ -210,12 +210,6 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
                 onBlur={() => setIsEmailFocused(false)}
               />
 
-              {email && !isEmailTrusted && validateEmail(email) && !isEmailFocused && emailTouched && (
-                <HelperText type="info" visible={true} style={styles.warningText}>
-                  We don't support this email provider. Although, account creation is allowed, no free credits will be provided.
-                </HelperText>
-              )}
-
               <TextInput
                 label="Password"
                 value={password}
@@ -251,6 +245,12 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
               {error && (
                 <HelperText type="error" visible={!!error}>
                   {error}
+                </HelperText>
+              )}
+
+              {passwordWarning && (
+                <HelperText type="info" visible={!!passwordWarning} style={styles.warningText}>
+                  {passwordWarning}
                 </HelperText>
               )}
 
