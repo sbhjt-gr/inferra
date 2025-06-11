@@ -41,6 +41,7 @@ const getSecureConfig = () => {
 
     if (missingConfigs.length > 0) {
       console.error('Missing Firebase configuration keys:', missingConfigs);
+      console.error('Available config:', Constants.expoConfig?.extra);
       throw new Error(
         `Firebase configuration is incomplete. Missing: ${missingConfigs.join(', ')}. Check your environment variables.`
       );
@@ -49,9 +50,9 @@ const getSecureConfig = () => {
     console.log('Firebase configuration loaded successfully');
     return config as Record<string, string>;
   } catch (error) {
-    console.error('Firebase configuration error. Check environment setup.');
+    console.error('Firebase configuration error:', error);
     console.error('Available config:', Constants.expoConfig?.extra);
-    throw new Error('Firebase initialization failed. Contact support if the issue persists.');
+    throw new Error('Firebase initialization failed. Please check your environment configuration.');
   }
 };
 
@@ -96,6 +97,32 @@ export const getFirebaseServices = () => {
 };
 
 export const isFirebaseReady = () => isFirebaseInitialized;
+
+export const testFirebaseConnection = async (): Promise<{ connected: boolean; error?: string }> => {
+  try {
+    if (!isFirebaseInitialized) {
+      return { connected: false, error: 'Firebase not initialized' };
+    }
+    
+    if (!auth) {
+      return { connected: false, error: 'Firebase Auth not available' };
+    }
+    
+    console.log('Testing Firebase connection...');
+    
+    try {
+      await auth.authStateReady();
+      console.log('Firebase connection test passed');
+      return { connected: true };
+    } catch (error) {
+      console.error('Firebase connection test failed:', error);
+      return { connected: false, error: 'Firebase connection failed' };
+    }
+  } catch (error: any) {
+    console.error('Firebase test error:', error);
+    return { connected: false, error: error.message || 'Unknown error' };
+  }
+};
 
 const getIpAddress = async (): Promise<{ip: string | null, error?: string}> => {
   try {
@@ -169,7 +196,6 @@ const storeUserSecurityInfo = async (
     
     await setDoc(userDocRef, {
       uid: uid,
-      createdAt: serverTimestamp(),
       lastLoginAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     }, { merge: true });
@@ -329,13 +355,21 @@ export const isEmailFromTrustedProvider = (email: string): boolean => {
   return TRUSTED_EMAIL_PROVIDERS.includes(domain);
 };
 
-const validatePassword = (password: string): { valid: boolean; message?: string } => {
+const validatePassword = (password: string, strict: boolean = false): { valid: boolean; message?: string; isWeak?: boolean } => {
   if (!password || typeof password !== 'string') {
     return { valid: false, message: 'Password is required' };
   }
   
+  if (password.length < 6) {
+    return { valid: false, message: 'Password must be at least 6 characters' };
+  }
+  
+  if (!strict) {
+    return { valid: true };
+  }
+  
   if (password.length < PASSWORD_MIN_LENGTH) {
-    return { valid: false, message: `Password must be at least ${PASSWORD_MIN_LENGTH} characters` };
+    return { valid: true, isWeak: true, message: `Your password is weak. Consider using at least ${PASSWORD_MIN_LENGTH} characters` };
   }
   
   const hasUpperCase = /[A-Z]/.test(password);
@@ -345,8 +379,9 @@ const validatePassword = (password: string): { valid: boolean; message?: string 
   
   if (!(hasUpperCase && hasLowerCase && (hasNumbers || hasSpecialChars))) {
     return { 
-      valid: false, 
-      message: 'Password must include uppercase, lowercase, and numbers or special characters' 
+      valid: true, 
+      isWeak: true,
+      message: 'Your password is weak. Consider including uppercase, lowercase, and numbers or special characters' 
     };
   }
   
@@ -377,13 +412,15 @@ const createUserProfile = async (user: User, name: string): Promise<void> => {
     
     const isTrustedEmail = isEmailFromTrustedProvider(user.email || '');
     
-    const userProfile = {
+    const userDocRef = doc(firestore, 'users', user.uid);
+    const existingDoc = await getDoc(userDocRef);
+    
+    const userProfile: any = {
       uid: user.uid,
       email: user.email,
       displayName: name,
       emailVerified: user.emailVerified,
       photoURL: user.photoURL,
-      createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
       lastLoginAt: serverTimestamp(),
       trustedEmail: isTrustedEmail,
@@ -404,7 +441,11 @@ const createUserProfile = async (user: User, name: string): Promise<void> => {
       }
     };
     
-    await setDoc(doc(firestore, 'users', user.uid), userProfile, { merge: true });
+    if (!existingDoc.exists()) {
+      userProfile.createdAt = serverTimestamp();
+    }
+    
+    await setDoc(userDocRef, userProfile, { merge: true });
     
     await storeUserSecurityInfo(
       user.uid, 
@@ -421,8 +462,10 @@ export const registerWithEmail = async (
   name: string,
   email: string,
   password: string
-): Promise<{ success: boolean; error?: string }> => {
+): Promise<{ success: boolean; error?: string; passwordWarning?: string }> => {
   try {
+    console.log('Starting registration process...');
+    
     if (!validateName(name)) {
       return { success: false, error: 'Invalid name format' };
     }
@@ -431,7 +474,7 @@ export const registerWithEmail = async (
       return { success: false, error: 'Invalid email format' };
     }
     
-    const passwordValidation = validatePassword(password);
+    const passwordValidation = validatePassword(password, false);
     if (!passwordValidation.valid) {
       return { success: false, error: passwordValidation.message };
     }
@@ -445,42 +488,51 @@ export const registerWithEmail = async (
     }
     
     if (!auth) {
-      return { success: false, error: 'Firebase authentication not initialized' };
+      console.error('Firebase auth not initialized');
+      console.log('Attempting to initialize Firebase services...');
+      
+      try {
+        const services = getFirebaseServices();
+        if (!services.auth) {
+          return { success: false, error: 'Firebase authentication service is not available. Please check your configuration.' };
+        }
+      } catch (initError) {
+        console.error('Failed to initialize Firebase:', initError);
+        return { success: false, error: 'Firebase initialization failed. Please check your network connection and try again.' };
+      }
     }
 
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    console.log('Creating user account...');
+    const userCredential = await createUserWithEmailAndPassword(auth!, email, password);
     const user = userCredential.user;
+    console.log('User account created successfully');
     
     await updateProfile(user, { displayName: name });
     await resetAuthAttempts();
     
     try {
+      console.log('Sending email verification...');
       await sendEmailVerification(user);
       
+      console.log('Creating user profile...');
       await createUserProfile(user, name);
       
       const profileData = await getUserProfile(user.uid);
       await storeAuthState(user, profileData);
-      
-      Promise.all([
-        getIpAddress(),
-        getDeviceInfo()
-      ]).then(async ([ipData, deviceInfo]) => {
-        let geoData = { geo: null };
-        if (ipData.ip) {
-          geoData = await getGeoLocationFromIp(ipData.ip);
-        }
-        
-        await storeUserSecurityInfo(user.uid, ipData, geoData, deviceInfo);
-      }).catch(error => {
-        console.error('Error collecting security info:', error);
-      });
     } catch (secondaryError) {
       console.error('Error during secondary registration operations:', secondaryError);
     }
     
-    return { success: true };
+    console.log('Registration completed successfully');
+    return { 
+      success: true,
+      passwordWarning: passwordValidation.isWeak ? passwordValidation.message : undefined
+    };
   } catch (error: any) {
+    console.error('Registration error:', error);
+    console.error('Error code:', error.code);
+    console.error('Error message:', error.message);
+    
     await incrementAuthAttempts();
     
     if (error.code === 'auth/email-already-in-use') {
@@ -490,12 +542,16 @@ export const registerWithEmail = async (
     } else if (error.code === 'auth/weak-password') {
       return { success: false, error: 'Password is too weak' };
     } else if (error.code === 'auth/network-request-failed') {
-      return { success: false, error: 'Network error. Please check your connection.' };
+      return { success: false, error: 'Network error. Please check your internet connection and try again.' };
+    } else if (error.code === 'auth/internal-error') {
+      return { success: false, error: 'Configuration error. Please contact support.' };
+    } else if (error.message?.includes('Firebase configuration')) {
+      return { success: false, error: 'Service configuration error. Please contact support.' };
     }
     
     return { 
       success: false, 
-      error: 'Registration failed. Please try again.' 
+      error: `Registration failed: ${error.message || 'Unknown error'}. Please try again.` 
     };
   }
 };
@@ -789,6 +845,20 @@ export const getCompleteUserData = async (): Promise<{
       user: null,
       profile: null,
       isAuthenticated: false
+    };
+  }
+};
+
+export const signInWithGoogle = async (): Promise<{ success: boolean; error?: string }> => {
+  try {
+    return { 
+      success: false, 
+      error: 'Google Sign-In is not yet implemented. Please use email registration.' 
+    };
+  } catch (error: any) {
+    return { 
+      success: false, 
+      error: 'Google Sign-In failed. Please try again.' 
     };
   }
 }; 
