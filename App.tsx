@@ -197,12 +197,12 @@ function Navigation() {
 
 export default function App() {
   const [fontsLoaded, fontError] = useFonts({
-    'Inter-Light': require('./assets/fonts/Inter-Light.ttf'),
-    'Inter-Regular': require('./assets/fonts/Inter-Regular.ttf'),
-    'Inter-Medium': require('./assets/fonts/Inter-Medium.ttf'),
-    'Inter-SemiBold': require('./assets/fonts/Inter-SemiBold.ttf'),
-    'Inter-Bold': require('./assets/fonts/Inter-Bold.ttf'),
-    'Inter-ExtraBold': require('./assets/fonts/Inter-ExtraBold.ttf'),
+    'OpenSans-Light': require('./assets/fonts/OpenSans-Light.ttf'),
+    'OpenSans-Regular': require('./assets/fonts/OpenSans-Regular.ttf'),
+    'OpenSans-Medium': require('./assets/fonts/OpenSans-Medium.ttf'),
+    'OpenSans-SemiBold': require('./assets/fonts/OpenSans-SemiBold.ttf'),
+    'OpenSans-Bold': require('./assets/fonts/OpenSans-Bold.ttf'),
+    'OpenSans-ExtraBold': require('./assets/fonts/OpenSans-ExtraBold.ttf'),
   });
 
   useEffect(() => {
@@ -219,14 +219,14 @@ export default function App() {
       Text.render = function (props, ref) {
         return oldTextRender.call(this, {
           ...props,
-          style: [{ fontFamily: 'Inter-Regular' }, props.style],
+          style: [{ fontFamily: 'OpenSans-Regular' }, props.style],
         }, ref);
       };
 
       TextInput.render = function (props, ref) {
         return oldTextInputRender.call(this, {
           ...props,
-          style: [{ fontFamily: 'Inter-Regular' }, props.style],
+          style: [{ fontFamily: 'OpenSans-Regular' }, props.style],
         }, ref);
       };
     }

@@ -1,11 +1,11 @@
 export const Fonts = {
-  inter: {
-    300: 'Inter-Light',
-    400: 'Inter-Regular',
-    500: 'Inter-Medium',
-    600: 'Inter-SemiBold', 
-    700: 'Inter-Bold',
-    800: 'Inter-ExtraBold',
+  openSans: {
+    '300': 'OpenSans-Light',
+    '400': 'OpenSans-Regular',
+    '500': 'OpenSans-Medium',
+    '600': 'OpenSans-SemiBold', 
+    '700': 'OpenSans-Bold',
+    '800': 'OpenSans-ExtraBold',
   }
 };
 
@@ -19,5 +19,5 @@ export const fontWeights = {
 } as const;
 
 export const getFontFamily = (weight: keyof typeof fontWeights = 'normal') => {
-  return Fonts.inter[fontWeights[weight] as keyof typeof Fonts.inter];
+  return Fonts.openSans[fontWeights[weight]];
 }; 
