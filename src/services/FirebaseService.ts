@@ -8,7 +8,8 @@ import {
   User,
   onAuthStateChanged,
   getAuth,
-  Auth
+  Auth,
+  reload
 } from 'firebase/auth';
 import { 
   getFirestore, 
@@ -47,7 +48,6 @@ const getSecureConfig = () => {
       );
     }
 
-    console.log('Firebase configuration loaded successfully');
     return config as Record<string, string>;
   } catch (error) {
     console.error('Firebase configuration error:', error);
@@ -108,11 +108,9 @@ export const testFirebaseConnection = async (): Promise<{ connected: boolean; er
       return { connected: false, error: 'Firebase Auth not available' };
     }
     
-    console.log('Testing Firebase connection...');
     
     try {
       await auth.authStateReady();
-      console.log('Firebase connection test passed');
       return { connected: true };
     } catch (error) {
       console.error('Firebase connection test failed:', error);
@@ -464,7 +462,6 @@ export const registerWithEmail = async (
   password: string
 ): Promise<{ success: boolean; error?: string; passwordWarning?: string }> => {
   try {
-    console.log('Starting registration process...');
     
     if (!validateName(name)) {
       return { success: false, error: 'Invalid name format' };
@@ -489,7 +486,6 @@ export const registerWithEmail = async (
     
     if (!auth) {
       console.error('Firebase auth not initialized');
-      console.log('Attempting to initialize Firebase services...');
       
       try {
         const services = getFirebaseServices();
@@ -502,19 +498,15 @@ export const registerWithEmail = async (
       }
     }
 
-    console.log('Creating user account...');
     const userCredential = await createUserWithEmailAndPassword(auth!, email, password);
     const user = userCredential.user;
-    console.log('User account created successfully');
     
     await updateProfile(user, { displayName: name });
     await resetAuthAttempts();
     
     try {
-      console.log('Sending email verification...');
       await sendEmailVerification(user);
       
-      console.log('Creating user profile...');
       await createUserProfile(user, name);
       
       const profileData = await getUserProfile(user.uid);
@@ -523,7 +515,6 @@ export const registerWithEmail = async (
       console.error('Error during secondary registration operations:', secondaryError);
     }
     
-    console.log('Registration completed successfully');
     return { 
       success: true,
       passwordWarning: passwordValidation.isWeak ? passwordValidation.message : undefined
@@ -694,6 +685,27 @@ export const getUserFromSecureStorage = async (): Promise<UserData | null> => {
       return null;
     }
     
+    await waitForAuthReady();
+    
+    const currentUser = getCurrentUser();
+    if (currentUser && currentUser.uid === parsed.uid) {
+      try {
+        await reload(currentUser);
+      } catch (error) {
+        // Continue even if reload fails
+      }
+      
+      if (parsed.emailVerified !== currentUser.emailVerified) {
+        parsed.emailVerified = currentUser.emailVerified;
+        
+        if (firestore) {
+          await updateEmailVerificationStatus(currentUser.uid, currentUser.emailVerified);
+        }
+        
+        await AsyncStorage.setItem(USER_AUTH_KEY, JSON.stringify(parsed));
+      }
+    }
+    
     return parsed;
   } catch (error) {
     await AsyncStorage.removeItem(USER_AUTH_KEY);
@@ -738,12 +750,52 @@ export const getUserProfile = async (uid: string): Promise<UserData | null> => {
   }
 };
 
+export const initializeAuthAndSync = async (): Promise<{ user: User | null; profile: UserData | null }> => {
+  try {
+    await waitForAuthReady();
+    
+    const currentUser = getCurrentUser();
+    if (!currentUser) {
+      return { user: null, profile: null };
+    }
+    
+    try {
+      await reload(currentUser);
+    } catch (error) {
+      // Continue even if reload fails
+    }
+    
+    if (firestore) {
+      await updateEmailVerificationStatus(currentUser.uid, currentUser.emailVerified);
+    }
+    
+    const profileData = await getUserProfile(currentUser.uid);
+    if (profileData) {
+      profileData.emailVerified = currentUser.emailVerified;
+      await storeAuthState(currentUser, profileData);
+    } else {
+      await storeAuthState(currentUser);
+    }
+    
+    return { user: currentUser, profile: profileData };
+  } catch (error) {
+    console.error('Error initializing auth and sync:', error);
+    return { user: null, profile: null };
+  }
+};
+
 export const initAuthState = async (): Promise<{ user: User | null; profile: UserData | null }> => {
   try {
     if (!auth) return { user: null, profile: null };
     
     const currentUser = auth.currentUser;
     if (currentUser) {
+      try {
+        await reload(currentUser);
+      } catch (error) {
+        // Continue even if reload fails
+      }
+      
       const profileData = await getUserProfile(currentUser.uid);
       if (profileData) {
         await storeAuthState(currentUser, profileData);
@@ -758,6 +810,12 @@ export const initAuthState = async (): Promise<{ user: User | null; profile: Use
       const unsubscribe = onAuthStateChanged(auth!, async (user) => {
         unsubscribe();
         if (user) {
+          try {
+            await reload(user);
+          } catch (error) {
+            // Continue even if reload fails
+          }
+          
           const profileData = await getUserProfile(user.uid);
           if (profileData) {
             await storeAuthState(user, profileData);
@@ -777,6 +835,12 @@ export const initAuthState = async (): Promise<{ user: User | null; profile: Use
 export const refreshUserProfile = async (): Promise<UserData | null> => {
   const currentUser = getCurrentUser();
   if (!currentUser) return null;
+  
+  try {
+    await reload(currentUser);
+  } catch (error) {
+    // Continue even if reload fails
+  }
   
   const profileData = await getUserProfile(currentUser.uid);
   if (profileData) {
@@ -808,6 +872,8 @@ export const getCompleteUserData = async (): Promise<{
   isAuthenticated: boolean;
 }> => {
   try {
+    await waitForAuthReady();
+    
     const currentUser = getCurrentUser();
     
     if (!currentUser) {
@@ -817,6 +883,12 @@ export const getCompleteUserData = async (): Promise<{
         profile: storedProfile,
         isAuthenticated: false
       };
+    }
+
+    try {
+      await reload(currentUser);
+    } catch (error) {
+      // Continue even if reload fails
     }
 
     let profileData = await getUserFromSecureStorage();
@@ -846,6 +918,17 @@ export const getCompleteUserData = async (): Promise<{
       profile: null,
       isAuthenticated: false
     };
+  }
+};
+
+export const waitForAuthReady = async (): Promise<boolean> => {
+  try {
+    if (!auth) return false;
+    
+    await auth.authStateReady();
+    return true;
+  } catch (error) {
+    return false;
   }
 };
 

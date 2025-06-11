@@ -7,7 +7,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
-import { getCurrentUser, logoutUser, getUserFromSecureStorage, getCompleteUserData, refreshUserProfile } from '../services/FirebaseService';
+import { getCurrentUser, logoutUser, getUserFromSecureStorage, getCompleteUserData, refreshUserProfile, waitForAuthReady, initializeAuthAndSync } from '../services/FirebaseService';
 import { useRemoteModel } from '../context/RemoteModelContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getAuth, sendEmailVerification, onAuthStateChanged, reload } from 'firebase/auth';
@@ -52,17 +52,23 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
       
       return new Date(timestamp).toISOString();
     } catch (error) {
-      console.error('Error formatting date:', error);
+
       return '';
     }
   };
   
   const refreshUserData = useCallback(async () => {
     try {
+      await waitForAuthReady();
+      
       const { user, profile } = await getCompleteUserData();
       
       if (user) {
-        await reload(user);
+        try {
+          await reload(user);
+        } catch (error) {
+          // Continue even if reload fails
+        }
       }
       
       if (profile) {
@@ -83,7 +89,6 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
         });
       }
     } catch (error) {
-      console.error('Error refreshing user data:', error);
       loadUserData();
     }
   }, []);
@@ -91,6 +96,7 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
   useEffect(() => {
     const handleAppStateChange = async (nextAppState: AppStateStatus) => {
       if (appStateRef.current.match(/inactive|background/) && nextAppState === 'active') {
+        await initializeAuthAndSync();
         await refreshUserData();
       }
       appStateRef.current = nextAppState;
@@ -112,11 +118,22 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
   }, [refreshUserData]);
   
   useEffect(() => {
-    loadUserData();
+    const initializeAndLoad = async () => {
+      await initializeAuthAndSync();
+      await loadUserData();
+    };
+    
+    initializeAndLoad();
     
     const auth = getAuth();
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
+        try {
+          await reload(user);
+        } catch (error) {
+          // Continue even if reload fails
+        }
+        
         const updatedProfile = await refreshUserProfile();
         if (updatedProfile) {
           setUserData({
@@ -150,10 +167,16 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
     useCallback(() => {
       refreshUserData();
       
-      verificationCheckIntervalRef.current = setInterval(() => {
+      verificationCheckIntervalRef.current = setInterval(async () => {
         const user = getCurrentUser();
         if (user && !user.emailVerified) {
-          refreshUserData();
+          try {
+            await reload(user);
+            refreshUserData();
+          } catch (error) {
+            // Continue even if reload fails
+            refreshUserData();
+          }
         } else if (user && user.emailVerified) {
           if (verificationCheckIntervalRef.current) {
             clearInterval(verificationCheckIntervalRef.current);
@@ -173,8 +196,18 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
 
   const loadUserData = async () => {
     try {
+      await waitForAuthReady();
+      
       const profile = await getUserFromSecureStorage();
       const user = getCurrentUser();
+      
+      if (user) {
+        try {
+          await reload(user);
+        } catch (error) {
+          // Continue even if reload fails
+        }
+      }
       
       if (profile) {
         setUserData({
@@ -194,7 +227,6 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
         });
       }
     } catch (error) {
-      console.error('Error loading user data:', error);
       const user = getCurrentUser();
       if (user) {
         setUserData({
