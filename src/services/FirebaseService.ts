@@ -647,6 +647,12 @@ export const logoutUser = async (): Promise<{ success: boolean; error?: string }
     
     await storeAuthState(null);
     
+    try {
+      await AsyncStorage.setItem('@remote_models_enabled', 'false');
+    } catch (error) {
+      console.error('Error disabling remote models on logout:', error);
+    }
+    
     return { success: true };
   } catch (error) {
     return { 

@@ -8,6 +8,7 @@ interface RemoteModelContextType {
   toggleRemoteModels: () => Promise<{ success: boolean, requiresLogin?: boolean, emailNotVerified?: boolean }>;
   isLoggedIn: boolean;
   checkLoginStatus: () => Promise<boolean>;
+  disableRemoteModels: () => Promise<void>;
 }
 
 const RemoteModelContext = createContext<RemoteModelContextType>({
@@ -15,11 +16,21 @@ const RemoteModelContext = createContext<RemoteModelContextType>({
   toggleRemoteModels: async () => ({ success: false }),
   isLoggedIn: false,
   checkLoginStatus: async () => false,
+  disableRemoteModels: async () => {},
 });
 
 export const RemoteModelProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [enableRemoteModels, setEnableRemoteModels] = useState<boolean>(false);
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
+
+  const disableRemoteModels = async (): Promise<void> => {
+    setEnableRemoteModels(false);
+    try {
+      await AsyncStorage.setItem('@remote_models_enabled', 'false');
+    } catch (error) {
+      console.error('Error saving remote model preference:', error);
+    }
+  };
 
   useEffect(() => {
     loadRemoteModelPreference();
@@ -35,14 +46,12 @@ export const RemoteModelProvider: React.FC<{ children: React.ReactNode }> = ({ c
         return;
       }
 
-      const unsubscribe = onAuthStateChanged(auth, (user) => {
+      const unsubscribe = onAuthStateChanged(auth, async (user) => {
         const newLoginState = !!user;
         setIsLoggedIn(newLoginState);
         
-        if (!newLoginState && enableRemoteModels) {
-          setEnableRemoteModels(false);
-          AsyncStorage.setItem('@remote_models_enabled', 'false')
-            .catch(error => console.error('Error saving remote model preference:', error));
+        if (!newLoginState) {
+          await disableRemoteModels();
         }
       });
 
@@ -50,7 +59,7 @@ export const RemoteModelProvider: React.FC<{ children: React.ReactNode }> = ({ c
     } catch (error) {
       console.error('Error setting up auth state listener:', error);
     }
-  }, [enableRemoteModels]);
+  }, []);
 
   const loadRemoteModelPreference = async () => {
     try {
@@ -77,12 +86,18 @@ export const RemoteModelProvider: React.FC<{ children: React.ReactNode }> = ({ c
         const userData = await getUserFromSecureStorage();
         const isLoggedInFromStorage = !!userData;
         setIsLoggedIn(isLoggedInFromStorage);
+        
+        if (!isLoggedInFromStorage) {
+          await disableRemoteModels();
+        }
+        
         return isLoggedInFromStorage;
       }
       
       return authenticated;
     } catch (error) {
       setIsLoggedIn(false);
+      await disableRemoteModels();
       return false;
     }
   };
@@ -115,7 +130,8 @@ export const RemoteModelProvider: React.FC<{ children: React.ReactNode }> = ({ c
       enableRemoteModels,
       toggleRemoteModels,
       isLoggedIn,
-      checkLoginStatus
+      checkLoginStatus,
+      disableRemoteModels
     }}>
       {children}
     </RemoteModelContext.Provider>
