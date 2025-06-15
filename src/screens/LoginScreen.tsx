@@ -23,7 +23,7 @@ import {
   HelperText, 
   Divider,
 } from 'react-native-paper';
-import { loginWithEmail, signInWithGoogle } from '../services/FirebaseService';
+import { loginWithEmail, signInWithGoogle, debugGoogleOAuthConfig } from '../services/FirebaseService';
 
 type LoginScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList>;
@@ -90,6 +90,8 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps) {
     try {
       setIsLoading(true);
       setError(null);
+      
+      debugGoogleOAuthConfig();
       
       const result = await signInWithGoogle();
       

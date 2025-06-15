@@ -4,6 +4,7 @@ export default {
   expo: {
     name: "Inferra",
     slug: "inferra",
+    owner: "subhajitgorai",
     version: "2.0.0",
     orientation: "portrait",
     icon: "./assets/icon.png",
@@ -22,7 +23,7 @@ export default {
     ],
     ios: {
       supportsTablet: true,
-      bundleIdentifier: "com.gorai.inferra",
+      bundleIdentifier: "com.gorai.ragionare",
       buildNumber: "200",
       runtimeVersion: "2.0.0",
       infoPlist: {
@@ -32,7 +33,8 @@ export default {
         ],
         UIStatusBarStyle: "UIStatusBarStyleDefault",
         UIViewControllerBasedStatusBarAppearance: false
-      }
+      },
+      scheme: "com.gorai.ragionare"
     },
     android: {
       versionCode: 201,
@@ -55,7 +57,19 @@ export default {
       },
       navigationBar: {
         backgroundColor: "#660880"
-      }
+      },
+      scheme: "com.gorai.ragionare",
+      intentFilters: [
+        {
+          action: "VIEW",
+          data: [
+            {
+              scheme: "com.gorai.ragionare"
+            }
+          ],
+          category: ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     web: {
       bundler: "metro",
@@ -69,6 +83,8 @@ export default {
       firebaseStorageBucket: process.env.FIREBASE_STORAGE_BUCKET,
       firebaseMessagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
       firebaseAppId: process.env.FIREBASE_APP_ID,
+      googleOAuthIosClientId: process.env.GOOGLE_OAUTH_IOS_CLIENT_ID,
+      googleOAuthAndroidClientId: process.env.GOOGLE_OAUTH_ANDROID_CLIENT_ID,
       GEMINI_API_KEY: process.env.GEMINI_API_KEY,
       OPENAI_API_KEY: process.env.OPENAI_API_KEY,
       DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY,

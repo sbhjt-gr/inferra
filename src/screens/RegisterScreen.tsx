@@ -25,7 +25,7 @@ import {
   Dialog,
   Portal,
 } from 'react-native-paper';
-import { registerWithEmail, signInWithGoogle, isEmailFromTrustedProvider, testFirebaseConnection } from '../services/FirebaseService';
+import { registerWithEmail, signInWithGoogle, isEmailFromTrustedProvider, testFirebaseConnection, debugGoogleOAuthConfig } from '../services/FirebaseService';
 
 type RegisterScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList>;
@@ -120,6 +120,8 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
     try {
       setIsLoading(true);
       setError(null);
+      
+      debugGoogleOAuthConfig();
       
       const result = await signInWithGoogle();
       

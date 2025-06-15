@@ -120,7 +120,7 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
   },
   {
     "name": "Gemma 2 Instruct",
-    "description": "Google's latest instruction-tuned model with excellent reasoning and helpfulness.",
+    "description": "Google's previous instruction-tuned model with excellent reasoning and helpfulness.",
     "size": "5.4 GB",
     "huggingFaceLink": "https://huggingface.co/bartowski/gemma-2-9b-it-GGUF/resolve/main/gemma-2-9b-it-Q4_K_M.gguf",
     "modelFamily": "9 Billion",

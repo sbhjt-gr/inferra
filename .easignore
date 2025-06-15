@@ -22,11 +22,6 @@ yarn-debug.*
 yarn-error.*
 .metro-health-check*
 
-# Environment and config files
-.env
-.env*.local
-*.log
-
 # Documentation and other non-essential files
 __tests__/
 tests/
