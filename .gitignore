@@ -137,3 +137,5 @@ coverage/
 # Logs
 logs/
 *.log
+
+eas.json

@@ -458,10 +458,10 @@ export default function ChatView({
     );
   }, [themeColors, messages, isStreaming, streamingMessageId, streamingMessage, streamingThinking, streamingStats, onCopyText, isRegenerating, onRegenerateResponse, justCancelled]);
 
-  return (
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-      <View style={styles.container}>
-        {messages.length === 0 ? (
+  const renderContent = () => {
+    if (messages.length === 0) {
+      return (
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <View style={styles.emptyState}>
             <MaterialCommunityIcons 
               name="message-text-outline" 
@@ -472,38 +472,47 @@ export default function ChatView({
               Select a model and start chatting
             </Text>
           </View>
-        ) : (
-          <FlatList
-            ref={flatListRef}
-            data={[...messages].reverse()}
-            renderItem={renderMessage}
-            keyExtractor={(item: Message) => item.id}
-            contentContainerStyle={styles.messageList}
-            inverted={true}
-            maintainVisibleContentPosition={{
-              minIndexForVisible: 0,
-              autoscrollToTopThreshold: 10,
-            }}
-            keyboardShouldPersistTaps="handled"
-            keyboardDismissMode="on-drag"
-            scrollEventThrottle={16}
-            showsVerticalScrollIndicator={true}
-            initialNumToRender={15}
-            removeClippedSubviews={false}
-            windowSize={10}
-            maxToRenderPerBatch={10}
-            updateCellsBatchingPeriod={50}
-            onEndReachedThreshold={0.5}
-            scrollIndicatorInsets={{ right: 1 }}
-            onLayout={() => {
-              if (flatListRef.current && messages.length > 0) {
-                flatListRef.current.scrollToOffset({ offset: 0, animated: false });
-              }
-            }}
-          />
-        )}
-      </View>
-    </TouchableWithoutFeedback>
+        </TouchableWithoutFeedback>
+      );
+    }
+
+    return (
+      <FlatList
+        ref={flatListRef}
+        data={[...messages].reverse()}
+        renderItem={renderMessage}
+        keyExtractor={(item: Message) => item.id}
+        contentContainerStyle={styles.messageList}
+        inverted={true}
+        maintainVisibleContentPosition={{
+          minIndexForVisible: 0,
+          autoscrollToTopThreshold: 10,
+        }}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        scrollEventThrottle={16}
+        showsVerticalScrollIndicator={true}
+        initialNumToRender={15}
+        removeClippedSubviews={Platform.OS === 'android'}
+        windowSize={10}
+        maxToRenderPerBatch={10}
+        updateCellsBatchingPeriod={50}
+        onEndReachedThreshold={0.5}
+        scrollIndicatorInsets={{ right: 1 }}
+        onTouchStart={Keyboard.dismiss}
+        onLayout={() => {
+          if (flatListRef.current && messages.length > 0) {
+            flatListRef.current.scrollToOffset({ offset: 0, animated: false });
+          }
+        }}
+      />
+    );
+  };
+
+  return (
+    <View style={styles.container}>
+      {renderContent()}
+    </View>
   );
 }
 

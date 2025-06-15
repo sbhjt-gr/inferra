@@ -9,7 +9,9 @@ import {
   onAuthStateChanged,
   getAuth,
   Auth,
-  reload
+  reload,
+  GoogleAuthProvider,
+  signInWithCredential
 } from 'firebase/auth';
 import { 
   getFirestore, 
@@ -24,6 +26,11 @@ import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as AuthSession from 'expo-auth-session';
+import * as WebBrowser from 'expo-web-browser';
+import * as Crypto from 'expo-crypto';
+
+WebBrowser.maybeCompleteAuthSession();
 
 const getSecureConfig = () => {
   try {
@@ -938,16 +945,318 @@ export const waitForAuthReady = async (): Promise<boolean> => {
   }
 };
 
+const GOOGLE_OAUTH_CONFIG = {
+  iosClientId: Constants.expoConfig?.extra?.googleOAuthIosClientId,
+  androidClientId: Constants.expoConfig?.extra?.googleOAuthAndroidClientId,
+  scopes: ['openid', 'profile', 'email'],
+  additionalParameters: {},
+  customParameters: {
+    prompt: 'select_account',
+  },
+};
+
+const getGoogleOAuthConfig = () => {
+  console.log('Building OAuth config for platform:', Platform.OS);
+  console.log('Available OAuth config:', {
+    iosClientId: GOOGLE_OAUTH_CONFIG.iosClientId ? `${GOOGLE_OAUTH_CONFIG.iosClientId.substring(0, 20)}...` : 'NOT SET',
+    androidClientId: GOOGLE_OAUTH_CONFIG.androidClientId ? `${GOOGLE_OAUTH_CONFIG.androidClientId.substring(0, 20)}...` : 'NOT SET'
+  });
+  
+  const redirectUri = AuthSession.makeRedirectUri({
+    scheme: 'com.gorai.ragionare',
+    path: 'auth',
+  });
+  console.log('Generated redirect URI:', redirectUri);
+
+  const clientId = Platform.OS === 'ios' 
+    ? GOOGLE_OAUTH_CONFIG.iosClientId 
+    : GOOGLE_OAUTH_CONFIG.androidClientId;
+
+  if (!clientId) {
+    console.error(`Missing ${Platform.OS} client ID in environment variables`);
+    throw new Error(`Google OAuth ${Platform.OS} client ID not configured. Please check your environment variables.`);
+  }
+
+  console.log('Using client ID for', Platform.OS, ':', `${clientId.substring(0, 20)}...`);
+
+  return {
+    clientId,
+    redirectUri,
+    responseType: AuthSession.ResponseType.Code,
+    scopes: GOOGLE_OAUTH_CONFIG.scopes,
+    additionalParameters: GOOGLE_OAUTH_CONFIG.additionalParameters,
+    customParameters: GOOGLE_OAUTH_CONFIG.customParameters,
+  };
+};
+
+const validateGoogleIdToken = (idToken: string): boolean => {
+  try {
+    if (!idToken || typeof idToken !== 'string') return false;
+    
+    const parts = idToken.split('.');
+    if (parts.length !== 3) return false;
+    
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+    
+    if (!payload.iss || !payload.aud || !payload.exp || !payload.iat) return false;
+    
+    if (payload.exp * 1000 < Date.now()) return false;
+    
+    const validIssuers = ['https://accounts.google.com', 'accounts.google.com'];
+    if (!validIssuers.includes(payload.iss)) return false;
+    
+    if (!payload.email || !payload.email_verified) return false;
+    
+    return true;
+  } catch (error) {
+    return false;
+  }
+};
+
 export const signInWithGoogle = async (): Promise<{ success: boolean; error?: string }> => {
   try {
-    return { 
-      success: false, 
-      error: 'Google Sign-In is not yet implemented. Please use email registration.' 
-    };
+    console.log('Starting Google Sign-In process...');
+    
+    const notRateLimited = await checkRateLimiting();
+    if (!notRateLimited) {
+      console.error('Rate limited');
+      return { 
+        success: false, 
+        error: 'Too many attempts. Please try again later.' 
+      };
+    }
+
+    console.log('Rate limiting check passed');
+
+    if (!auth) {
+      console.log('Auth not initialized, attempting to get services...');
+      const services = getFirebaseServices();
+      if (!services.auth) {
+        console.error('Firebase auth service not available');
+        return { success: false, error: 'Firebase authentication service is not available.' };
+      }
+    }
+
+    console.log('Firebase auth service available');
+    console.log('Getting Google OAuth config...');
+    
+    const config = getGoogleOAuthConfig();
+    console.log('OAuth config obtained:', {
+      clientId: config.clientId ? `${config.clientId.substring(0, 20)}...` : 'NOT SET',
+      platform: Platform.OS,
+      redirectUri: config.redirectUri
+    });
+    
+    console.log('Generating PKCE code challenge...');
+    const codeVerifier = await Crypto.getRandomBytesAsync(32).then(bytes => 
+      Array.from(bytes).map(b => String.fromCharCode(b)).join('')
+    );
+    
+    const codeChallenge = await Crypto.digestStringAsync(
+      Crypto.CryptoDigestAlgorithm.SHA256,
+      codeVerifier,
+      { encoding: Crypto.CryptoEncoding.BASE64 }
+    ).then(hash => hash.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, ''));
+    
+    console.log('PKCE code challenge generated');
+
+    console.log('Creating auth request...');
+    const request = new AuthSession.AuthRequest({
+      ...config,
+      codeChallenge,
+      codeChallengeMethod: AuthSession.CodeChallengeMethod.S256,
+    });
+
+    console.log('Prompting user for authentication...');
+    const result = await request.promptAsync({
+      authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
+    });
+    
+    console.log('Auth result received:', { 
+      type: result.type, 
+      hasParams: 'params' in result,
+      hasCode: 'params' in result && !!result.params?.code 
+    });
+
+    if (result.type !== 'success' || !result.params.code) {
+      if (result.type === 'cancel') {
+        return { success: false, error: 'Sign-in was cancelled' };
+      }
+      
+      await incrementAuthAttempts();
+      return { success: false, error: 'Authentication failed. Please try again.' };
+    }
+
+    console.log('Exchanging authorization code for tokens...');
+    const tokenResponse = await AuthSession.exchangeCodeAsync(
+      {
+        code: result.params.code,
+        clientId: config.clientId,
+        redirectUri: config.redirectUri,
+        extraParams: {
+          code_verifier: codeVerifier,
+        },
+      },
+      {
+        tokenEndpoint: 'https://oauth2.googleapis.com/token',
+      }
+    );
+    
+    console.log('Token exchange result:', {
+      hasIdToken: !!tokenResponse.idToken,
+      hasAccessToken: !!tokenResponse.accessToken
+    });
+
+    if (!tokenResponse.idToken) {
+      await incrementAuthAttempts();
+      return { success: false, error: 'Failed to get authentication token' };
+    }
+
+    if (!validateGoogleIdToken(tokenResponse.idToken)) {
+      await incrementAuthAttempts();
+      return { success: false, error: 'Invalid authentication token received' };
+    }
+
+    const credential = GoogleAuthProvider.credential(tokenResponse.idToken, tokenResponse.accessToken);
+    const userCredential = await signInWithCredential(auth!, credential);
+    const user = userCredential.user;
+
+    await resetAuthAttempts();
+
+    try {
+      if (firestore) {
+        const ipData = await getIpAddress();
+        let geoData = { geo: null };
+        if (ipData.ip) {
+          geoData = await getGeoLocationFromIp(ipData.ip);
+        }
+        const deviceInfo = await getDeviceInfo();
+
+        const userDocRef = doc(firestore, 'users', user.uid);
+        const existingDoc = await getDoc(userDocRef);
+
+        const isTrustedEmail = isEmailFromTrustedProvider(user.email || '');
+
+        const userProfile: any = {
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName,
+          emailVerified: user.emailVerified,
+          photoURL: user.photoURL,
+          updatedAt: serverTimestamp(),
+          lastLoginAt: serverTimestamp(),
+          trustedEmail: isTrustedEmail,
+          lastLoginInfo: {
+            platform: Platform.OS,
+            ipAddress: ipData.ip,
+            geolocation: geoData.geo,
+            deviceInfo: deviceInfo,
+            timestamp: serverTimestamp(),
+            provider: 'google'
+          },
+          settings: {
+            emailNotifications: true,
+            pushNotifications: true,
+          },
+          status: {
+            isActive: true,
+            lastActive: serverTimestamp(),
+          }
+        };
+
+        if (!existingDoc.exists()) {
+          userProfile.createdAt = serverTimestamp();
+          userProfile.registrationInfo = {
+            platform: Platform.OS,
+            ipAddress: ipData.ip,
+            geolocation: geoData.geo,
+            deviceInfo: deviceInfo,
+            timestamp: serverTimestamp(),
+            provider: 'google'
+          };
+        }
+
+        await setDoc(userDocRef, userProfile, { merge: true });
+        await storeUserSecurityInfo(user.uid, ipData, geoData, deviceInfo);
+
+        const profileData = await getUserProfile(user.uid);
+        await storeAuthState(user, profileData);
+      } else {
+        await storeAuthState(user);
+      }
+    } catch (firestoreError) {
+      await storeAuthState(user);
+    }
+
+    return { success: true };
+
   } catch (error: any) {
+    console.error('Google Sign-In Error:', {
+      code: error.code,
+      message: error.message,
+      stack: error.stack?.split('\n')[0]
+    });
+    
+    await incrementAuthAttempts();
+    
+    if (error.code === 'auth/account-exists-with-different-credential') {
+      return { 
+        success: false, 
+        error: 'An account already exists with this email using a different sign-in method.' 
+      };
+    } else if (error.code === 'auth/invalid-credential') {
+      return { 
+        success: false, 
+        error: 'Invalid credentials. Please try again.' 
+      };
+    } else if (error.code === 'auth/operation-not-allowed') {
+      return { 
+        success: false, 
+        error: 'Google sign-in is not enabled. Please contact support.' 
+      };
+    } else if (error.code === 'auth/user-disabled') {
+      return { 
+        success: false, 
+        error: 'This account has been disabled.' 
+      };
+    } else if (error.message?.includes('OAuth') || error.message?.includes('client ID')) {
+      return { 
+        success: false, 
+        error: 'Google sign-in configuration error. Please contact support.' 
+      };
+    }
+    
     return { 
       success: false, 
-      error: 'Google Sign-In failed. Please try again.' 
+      error: `Google sign-in failed: ${error.message || 'Unknown error'}. Please try again.` 
     };
   }
+};
+
+export const debugGoogleOAuthConfig = () => {
+  console.log('Google OAuth Configuration Debug:');
+  console.log('Platform:', Platform.OS);
+  console.log('Environment Variables:');
+  console.log('  - iOS Client ID:', Constants.expoConfig?.extra?.googleOAuthIosClientId ? 'SET' : 'NOT SET');
+  console.log('  - Android Client ID:', Constants.expoConfig?.extra?.googleOAuthAndroidClientId ? 'SET' : 'NOT SET');
+  
+  if (Constants.expoConfig?.extra?.googleOAuthIosClientId) {
+    console.log('  - iOS Client ID Preview:', `${Constants.expoConfig.extra.googleOAuthIosClientId.substring(0, 30)}...`);
+  }
+  
+  if (Constants.expoConfig?.extra?.googleOAuthAndroidClientId) {
+    console.log('  - Android Client ID Preview:', `${Constants.expoConfig.extra.googleOAuthAndroidClientId.substring(0, 30)}...`);
+  }
+  
+  try {
+    const config = getGoogleOAuthConfig();
+    console.log('OAuth config generation successful');
+    console.log('  - Client ID:', `${config.clientId.substring(0, 30)}...`);
+    console.log('  - Redirect URI:', config.redirectUri);
+  } catch (error: any) {
+    console.error('OAuth config generation failed:', error.message);
+  }
+  
+  console.log('Firebase Auth Status:', auth ? 'Initialized' : 'Not Initialized');
+  console.log('Firebase Ready:', isFirebaseReady());
 }; 
