@@ -34,5 +34,10 @@ defaultConfig.transformer.getTransformOptions = async () => ({
 
 defaultConfig.resolver.sourceExts.push('cjs');
 defaultConfig.resolver.unstable_enablePackageExports = false;
+defaultConfig.resolver.unstable_conditionNames = ['require', 'node', 'default'];
+
+defaultConfig.resolver.resolverMainFields = ['react-native', 'browser', 'main'];
+
+defaultConfig.resolver.platforms = ['ios', 'android', 'native', 'web'];
 
 module.exports = defaultConfig; 
