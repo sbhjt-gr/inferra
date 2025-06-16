@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { isAuthenticated, getUserFromSecureStorage, getCurrentUser, isFirebaseReady, getFirebaseServices } from '../services/FirebaseService';
-import { onAuthStateChanged } from 'firebase/auth';
 
 interface RemoteModelContextType {
   enableRemoteModels: boolean;
@@ -46,7 +45,7 @@ export const RemoteModelProvider: React.FC<{ children: React.ReactNode }> = ({ c
         return;
       }
 
-      const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      const unsubscribe = auth.onAuthStateChanged(async (user) => {
         const newLoginState = !!user;
         setIsLoggedIn(newLoginState);
         
