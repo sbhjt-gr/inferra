@@ -15,6 +15,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as WebBrowser from 'expo-web-browser';
 import { 
   TextInput, 
   Text, 
@@ -24,6 +25,7 @@ import {
   Divider,
   Dialog,
   Portal,
+  Checkbox,
 } from 'react-native-paper';
 import { registerWithEmail, signInWithGoogle, isEmailFromTrustedProvider, testFirebaseConnection, debugGoogleOAuthConfig } from '../services/FirebaseService';
 
@@ -50,9 +52,27 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
   const [isEmailTrusted, setIsEmailTrusted] = useState(true);
   const [isEmailFocused, setIsEmailFocused] = useState(false);
   const [emailTouched, setEmailTouched] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [termsError, setTermsError] = useState<string | null>(null);
 
   const redirectAfterRegister = route.params?.redirectTo || 'MainTabs';
   const redirectParams = route.params?.redirectParams || { screen: 'HomeTab' };
+
+  const handleOpenTerms = async () => {
+    try {
+      await WebBrowser.openBrowserAsync('https://inferra.me/terms-conditions');
+    } catch (error) {
+      setError('Failed to open Terms & Conditions. Please try again.');
+    }
+  };
+
+  const handleOpenPrivacy = async () => {
+    try {
+      await WebBrowser.openBrowserAsync('https://inferra.me/privacy-policy');
+    } catch (error) {
+      setError('Failed to open Privacy Policy. Please try again.');
+    }
+  };
 
   const validateEmail = (email: string) => {
     const emailRegex = /^[a-zA-Z0-9.!#$%&'*=?^_`{|}~-]+@[^\s@]+\.[^\s@]+$/;
@@ -71,10 +91,15 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
       return;
     }
 
-    console.log('Starting registration process...');
+    if (!termsAccepted) {
+      setTermsError('You must accept the Terms & Conditions and Privacy Policy to continue');
+      return;
+    }
+
     setIsLoading(true);
     setError('');
     setPasswordWarning('');
+    setTermsError(null);
 
     try {
       console.log('Testing Firebase connection...');
@@ -255,6 +280,44 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
                   {passwordWarning}
                 </HelperText>
               )}
+
+              <View style={styles.termsContainer}>
+                <View style={styles.checkboxContainer}>
+                  <Checkbox.Android
+                    status={termsAccepted ? 'checked' : 'unchecked'}
+                    onPress={() => {
+                      setTermsAccepted(!termsAccepted);
+                      setTermsError(null);
+                    }}
+                    color="#8A2BE2"
+                  />
+                  <View style={styles.termsTextContainer}>
+                    <Text variant="bodySmall">
+                      I agree to the{' '}
+                      <Text
+                        variant="bodySmall"
+                        style={styles.linkText}
+                        onPress={handleOpenTerms}
+                      >
+                        Terms & Conditions
+                      </Text>
+                      {' '}and{' '}
+                      <Text
+                        variant="bodySmall"
+                        style={styles.linkText}
+                        onPress={handleOpenPrivacy}
+                      >
+                        Privacy Policy
+                      </Text>
+                    </Text>
+                  </View>
+                </View>
+                {termsError && (
+                  <HelperText type="error" visible={!!termsError}>
+                    {termsError}
+                  </HelperText>
+                )}
+              </View>
 
               <Button
                 key={`register-button-${isLoading}`}
@@ -447,5 +510,22 @@ const styles = StyleSheet.create({
   warningText: {
     marginBottom: 16,
     color: '#FF9800',
+  },
+  termsContainer: {
+    marginBottom: 16,
+  },
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+    marginVertical: 4,
+  },
+  termsTextContainer: {
+    flex: 1,
+    marginLeft: 8,
+  },
+  linkText: {
+    color: '#8A2BE2',
+    textDecorationLine: 'underline',
   },
 }); 
