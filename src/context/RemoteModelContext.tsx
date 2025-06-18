@@ -1,13 +1,16 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { isAuthenticated, getUserFromSecureStorage, getCurrentUser, isFirebaseReady, getFirebaseServices } from '../services/FirebaseService';
-import { onAuthStateChanged } from 'firebase/auth';
+import { isAuthenticated, getCurrentUser, isFirebaseReady } from '../services/FirebaseAuth';
+import { getUserFromSecureStorage } from '../services/AuthStorage';
+import { getFirebaseServices } from '../services/FirebaseService';
+import { onAuthStateChanged, FirebaseAuthTypes } from '@react-native-firebase/auth';
 
 interface RemoteModelContextType {
   enableRemoteModels: boolean;
   toggleRemoteModels: () => Promise<{ success: boolean, requiresLogin?: boolean, emailNotVerified?: boolean }>;
   isLoggedIn: boolean;
   checkLoginStatus: () => Promise<boolean>;
+  disableRemoteModels: () => Promise<void>;
 }
 
 const RemoteModelContext = createContext<RemoteModelContextType>({
@@ -15,11 +18,51 @@ const RemoteModelContext = createContext<RemoteModelContextType>({
   toggleRemoteModels: async () => ({ success: false }),
   isLoggedIn: false,
   checkLoginStatus: async () => false,
+  disableRemoteModels: async () => {},
 });
 
 export const RemoteModelProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [enableRemoteModels, setEnableRemoteModels] = useState<boolean>(false);
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
+
+  const disableRemoteModels = async (): Promise<void> => {
+    setEnableRemoteModels(false);
+    try {
+      await AsyncStorage.setItem('@remote_models_enabled', 'false');
+    } catch {
+      // do nothing
+    }
+  };
+
+  const checkLoginStatus = useCallback(async () => {
+    try {
+      if (!isFirebaseReady()) {
+        setIsLoggedIn(false);
+        return false;
+      }
+
+      const authenticated = await isAuthenticated();
+      setIsLoggedIn(authenticated);
+      
+      if (!authenticated) {
+        const userData = await getUserFromSecureStorage();
+        const isLoggedInFromStorage = !!userData;
+        setIsLoggedIn(isLoggedInFromStorage);
+        
+        if (!isLoggedInFromStorage) {
+          await disableRemoteModels();
+        }
+        
+        return isLoggedInFromStorage;
+      }
+      
+      return authenticated;
+    } catch {
+      setIsLoggedIn(false);
+      await disableRemoteModels();
+      return false;
+    }
+  }, []);
 
   useEffect(() => {
     loadRemoteModelPreference();
@@ -35,22 +78,20 @@ export const RemoteModelProvider: React.FC<{ children: React.ReactNode }> = ({ c
         return;
       }
 
-      const unsubscribe = onAuthStateChanged(auth, (user) => {
+      const unsubscribe = onAuthStateChanged(auth(), async (user: FirebaseAuthTypes.User | null) => {
         const newLoginState = !!user;
         setIsLoggedIn(newLoginState);
         
-        if (!newLoginState && enableRemoteModels) {
-          setEnableRemoteModels(false);
-          AsyncStorage.setItem('@remote_models_enabled', 'false')
-            .catch(error => console.error('Error saving remote model preference:', error));
+        if (!newLoginState) {
+          await disableRemoteModels();
         }
       });
 
       return () => unsubscribe();
-    } catch (error) {
-      console.error('Error setting up auth state listener:', error);
+    } catch {
+      
     }
-  }, [enableRemoteModels]);
+  }, [checkLoginStatus]);
 
   const loadRemoteModelPreference = async () => {
     try {
@@ -58,32 +99,8 @@ export const RemoteModelProvider: React.FC<{ children: React.ReactNode }> = ({ c
       if (savedPreference) {
         setEnableRemoteModels(savedPreference === 'true');
       }
-    } catch (error) {
+    } catch {
       // do nothing
-    }
-  };
-
-  const checkLoginStatus = async () => {
-    try {
-      if (!isFirebaseReady()) {
-        setIsLoggedIn(false);
-        return false;
-      }
-
-      const authenticated = await isAuthenticated();
-      setIsLoggedIn(authenticated);
-      
-      if (!authenticated) {
-        const userData = await getUserFromSecureStorage();
-        const isLoggedInFromStorage = !!userData;
-        setIsLoggedIn(isLoggedInFromStorage);
-        return isLoggedInFromStorage;
-      }
-      
-      return authenticated;
-    } catch (error) {
-      setIsLoggedIn(false);
-      return false;
     }
   };
 
@@ -105,7 +122,7 @@ export const RemoteModelProvider: React.FC<{ children: React.ReactNode }> = ({ c
     try {
       await AsyncStorage.setItem('@remote_models_enabled', newValue.toString());
       return { success: true };
-    } catch (error) {
+    } catch {
       return { success: false };
     }
   };
@@ -115,7 +132,8 @@ export const RemoteModelProvider: React.FC<{ children: React.ReactNode }> = ({ c
       enableRemoteModels,
       toggleRemoteModels,
       isLoggedIn,
-      checkLoginStatus
+      checkLoginStatus,
+      disableRemoteModels
     }}>
       {children}
     </RemoteModelContext.Provider>

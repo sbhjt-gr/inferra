@@ -1,5 +1,5 @@
-import { GeminiService } from './GeminiService.ts';
-import { onlineModelService } from './OnlineModelService.ts';
+import { GeminiService } from './GeminiService';
+import { onlineModelService } from './OnlineModelService';
 
 let isInitialized = false;
 let geminiService: GeminiService;

@@ -15,6 +15,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as WebBrowser from 'expo-web-browser';
 import { 
   TextInput, 
   Text, 
@@ -24,8 +25,9 @@ import {
   Divider,
   Dialog,
   Portal,
+  Checkbox,
 } from 'react-native-paper';
-import { registerWithEmail, signInWithGoogle, isEmailFromTrustedProvider } from '../services/FirebaseService';
+import { registerWithEmail, signInWithGoogle, isEmailFromTrustedProvider, testFirebaseConnection, debugGoogleOAuthConfig } from '../services/FirebaseService';
 
 type RegisterScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList>;
@@ -43,15 +45,34 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [passwordWarning, setPasswordWarning] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [dialogVisible, setDialogVisible] = useState(false);
   const [isEmailTrusted, setIsEmailTrusted] = useState(true);
   const [isEmailFocused, setIsEmailFocused] = useState(false);
   const [emailTouched, setEmailTouched] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [termsError, setTermsError] = useState<string | null>(null);
 
   const redirectAfterRegister = route.params?.redirectTo || 'MainTabs';
   const redirectParams = route.params?.redirectParams || { screen: 'HomeTab' };
+
+  const handleOpenTerms = async () => {
+    try {
+      await WebBrowser.openBrowserAsync('https://inferra.me/terms-conditions');
+    } catch (error) {
+      setError('Failed to open Terms & Conditions. Please try again.');
+    }
+  };
+
+  const handleOpenPrivacy = async () => {
+    try {
+      await WebBrowser.openBrowserAsync('https://inferra.me/privacy-policy');
+    } catch (error) {
+      setError('Failed to open Privacy Policy. Please try again.');
+    }
+  };
 
   const validateEmail = (email: string) => {
     const emailRegex = /^[a-zA-Z0-9.!#$%&'*=?^_`{|}~-]+@[^\s@]+\.[^\s@]+$/;
@@ -65,52 +86,56 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
   };
 
   const handleRegister = async () => {
-    setError(null);
-    
-    if (!name.trim()) {
-      setError('Name is required');
-      return;
-    }
-
-    if (!email.trim()) {
-      setError('Email is required');
-      return;
-    }
-
-    if (!validateEmail(email)) {
-      setError('Please enter a valid email address');
-      return;
-    }
-
-    if (!password.trim()) {
-      setError('Password is required');
-      return;
-    }
-
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters');
-      return;
-    }
-
     if (password !== confirmPassword) {
       setError('Passwords do not match');
       return;
     }
 
+    if (!termsAccepted) {
+      setTermsError('You must accept the Terms & Conditions and Privacy Policy to continue');
+      return;
+    }
+
+    setIsLoading(true);
+    setError('');
+    setPasswordWarning('');
+    setTermsError(null);
+
     try {
-      setIsLoading(true);
+      console.log('Testing Firebase connection...');
+      const connectionTest = await testFirebaseConnection();
+      
+      if (!connectionTest.connected) {
+        console.error('Firebase connection failed:', connectionTest.error);
+        setError(`Firebase configuration error: ${connectionTest.error}`);
+        setIsLoading(false);
+        return;
+      }
+      
+      console.log('Firebase connection OK, proceeding with registration...');
       
       const result = await registerWithEmail(name, email, password);
       
       if (result.success) {
+        console.log('Registration successful');
         await checkLoginStatus();
+        
+        if (result.passwordWarning) {
+          setPasswordWarning(result.passwordWarning);
+        }
         
         setDialogVisible(true);
       } else {
-        setError(result.error || 'Registration failed. Please try again.');
+        console.error('Registration failed:', result.error);
+        setError(result.error || 'Registration failed');
+        
+        if (result.passwordWarning) {
+          setPasswordWarning(result.passwordWarning);
+        }
       }
-    } catch (err) {
-      setError('Registration failed. Please try again.');
+    } catch (error: any) {
+      console.error('Registration error:', error);
+      setError(error.message || 'Registration failed');
     } finally {
       setIsLoading(false);
     }
@@ -118,8 +143,16 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
 
   const handleGoogleSignIn = async () => {
     try {
+      if (!termsAccepted) {
+        setTermsError('You must accept the Terms & Conditions and Privacy Policy to continue');
+        return;
+      }
+
       setIsLoading(true);
       setError(null);
+      setTermsError(null);
+      
+      debugGoogleOAuthConfig();
       
       const result = await signInWithGoogle();
       
@@ -210,12 +243,6 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
                 onBlur={() => setIsEmailFocused(false)}
               />
 
-              {email && !isEmailTrusted && validateEmail(email) && !isEmailFocused && emailTouched && (
-                <HelperText type="info" visible={true} style={styles.warningText}>
-                  We don't support this email provider. Although, account creation is allowed, no free credits will be provided.
-                </HelperText>
-              )}
-
               <TextInput
                 label="Password"
                 value={password}
@@ -253,6 +280,50 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
                   {error}
                 </HelperText>
               )}
+
+              {passwordWarning && (
+                <HelperText type="info" visible={!!passwordWarning} style={styles.warningText}>
+                  {passwordWarning}
+                </HelperText>
+              )}
+
+              <View style={styles.termsContainer}>
+                <View style={styles.checkboxContainer}>
+                  <Checkbox.Android
+                    status={termsAccepted ? 'checked' : 'unchecked'}
+                    onPress={() => {
+                      setTermsAccepted(!termsAccepted);
+                      setTermsError(null);
+                    }}
+                    color="#8A2BE2"
+                  />
+                  <View style={styles.termsTextContainer}>
+                    <Text variant="bodySmall">
+                      I agree to the{' '}
+                      <Text
+                        variant="bodySmall"
+                        style={styles.linkText}
+                        onPress={handleOpenTerms}
+                      >
+                        Terms & Conditions
+                      </Text>
+                      {' '}and{' '}
+                      <Text
+                        variant="bodySmall"
+                        style={styles.linkText}
+                        onPress={handleOpenPrivacy}
+                      >
+                        Privacy Policy
+                      </Text>
+                    </Text>
+                  </View>
+                </View>
+                {termsError && (
+                  <HelperText type="error" visible={!!termsError}>
+                    {termsError}
+                  </HelperText>
+                )}
+              </View>
 
               <Button
                 key={`register-button-${isLoading}`}
@@ -445,5 +516,22 @@ const styles = StyleSheet.create({
   warningText: {
     marginBottom: 16,
     color: '#FF9800',
+  },
+  termsContainer: {
+    marginBottom: 16,
+  },
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+    marginVertical: 4,
+  },
+  termsTextContainer: {
+    flex: 1,
+    marginLeft: 8,
+  },
+  linkText: {
+    color: '#8A2BE2',
+    textDecorationLine: 'underline',
   },
 }); 
