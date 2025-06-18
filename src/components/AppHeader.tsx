@@ -8,7 +8,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import chatManager from '../utils/ChatManager';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { InterFont } from '../hooks/InterFont';
+import { OpenSansFont } from '../hooks/OpenSansFont';
 
 type AppHeaderProps = {
   title?: string;
@@ -38,7 +38,7 @@ export default function AppHeader({
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute();
   const insets = useSafeAreaInsets();
-  const { fonts } = InterFont();
+  const { fonts } = OpenSansFont();
 
   const isHomeScreen = route.name === 'HomeTab';
 

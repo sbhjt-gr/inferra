@@ -18,7 +18,7 @@ import * as TaskManager from 'expo-task-manager';
 import * as BackgroundFetch from 'expo-background-task';
 import { ThemeColors } from './src/types/theme';
 import { notificationService } from './src/services/NotificationService';
-import { getFirebaseServices } from './src/services/FirebaseService';
+import { initializeFirebase } from './src/services/FirebaseAuth';
 import { initGeminiService } from './src/services/GeminiInitializer';
 import { initOpenAIService } from './src/services/OpenAIInitializer';
 import { initDeepSeekService } from './src/services/DeepSeekInitializer';
@@ -29,16 +29,23 @@ import { ShowDialog } from './src/components/ShowDialog';
 
 SplashScreen.preventAutoHideAsync();
 
-try {
-  getFirebaseServices();
-} catch (error) {
-  console.error('Firebase initialization failed:', error);
-}
+// Initialize services asynchronously
+const initializeServices = async () => {
+  try {
+    await initializeFirebase();
+    console.log('Firebase initialized successfully');
+  } catch (error) {
+    console.error('Firebase initialization failed:', error);
+  }
+  
+  initGeminiService();
+  initOpenAIService();
+  initDeepSeekService();
+  initClaudeService();
+};
 
-initGeminiService();
-initOpenAIService();
-initDeepSeekService();
-initClaudeService();
+// Don't await this to avoid blocking the app startup
+initializeServices();
 
 const BACKGROUND_DOWNLOAD_TASK = 'background-download-check';
 
@@ -119,28 +126,30 @@ function Navigation() {
       subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
         try {
           if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+            initializeServices();
             modelDownloader.checkBackgroundDownloads();
           } else if (appState.current === 'active' && nextAppState.match(/inactive|background/)) {
-            // do nothing
+            
           }
           
           appState.current = nextAppState;
         } catch (error) {
-          // do nothing
+          
         }
       });
     } catch (error) {
       const changeHandler = (nextAppState: AppStateStatus) => {
         try {
           if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+            initializeServices();
             modelDownloader.checkBackgroundDownloads();
           } else if (appState.current === 'active' && nextAppState.match(/inactive|background/)) {
-            // do nothing
+            
           }
           
           appState.current = nextAppState;
         } catch (error) {
-          // do nothing
+          
         }
       };
       
@@ -197,12 +206,12 @@ function Navigation() {
 
 export default function App() {
   const [fontsLoaded, fontError] = useFonts({
-    'Inter-Light': require('./assets/fonts/Inter-Light.ttf'),
-    'Inter-Regular': require('./assets/fonts/Inter-Regular.ttf'),
-    'Inter-Medium': require('./assets/fonts/Inter-Medium.ttf'),
-    'Inter-SemiBold': require('./assets/fonts/Inter-SemiBold.ttf'),
-    'Inter-Bold': require('./assets/fonts/Inter-Bold.ttf'),
-    'Inter-ExtraBold': require('./assets/fonts/Inter-ExtraBold.ttf'),
+    'OpenSans-Light': require('./assets/fonts/OpenSans-Light.ttf'),
+    'OpenSans-Regular': require('./assets/fonts/OpenSans-Regular.ttf'),
+    'OpenSans-Medium': require('./assets/fonts/OpenSans-Medium.ttf'),
+    'OpenSans-SemiBold': require('./assets/fonts/OpenSans-SemiBold.ttf'),
+    'OpenSans-Bold': require('./assets/fonts/OpenSans-Bold.ttf'),
+    'OpenSans-ExtraBold': require('./assets/fonts/OpenSans-ExtraBold.ttf'),
   });
 
   useEffect(() => {
@@ -219,14 +228,14 @@ export default function App() {
       Text.render = function (props, ref) {
         return oldTextRender.call(this, {
           ...props,
-          style: [{ fontFamily: 'Inter-Regular' }, props.style],
+          style: [{ fontFamily: 'OpenSans-Regular' }, props.style],
         }, ref);
       };
 
       TextInput.render = function (props, ref) {
         return oldTextInputRender.call(this, {
           ...props,
-          style: [{ fontFamily: 'Inter-Regular' }, props.style],
+          style: [{ fontFamily: 'OpenSans-Regular' }, props.style],
         }, ref);
       };
     }

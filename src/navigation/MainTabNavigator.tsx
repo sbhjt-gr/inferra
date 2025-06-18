@@ -10,7 +10,7 @@ import ModelScreen from '../screens/ModelScreen';
 import { TabParamList } from '../types/navigation';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
-import { InterFont } from '../hooks/InterFont';
+import { OpenSansFont } from '../hooks/OpenSansFont';
 
 const Tab = createBottomTabNavigator<TabParamList>();
 
@@ -21,7 +21,7 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const themeColors = theme[currentTheme];
   const insets = useSafeAreaInsets();
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
-  const { fonts } = InterFont();
+  const { fonts } = OpenSansFont();
 
   useEffect(() => {
     const keyboardWillShowListener = Keyboard.addListener(

@@ -917,10 +917,10 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         <View style={styles.loadingOverlay}>
           <View style={[styles.loadingContainer, { backgroundColor: themeColors.borderColor }]}>
             <ActivityIndicator size="large" color={themeColors.primary} />
-            <RNText style={[styles.loadingText, { color: themeColors.text }]}>
+            <RNText style={[styles.loadingText, { color: themeColors.text, textAlign: 'center' }]}>
               {importingModelName ? `Importing ${importingModelName}...` : 'Importing model...'}
             </RNText>
-            <RNText style={[styles.loadingSubtext, { color: themeColors.secondaryText }]}>
+            <RNText style={[styles.loadingSubtext, { color: themeColors.secondaryText, textAlign: 'center' }]}>
               {importingModelName ? 'Moving model to app storage' : 'This may take a while for large models'}
             </RNText>
           </View>

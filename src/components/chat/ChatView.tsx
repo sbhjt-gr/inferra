@@ -5,8 +5,10 @@ import {
   Text,
   FlatList,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   Platform,
   ActivityIndicator,
+  Keyboard,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Markdown from 'react-native-markdown-display';
@@ -456,49 +458,60 @@ export default function ChatView({
     );
   }, [themeColors, messages, isStreaming, streamingMessageId, streamingMessage, streamingThinking, streamingStats, onCopyText, isRegenerating, onRegenerateResponse, justCancelled]);
 
+  const renderContent = () => {
+    if (messages.length === 0) {
+      return (
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.emptyState}>
+            <MaterialCommunityIcons 
+              name="message-text-outline" 
+              size={48} 
+              color={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.75)'} 
+            />
+            <Text style={[{ color: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.75)' }]}>
+              Select a model and start chatting
+            </Text>
+          </View>
+        </TouchableWithoutFeedback>
+      );
+    }
+
+    return (
+      <FlatList
+        ref={flatListRef}
+        data={[...messages].reverse()}
+        renderItem={renderMessage}
+        keyExtractor={(item: Message) => item.id}
+        contentContainerStyle={styles.messageList}
+        inverted={true}
+        maintainVisibleContentPosition={{
+          minIndexForVisible: 0,
+          autoscrollToTopThreshold: 10,
+        }}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        scrollEventThrottle={16}
+        showsVerticalScrollIndicator={true}
+        initialNumToRender={15}
+        removeClippedSubviews={Platform.OS === 'android'}
+        windowSize={10}
+        maxToRenderPerBatch={10}
+        updateCellsBatchingPeriod={50}
+        onEndReachedThreshold={0.5}
+        scrollIndicatorInsets={{ right: 1 }}
+        onTouchStart={Keyboard.dismiss}
+        onLayout={() => {
+          if (flatListRef.current && messages.length > 0) {
+            flatListRef.current.scrollToOffset({ offset: 0, animated: false });
+          }
+        }}
+      />
+    );
+  };
+
   return (
     <View style={styles.container}>
-      {messages.length === 0 ? (
-        <View style={styles.emptyState}>
-          <MaterialCommunityIcons 
-            name="message-text-outline" 
-            size={48} 
-            color={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.75)'} 
-          />
-          <Text style={[{ color: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.75)' }]}>
-            Select a model and start chatting
-          </Text>
-        </View>
-      ) : (
-        <FlatList
-          ref={flatListRef}
-          data={[...messages].reverse()}
-          renderItem={renderMessage}
-          keyExtractor={(item: Message) => item.id}
-          contentContainerStyle={styles.messageList}
-          inverted={true}
-          maintainVisibleContentPosition={{
-            minIndexForVisible: 0,
-            autoscrollToTopThreshold: 10,
-          }}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
-          scrollEventThrottle={16}
-          showsVerticalScrollIndicator={true}
-          initialNumToRender={15}
-          removeClippedSubviews={false}
-          windowSize={10}
-          maxToRenderPerBatch={10}
-          updateCellsBatchingPeriod={50}
-          onEndReachedThreshold={0.5}
-          scrollIndicatorInsets={{ right: 1 }}
-          onLayout={() => {
-            if (flatListRef.current && messages.length > 0) {
-              flatListRef.current.scrollToOffset({ offset: 0, animated: false });
-            }
-          }}
-        />
-      )}
+      {renderContent()}
     </View>
   );
 }

@@ -4,7 +4,9 @@ import {
   View,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   ActivityIndicator,
+  Keyboard,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
@@ -177,89 +179,91 @@ export default function ChatInput({
   };
 
   return (
-    <View style={[styles.container, style]}>
-      <TouchableOpacity 
-        style={styles.attachmentButton} 
-        onPress={pickDocument}
-        disabled={disabled}
-      >
-        <MaterialCommunityIcons 
-          name="attachment" 
-          size={24} 
-          color={attachmentIconColor} 
-        />
-      </TouchableOpacity>
-
-      <View style={styles.inputContainer}>
-        <TextInput
-          ref={inputRef}
-          style={inputContainerStyle}
-          placeholder="Type a message..."
-          placeholderTextColor={placeholderColor}
-          value={text}
-          onChangeText={setText}
-          onContentSizeChange={handleContentSizeChange}
-          multiline
-          maxLength={10000}
-          editable={!disabled}
-          returnKeyType="default"
-        />
-      </View>
-      
-      {isGenerating ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator
-            size="small"
-            color={getThemeAwareColor('#0084ff', currentTheme)}
-            style={styles.loadingIndicator}
-          />
-          <TouchableOpacity
-            onPress={handleCancel}
-            style={styles.cancelButton}
-          >
-            <MaterialCommunityIcons 
-              name="close" 
-              size={24} 
-              color={attachmentIconColor} 
-            />
-          </TouchableOpacity>
-        </View>
-      ) : (
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+      <View style={[styles.container, style]}>
         <TouchableOpacity 
-          style={sendButtonStyle} 
-          onPress={handleSend}
-          disabled={!text.trim() || disabled}
+          style={styles.attachmentButton} 
+          onPress={pickDocument}
+          disabled={disabled}
         >
           <MaterialCommunityIcons 
-            name="send" 
+            name="attachment" 
             size={24} 
-            color={sendButtonColor} 
+            color={attachmentIconColor} 
           />
         </TouchableOpacity>
-      )}
 
-      {selectedFile && (
-        <FileViewerModal
-          visible={fileModalVisible}
-          onClose={closeFileModal}
-          filePath={selectedFile.uri}
-          fileName={selectedFile.name}
-          onUpload={handleFileUpload}
-        />
-      )}
+        <View style={styles.inputContainer}>
+          <TextInput
+            ref={inputRef}
+            style={inputContainerStyle}
+            placeholder="Type a message..."
+            placeholderTextColor={placeholderColor}
+            value={text}
+            onChangeText={setText}
+            onContentSizeChange={handleContentSizeChange}
+            multiline
+            maxLength={10000}
+            editable={!disabled}
+            returnKeyType="default"
+          />
+        </View>
+        
+        {isGenerating ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator
+              size="small"
+              color={getThemeAwareColor('#0084ff', currentTheme)}
+              style={styles.loadingIndicator}
+            />
+            <TouchableOpacity
+              onPress={handleCancel}
+              style={styles.cancelButton}
+            >
+              <MaterialCommunityIcons 
+                name="close" 
+                size={24} 
+                color={attachmentIconColor} 
+              />
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity 
+            style={sendButtonStyle} 
+            onPress={handleSend}
+            disabled={!text.trim() || disabled}
+          >
+            <MaterialCommunityIcons 
+              name="send" 
+              size={24} 
+              color={sendButtonColor} 
+            />
+          </TouchableOpacity>
+        )}
 
-      <Portal>
-        <Dialog visible={dialogVisible} onDismiss={hideDialog}>
-          <Dialog.Title>{dialogTitle}</Dialog.Title>
-          <Dialog.Content>
-            <Text variant="bodyMedium">{dialogMessage}</Text>
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={hideDialog}>OK</Button>
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
-    </View>
+        {selectedFile && (
+          <FileViewerModal
+            visible={fileModalVisible}
+            onClose={closeFileModal}
+            filePath={selectedFile.uri}
+            fileName={selectedFile.name}
+            onUpload={handleFileUpload}
+          />
+        )}
+
+        <Portal>
+          <Dialog visible={dialogVisible} onDismiss={hideDialog}>
+            <Dialog.Title>{dialogTitle}</Dialog.Title>
+            <Dialog.Content>
+              <Text variant="bodyMedium">{dialogMessage}</Text>
+            </Dialog.Content>
+            <Dialog.Actions>
+              <Button onPress={hideDialog}>OK</Button>
+            </Dialog.Actions>
+          </Dialog>
+        </Portal>
+      </View>
+    </TouchableWithoutFeedback>
   );
 }
 
