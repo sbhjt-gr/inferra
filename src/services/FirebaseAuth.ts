@@ -32,7 +32,8 @@ export {
   initializeAuthAndSync,
   initAuthState,
   refreshUserProfile,
-  getCompleteUserData 
+  getCompleteUserData,
+  forceRefreshUserData 
 } from './AuthState';
 
 // Export types

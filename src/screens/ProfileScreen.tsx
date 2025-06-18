@@ -7,7 +7,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
-import { getCurrentUser, logoutUser, getCompleteUserData, refreshUserProfile, waitForAuthReady, initializeAuthAndSync } from '../services/FirebaseAuth';
+import { getCurrentUser, logoutUser, getCompleteUserData, forceRefreshUserData, refreshUserProfile, waitForAuthReady, initializeAuthAndSync } from '../services/FirebaseAuth';
 import { getUserFromSecureStorage } from '../services/AuthStorage';
 import { getFirebaseServices } from '../services/FirebaseService';
 import { useRemoteModel } from '../context/RemoteModelContext';
@@ -63,13 +63,13 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
     try {
       await waitForAuthReady();
       
-      const { user, profile } = await getCompleteUserData();
+      const { user, profile } = await forceRefreshUserData();
       
       if (user) {
         try {
           await user.reload();
         } catch (error) {
-          // Continue even if reload fails
+          
         }
       }
       

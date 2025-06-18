@@ -12,6 +12,7 @@ export {
   initAuthState,
   refreshUserProfile,
   getCompleteUserData,
+  forceRefreshUserData,
   waitForAuthReady,
   getFirebaseServices,
   debugGoogleOAuthConfig,

@@ -84,30 +84,79 @@ export const getUserProfile = async (uid: string): Promise<UserData | null> => {
   try {
     const firestore = getFirestore();
     const userDocRef = doc(firestore, 'users', uid);
-    const userDoc = await getDoc(userDocRef);
     
-    if (userDoc.exists()) {
-      const data = userDoc.data();
-      const { auth } = await getFirebaseServices();
-      const currentUser = auth().currentUser;
+    try {
+      const userDoc = await getDoc(userDocRef);
       
-      return {
-        uid: data!.uid,
-        email: data!.email,
-        emailVerified: (currentUser && currentUser.uid === uid) ? currentUser.emailVerified : (data!.emailVerified || false),
-        displayName: data!.displayName,
-        lastLoginAt: data!.lastLoginAt?.toDate?.()?.toISOString() || new Date().toISOString(),
-        createdAt: data!.createdAt,
-        updatedAt: data!.updatedAt,
-        trustedEmail: data!.trustedEmail,
-        settings: data!.settings,
-        status: data!.status,
-        registrationInfo: data!.registrationInfo,
-        lastLoginInfo: data!.lastLoginInfo
-      };
+      if (userDoc.exists()) {
+        const data = userDoc.data();
+        const { auth } = await getFirebaseServices();
+        const currentUser = auth().currentUser;
+        
+        const userData: UserData = {
+          uid: data!.uid,
+          email: data!.email,
+          emailVerified: (currentUser && currentUser.uid === uid) ? currentUser.emailVerified : (data!.emailVerified || false),
+          displayName: data!.displayName,
+          lastLoginAt: data!.lastLoginAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+          createdAt: data!.createdAt,
+          updatedAt: data!.updatedAt,
+          trustedEmail: data!.trustedEmail,
+          settings: data!.settings,
+          status: data!.status,
+          registrationInfo: data!.registrationInfo,
+          lastLoginInfo: data!.lastLoginInfo
+        };
+        
+        if (__DEV__) {
+          const fromCache = userDoc.metadata.fromCache;
+          const hasPendingWrites = userDoc.metadata.hasPendingWrites;
+          console.log(`User profile loaded: fromCache=${fromCache}, hasPendingWrites=${hasPendingWrites}`);
+        }
+        
+        return userData;
+      }
+      
+      return null;
+    } catch (networkError: any) {
+      if (__DEV__) {
+        console.warn('Network error fetching user profile, checking cache:', networkError.message);
+      }
+      
+      try {
+        const cachedDoc = await getDoc(userDocRef);
+        if (cachedDoc.exists() && cachedDoc.metadata.fromCache) {
+          const data = cachedDoc.data();
+          const { auth } = await getFirebaseServices();
+          const currentUser = auth().currentUser;
+          
+          if (__DEV__) {
+            console.log('Using cached user profile data');
+          }
+          
+          return {
+            uid: data!.uid,
+            email: data!.email,
+            emailVerified: (currentUser && currentUser.uid === uid) ? currentUser.emailVerified : (data!.emailVerified || false),
+            displayName: data!.displayName,
+            lastLoginAt: data!.lastLoginAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+            createdAt: data!.createdAt,
+            updatedAt: data!.updatedAt,
+            trustedEmail: data!.trustedEmail,
+            settings: data!.settings,
+            status: data!.status,
+            registrationInfo: data!.registrationInfo,
+            lastLoginInfo: data!.lastLoginInfo
+          };
+        }
+      } catch (cacheError) {
+        if (__DEV__) {
+          console.error('Error accessing cached user profile:', cacheError);
+        }
+      }
+      
+      throw networkError;
     }
-    
-    return null;
   } catch (error) {
     if (__DEV__) {
       console.error('Error fetching user profile:', error);
