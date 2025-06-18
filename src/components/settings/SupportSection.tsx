@@ -58,7 +58,7 @@ const SupportSection = ({ onOpenLink }: SupportSectionProps) => {
 
       <TouchableOpacity 
         style={[styles.settingItem, styles.settingItemBorder]}
-        onPress={() => onOpenLink('https://ragionare.ct.ws/privacy-policy')}
+        onPress={() => onOpenLink('https://inferra.me/privacy-policy')}
       >
         <View style={styles.settingLeft}>
           <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
