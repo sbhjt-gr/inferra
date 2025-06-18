@@ -4,6 +4,7 @@ export {
   registerWithEmail,
   loginWithEmail,
   signInWithGoogle,
+  signInWithGoogleLogin,
   logoutUser,
   getCurrentUser,
   isAuthenticated,
@@ -13,6 +14,7 @@ export {
   getCompleteUserData,
   waitForAuthReady,
   getFirebaseServices,
+  debugGoogleOAuthConfig,
   type UserData
 } from './FirebaseAuth';
 

@@ -18,7 +18,7 @@ import * as TaskManager from 'expo-task-manager';
 import * as BackgroundFetch from 'expo-background-task';
 import { ThemeColors } from './src/types/theme';
 import { notificationService } from './src/services/NotificationService';
-import { getFirebaseServices } from './src/services/FirebaseService';
+import { initializeFirebase } from './src/services/FirebaseAuth';
 import { initGeminiService } from './src/services/GeminiInitializer';
 import { initOpenAIService } from './src/services/OpenAIInitializer';
 import { initDeepSeekService } from './src/services/DeepSeekInitializer';
@@ -29,16 +29,23 @@ import { ShowDialog } from './src/components/ShowDialog';
 
 SplashScreen.preventAutoHideAsync();
 
-try {
-  getFirebaseServices();
-} catch (error) {
-  console.error('Firebase initialization failed:', error);
-}
+// Initialize services asynchronously
+const initializeServices = async () => {
+  try {
+    await initializeFirebase();
+    console.log('Firebase initialized successfully');
+  } catch (error) {
+    console.error('Firebase initialization failed:', error);
+  }
+  
+  initGeminiService();
+  initOpenAIService();
+  initDeepSeekService();
+  initClaudeService();
+};
 
-initGeminiService();
-initOpenAIService();
-initDeepSeekService();
-initClaudeService();
+// Don't await this to avoid blocking the app startup
+initializeServices();
 
 const BACKGROUND_DOWNLOAD_TASK = 'background-download-check';
 
@@ -119,28 +126,30 @@ function Navigation() {
       subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
         try {
           if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+            initializeServices();
             modelDownloader.checkBackgroundDownloads();
           } else if (appState.current === 'active' && nextAppState.match(/inactive|background/)) {
-            // do nothing
+            
           }
           
           appState.current = nextAppState;
         } catch (error) {
-          // do nothing
+          
         }
       });
     } catch (error) {
       const changeHandler = (nextAppState: AppStateStatus) => {
         try {
           if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+            initializeServices();
             modelDownloader.checkBackgroundDownloads();
           } else if (appState.current === 'active' && nextAppState.match(/inactive|background/)) {
-            // do nothing
+            
           }
           
           appState.current = nextAppState;
         } catch (error) {
-          // do nothing
+          
         }
       };
       

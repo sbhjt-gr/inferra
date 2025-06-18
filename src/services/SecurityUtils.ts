@@ -1,5 +1,4 @@
 import { Platform } from 'react-native';
-import firestore from '@react-native-firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Device from 'expo-device';
 
@@ -197,26 +196,39 @@ export const storeUserSecurityInfo = async (
   deviceInfo: any
 ): Promise<void> => {
   try {
+    const { 
+      getFirestore, 
+      collection, 
+      doc, 
+      setDoc, 
+      addDoc, 
+      serverTimestamp 
+    } = await import('@react-native-firebase/firestore');
+    
+    const firestore = getFirestore();
+    
     const securityRecord = {
       ipAddress: ipData.ip,
       ipError: ipData.error || null,
       geolocation: geoData.geo,
       geoError: geoData.error || null,
       deviceInfo: deviceInfo,
-      timestamp: firestore.FieldValue.serverTimestamp(),
+      timestamp: serverTimestamp(),
       sessionId: Math.random().toString(36).substring(2, 15),
     };
     
-    const userDocRef = firestore().collection('users').doc(uid);
+    const userDocRef = doc(firestore, 'users', uid);
     
-    await userDocRef.set({
+    await setDoc(userDocRef, {
       uid: uid,
-      lastLoginAt: firestore.FieldValue.serverTimestamp(),
-      updatedAt: firestore.FieldValue.serverTimestamp()
+      lastLoginAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
     }, { merge: true });
     
-    await userDocRef.collection('security_info').add(securityRecord);
+    await addDoc(collection(firestore, 'users', uid, 'security_info'), securityRecord);
   } catch (error) {
-    console.error('Error storing user security info:', error);
+    if (__DEV__) {
+      console.error('Error storing user security info:', error);
+    }
   }
 }; 
