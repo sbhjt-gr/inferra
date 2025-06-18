@@ -3,7 +3,6 @@
 # dependencies
 node_modules/
 
-.env
 pr/
 
 # Expo
@@ -32,9 +31,6 @@ yarn-error.*
 .DS_Store
 *.pem
 
-# local env files
-.env*.local
-.env*
 
 # typescript
 *.tsbuildinfo
@@ -83,12 +79,12 @@ yarn-debug.*
 yarn-error.*
 
 # Environment variables
-.env
-.env.local
 .env.development
 .env.test
 .env.production
 *.env.js
+.env*.local
+.env
 
 # Firebase
 google-services.json
