@@ -75,6 +75,26 @@ const SupportSection = ({ onOpenLink }: SupportSectionProps) => {
         </View>
         <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
       </TouchableOpacity>
+
+      <TouchableOpacity 
+        style={[styles.settingItem, styles.settingItemBorder]}
+        onPress={() => onOpenLink('https://ko-fi.com/subhajitgorai')}
+      >
+        <View style={styles.settingLeft}>
+          <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
+            <MaterialCommunityIcons name="currency-usd" size={22} color={iconColor} />
+          </View>
+          <View style={styles.settingTextContainer}>
+            <Text style={[styles.settingText, { color: themeColors.text }]}>
+              Support Development
+            </Text>
+            <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
+              Donate to me for my work
+            </Text>
+          </View>
+        </View>
+        <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
+      </TouchableOpacity>
     </SettingsSection>
   );
 };
