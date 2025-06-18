@@ -173,7 +173,7 @@ export const refreshUserProfile = async (): Promise<UserData | null> => {
   return profileData;
 };
 
-export const getCompleteUserData = async (): Promise<{
+export const getCompleteUserData = async (forceRefresh = false): Promise<{
   user: FirebaseAuthTypes.User | null;
   profile: UserData | null;
   isAuthenticated: boolean;
@@ -198,17 +198,30 @@ export const getCompleteUserData = async (): Promise<{
 
     let profileData = await getUserFromSecureStorage();
     
-    if (!profileData || profileData.uid !== currentUser.uid) {
-      profileData = await getUserProfile(currentUser.uid);
-      if (profileData) {
-        await storeAuthState(currentUser, profileData);
+    if (forceRefresh || !profileData || profileData.uid !== currentUser.uid) {
+      try {
+        profileData = await getUserProfile(currentUser.uid);
+        if (profileData) {
+          await storeAuthState(currentUser, profileData);
+        }
+      } catch (error) {
+        if (__DEV__) {
+          console.warn('Failed to fetch fresh profile data, using stored data:', error);
+        }
+        if (!profileData) {
+          profileData = await getUserFromSecureStorage();
+        }
       }
     }
     
     if (profileData && profileData.emailVerified !== currentUser.emailVerified) {
-      await updateEmailVerificationStatus(currentUser.uid, currentUser.emailVerified);
-      profileData.emailVerified = currentUser.emailVerified;
-      await storeAuthState(currentUser, profileData);
+      try {
+        await updateEmailVerificationStatus(currentUser.uid, currentUser.emailVerified);
+        profileData.emailVerified = currentUser.emailVerified;
+        await storeAuthState(currentUser, profileData);
+      } catch (error) {
+        profileData.emailVerified = currentUser.emailVerified;
+      }
     }
 
     return {
@@ -226,4 +239,12 @@ export const getCompleteUserData = async (): Promise<{
       isAuthenticated: false
     };
   }
+};
+
+export const forceRefreshUserData = async (): Promise<{
+  user: FirebaseAuthTypes.User | null;
+  profile: UserData | null;
+  isAuthenticated: boolean;
+}> => {
+  return getCompleteUserData(true);
 }; 
