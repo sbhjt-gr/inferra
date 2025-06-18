@@ -7,11 +7,13 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
-import { getCurrentUser, logoutUser, getUserFromSecureStorage, getCompleteUserData, refreshUserProfile, waitForAuthReady, initializeAuthAndSync } from '../services/FirebaseService';
+import { getCurrentUser, logoutUser, getCompleteUserData, refreshUserProfile, waitForAuthReady, initializeAuthAndSync } from '../services/FirebaseAuth';
+import { getUserFromSecureStorage } from '../services/AuthStorage';
+import { getFirebaseServices } from '../services/FirebaseService';
 import { useRemoteModel } from '../context/RemoteModelContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { getAuth, sendEmailVerification, onAuthStateChanged, reload } from 'firebase/auth';
 import { useDialog } from '../context/DialogContext';
+import { onAuthStateChanged, FirebaseAuthTypes } from '@react-native-firebase/auth';
 
 type ProfileScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList>;
@@ -65,7 +67,7 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
       
       if (user) {
         try {
-          await reload(user);
+          await user.reload();
         } catch (error) {
           // Continue even if reload fails
         }
@@ -125,11 +127,11 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
     
     initializeAndLoad();
     
-    const auth = getAuth();
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    const auth = getFirebaseServices().auth();
+    const unsubscribe = onAuthStateChanged(auth, async (user: FirebaseAuthTypes.User | null) => {
       if (user) {
         try {
-          await reload(user);
+          await user.reload();
         } catch (error) {
           // Continue even if reload fails
         }
@@ -171,7 +173,7 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
         const user = getCurrentUser();
         if (user && !user.emailVerified) {
           try {
-            await reload(user);
+            await user.reload();
             refreshUserData();
           } catch (error) {
             // Continue even if reload fails
@@ -203,7 +205,7 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
       
       if (user) {
         try {
-          await reload(user);
+          await user.reload();
         } catch (error) {
           // Continue even if reload fails
         }
@@ -284,7 +286,7 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
         return;
       }
 
-      await sendEmailVerification(user);
+      await user.sendEmailVerification();
       setEmailSentTimestamp(currentTime);
       
       showDialog({

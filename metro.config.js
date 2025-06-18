@@ -38,6 +38,6 @@ defaultConfig.resolver.unstable_conditionNames = ['require', 'node', 'default'];
 
 defaultConfig.resolver.resolverMainFields = ['react-native', 'browser', 'main'];
 
-defaultConfig.resolver.platforms = ['ios', 'android', 'native', 'web'];
+defaultConfig.resolver.platforms = ['ios', 'android', 'native'];
 
 module.exports = defaultConfig; 

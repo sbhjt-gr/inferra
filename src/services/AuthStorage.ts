@@ -1,5 +1,4 @@
 import { FirebaseAuthTypes } from '@react-native-firebase/auth';
-import auth from '@react-native-firebase/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export type UserData = {
@@ -46,7 +45,9 @@ export const storeAuthState = async (user: FirebaseAuthTypes.User | null, profil
     await AsyncStorage.setItem(USER_AUTH_KEY, JSON.stringify(userData));
     return true;
   } catch (error) {
-    console.error('Authentication storage failed:', error);
+    if (__DEV__) {
+      console.error('Authentication storage failed:', error);
+    }
     return false;
   }
 };
@@ -65,22 +66,29 @@ export const getUserFromSecureStorage = async (): Promise<UserData | null> => {
       return null;
     }
     
-    const currentUser = auth().currentUser;
-    if (currentUser && currentUser.uid === parsed.uid) {
-      try {
-        await currentUser.reload();
-      } catch (error) {
-        // Continue even if reload fails
-      }
+    try {
+      const { getFirebaseServices } = await import('./FirebaseService');
+      const { auth } = getFirebaseServices();
+      const currentUser = auth().currentUser;
       
-      if (parsed.emailVerified !== currentUser.emailVerified) {
-        parsed.emailVerified = currentUser.emailVerified;
-        await AsyncStorage.setItem(USER_AUTH_KEY, JSON.stringify(parsed));
+      if (currentUser && currentUser.uid === parsed.uid) {
+        try {
+          await currentUser.reload();
+        } catch {
+          // Continue even if reload fails
+        }
+        
+        if (parsed.emailVerified !== currentUser.emailVerified) {
+          parsed.emailVerified = currentUser.emailVerified;
+          await AsyncStorage.setItem(USER_AUTH_KEY, JSON.stringify(parsed));
+        }
       }
+    } catch {
+      // Continue if Firebase services are not available yet
     }
     
     return parsed;
-  } catch (error) {
+  } catch {
     await AsyncStorage.removeItem(USER_AUTH_KEY);
     return null;
   }

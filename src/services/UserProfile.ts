@@ -1,7 +1,13 @@
 import { Platform } from 'react-native';
 import { FirebaseAuthTypes } from '@react-native-firebase/auth';
-import auth from '@react-native-firebase/auth';
-import firestore from '@react-native-firebase/firestore';
+import { 
+  getFirestore, 
+  collection, 
+  doc, 
+  getDoc, 
+  setDoc, 
+  serverTimestamp 
+} from '@react-native-firebase/firestore';
 import { UserData } from './AuthStorage';
 import { 
   isEmailFromTrustedProvider, 
@@ -10,6 +16,11 @@ import {
   getDeviceInfo, 
   storeUserSecurityInfo 
 } from './SecurityUtils';
+
+const getFirebaseServices = async () => {
+  const { getFirebaseServices } = await import('./FirebaseService');
+  return getFirebaseServices();
+};
 
 export const createUserProfile = async (user: FirebaseAuthTypes.User, name: string): Promise<void> => {
   try {
@@ -22,8 +33,9 @@ export const createUserProfile = async (user: FirebaseAuthTypes.User, name: stri
     
     const isTrustedEmail = isEmailFromTrustedProvider(user.email || '');
     
-    const userDocRef = firestore().collection('users').doc(user.uid);
-    const existingDoc = await userDocRef.get();
+    const firestore = getFirestore();
+    const userDocRef = doc(firestore, 'users', user.uid);
+    const existingDoc = await getDoc(userDocRef);
     
     const userProfile: any = {
       uid: user.uid,
@@ -31,15 +43,15 @@ export const createUserProfile = async (user: FirebaseAuthTypes.User, name: stri
       displayName: name,
       emailVerified: user.emailVerified,
       photoURL: user.photoURL,
-      updatedAt: firestore.FieldValue.serverTimestamp(),
-      lastLoginAt: firestore.FieldValue.serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      lastLoginAt: serverTimestamp(),
       trustedEmail: isTrustedEmail,
       registrationInfo: {
         platform: Platform.OS,
         ipAddress: ipData.ip,
         geolocation: geoData.geo,
         deviceInfo: deviceInfo,
-        timestamp: firestore.FieldValue.serverTimestamp(),
+        timestamp: serverTimestamp(),
       },
       settings: {
         emailNotifications: true,
@@ -47,15 +59,15 @@ export const createUserProfile = async (user: FirebaseAuthTypes.User, name: stri
       },
       status: {
         isActive: true,
-        lastActive: firestore.FieldValue.serverTimestamp(),
+        lastActive: serverTimestamp(),
       }
     };
     
     if (!existingDoc.exists()) {
-      userProfile.createdAt = firestore.FieldValue.serverTimestamp();
+      userProfile.createdAt = serverTimestamp();
     }
     
-    await userDocRef.set(userProfile, { merge: true });
+    await setDoc(userDocRef, userProfile, { merge: true });
     
     await storeUserSecurityInfo(
       user.uid, 
@@ -70,11 +82,13 @@ export const createUserProfile = async (user: FirebaseAuthTypes.User, name: stri
 
 export const getUserProfile = async (uid: string): Promise<UserData | null> => {
   try {
-    const userDocRef = firestore().collection('users').doc(uid);
-    const userDoc = await userDocRef.get();
+    const firestore = getFirestore();
+    const userDocRef = doc(firestore, 'users', uid);
+    const userDoc = await getDoc(userDocRef);
     
     if (userDoc.exists()) {
       const data = userDoc.data();
+      const { auth } = await getFirebaseServices();
       const currentUser = auth().currentUser;
       
       return {
@@ -95,25 +109,30 @@ export const getUserProfile = async (uid: string): Promise<UserData | null> => {
     
     return null;
   } catch (error) {
-    console.error('Error fetching user profile:', error);
+    if (__DEV__) {
+      console.error('Error fetching user profile:', error);
+    }
     return null;
   }
 };
 
 export const updateEmailVerificationStatus = async (uid: string, emailVerified: boolean): Promise<void> => {
   try {
-    const userDocRef = firestore().collection('users').doc(uid);
-    await userDocRef.set({
+    const firestore = getFirestore();
+    await setDoc(doc(firestore, 'users', uid), {
       emailVerified: emailVerified,
-      updatedAt: firestore.FieldValue.serverTimestamp()
+      updatedAt: serverTimestamp()
     }, { merge: true });
   } catch (error) {
-    console.error('Error updating email verification status:', error);
+    if (__DEV__) {
+      console.error('Error updating email verification status:', error);
+    }
   }
 };
 
 export const updateUserLoginInfo = async (uid: string): Promise<void> => {
   try {
+    const firestore = getFirestore();
     const ipData = await getIpAddress();
     let geoData = { geo: null };
     if (ipData.ip) {
@@ -121,23 +140,25 @@ export const updateUserLoginInfo = async (uid: string): Promise<void> => {
     }
     const deviceInfo = await getDeviceInfo();
     
-    await firestore().collection('users').doc(uid).set({
+    await setDoc(doc(firestore, 'users', uid), {
       uid: uid,
-      lastLoginAt: firestore.FieldValue.serverTimestamp(),
-      updatedAt: firestore.FieldValue.serverTimestamp(),
+      lastLoginAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
       'status.isActive': true,
-      'status.lastActive': firestore.FieldValue.serverTimestamp(),
+      'status.lastActive': serverTimestamp(),
       lastLoginInfo: {
         platform: Platform.OS,
         ipAddress: ipData.ip,
         geolocation: geoData.geo,
         deviceInfo: deviceInfo,
-        timestamp: firestore.FieldValue.serverTimestamp(),
+        timestamp: serverTimestamp(),
       }
     }, { merge: true });
     
     await storeUserSecurityInfo(uid, ipData, geoData, deviceInfo);
   } catch (error) {
-    console.error('Error updating user login info:', error);
+    if (__DEV__) {
+      console.error('Error updating user login info:', error);
+    }
   }
 }; 

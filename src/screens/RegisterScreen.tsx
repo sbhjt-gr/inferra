@@ -143,8 +143,14 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
 
   const handleGoogleSignIn = async () => {
     try {
+      if (!termsAccepted) {
+        setTermsError('You must accept the Terms & Conditions and Privacy Policy to continue');
+        return;
+      }
+
       setIsLoading(true);
       setError(null);
+      setTermsError(null);
       
       debugGoogleOAuthConfig();
       
