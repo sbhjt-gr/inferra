@@ -38,7 +38,7 @@ const SupportSection = ({ onOpenLink }: SupportSectionProps) => {
 
       <TouchableOpacity 
         style={[styles.settingItem, styles.settingItemBorder]}
-        onPress={() => onOpenLink('https://github.com/ggerganov/llama.cpp')}
+        onPress={() => onOpenLink('https://github.com/sbhjt-gr/inferra')}
       >
         <View style={styles.settingLeft}>
           <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
@@ -49,7 +49,7 @@ const SupportSection = ({ onOpenLink }: SupportSectionProps) => {
               GitHub Repository
             </Text>
             <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
-              Contribute to llama.cpp
+              Star my project on GitHub
             </Text>
           </View>
         </View>
