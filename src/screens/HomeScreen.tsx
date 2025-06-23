@@ -1341,7 +1341,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     }
   };
 
-  const handleModelSelect = async (model: 'local' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude', modelPath?: string) => {
+  const handleModelSelect = async (model: 'local' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude', modelPath?: string, projectorPath?: string) => {
     if (model !== 'local' && (!enableRemoteModels || !isLoggedIn)) {
       showDialog(
         'Remote Models Disabled',
@@ -1364,7 +1364,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     
     if (model === 'local') {
       if (modelPath) {
-        await loadModel(modelPath);
+        await loadModel(modelPath, projectorPath);
       }
       setActiveProvider('local');
       chatManager.setCurrentProvider('local');
