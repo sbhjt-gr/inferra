@@ -173,7 +173,7 @@ class OnlineModelService {
 
   getDefaultModelName(provider: string): string {
     const defaults: Record<string, string> = {
-      gemini: 'gemini-2.5-flash-preview-05-20',
+      gemini: 'gemini-1.5-flash',
       chatgpt: 'gpt-4o',
       deepseek: 'deepseek-reasoner',
       claude: 'claude-opus-4-20250514'
@@ -315,27 +315,41 @@ class OnlineModelService {
       {
         id: 'system-title',
         role: 'system',
-        content: 'You are a helpful assistant that creates short, descriptive titles for conversations. Generate a concise title (3-6 words) that captures the main topic or question being discussed. Do not use quotes or special characters. Respond with only the title.'
+        content: 'Create a 3-6 word title for this conversation. Respond with only the title, no quotes.'
       },
       {
         id: 'user-title',
         role: 'user',
-        content: `Create a short title for this conversation starter: "${userMessage}"`
+        content: `Title for: "${userMessage.slice(0, 100)}"`
       }
     ];
 
     const options: OnlineModelRequestOptions = {
       temperature: 0.3,
-      maxTokens: 20,
-      stream: false
+      maxTokens: 200,
+      stream: false,
+      streamTokens: false
     };
 
     try {
       let title = '';
       
+      console.log(`[OnlineModelService] Generating chat title using ${provider}`);
+      
       switch (provider) {
         case 'gemini':
-          title = await this.sendMessageToGemini(titlePrompt, options);
+          try {
+            title = await this.sendMessageToGemini(titlePrompt, options);
+          } catch (error) {
+            if (error instanceof Error && error.message.includes('token limit')) {
+              console.warn('[OnlineModelService] Gemini title generation failed due to token limit, using simple title');
+              const now = new Date();
+              const dateStr = now.toLocaleDateString();
+              const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+              return `Chat ${dateStr} ${timeStr}`;
+            }
+            throw error;
+          }
           break;
         case 'chatgpt':
           title = await this.sendMessageToOpenAI(titlePrompt, options);
@@ -349,6 +363,8 @@ class OnlineModelService {
         default:
           throw new Error(`Unknown provider: ${provider}`);
       }
+      
+      console.log(`[OnlineModelService] Generated title: "${title}"`);
 
       const cleanTitle = title.trim().replace(/['"]/g, '').substring(0, 50);
       if (cleanTitle) {

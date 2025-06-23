@@ -350,15 +350,22 @@ export class GeminiService {
         console.log("Single response object format detected");
         
         let text = '';
-        if (jsonResponse.candidates.length > 0 && 
-            jsonResponse.candidates[0].content && 
-            jsonResponse.candidates[0].content.parts) {
+        if (jsonResponse.candidates.length > 0) {
+          const candidate = jsonResponse.candidates[0];
           
-          const parts = jsonResponse.candidates[0].content.parts;
-          for (const part of parts) {
-            if (part.text) {
-              text += part.text;
+          
+          if (candidate.content && candidate.content.parts && candidate.content.parts.length > 0) {
+            const parts = candidate.content.parts;
+            for (const part of parts) {
+              if (part.text) {
+                text += part.text;
+              }
             }
+          } 
+          
+          else if (candidate.finishReason === 'MAX_TOKENS' && !text) {
+            console.warn("Gemini response hit MAX_TOKENS with empty content, likely due to low maxTokens setting");
+            throw new Error('Response was cut off due to token limit. Please try with a higher token limit.');
           }
           
           console.log(`Response length: ${text.length} characters`);
