@@ -421,6 +421,11 @@ export default function ChatView({
               <Text style={[styles.statsText, { color: themeColors.secondaryText }]}>
                 {`${stats.tokens.toLocaleString()} tokens`}
               </Text>
+              {stats.duration && stats.duration > 0 && (
+                <Text style={[styles.statsText, { color: themeColors.secondaryText, marginLeft: 6 }]}> 
+                  {`${(stats.tokens / stats.duration).toFixed(1)} tok/s`}
+                </Text>
+              )}
               
               {item === messages[messages.length - 1] && (
                 <TouchableOpacity 
