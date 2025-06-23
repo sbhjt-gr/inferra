@@ -118,13 +118,6 @@ export default function ChatInput({
     }
 
     const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude'].includes(selectedModelPath);
-    // if (!isOnlineModel) {
-    //   showDialog(
-    //     'Feature Not Available',
-    //     'RAG-based file attachments for local models are yet to be implemented.'
-    //   );
-    //   return;
-    // }
     
     try {
       const result = await DocumentPicker.getDocumentAsync({
@@ -156,6 +149,7 @@ export default function ChatInput({
       height: inputHeight,
       color: isDark ? '#fff' : '#000',
       backgroundColor: isDark ? '#2a2a2a' : '#f1f1f1',
+      paddingRight: 80,
     },
   ], [inputHeight, isDark]);
 
@@ -207,6 +201,14 @@ export default function ChatInput({
             editable={!disabled}
             returnKeyType="default"
           />
+          <View style={styles.inputIconsContainer}>
+            <TouchableOpacity style={styles.inputIcon}>
+              <MaterialCommunityIcons name="camera" size={20} color="#999" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.inputIcon}>
+              <MaterialCommunityIcons name="microphone" size={20} color="#999" />
+            </TouchableOpacity>
+          </View>
         </View>
         
         {isGenerating ? (
@@ -281,6 +283,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     marginRight: 8,
     overflow: 'hidden',
+    position: 'relative',
   },
   input: {
     paddingHorizontal: 16,
@@ -288,6 +291,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     borderRadius: 20,
     minHeight: 48,
+  },
+  inputIconsContainer: {
+    position: 'absolute',
+    right: 12,
+    top: '50%',
+    transform: [{ translateY: -12 }],
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  inputIcon: {
+    marginLeft: 8,
+    padding: 2,
   },
   sendButton: {
     width: 44,
