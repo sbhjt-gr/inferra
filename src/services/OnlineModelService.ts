@@ -351,9 +351,19 @@ class OnlineModelService {
       }
 
       const cleanTitle = title.trim().replace(/['"]/g, '').substring(0, 50);
-      return cleanTitle || userMessage.slice(0, 30) + '...';
+      if (cleanTitle) {
+        return cleanTitle;
+      }
+      
+      const now = new Date();
+      const dateStr = now.toLocaleDateString();
+      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      return `Chat ${dateStr} ${timeStr}`;
     } catch (error) {
-      return userMessage.slice(0, 30) + '...';
+      const now = new Date();
+      const dateStr = now.toLocaleDateString();
+      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      return `Chat ${dateStr} ${timeStr}`;
     }
   }
 }

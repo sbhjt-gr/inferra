@@ -220,7 +220,10 @@ class ChatManager {
     if (message.role === 'user' && 
         currentChat.messages.filter(m => m.role === 'user').length === 1) {
       
-      currentChat.title = message.content.slice(0, 30) + '...';
+      const now = new Date();
+      const dateStr = now.toLocaleDateString();
+      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      currentChat.title = `Chat ${dateStr} ${timeStr}`;
       
       
       this.generateTitleForCurrentChat(message.content);
@@ -306,10 +309,16 @@ class ChatManager {
       }
 
       
-      return userMessage.slice(0, 30) + '...';
+      const now = new Date();
+      const dateStr = now.toLocaleDateString();
+      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      return `Chat ${dateStr} ${timeStr}`;
     } catch (error) {
       
-      return userMessage.slice(0, 30) + '...';
+      const now = new Date();
+      const dateStr = now.toLocaleDateString();
+      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      return `Chat ${dateStr} ${timeStr}`;
     }
   }
 
