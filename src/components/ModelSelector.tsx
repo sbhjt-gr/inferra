@@ -21,6 +21,7 @@ import { Dialog, Portal, Text, Button } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
+import * as DocumentPicker from 'expo-document-picker';
 
 interface StoredModel {
   name: string;
@@ -47,7 +48,7 @@ interface ModelSelectorProps {
   onClose?: () => void;
   preselectedModelPath?: string | null;
   isGenerating?: boolean;
-  onModelSelect?: (provider: 'local' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude', modelPath?: string) => void;
+  onModelSelect?: (provider: 'local' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude', modelPath?: string, projectorPath?: string) => void;
   navigation?: NativeStackNavigationProp<RootStackParamList>;
 }
 
@@ -237,11 +238,125 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
           onModelSelect(model.id as 'gemini' | 'chatgpt' | 'deepseek' | 'claude');
         }
       } else {
-        if (onModelSelect) {
-          onModelSelect('local', model.path);
+        const isVisionModel = model.name.toLowerCase().includes('llava') || 
+                             model.name.toLowerCase().includes('vision') ||
+                             model.name.toLowerCase().includes('minicpm');
+        
+        if (isVisionModel) {
+          showMultimodalDialog(model);
         } else {
-          await loadModel(model.path);
+          if (onModelSelect) {
+            onModelSelect('local', model.path);
+          } else {
+            await loadModel(model.path);
+          }
         }
+      }
+    };
+
+    const showMultimodalDialog = (model: Model) => {
+      showDialog(
+        'Vision Model Detected',
+        `${model.name} appears to be a vision model. Do you want to load it with multimodal capabilities?`,
+        [
+          <Button 
+            key="text-only" 
+            onPress={() => {
+              hideDialog();
+              if (onModelSelect) {
+                onModelSelect('local', model.path);
+              } else {
+                loadModel(model.path);
+              }
+            }}
+          >
+            Text Only
+          </Button>,
+          <Button 
+            key="multimodal" 
+            onPress={() => {
+              hideDialog();
+              promptForProjector(model);
+            }}
+          >
+            With Vision
+          </Button>
+        ]
+      );
+    };
+
+    const promptForProjector = async (model: Model) => {
+      try {
+        const result = await DocumentPicker.getDocumentAsync({
+          type: '*/*',
+          copyToCacheDirectory: false,
+        });
+
+        if (result.canceled) {
+          showDialog(
+            'No Projector Selected',
+            'Vision capabilities require a projector file. Load model in text-only mode?',
+            [
+              <Button key="cancel" onPress={hideDialog}>Cancel</Button>,
+              <Button 
+                key="text-only" 
+                onPress={() => {
+                  hideDialog();
+                  if (onModelSelect) {
+                    onModelSelect('local', model.path);
+                  } else {
+                    loadModel(model.path);
+                  }
+                }}
+              >
+                Text Only
+              </Button>
+            ]
+          );
+          return;
+        }
+
+        const projectorFile = result.assets[0];
+        const fileName = projectorFile.name.toLowerCase();
+        
+        if (!fileName.endsWith('.gguf')) {
+          showDialog(
+            'Invalid Projector File',
+            'Please select a valid GGUF projector file (with .gguf extension)',
+            [<Button key="ok" onPress={hideDialog}>OK</Button>]
+          );
+          return;
+        }
+
+        let projectorPath = projectorFile.uri;
+        if (projectorPath.startsWith('file://')) {
+          projectorPath = projectorPath.replace('file://', '');
+        }
+
+        if (onModelSelect) {
+          showDialog(
+            'Multimodal Model Ready',
+            `Loading ${model.name} with vision capabilities using ${projectorFile.name}`,
+            [<Button key="ok" onPress={hideDialog}>OK</Button>]
+          );
+          onModelSelect('local', model.path, projectorPath);
+        } else {
+          const success = await loadModel(model.path, projectorPath);
+          if (success) {
+            showDialog(
+              'Success',
+              'Vision model loaded successfully! You can now send images and photos.',
+              [<Button key="ok" onPress={hideDialog}>OK</Button>]
+            );
+          }
+        }
+      } catch (error) {
+        console.error('Error selecting projector file:', error);
+        showDialog(
+          'Error',
+          'Failed to select projector file. Please try again.',
+          [<Button key="ok" onPress={hideDialog}>OK</Button>]
+        );
       }
     };
 

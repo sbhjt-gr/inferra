@@ -7,9 +7,12 @@ import {
   TouchableWithoutFeedback,
   ActivityIndicator,
   Keyboard,
+  Alert,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
+import { Audio } from 'expo-av';
+import * as FileSystem from 'expo-file-system';
 import { useTheme } from '../../context/ThemeContext';
 import { useModel } from '../../context/ModelContext';
 import { theme } from '../../constants/theme';
@@ -18,6 +21,7 @@ import FileViewerModal from '../../components/FileViewerModal';
 import CameraOverlay from '../../components/CameraOverlay';
 import { llamaManager } from '../../utils/LlamaManager';
 import { Dialog, Portal, Text, Button } from 'react-native-paper';
+import { modelDownloader } from '../../services/ModelDownloader';
 
 type ChatInputProps = {
   onSend: (text: string) => void;
@@ -28,6 +32,13 @@ type ChatInputProps = {
   style?: any;
   placeholderColor?: string;
 };
+
+interface StoredModel {
+  name: string;
+  path: string;
+  size: number;
+  modified: string;
+}
 
 export default function ChatInput({ 
   onSend, 
@@ -43,9 +54,15 @@ export default function ChatInput({
   const [fileModalVisible, setFileModalVisible] = useState(false);
   const [cameraVisible, setCameraVisible] = useState(false);
   const [selectedFile, setSelectedFile] = useState<{uri: string, name?: string} | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingPermission, setRecordingPermission] = useState<boolean | null>(null);
+  const [mmProjSelectorVisible, setMmProjSelectorVisible] = useState(false);
+  const [storedModels, setStoredModels] = useState<StoredModel[]>([]);
+  const [pendingMultimodalAction, setPendingMultimodalAction] = useState<'camera' | 'file' | null>(null);
   const inputRef = useRef<TextInput>(null);
+  const recordingRef = useRef<Audio.Recording | null>(null);
   const { theme: currentTheme } = useTheme();
-  const { selectedModelPath, isModelLoading } = useModel();
+  const { selectedModelPath, isModelLoading, loadModel, isMultimodalEnabled } = useModel();
   const themeColors = useMemo(() => theme[currentTheme as 'light' | 'dark'], [currentTheme]);
   const isDark = currentTheme === 'dark';
 
@@ -55,6 +72,25 @@ export default function ChatInput({
 
   const isGenerating = isLoading || isRegenerating;
 
+  React.useEffect(() => {
+    checkAudioPermissions();
+  }, []);
+
+  const checkAudioPermissions = async () => {
+    try {
+      const { granted } = await Audio.getPermissionsAsync();
+      setRecordingPermission(granted);
+      
+      if (!granted) {
+        const { granted: newGranted } = await Audio.requestPermissionsAsync();
+        setRecordingPermission(newGranted);
+      }
+    } catch (error) {
+      console.error('Error checking audio permissions:', error);
+      setRecordingPermission(false);
+    }
+  };
+
   const showDialog = (title: string, message: string) => {
     setDialogTitle(title);
     setDialogMessage(message);
@@ -62,6 +98,124 @@ export default function ChatInput({
   };
 
   const hideDialog = () => setDialogVisible(false);
+
+  const loadStoredModels = async () => {
+    try {
+      const models = await modelDownloader.getStoredModels();
+      const projectorModels = models.filter(model => 
+        model.name.toLowerCase().includes('proj') || 
+        model.name.toLowerCase().includes('mmproj') ||
+        model.name.toLowerCase().includes('vision')
+      );
+      setStoredModels(projectorModels);
+    } catch (error) {
+      console.error('Error loading stored models:', error);
+      setStoredModels([]);
+    }
+  };
+
+  const checkMultimodalSupport = (): boolean => {
+    if (!selectedModelPath) return false;
+    
+    const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude'].includes(selectedModelPath);
+    if (isOnlineModel) {
+      return true;
+    }
+    
+    return isMultimodalEnabled;
+  };
+
+  const showMmProjSelector = async (action: 'camera' | 'file') => {
+    setPendingMultimodalAction(action);
+    await loadStoredModels();
+    setMmProjSelectorVisible(true);
+  };
+
+  const handleMmProjSelect = async (projectorModel: StoredModel) => {
+    setMmProjSelectorVisible(false);
+    
+    if (!selectedModelPath) return;
+    
+    try {
+      const success = await loadModel(selectedModelPath, projectorModel.path);
+      if (success) {
+        if (pendingMultimodalAction === 'camera') {
+          setCameraVisible(true);
+        } else if (pendingMultimodalAction === 'file') {
+          pickDocument();
+        }
+      } else {
+        showDialog(
+          'Loading Failed',
+          'Failed to load the model with multimodal support. Please try again.'
+        );
+      }
+    } catch (error) {
+      console.error('Error loading model with projector:', error);
+      showDialog(
+        'Loading Error',
+        'An error occurred while loading the model with multimodal support.'
+      );
+    } finally {
+      setPendingMultimodalAction(null);
+    }
+  };
+
+  const handleMmProjSelectorClose = () => {
+    setMmProjSelectorVisible(false);
+    setPendingMultimodalAction(null);
+  };
+
+  const promptForMmProjFile = async (action: 'camera' | 'file') => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: '*/*',
+        copyToCacheDirectory: false,
+      });
+
+      if (result.canceled) {
+        return;
+      }
+
+      const projectorFile = result.assets[0];
+      const fileName = projectorFile.name.toLowerCase();
+      
+      if (!fileName.endsWith('.gguf')) {
+        showDialog(
+          'Invalid Projector File',
+          'Please select a valid GGUF projector file (with .gguf extension)'
+        );
+        return;
+      }
+
+      let projectorPath = projectorFile.uri;
+      if (projectorPath.startsWith('file://')) {
+        projectorPath = projectorPath.replace('file://', '');
+      }
+
+      if (!selectedModelPath) return;
+
+      const success = await loadModel(selectedModelPath, projectorPath);
+      if (success) {
+        if (action === 'camera') {
+          setCameraVisible(true);
+        } else if (action === 'file') {
+          pickDocument();
+        }
+      } else {
+        showDialog(
+          'Loading Failed',
+          'Failed to load the model with multimodal support. Please try again.'
+        );
+      }
+    } catch (error) {
+      console.error('Error selecting projector file:', error);
+      showDialog(
+        'Error',
+        'Failed to select projector file. Please try again.'
+      );
+    }
+  };
 
   const handleSend = useCallback(() => {
     if (!text.trim()) return;
@@ -115,17 +269,141 @@ export default function ChatInput({
     
     const messageObject = {
       type: 'photo_upload',
-      internalInstruction: `You're looking at a photo taken by the user: ${fileName}\n\nPhoto URI: ${photoUri}`,
-      userContent: 'I took a photo. Please analyze what you see in this image.'
+      photoUri: photoUri,
+      fileName: fileName,
+      userPrompt: 'I took a photo. Please analyze what you see in this image.'
     };
     
-    console.log('Photo Upload Message:', {
-      internalInstruction: messageObject.internalInstruction,
-      userContent: messageObject.userContent
-    });
+    console.log('Photo Upload Message:', messageObject);
     
     onSend(JSON.stringify(messageObject));
   }, [onSend]);
+
+  const handleAudioRecorded = useCallback((audioUri: string) => {
+    const fileName = `audio_${Date.now()}.m4a`;
+    
+    const messageObject = {
+      type: 'audio_upload',
+      audioUri: audioUri,
+      fileName: fileName,
+      userPrompt: 'I recorded an audio message. Please analyze what you hear.'
+    };
+    
+    console.log('Audio Upload Message:', messageObject);
+    
+    onSend(JSON.stringify(messageObject));
+  }, [onSend]);
+
+  const startRecording = async () => {
+    try {
+      if (!recordingPermission) {
+        await checkAudioPermissions();
+        if (!recordingPermission) {
+          showDialog(
+            'Permission Required',
+            'Microphone permission is required to record audio.'
+          );
+          return;
+        }
+      }
+
+      if (!selectedModelPath) {
+        showDialog(
+          'No Model Selected',
+          'Please select a model before recording audio.'
+        );
+        return;
+      }
+
+      const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude'].includes(selectedModelPath);
+      if (!isOnlineModel && !checkMultimodalSupport()) {
+        showDialog(
+          'Multimodal Support Required',
+          'This local model needs a projector (mmproj) file to process audio. Please load a multimodal-capable model first.'
+        );
+        return;
+      }
+
+      console.log('Starting audio recording...');
+      
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
+
+      const recording = new Audio.Recording();
+      await recording.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+
+      await recording.startAsync();
+      recordingRef.current = recording;
+      setIsRecording(true);
+      console.log('Recording started');
+    } catch (error) {
+      console.error('Failed to start recording:', error);
+      showDialog(
+        'Recording Error',
+        'Failed to start audio recording. Please try again.'
+      );
+    }
+  };
+
+  const stopRecording = async () => {
+    try {
+      if (!recordingRef.current) return;
+
+      console.log('Stopping audio recording...');
+      await recordingRef.current.stopAndUnloadAsync();
+      
+      const uri = recordingRef.current.getURI();
+      recordingRef.current = null;
+      setIsRecording(false);
+
+      if (uri) {
+        console.log('Audio recorded to:', uri);
+        
+        const fileInfo = await FileSystem.getInfoAsync(uri);
+        if (fileInfo.exists) {
+          const audioDir = `${FileSystem.documentDirectory}audio/`;
+          const audioFileName = `recording_${Date.now()}.m4a`;
+          const finalUri = `${audioDir}${audioFileName}`;
+
+          await FileSystem.makeDirectoryAsync(audioDir, { intermediates: true });
+          await FileSystem.moveAsync({
+            from: uri,
+            to: finalUri,
+          });
+
+          handleAudioRecorded(finalUri);
+        } else {
+          showDialog(
+            'Recording Error',
+            'Audio file could not be saved. Please try again.'
+          );
+        }
+      } else {
+        showDialog(
+          'Recording Error',
+          'No audio was recorded. Please try again.'
+        );
+      }
+    } catch (error) {
+      console.error('Failed to stop recording:', error);
+      showDialog(
+        'Recording Error',
+        'Failed to save audio recording. Please try again.'
+      );
+      setIsRecording(false);
+      recordingRef.current = null;
+    }
+  };
+
+  const handleMicrophonePress = useCallback(() => {
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
+  }, [isRecording]);
 
   const openCamera = useCallback(() => {
     if (!selectedModelPath) {
@@ -135,9 +413,17 @@ export default function ChatInput({
       );
       return;
     }
+
+    if (!checkMultimodalSupport()) {
+      const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude'].includes(selectedModelPath);
+      if (!isOnlineModel) {
+        showMmProjSelector('camera');
+        return;
+      }
+    }
     
     setCameraVisible(true);
-  }, [selectedModelPath]);
+  }, [selectedModelPath, isMultimodalEnabled]);
 
   const closeCamera = useCallback(() => {
     setCameraVisible(false);
@@ -153,6 +439,11 @@ export default function ChatInput({
     }
 
     const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude'].includes(selectedModelPath);
+    
+    if (!isOnlineModel && !checkMultimodalSupport()) {
+      showMmProjSelector('file');
+      return;
+    }
     
     try {
       const result = await DocumentPicker.getDocumentAsync({
@@ -172,7 +463,7 @@ export default function ChatInput({
       console.error('Error picking document:', error);
       showDialog('Error', 'Could not pick the document. Please try again.');
     }
-  }, [selectedModelPath]);
+  }, [selectedModelPath, isMultimodalEnabled]);
 
   const closeFileModal = useCallback(() => {
     setFileModalVisible(false);
@@ -184,7 +475,7 @@ export default function ChatInput({
       height: inputHeight,
       color: isDark ? '#fff' : '#000',
       backgroundColor: isDark ? '#2a2a2a' : '#f1f1f1',
-      paddingRight: 80,
+      paddingRight: 120,
     },
   ], [inputHeight, isDark]);
 
@@ -201,11 +492,24 @@ export default function ChatInput({
     isDark ? '#ffffff' : "#660880"
   , [isDark]);
 
+  const microphoneIconColor = useMemo(() => {
+    if (isRecording) return '#ff4444';
+    return isDark ? '#ffffff' : '#660880';
+  }, [isRecording, isDark]);
+
   const handleCancel = () => {
     if (onCancel) {
       onCancel();
     }
   };
+
+  React.useEffect(() => {
+    return () => {
+      if (recordingRef.current) {
+        recordingRef.current.stopAndUnloadAsync().catch(() => {});
+      }
+    };
+  }, []);
 
   return (
     <View style={styles.wrapper}>
@@ -241,30 +545,28 @@ export default function ChatInput({
               <TouchableOpacity style={styles.inputIcon} onPress={openCamera}>
                 <MaterialCommunityIcons name="camera" size={20} color="#999" />
               </TouchableOpacity>
-              <TouchableOpacity style={styles.inputIcon}>
-                <MaterialCommunityIcons name="microphone" size={20} color="#999" />
-              </TouchableOpacity>
-            </View>
-          </View>
-          
-          {isGenerating ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator
-                size="small"
-                color={getThemeAwareColor('#0084ff', currentTheme)}
-                style={styles.loadingIndicator}
-              />
-              <TouchableOpacity
-                onPress={handleCancel}
-                style={styles.cancelButton}
+              <TouchableOpacity 
+                style={[styles.inputIcon, isRecording && styles.recordingIcon]} 
+                onPress={handleMicrophonePress}
+                disabled={disabled}
               >
                 <MaterialCommunityIcons 
-                  name="close" 
-                  size={24} 
-                  color={attachmentIconColor} 
+                  name={isRecording ? "stop" : "microphone"} 
+                  size={20} 
+                  color={microphoneIconColor} 
                 />
               </TouchableOpacity>
             </View>
+          </View>
+
+          {isGenerating ? (
+            <TouchableOpacity style={styles.cancelButton} onPress={handleCancel}>
+              <MaterialCommunityIcons 
+                name="stop" 
+                size={24} 
+                color={getThemeAwareColor('#660880', currentTheme)} 
+              />
+            </TouchableOpacity>
           ) : (
             <TouchableOpacity 
               style={sendButtonStyle} 
@@ -278,107 +580,180 @@ export default function ChatInput({
               />
             </TouchableOpacity>
           )}
-
-          {selectedFile && (
-            <FileViewerModal
-              visible={fileModalVisible}
-              onClose={closeFileModal}
-              filePath={selectedFile.uri}
-              fileName={selectedFile.name}
-              onUpload={handleFileUpload}
-            />
-          )}
-
-          <Portal>
-            <Dialog visible={dialogVisible} onDismiss={hideDialog}>
-              <Dialog.Title>{dialogTitle}</Dialog.Title>
-              <Dialog.Content>
-                <Text variant="bodyMedium">{dialogMessage}</Text>
-              </Dialog.Content>
-              <Dialog.Actions>
-                <Button onPress={hideDialog}>OK</Button>
-              </Dialog.Actions>
-            </Dialog>
-          </Portal>
         </View>
       </TouchableWithoutFeedback>
+
+      <FileViewerModal
+        visible={fileModalVisible}
+        onClose={closeFileModal}
+        filePath={selectedFile?.uri || ''}
+        fileName={selectedFile?.name}
+        onUpload={handleFileUpload}
+      />
 
       <CameraOverlay
         visible={cameraVisible}
         onClose={closeCamera}
         onPhotoTaken={handlePhotoTaken}
       />
+
+      <Portal>
+        <Dialog visible={dialogVisible} onDismiss={hideDialog}>
+          <Dialog.Title>{dialogTitle}</Dialog.Title>
+          <Dialog.Content>
+            <Text>{dialogMessage}</Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={hideDialog}>OK</Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
+
+      <Portal>
+        <Dialog visible={mmProjSelectorVisible} onDismiss={handleMmProjSelectorClose}>
+          <Dialog.Title>Select Multimodal Projector</Dialog.Title>
+          <Dialog.Content>
+            <Text style={{ marginBottom: 16 }}>
+              Choose a projector (mmproj) model to enable multimodal capabilities:
+            </Text>
+            {storedModels.length === 0 ? (
+              <View>
+                <Text style={{ marginBottom: 16 }}>
+                  No projector models found. You can browse for a projector file instead.
+                </Text>
+              </View>
+            ) : (
+              storedModels.map((model) => (
+                <TouchableOpacity
+                  key={model.path}
+                  style={[
+                    styles.projectorModelItem,
+                    { backgroundColor: isDark ? '#2a2a2a' : '#f1f1f1' }
+                  ]}
+                  onPress={() => handleMmProjSelect(model)}
+                >
+                  <MaterialCommunityIcons
+                    name="cube-outline"
+                    size={20}
+                    color={isDark ? '#fff' : '#000'}
+                  />
+                  <View style={styles.projectorModelInfo}>
+                    <Text style={[
+                      styles.projectorModelName,
+                      { color: isDark ? '#fff' : '#000' }
+                    ]}>
+                      {model.name}
+                    </Text>
+                    <Text style={[
+                      styles.projectorModelSize,
+                      { color: isDark ? '#ccc' : '#666' }
+                    ]}>
+                      {(model.size / (1024 * 1024)).toFixed(1)} MB
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))
+            )}
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={handleMmProjSelectorClose}>Cancel</Button>
+            <Button onPress={() => {
+              handleMmProjSelectorClose();
+              promptForMmProjFile(pendingMultimodalAction || 'file');
+            }}>
+              Browse File
+            </Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   wrapper: {
-    position: 'relative',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
   container: {
     flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0, 0, 0, 0.1)',
-  },
-  inputContainer: {
-    flex: 1,
-    borderRadius: 20,
-    marginRight: 8,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  input: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    fontSize: 16,
-    borderRadius: 20,
-    minHeight: 48,
-  },
-  inputIconsContainer: {
-    position: 'absolute',
-    right: 12,
-    top: '50%',
-    transform: [{ translateY: -12 }],
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  inputIcon: {
-    marginLeft: 8,
-    padding: 2,
-  },
-  sendButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sendButtonDisabled: {
-    opacity: 0.5,
-  },
-  loadingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  loadingIndicator: {
-    marginRight: 8,
-  },
-  cancelButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 20,
+    alignItems: 'flex-end',
+    gap: 8,
   },
   attachmentButton: {
     width: 40,
     height: 40,
-    alignItems: 'center',
+    borderRadius: 20,
     justifyContent: 'center',
-    marginRight: 8,
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+  },
+  inputContainer: {
+    flex: 1,
+    position: 'relative',
+  },
+  input: {
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    maxHeight: 120,
+    textAlignVertical: 'center',
+  },
+  inputIconsContainer: {
+    position: 'absolute',
+    right: 12,
+    bottom: 8,
+    flexDirection: 'row',
+    gap: 8,
+  },
+  inputIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+  },
+  recordingIcon: {
+    backgroundColor: 'rgba(255, 68, 68, 0.1)',
+  },
+  sendButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+  },
+  sendButtonDisabled: {
+    opacity: 0.5,
+  },
+  cancelButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+  },
+  projectorModelItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    marginVertical: 4,
+    borderRadius: 8,
+  },
+  projectorModelInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  projectorModelName: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  projectorModelSize: {
+    fontSize: 12,
+    marginTop: 2,
   },
 }); 
