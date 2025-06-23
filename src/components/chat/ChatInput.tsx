@@ -118,13 +118,13 @@ export default function ChatInput({
     }
 
     const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude'].includes(selectedModelPath);
-    if (!isOnlineModel) {
-      showDialog(
-        'Feature Not Available',
-        'RAG-based file attachments for local models are yet to be implemented.'
-      );
-      return;
-    }
+    // if (!isOnlineModel) {
+    //   showDialog(
+    //     'Feature Not Available',
+    //     'RAG-based file attachments for local models are yet to be implemented.'
+    //   );
+    //   return;
+    // }
     
     try {
       const result = await DocumentPicker.getDocumentAsync({
