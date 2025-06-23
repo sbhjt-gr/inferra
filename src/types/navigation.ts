@@ -11,6 +11,7 @@ export type RootStackParamList = {
     screen: string;
     params?: {
       modelPath?: string;
+      loadChatId?: string;
     };
   };
   Home: undefined;

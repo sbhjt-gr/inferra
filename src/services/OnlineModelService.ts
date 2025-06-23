@@ -309,6 +309,53 @@ class OnlineModelService {
     
     return fullResponse;
   }
+
+  async generateChatTitle(userMessage: string, provider: string): Promise<string> {
+    const titlePrompt: ChatMessage[] = [
+      {
+        id: 'system-title',
+        role: 'system',
+        content: 'You are a helpful assistant that creates short, descriptive titles for conversations. Generate a concise title (3-6 words) that captures the main topic or question being discussed. Do not use quotes or special characters. Respond with only the title.'
+      },
+      {
+        id: 'user-title',
+        role: 'user',
+        content: `Create a short title for this conversation starter: "${userMessage}"`
+      }
+    ];
+
+    const options: OnlineModelRequestOptions = {
+      temperature: 0.3,
+      maxTokens: 20,
+      stream: false
+    };
+
+    try {
+      let title = '';
+      
+      switch (provider) {
+        case 'gemini':
+          title = await this.sendMessageToGemini(titlePrompt, options);
+          break;
+        case 'chatgpt':
+          title = await this.sendMessageToOpenAI(titlePrompt, options);
+          break;
+        case 'deepseek':
+          title = await this.sendMessageToDeepSeek(titlePrompt, options);
+          break;
+        case 'claude':
+          title = await this.sendMessageToClaude(titlePrompt, options);
+          break;
+        default:
+          throw new Error(`Unknown provider: ${provider}`);
+      }
+
+      const cleanTitle = title.trim().replace(/['"]/g, '').substring(0, 50);
+      return cleanTitle || userMessage.slice(0, 30) + '...';
+    } catch (error) {
+      return userMessage.slice(0, 30) + '...';
+    }
+  }
 }
 
 export const onlineModelService = new OnlineModelService(); 

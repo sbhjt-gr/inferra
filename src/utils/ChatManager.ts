@@ -41,6 +41,7 @@ class ChatManager {
   private chats: Chat[] = [];
   private currentChatId: string | null = null;
   private listeners: Set<() => void> = new Set();
+  private currentProvider: 'local' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude' | null = null;
 
   constructor() {
     this.loadAllChats();
@@ -218,13 +219,98 @@ class ChatManager {
     
     if (message.role === 'user' && 
         currentChat.messages.filter(m => m.role === 'user').length === 1) {
-      currentChat.title = message.content.slice(0, 50) + (message.content.length > 50 ? '...' : '');
+      
+      currentChat.title = message.content.slice(0, 30) + '...';
+      
+      
+      this.generateTitleForCurrentChat(message.content);
     }
 
     await this.saveAllChats();
     this.notifyListeners();
     
     return true;
+  }
+
+  
+  private async generateTitleForCurrentChat(userMessage: string): Promise<void> {
+    if (!this.currentChatId) return;
+    
+    const currentChat = this.getChatById(this.currentChatId);
+    if (!currentChat) return;
+
+    try {
+      
+      setTimeout(async () => {
+        try {
+          const title = await this.generateChatTitle(userMessage);
+          
+          
+          const chatToUpdate = this.getChatById(this.currentChatId!);
+          if (chatToUpdate && chatToUpdate.messages.filter(m => m.role === 'user').length === 1) {
+            chatToUpdate.title = title;
+            await this.saveAllChats();
+            this.notifyListeners();
+          }
+        } catch (error) {
+          
+        }
+      }, 1000);
+    } catch (error) {
+      
+    }
+  }
+
+  
+  setCurrentProvider(provider: 'local' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude' | null) {
+    this.currentProvider = provider;
+  }
+
+  getCurrentProvider(): 'local' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude' | null {
+    return this.currentProvider;
+  }
+
+  
+  private async generateChatTitle(userMessage: string): Promise<string> {
+    try {
+      
+      if (this.currentProvider === 'local') {
+        const { llamaManager } = await import('./LlamaManager');
+        if (llamaManager.isInitialized()) {
+          return await llamaManager.generateChatTitle(userMessage);
+        }
+      } else if (this.currentProvider === 'gemini' || this.currentProvider === 'chatgpt' || 
+                 this.currentProvider === 'deepseek' || this.currentProvider === 'claude') {
+        
+        const { onlineModelService } = await import('../services/OnlineModelService');
+        const hasApiKey = await onlineModelService.hasApiKey(this.currentProvider);
+        if (hasApiKey) {
+          return await onlineModelService.generateChatTitle(userMessage, this.currentProvider);
+        }
+      }
+
+      
+      const { llamaManager } = await import('./LlamaManager');
+      if (llamaManager.isInitialized()) {
+        return await llamaManager.generateChatTitle(userMessage);
+      }
+
+      
+      const { onlineModelService } = await import('../services/OnlineModelService');
+      const providers: ('gemini' | 'chatgpt' | 'deepseek' | 'claude')[] = ['gemini', 'chatgpt', 'deepseek', 'claude'];
+      for (const provider of providers) {
+        const hasApiKey = await onlineModelService.hasApiKey(provider);
+        if (hasApiKey) {
+          return await onlineModelService.generateChatTitle(userMessage, provider);
+        }
+      }
+
+      
+      return userMessage.slice(0, 30) + '...';
+    } catch (error) {
+      
+      return userMessage.slice(0, 30) + '...';
+    }
   }
 
   
