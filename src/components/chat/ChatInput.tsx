@@ -15,6 +15,7 @@ import { useModel } from '../../context/ModelContext';
 import { theme } from '../../constants/theme';
 import { getThemeAwareColor } from '../../utils/ColorUtils';
 import FileViewerModal from '../../components/FileViewerModal';
+import CameraOverlay from '../../components/CameraOverlay';
 import { llamaManager } from '../../utils/LlamaManager';
 import { Dialog, Portal, Text, Button } from 'react-native-paper';
 
@@ -40,6 +41,7 @@ export default function ChatInput({
   const [text, setText] = useState('');
   const [inputHeight, setInputHeight] = useState(48);
   const [fileModalVisible, setFileModalVisible] = useState(false);
+  const [cameraVisible, setCameraVisible] = useState(false);
   const [selectedFile, setSelectedFile] = useState<{uri: string, name?: string} | null>(null);
   const inputRef = useRef<TextInput>(null);
   const { theme: currentTheme } = useTheme();
@@ -108,6 +110,39 @@ export default function ChatInput({
     onSend(JSON.stringify(messageObject));
   }, [onSend]);
 
+  const handlePhotoTaken = useCallback((photoUri: string) => {
+    const fileName = `photo_${Date.now()}.jpg`;
+    
+    const messageObject = {
+      type: 'photo_upload',
+      internalInstruction: `You're looking at a photo taken by the user: ${fileName}\n\nPhoto URI: ${photoUri}`,
+      userContent: 'I took a photo. Please analyze what you see in this image.'
+    };
+    
+    console.log('Photo Upload Message:', {
+      internalInstruction: messageObject.internalInstruction,
+      userContent: messageObject.userContent
+    });
+    
+    onSend(JSON.stringify(messageObject));
+  }, [onSend]);
+
+  const openCamera = useCallback(() => {
+    if (!selectedModelPath) {
+      showDialog(
+        'No Model Selected',
+        'Please select a model before taking a photo.'
+      );
+      return;
+    }
+    
+    setCameraVisible(true);
+  }, [selectedModelPath]);
+
+  const closeCamera = useCallback(() => {
+    setCameraVisible(false);
+  }, []);
+
   const pickDocument = useCallback(async () => {
     if (!selectedModelPath) {
       showDialog(
@@ -173,103 +208,114 @@ export default function ChatInput({
   };
 
   return (
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-      <View style={[styles.container, style]}>
-        <TouchableOpacity 
-          style={styles.attachmentButton} 
-          onPress={pickDocument}
-          disabled={disabled}
-        >
-          <MaterialCommunityIcons 
-            name="attachment" 
-            size={24} 
-            color={attachmentIconColor} 
-          />
-        </TouchableOpacity>
-
-        <View style={styles.inputContainer}>
-          <TextInput
-            ref={inputRef}
-            style={inputContainerStyle}
-            placeholder="Type a message..."
-            placeholderTextColor={placeholderColor}
-            value={text}
-            onChangeText={setText}
-            onContentSizeChange={handleContentSizeChange}
-            multiline
-            maxLength={10000}
-            editable={!disabled}
-            returnKeyType="default"
-          />
-          <View style={styles.inputIconsContainer}>
-            <TouchableOpacity style={styles.inputIcon}>
-              <MaterialCommunityIcons name="camera" size={20} color="#999" />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.inputIcon}>
-              <MaterialCommunityIcons name="microphone" size={20} color="#999" />
-            </TouchableOpacity>
-          </View>
-        </View>
-        
-        {isGenerating ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator
-              size="small"
-              color={getThemeAwareColor('#0084ff', currentTheme)}
-              style={styles.loadingIndicator}
-            />
-            <TouchableOpacity
-              onPress={handleCancel}
-              style={styles.cancelButton}
-            >
-              <MaterialCommunityIcons 
-                name="close" 
-                size={24} 
-                color={attachmentIconColor} 
-              />
-            </TouchableOpacity>
-          </View>
-        ) : (
+    <View style={styles.wrapper}>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <View style={[styles.container, style]}>
           <TouchableOpacity 
-            style={sendButtonStyle} 
-            onPress={handleSend}
-            disabled={!text.trim() || disabled}
+            style={styles.attachmentButton} 
+            onPress={pickDocument}
+            disabled={disabled}
           >
             <MaterialCommunityIcons 
-              name="send" 
+              name="attachment" 
               size={24} 
-              color={sendButtonColor} 
+              color={attachmentIconColor} 
             />
           </TouchableOpacity>
-        )}
 
-        {selectedFile && (
-          <FileViewerModal
-            visible={fileModalVisible}
-            onClose={closeFileModal}
-            filePath={selectedFile.uri}
-            fileName={selectedFile.name}
-            onUpload={handleFileUpload}
-          />
-        )}
+          <View style={styles.inputContainer}>
+            <TextInput
+              ref={inputRef}
+              style={inputContainerStyle}
+              placeholder="Type a message..."
+              placeholderTextColor={placeholderColor}
+              value={text}
+              onChangeText={setText}
+              onContentSizeChange={handleContentSizeChange}
+              multiline
+              maxLength={10000}
+              editable={!disabled}
+              returnKeyType="default"
+            />
+            <View style={styles.inputIconsContainer}>
+              <TouchableOpacity style={styles.inputIcon} onPress={openCamera}>
+                <MaterialCommunityIcons name="camera" size={20} color="#999" />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.inputIcon}>
+                <MaterialCommunityIcons name="microphone" size={20} color="#999" />
+              </TouchableOpacity>
+            </View>
+          </View>
+          
+          {isGenerating ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator
+                size="small"
+                color={getThemeAwareColor('#0084ff', currentTheme)}
+                style={styles.loadingIndicator}
+              />
+              <TouchableOpacity
+                onPress={handleCancel}
+                style={styles.cancelButton}
+              >
+                <MaterialCommunityIcons 
+                  name="close" 
+                  size={24} 
+                  color={attachmentIconColor} 
+                />
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity 
+              style={sendButtonStyle} 
+              onPress={handleSend}
+              disabled={!text.trim() || disabled}
+            >
+              <MaterialCommunityIcons 
+                name="send" 
+                size={24} 
+                color={sendButtonColor} 
+              />
+            </TouchableOpacity>
+          )}
 
-        <Portal>
-          <Dialog visible={dialogVisible} onDismiss={hideDialog}>
-            <Dialog.Title>{dialogTitle}</Dialog.Title>
-            <Dialog.Content>
-              <Text variant="bodyMedium">{dialogMessage}</Text>
-            </Dialog.Content>
-            <Dialog.Actions>
-              <Button onPress={hideDialog}>OK</Button>
-            </Dialog.Actions>
-          </Dialog>
-        </Portal>
-      </View>
-    </TouchableWithoutFeedback>
+          {selectedFile && (
+            <FileViewerModal
+              visible={fileModalVisible}
+              onClose={closeFileModal}
+              filePath={selectedFile.uri}
+              fileName={selectedFile.name}
+              onUpload={handleFileUpload}
+            />
+          )}
+
+          <Portal>
+            <Dialog visible={dialogVisible} onDismiss={hideDialog}>
+              <Dialog.Title>{dialogTitle}</Dialog.Title>
+              <Dialog.Content>
+                <Text variant="bodyMedium">{dialogMessage}</Text>
+              </Dialog.Content>
+              <Dialog.Actions>
+                <Button onPress={hideDialog}>OK</Button>
+              </Dialog.Actions>
+            </Dialog>
+          </Portal>
+        </View>
+      </TouchableWithoutFeedback>
+
+      <CameraOverlay
+        visible={cameraVisible}
+        onClose={closeCamera}
+        onPhotoTaken={handlePhotoTaken}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  wrapper: {
+    position: 'relative',
+  },
   container: {
     flexDirection: 'row',
     alignItems: 'center',

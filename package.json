@@ -69,7 +69,9 @@
     "react-native-pdf-page-image": "^0.2.1",
     "react-native-pdf-renderer": "^1.6.0",
     "react-native-safe-area-context": "5.4.0",
-    "react-native-screens": "~4.11.1"
+    "react-native-screens": "~4.11.1",
+    "expo-camera": "~16.1.8",
+    "expo-media-library": "~17.1.7"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
