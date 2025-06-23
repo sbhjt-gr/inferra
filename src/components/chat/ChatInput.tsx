@@ -166,56 +166,7 @@ export default function ChatInput({
     setPendingMultimodalAction(null);
   };
 
-  const promptForMmProjFile = async (action: 'camera' | 'file') => {
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: '*/*',
-        copyToCacheDirectory: false,
-      });
 
-      if (result.canceled) {
-        return;
-      }
-
-      const projectorFile = result.assets[0];
-      const fileName = projectorFile.name.toLowerCase();
-      
-      if (!fileName.endsWith('.gguf')) {
-        showDialog(
-          'Invalid Projector File',
-          'Please select a valid GGUF projector file (with .gguf extension)'
-        );
-        return;
-      }
-
-      let projectorPath = projectorFile.uri;
-      if (projectorPath.startsWith('file://')) {
-        projectorPath = projectorPath.replace('file://', '');
-      }
-
-      if (!selectedModelPath) return;
-
-      const success = await loadModel(selectedModelPath, projectorPath);
-      if (success) {
-        if (action === 'camera') {
-          setCameraVisible(true);
-        } else if (action === 'file') {
-          pickDocument();
-        }
-      } else {
-        showDialog(
-          'Loading Failed',
-          'Failed to load the model with multimodal support. Please try again.'
-        );
-      }
-    } catch (error) {
-      console.error('Error selecting projector file:', error);
-      showDialog(
-        'Error',
-        'Failed to select projector file. Please try again.'
-      );
-    }
-  };
 
   const handleSend = useCallback(() => {
     if (!text.trim()) return;
@@ -269,9 +220,8 @@ export default function ChatInput({
     
     const messageObject = {
       type: 'photo_upload',
-      photoUri: photoUri,
-      fileName: fileName,
-      userPrompt: 'I took a photo. Please analyze what you see in this image.'
+      internalInstruction: `Photo URI: ${photoUri}`,
+      userContent: 'What do you see in this image?'
     };
     
     console.log('Photo Upload Message:', messageObject);
@@ -284,9 +234,8 @@ export default function ChatInput({
     
     const messageObject = {
       type: 'audio_upload',
-      audioUri: audioUri,
-      fileName: fileName,
-      userPrompt: 'I recorded an audio message. Please analyze what you hear.'
+      internalInstruction: `Audio URI: ${audioUri}`,
+      userContent: 'Please transcribe or describe this audio.'
     };
     
     console.log('Audio Upload Message:', messageObject);
@@ -617,9 +566,19 @@ export default function ChatInput({
               Choose a projector (mmproj) model to enable multimodal capabilities:
             </Text>
             {storedModels.length === 0 ? (
-              <View>
-                <Text style={{ marginBottom: 16 }}>
-                  No projector models found. You can browse for a projector file instead.
+              <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                <MaterialCommunityIcons 
+                  name="cube-outline" 
+                  size={48} 
+                  color={isDark ? '#666' : '#ccc'} 
+                />
+                <Text style={{ 
+                  marginTop: 12, 
+                  textAlign: 'center',
+                  color: isDark ? '#ccc' : '#666' 
+                }}>
+                  No projector models found in your stored models.{'\n'}
+                  Please download a compatible mmproj file first.
                 </Text>
               </View>
             ) : (
@@ -656,13 +615,11 @@ export default function ChatInput({
             )}
           </Dialog.Content>
           <Dialog.Actions>
-            <Button onPress={handleMmProjSelectorClose}>Cancel</Button>
-            <Button onPress={() => {
-              handleMmProjSelectorClose();
-              promptForMmProjFile(pendingMultimodalAction || 'file');
-            }}>
-              Browse File
-            </Button>
+            {storedModels.length === 0 ? (
+              <Button onPress={handleMmProjSelectorClose}>Close</Button>
+            ) : (
+              <Button onPress={handleMmProjSelectorClose}>Cancel</Button>
+            )}
           </Dialog.Actions>
         </Dialog>
       </Portal>

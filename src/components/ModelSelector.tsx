@@ -21,7 +21,6 @@ import { Dialog, Portal, Text, Button } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
-import * as DocumentPicker from 'expo-document-picker';
 
 interface StoredModel {
   name: string;
@@ -88,6 +87,10 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     const [dialogTitle, setDialogTitle] = useState('');
     const [dialogMessage, setDialogMessage] = useState('');
     const [dialogActions, setDialogActions] = useState<React.ReactNode[]>([]);
+
+    const [projectorSelectorVisible, setProjectorSelectorVisible] = useState(false);
+    const [projectorModels, setProjectorModels] = useState<StoredModel[]>([]);
+    const [selectedVisionModel, setSelectedVisionModel] = useState<Model | null>(null);
 
     const hideDialog = () => setDialogVisible(false);
 
@@ -264,9 +267,9 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
             onPress={() => {
               hideDialog();
               if (onModelSelect) {
-                onModelSelect('local', model.path);
+                onModelSelect('local', (model as StoredModel).path);
               } else {
-                loadModel(model.path);
+                loadModel((model as StoredModel).path);
               }
             }}
           >
@@ -285,79 +288,56 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
       );
     };
 
-    const promptForProjector = async (model: Model) => {
+    const loadProjectorModels = async () => {
       try {
-        const result = await DocumentPicker.getDocumentAsync({
-          type: '*/*',
-          copyToCacheDirectory: false,
-        });
-
-        if (result.canceled) {
-          showDialog(
-            'No Projector Selected',
-            'Vision capabilities require a projector file. Load model in text-only mode?',
-            [
-              <Button key="cancel" onPress={hideDialog}>Cancel</Button>,
-              <Button 
-                key="text-only" 
-                onPress={() => {
-                  hideDialog();
-                  if (onModelSelect) {
-                    onModelSelect('local', model.path);
-                  } else {
-                    loadModel(model.path);
-                  }
-                }}
-              >
-                Text Only
-              </Button>
-            ]
-          );
-          return;
-        }
-
-        const projectorFile = result.assets[0];
-        const fileName = projectorFile.name.toLowerCase();
-        
-        if (!fileName.endsWith('.gguf')) {
-          showDialog(
-            'Invalid Projector File',
-            'Please select a valid GGUF projector file (with .gguf extension)',
-            [<Button key="ok" onPress={hideDialog}>OK</Button>]
-          );
-          return;
-        }
-
-        let projectorPath = projectorFile.uri;
-        if (projectorPath.startsWith('file://')) {
-          projectorPath = projectorPath.replace('file://', '');
-        }
-
-        if (onModelSelect) {
-          showDialog(
-            'Multimodal Model Ready',
-            `Loading ${model.name} with vision capabilities using ${projectorFile.name}`,
-            [<Button key="ok" onPress={hideDialog}>OK</Button>]
-          );
-          onModelSelect('local', model.path, projectorPath);
-        } else {
-          const success = await loadModel(model.path, projectorPath);
-          if (success) {
-            showDialog(
-              'Success',
-              'Vision model loaded successfully! You can now send images and photos.',
-              [<Button key="ok" onPress={hideDialog}>OK</Button>]
-            );
-          }
-        }
+        const storedModels = await modelDownloader.getStoredModels();
+        const projectorModels = storedModels.filter(model => 
+          model.name.toLowerCase().includes('proj') || 
+          model.name.toLowerCase().includes('mmproj') ||
+          model.name.toLowerCase().includes('vision') ||
+          model.name.toLowerCase().includes('clip')
+        );
+        setProjectorModels(projectorModels);
       } catch (error) {
-        console.error('Error selecting projector file:', error);
+        console.error('Error loading projector models:', error);
+        setProjectorModels([]);
+      }
+    };
+
+    const promptForProjector = async (model: Model) => {
+      setSelectedVisionModel(model);
+      await loadProjectorModels();
+      setProjectorSelectorVisible(true);
+    };
+
+    const handleProjectorSelect = async (projectorModel: StoredModel) => {
+      setProjectorSelectorVisible(false);
+      
+      if (!selectedVisionModel) return;
+
+      if (onModelSelect) {
         showDialog(
-          'Error',
-          'Failed to select projector file. Please try again.',
+          'Multimodal Model Ready',
+          `Loading ${selectedVisionModel.name} with vision capabilities using ${projectorModel.name}`,
           [<Button key="ok" onPress={hideDialog}>OK</Button>]
         );
+        onModelSelect('local', (selectedVisionModel as StoredModel).path, projectorModel.path);
+      } else {
+        const success = await loadModel((selectedVisionModel as StoredModel).path, projectorModel.path);
+        if (success) {
+          showDialog(
+            'Success',
+            'Vision model loaded successfully! You can now send images and photos.',
+            [<Button key="ok" onPress={hideDialog}>OK</Button>]
+          );
+        }
       }
+      setSelectedVisionModel(null);
+    };
+
+    const handleProjectorSelectorClose = () => {
+      setProjectorSelectorVisible(false);
+      setSelectedVisionModel(null);
     };
 
     const handleUnloadModel = () => {
@@ -844,6 +824,71 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
               {dialogActions}
             </Dialog.Actions>
           </Dialog>
+
+          {/* Projector Selector Dialog */}
+          <Dialog visible={projectorSelectorVisible} onDismiss={handleProjectorSelectorClose}>
+            <Dialog.Title>Select Multimodal Projector</Dialog.Title>
+            <Dialog.Content>
+              <Text style={{ marginBottom: 16, color: currentTheme === 'dark' ? '#fff' : themeColors.text }}>
+                Choose a projector (mmproj) model to enable multimodal capabilities:
+              </Text>
+              {projectorModels.length === 0 ? (
+                <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                  <MaterialCommunityIcons 
+                    name="cube-outline" 
+                    size={48} 
+                    color={currentTheme === 'dark' ? '#666' : '#ccc'} 
+                  />
+                  <Text style={{ 
+                    marginTop: 12, 
+                    textAlign: 'center',
+                    color: currentTheme === 'dark' ? '#ccc' : '#666' 
+                  }}>
+                    No projector models found in your stored models.{'\n'}
+                    Please download a compatible mmproj file first.
+                  </Text>
+                </View>
+              ) : (
+                projectorModels.map((model) => (
+                  <TouchableOpacity
+                    key={model.path}
+                    style={[
+                      styles.projectorModelItem,
+                      { backgroundColor: currentTheme === 'dark' ? '#2a2a2a' : '#f1f1f1' }
+                    ]}
+                    onPress={() => handleProjectorSelect(model)}
+                  >
+                    <MaterialCommunityIcons
+                      name="cube-outline"
+                      size={20}
+                      color={currentTheme === 'dark' ? '#fff' : '#000'}
+                    />
+                    <View style={styles.projectorModelInfo}>
+                      <Text style={[
+                        styles.projectorModelName,
+                        { color: currentTheme === 'dark' ? '#fff' : '#000' }
+                      ]}>
+                        {model.name}
+                      </Text>
+                      <Text style={[
+                        styles.projectorModelSize,
+                        { color: currentTheme === 'dark' ? '#ccc' : '#666' }
+                      ]}>
+                        {(model.size / (1024 * 1024)).toFixed(1)} MB
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ))
+              )}
+            </Dialog.Content>
+            <Dialog.Actions>
+              {projectorModels.length === 0 ? (
+                <Button onPress={handleProjectorSelectorClose}>Close</Button>
+              ) : (
+                <Button onPress={handleProjectorSelectorClose}>Cancel</Button>
+              )}
+            </Dialog.Actions>
+          </Dialog>
         </Portal>
       </>
     );
@@ -1065,5 +1110,24 @@ const styles = StyleSheet.create({
   onlineModelsHeaderWithKeys: {
     borderColor: 'rgba(74, 180, 96, 0.3)',
     backgroundColor: 'rgba(74, 180, 96, 0.05)',
+  },
+  projectorModelItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    marginVertical: 4,
+    borderRadius: 8,
+  },
+  projectorModelInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  projectorModelName: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  projectorModelSize: {
+    fontSize: 12,
+    marginTop: 2,
   },
 }); 
