@@ -209,6 +209,61 @@ class LlamaManager {
     }
   }
 
+  async generateChatTitle(userMessage: string): Promise<string> {
+    if (!this.context) {
+      throw new Error('Model not initialized');
+    }
+
+    const titlePrompt = [
+      {
+        role: 'system',
+        content: 'You are a helpful assistant that creates short, descriptive titles for conversations. Generate a concise title (3-6 words) that captures the main topic or question being discussed. Do not use quotes or special characters. Respond with only the title.'
+      },
+      {
+        role: 'user',
+        content: `Create a short title for this conversation starter: "${userMessage}"`
+      }
+    ];
+
+    try {
+      let fullResponse = '';
+      this.isCancelled = false;
+
+      await this.context.completion(
+        {
+          messages: titlePrompt,
+          n_predict: 20,
+          stop: [...this.settings.stopWords, '\n', '\\n'],
+          temperature: 0.3,
+          top_k: 30,
+          top_p: 0.8,
+          min_p: 0.05,
+          mirostat: 2,
+          mirostat_tau: 5.0,
+          mirostat_eta: 0.1,
+        },
+        (data) => {
+          if (this.isCancelled) {
+            return false;
+          }
+          
+          if (!this.settings.stopWords.includes(data.token) && data.token !== '\n' && data.token !== '\\n') {
+            fullResponse += data.token;
+            return true;
+          }
+          return false;
+        }
+      );
+
+      const title = fullResponse.trim().replace(/['"]/g, '').substring(0, 50);
+      return title || userMessage.slice(0, 30) + '...';
+    } catch (error) {
+      return userMessage.slice(0, 30) + '...';
+    } finally {
+      this.isCancelled = false;
+    }
+  }
+
   async cancelGeneration() {
     this.isCancelled = true;
     
