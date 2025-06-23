@@ -33,12 +33,10 @@ interface MultimodalContent {
   text?: string;
   image_url?: {
     url?: string;
-    base64?: string;
   };
   input_audio?: {
-    data?: string;
+    format: 'wav' | 'mp3' | 'm4a';
     url?: string;
-    format: string;
   };
 }
 
@@ -126,7 +124,18 @@ class LlamaManager {
       });
 
       if (mmProjectorPath && this.context) {
-        await this.initMultimodal(mmProjectorPath);
+        console.log('[LlamaManager] Initializing multimodal capabilities with projector:', mmProjectorPath);
+        const success = await this.initMultimodal(mmProjectorPath);
+        
+        if (success) {
+          console.log('[LlamaManager] Multimodal support initialized successfully!');
+          
+          const support = await this.context.getMultimodalSupport();
+          console.log('[LlamaManager] Vision support:', support.vision);
+          console.log('[LlamaManager] Audio support:', support.audio);
+        } else {
+          console.log('[LlamaManager] Failed to initialize multimodal support');
+        }
       }
 
       return this.context;
@@ -145,8 +154,16 @@ class LlamaManager {
 
       let finalProjectorPath = mmProjectorPath;
       if (finalProjectorPath.startsWith('file://')) {
-        finalProjectorPath = finalProjectorPath.replace('file://', '');
+        finalProjectorPath = finalProjectorPath.slice(7);
       }
+
+      const fileInfo = await FileSystem.getInfoAsync(finalProjectorPath);
+      if (!fileInfo.exists) {
+        console.error('[LlamaManager] Projector file does not exist:', finalProjectorPath);
+        return false;
+      }
+
+      console.log('[LlamaManager] Projector file found, size:', fileInfo.size);
 
       const success = await this.context.initMultimodal({
         path: finalProjectorPath,
@@ -154,13 +171,20 @@ class LlamaManager {
       });
 
       if (success) {
-        this.isMultimodalEnabled = await this.context.isMultimodalEnabled();
-        this.multimodalSupport = await this.context.getMultimodalSupport();
-        this.mmProjectorPath = finalProjectorPath;
-        
-        console.log('[LlamaManager] Multimodal initialization successful');
-        console.log('[LlamaManager] Vision support:', this.multimodalSupport.vision);
-        console.log('[LlamaManager] Audio support:', this.multimodalSupport.audio);
+        try {
+          this.isMultimodalEnabled = await this.context.isMultimodalEnabled();
+          this.multimodalSupport = await this.context.getMultimodalSupport();
+          this.mmProjectorPath = finalProjectorPath;
+          
+          console.log('[LlamaManager] Multimodal initialization successful');
+          console.log('[LlamaManager] Vision support:', this.multimodalSupport.vision);
+          console.log('[LlamaManager] Audio support:', this.multimodalSupport.audio);
+        } catch (statusError) {
+          console.error('[LlamaManager] Error checking multimodal status:', statusError);
+          this.isMultimodalEnabled = false;
+          this.multimodalSupport = { vision: false, audio: false };
+          return false;
+        }
       } else {
         this.isMultimodalEnabled = false;
         this.multimodalSupport = { vision: false, audio: false };
@@ -172,6 +196,7 @@ class LlamaManager {
       console.error('[LlamaManager] Multimodal initialization failed:', error);
       this.isMultimodalEnabled = false;
       this.multimodalSupport = { vision: false, audio: false };
+      
       return false;
     }
   }
@@ -267,33 +292,21 @@ class LlamaManager {
     if (processed.images && processed.images.length > 0 && this.multimodalSupport.vision) {
       for (const imageUri of processed.images) {
         try {
-          const base64Data = await this.convertFileToBase64(imageUri);
-          if (base64Data) {
-            const extension = this.getFileExtension(imageUri);
-            const mimeType = this.getMimeType(extension);
-            
-            content.push({
-              type: 'image_url',
-              image_url: {
-                base64: `data:${mimeType};base64,${base64Data}`,
-              },
-            });
-          } else {
-            content.push({
-              type: 'image_url',
-              image_url: {
-                url: imageUri,
-              },
-            });
+          let cleanPath = imageUri;
+          if (cleanPath.startsWith('file://')) {
+            cleanPath = cleanPath.slice(7);
           }
-        } catch (error) {
-          console.error('[LlamaManager] Error processing image:', error);
+          
+          console.log('[LlamaManager] Processing image with path:', cleanPath);
+          
           content.push({
             type: 'image_url',
             image_url: {
-              url: imageUri,
+              url: cleanPath,
             },
           });
+        } catch (error) {
+          console.error('[LlamaManager] Error processing image:', error);
         }
       }
     }
@@ -301,33 +314,31 @@ class LlamaManager {
     if (processed.audioFiles && processed.audioFiles.length > 0 && this.multimodalSupport.audio) {
       for (const audioUri of processed.audioFiles) {
         try {
-          const base64Data = await this.convertFileToBase64(audioUri);
-          const extension = this.getFileExtension(audioUri);
-          const mimeType = this.getMimeType(extension);
-
-          if (base64Data) {
-            content.push({
-              type: 'input_audio',
-              input_audio: {
-                data: `data:${mimeType};base64,${base64Data}`,
-                format: extension as 'wav' | 'mp3' | 'm4a',
-              },
-            });
-          } else {
-            content.push({
-              type: 'input_audio',
-              input_audio: {
-                url: audioUri,
-                format: extension as 'wav' | 'mp3' | 'm4a',
-              },
-            });
+          let cleanPath = audioUri;
+          if (cleanPath.startsWith('file://')) {
+            cleanPath = cleanPath.slice(7);
           }
+          
+          console.log('[LlamaManager] Processing audio with path:', cleanPath);
+          const extension = this.getFileExtension(audioUri);
+          
+          const validFormats: ('wav' | 'mp3' | 'm4a')[] = ['wav', 'mp3', 'm4a'];
+          const format = validFormats.includes(extension as any) ? extension as 'wav' | 'mp3' | 'm4a' : 'm4a';
+          
+          content.push({
+            type: 'input_audio',
+            input_audio: {
+              url: cleanPath,
+              format: format,
+            },
+          });
         } catch (error) {
           console.error('[LlamaManager] Error processing audio:', error);
         }
       }
     }
 
+    console.log('[LlamaManager] Created multimodal content:', JSON.stringify(content, null, 2));
     return content;
   }
 
@@ -397,11 +408,28 @@ class LlamaManager {
           const processed = this.parseMultimodalMessage(msg.content);
           
           if (this.isMultimodalEnabled && (processed.images?.length || processed.audioFiles?.length)) {
-            const content = await this.createMultimodalContent(processed);
-            return {
-              role: msg.role,
-              content: content as any,
-            };
+            try {
+              const content = await this.createMultimodalContent(processed);
+              
+              if (content.length === 0) {
+                console.warn('[LlamaManager] No valid multimodal content created, falling back to text');
+                return {
+                  role: msg.role,
+                  content: processed.text,
+                };
+              }
+              
+              return {
+                role: msg.role,
+                content: content,
+              };
+            } catch (error) {
+              console.error('[LlamaManager] Error creating multimodal content:', error);
+              return {
+                role: msg.role,
+                content: processed.text,
+              };
+            }
           } else {
             return {
               role: msg.role,
@@ -410,6 +438,8 @@ class LlamaManager {
           }
         })
       );
+
+      console.log('[LlamaManager] Final processed messages:', JSON.stringify(processedMessages, null, 2));
 
       const result = await this.context.completion(
         {
@@ -444,6 +474,7 @@ class LlamaManager {
 
       return fullResponse.trim();
     } catch (error) {
+      console.error('[LlamaManager] Error in generateResponse:', error);
       throw error;
     } finally {
       this.isCancelled = false;
