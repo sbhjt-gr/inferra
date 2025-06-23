@@ -217,11 +217,11 @@ class LlamaManager {
     const titlePrompt = [
       {
         role: 'system',
-        content: 'You are a helpful assistant that creates short, descriptive titles for conversations. Generate a concise title (3-6 words) that captures the main topic or question being discussed. Do not use quotes or special characters. Respond with only the title.'
+        content: 'Create a 3-6 word title for this conversation. Respond with only the title, no quotes.'
       },
       {
         role: 'user',
-        content: `Create a short title for this conversation starter: "${userMessage}"`
+        content: `Title for: "${userMessage.slice(0, 100)}"`
       }
     ];
 
@@ -232,7 +232,7 @@ class LlamaManager {
       await this.context.completion(
         {
           messages: titlePrompt,
-          n_predict: 20,
+          n_predict: 50,
           stop: [...this.settings.stopWords, '\n', '\\n'],
           temperature: 0.3,
           top_k: 30,
