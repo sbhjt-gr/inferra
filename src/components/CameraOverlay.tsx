@@ -7,6 +7,8 @@ import {
   Dimensions,
   Animated,
   Platform,
+  Modal,
+  StatusBar,
 } from 'react-native';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -14,7 +16,7 @@ import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import * as MediaLibrary from 'expo-media-library';
 
-const { width: screenWidth } = Dimensions.get('window');
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 type CameraOverlayProps = {
   visible: boolean;
@@ -30,11 +32,6 @@ export default function CameraOverlay({ visible, onClose, onPhotoTaken }: Camera
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
   const isDark = currentTheme === 'dark';
-  const slideAnimation = useRef(new Animated.Value(0)).current;
-
-  const cameraHeight = 300;
-  const cameraWidth = screenWidth - 20;
-
   useEffect(() => {
     if (visible) {
       if (!permission?.granted) {
@@ -43,20 +40,6 @@ export default function CameraOverlay({ visible, onClose, onPhotoTaken }: Camera
       if (!mediaLibraryPermission?.granted) {
         requestMediaLibraryPermission();
       }
-      
-      Animated.spring(slideAnimation, {
-        toValue: 1,
-        useNativeDriver: true,
-        tension: 100,
-        friction: 8,
-      }).start();
-    } else {
-      Animated.spring(slideAnimation, {
-        toValue: 0,
-        useNativeDriver: true,
-        tension: 100,
-        friction: 8,
-      }).start();
     }
   }, [visible]);
 
@@ -95,75 +78,65 @@ export default function CameraOverlay({ visible, onClose, onPhotoTaken }: Camera
 
   if (!permission.granted) {
     return (
-      <Animated.View 
-        style={[
-          styles.container,
-          {
-            transform: [{
-              translateY: slideAnimation.interpolate({
-                inputRange: [0, 1],
-                outputRange: [cameraHeight, 0],
-              }),
-            }],
-          }
-        ]}
+      <Modal
+        visible={visible}
+        animationType="fade"
+        transparent={false}
+        statusBarTranslucent={true}
+        onRequestClose={onClose}
       >
-        <View style={[styles.permissionContainer, { backgroundColor: themeColors.background }]}>
-          <MaterialCommunityIcons 
-            name="camera" 
-            size={48} 
-            color={themeColors.text} 
-            style={styles.permissionIcon}
-          />
-          <Text style={[styles.permissionTitle, { color: themeColors.text }]}>
-            Camera Permission Required
-          </Text>
-          <Text style={[styles.permissionText, { color: themeColors.secondaryText }]}>
-            Grant camera access to take photos
-          </Text>
-          <View style={styles.permissionButtons}>
-            <TouchableOpacity
-              style={[styles.permissionButton, styles.cancelButton]}
-              onPress={onClose}
-            >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.permissionButton, styles.grantButton]}
-              onPress={requestPermission}
-            >
-              <Text style={styles.grantButtonText}>Grant</Text>
-            </TouchableOpacity>
+        <StatusBar hidden={true} />
+        <View style={[styles.fullScreenContainer, { backgroundColor: themeColors.background }]}>
+          <View style={styles.permissionContainer}>
+            <MaterialCommunityIcons 
+              name="camera" 
+              size={48} 
+              color={themeColors.text} 
+              style={styles.permissionIcon}
+            />
+            <Text style={[styles.permissionTitle, { color: themeColors.text }]}>
+              Camera Permission Required
+            </Text>
+            <Text style={[styles.permissionText, { color: themeColors.secondaryText }]}>
+              Grant camera access to take photos
+            </Text>
+            <View style={styles.permissionButtons}>
+              <TouchableOpacity
+                style={[styles.permissionButton, styles.cancelButton]}
+                onPress={onClose}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.permissionButton, styles.grantButton]}
+                onPress={requestPermission}
+              >
+                <Text style={styles.grantButtonText}>Grant</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
-      </Animated.View>
+      </Modal>
     );
   }
 
   return (
-    <Animated.View 
-      style={[
-        styles.container,
-        {
-          height: cameraHeight,
-          width: cameraWidth,
-          transform: [{
-            translateY: slideAnimation.interpolate({
-              inputRange: [0, 1],
-              outputRange: [cameraHeight, 0],
-            }),
-          }],
-        }
-      ]}
+    <Modal
+      visible={visible}
+      animationType="fade"
+      transparent={false}
+      statusBarTranslucent={true}
+      onRequestClose={onClose}
     >
-      <View style={styles.cameraContainer}>
+      <StatusBar hidden={true} />
+      <View style={styles.fullScreenContainer}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.headerButton} onPress={onClose}>
-            <MaterialCommunityIcons name="close" size={20} color="#fff" />
+            <MaterialCommunityIcons name="close" size={24} color="#fff" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Camera</Text>
           <TouchableOpacity style={styles.headerButton} onPress={toggleCameraFacing}>
-            <MaterialCommunityIcons name="camera-flip" size={20} color="#fff" />
+            <MaterialCommunityIcons name="camera-flip" size={24} color="#fff" />
           </TouchableOpacity>
         </View>
         
@@ -181,29 +154,12 @@ export default function CameraOverlay({ visible, onClose, onPhotoTaken }: Camera
           </TouchableOpacity>
         </View>
       </View>
-    </Animated.View>
+    </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    position: 'absolute',
-    bottom: 0,
-    left: 10,
-    right: 10,
-    zIndex: 1000,
-    borderRadius: 12,
-    overflow: 'hidden',
-    elevation: 10,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: -2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-  },
-  cameraContainer: {
+  fullScreenContainer: {
     flex: 1,
     backgroundColor: '#000',
   },
@@ -211,22 +167,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    height: 50,
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'ios' ? 50 : 30,
+    paddingBottom: 15,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 1,
   },
   headerButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   headerTitle: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
   },
   cameraWrapper: {
@@ -237,27 +198,31 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   controls: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    height: 70,
+    paddingVertical: 30,
+    paddingBottom: Platform.OS === 'ios' ? 50 : 30,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
   },
   captureButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 70,
+    height: 70,
+    borderRadius: 35,
     backgroundColor: '#fff',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 3,
+    borderWidth: 4,
     borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   captureButtonInner: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     backgroundColor: '#fff',
   },
   permissionContainer: {
