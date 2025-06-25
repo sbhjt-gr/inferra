@@ -88,10 +88,7 @@ export default function ChatView({
             parsedMessage.type === 'file_upload' && 
             parsedMessage.internalInstruction) {
           
-          console.log('Processing JSON Message:', {
-            internalInstruction: parsedMessage.internalInstruction,
-            userContent: parsedMessage.userContent
-          });
+
           
           const match = parsedMessage.internalInstruction.match(/You're reading a file named: (.+?)\n/);
           if (match && match[1]) {
