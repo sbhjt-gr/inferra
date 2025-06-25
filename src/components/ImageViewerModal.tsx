@@ -9,12 +9,20 @@ import {
   ScrollView,
   Dimensions,
   SafeAreaView,
+  ActivityIndicator,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Button, Text } from 'react-native-paper';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import { getThemeAwareColor } from '../utils/ColorUtils';
+import ImageProcessingSelector from './ImageProcessingSelector';
+import { 
+  ImageProcessingMode, 
+  performOCROnImage, 
+  createOCRMessage, 
+  createMultimodalMessage 
+} from '../utils/ImageProcessingUtils';
 
 type ImageViewerModalProps = {
   visible: boolean;
@@ -34,33 +42,42 @@ export default function ImageViewerModal({
   onUpload,
 }: ImageViewerModalProps) {
   const [userPrompt, setUserPrompt] = useState('Describe this image in detail.');
+  const [processingMode, setProcessingMode] = useState<ImageProcessingMode>('multimodal');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [processingProgress, setProcessingProgress] = useState('');
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
   const isDark = currentTheme === 'dark';
 
-  const handleSend = () => {
-    if (onUpload && imagePath) {
-      const messageObject = {
-        type: 'multimodal',
-        content: [
-          {
-            type: 'image',
-            uri: imagePath
-          },
-          {
-            type: 'text',
-            text: userPrompt
-          }
-        ]
-      };
+  const handleSend = async () => {
+    if (!onUpload || !imagePath || isProcessing) return;
+
+    try {
+      setIsProcessing(true);
       
-      onUpload(JSON.stringify(messageObject), fileName || 'image', userPrompt);
+      if (processingMode === 'ocr') {
+        const extractedText = await performOCROnImage(imagePath, setProcessingProgress);
+        const ocrMessage = createOCRMessage(extractedText, fileName, userPrompt);
+        onUpload(ocrMessage, fileName || 'image', userPrompt);
+      } else {
+        const multimodalMessage = createMultimodalMessage(imagePath, userPrompt);
+        onUpload(multimodalMessage, fileName || 'image', userPrompt);
+      }
+      
       onClose();
+    } catch (error) {
+      console.error('Error processing image:', error);
+    } finally {
+      setIsProcessing(false);
+      setProcessingProgress('');
     }
   };
 
   const handleClose = () => {
+    if (isProcessing) return;
     setUserPrompt('Describe this image in detail.');
+    setProcessingMode('multimodal');
+    setProcessingProgress('');
     onClose();
   };
 
@@ -93,17 +110,21 @@ export default function ImageViewerModal({
               styles.headerButton, 
               { 
                 backgroundColor: getThemeAwareColor('#4a0660', currentTheme),
-                opacity: userPrompt.trim() ? 1 : 0.5
+                opacity: (userPrompt.trim() && !isProcessing) ? 1 : 0.5
               }
             ]}
             onPress={handleSend}
-            disabled={!userPrompt.trim()}
+            disabled={!userPrompt.trim() || isProcessing}
           >
-            <MaterialCommunityIcons 
-              name="send" 
-              size={20} 
-              color="#ffffff" 
-            />
+            {isProcessing ? (
+              <ActivityIndicator size={20} color="#ffffff" />
+            ) : (
+              <MaterialCommunityIcons 
+                name="send" 
+                size={20} 
+                color="#ffffff" 
+              />
+            )}
           </TouchableOpacity>
         </View>
 
@@ -122,8 +143,17 @@ export default function ImageViewerModal({
         </ScrollView>
 
         <View style={[styles.inputSection, { backgroundColor: themeColors.background, borderTopColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)' }]}>
+          <ImageProcessingSelector
+            selectedMode={processingMode}
+            onModeChange={setProcessingMode}
+            disabled={isProcessing}
+          />
+          
           <Text style={[styles.inputLabel, { color: themeColors.text }]}>
-            What would you like to ask about this image?
+            {processingMode === 'ocr' 
+              ? 'Additional instructions for text processing:' 
+              : 'What would you like to ask about this image?'
+            }
           </Text>
           
           <View style={[
@@ -137,13 +167,26 @@ export default function ImageViewerModal({
               style={[styles.textInput, { color: themeColors.text }]}
               value={userPrompt}
               onChangeText={setUserPrompt}
-              placeholder="Enter your question or instruction..."
+              placeholder={processingMode === 'ocr' 
+                ? 'Enter instructions for processing the extracted text...' 
+                : 'Enter your question or instruction...'
+              }
               placeholderTextColor={isDark ? 'rgba(255, 255, 255, 0.6)' : 'rgba(0, 0, 0, 0.4)'}
               multiline
               textAlignVertical="top"
               maxLength={1000}
+              editable={!isProcessing}
             />
           </View>
+
+          {isProcessing && (
+            <View style={styles.processingContainer}>
+              <ActivityIndicator size="small" color={getThemeAwareColor('#4a0660', currentTheme)} />
+              <Text style={[styles.processingText, { color: themeColors.text }]}>
+                {processingProgress || 'Processing image...'}
+              </Text>
+            </View>
+          )}
 
           <View style={styles.actionButtons}>
             <Button
@@ -158,17 +201,18 @@ export default function ImageViewerModal({
             <Button
               mode="contained"
               onPress={handleSend}
-              disabled={!userPrompt.trim()}
+              disabled={!userPrompt.trim() || isProcessing}
               style={[
                 styles.button,
                 { 
                   backgroundColor: getThemeAwareColor('#4a0660', currentTheme),
-                  opacity: userPrompt.trim() ? 1 : 0.5
+                  opacity: (userPrompt.trim() && !isProcessing) ? 1 : 0.5
                 }
               ]}
               labelStyle={{ color: '#ffffff' }}
+              loading={isProcessing}
             >
-              Send Image
+              {processingMode === 'ocr' ? 'Extract Text' : 'Send Image'}
             </Button>
           </View>
         </View>
@@ -252,5 +296,15 @@ const styles = StyleSheet.create({
   },
   button: {
     flex: 1,
+  },
+  processingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    gap: 8,
+  },
+  processingText: {
+    fontSize: 14,
+    fontStyle: 'italic',
   },
 }); 

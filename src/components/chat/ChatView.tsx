@@ -109,6 +109,10 @@ export default function ChatView({
           return textContent ? textContent.text : '';
         }
         
+        if (parsedMessage && parsedMessage.type === 'ocr_result') {
+          return parsedMessage.userPrompt || '';
+        }
+        
         if (parsedMessage && 
             parsedMessage.type === 'file_upload' && 
             parsedMessage.internalInstruction) {
