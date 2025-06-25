@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import PDFViewerModal from './PDFViewerModal';
 import TextFileViewerModal from './TextFileViewerModal';
+import ImageViewerModal from './ImageViewerModal';
 import { getFileType, FileType } from '../utils/fileUtils';
 
 type FileViewerModalProps = {
@@ -36,6 +37,16 @@ export default function FileViewerModal({
           visible={visible}
           onClose={onClose}
           pdfSource={filePath}
+          fileName={fileName}
+          onUpload={onUpload}
+        />
+      );
+    case 'image':
+      return (
+        <ImageViewerModal
+          visible={visible}
+          onClose={onClose}
+          imagePath={filePath}
           fileName={fileName}
           onUpload={onUpload}
         />

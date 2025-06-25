@@ -463,13 +463,6 @@ export default function ChatInput({
       );
       return;
     }
-
-    const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude'].includes(selectedModelPath);
-    
-    if (!isOnlineModel && !checkMultimodalSupport()) {
-      showMmProjSelector('file');
-      return;
-    }
     
     try {
       const result = await DocumentPicker.getDocumentAsync({
@@ -490,7 +483,7 @@ export default function ChatInput({
       console.error('Error picking document:', error);
       showDialog('Error', 'Could not pick the document. Please try again.');
     }
-  }, [selectedModelPath, isMultimodalEnabled]);
+  }, [selectedModelPath]);
 
   const closeFileModal = useCallback(() => {
     setFileModalVisible(false);
