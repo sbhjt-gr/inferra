@@ -18,8 +18,6 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Markdown from 'react-native-markdown-display';
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../constants/theme';
-import * as MediaLibrary from 'expo-media-library';
-import * as FileSystem from 'expo-file-system';
 
 export type Message = {
   id: string;
@@ -93,49 +91,6 @@ export default function ChatView({
     setIsImageViewerVisible(false);
     setFullScreenImage(null);
   }, []);
-
-  const saveImageToGallery = useCallback(async () => {
-    if (!fullScreenImage) return;
-
-    try {
-      const { status } = await MediaLibrary.requestPermissionsAsync();
-      
-      if (status !== 'granted') {
-        Alert.alert(
-          'Permission Required',
-          'Please grant permission to access your photo library to save images.',
-          [{ text: 'OK' }]
-        );
-        return;
-      }
-
-      let imageUri = fullScreenImage;
-      if (imageUri.startsWith('file://')) {
-        imageUri = imageUri.slice(7);
-      }
-
-      const fileInfo = await FileSystem.getInfoAsync(imageUri);
-      if (!fileInfo.exists) {
-        Alert.alert('Error', 'Image file not found.');
-        return;
-      }
-
-      const asset = await MediaLibrary.createAssetAsync(imageUri);
-      
-      Alert.alert(
-        'Success',
-        'Image saved to gallery successfully!',
-        [{ text: 'OK' }]
-      );
-    } catch (error) {
-      console.error('Error saving image to gallery:', error);
-      Alert.alert(
-        'Error',
-        'Failed to save image to gallery. Please try again.',
-        [{ text: 'OK' }]
-      );
-    }
-  }, [fullScreenImage]);
 
   const renderMessage = useCallback(({ item }: { item: Message }) => {
     const isCurrentlyStreaming = (isStreaming || justCancelled) && item.id === streamingMessageId;
@@ -654,17 +609,6 @@ export default function ChatView({
                   color="#fff" 
                 />
               </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={[styles.imageViewerButton, styles.saveButton]}
-                onPress={saveImageToGallery}
-              >
-                <MaterialCommunityIcons 
-                  name="download" 
-                  size={24} 
-                  color="#fff" 
-                />
-              </TouchableOpacity>
             </View>
             
             {fullScreenImage && (
@@ -922,9 +866,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   closeButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  saveButton: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   fullScreenImage: {
