@@ -212,6 +212,24 @@ class LlamaManager {
     try {
       const parsed = JSON.parse(message);
       
+      if (parsed.type === 'multimodal' && parsed.content && Array.isArray(parsed.content)) {
+        const result: ProcessedMessage = { text: '', images: [], audioFiles: [] };
+        
+        for (const item of parsed.content) {
+          if (item.type === 'text') {
+            result.text = item.text || '';
+          } else if (item.type === 'image' && item.uri) {
+            result.images = result.images || [];
+            result.images.push(item.uri);
+          } else if (item.type === 'audio' && item.uri) {
+            result.audioFiles = result.audioFiles || [];
+            result.audioFiles.push(item.uri);
+          }
+        }
+        
+        return result;
+      }
+      
       if (parsed.type === 'photo_upload') {
         const imageUri = this.extractImageUri(parsed.internalInstruction);
         return {

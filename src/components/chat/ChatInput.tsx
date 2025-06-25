@@ -216,12 +216,18 @@ export default function ChatInput({
   }, [onSend]);
 
   const handlePhotoTaken = useCallback((photoUri: string) => {
-    const fileName = `photo_${Date.now()}.jpg`;
-    
     const messageObject = {
-      type: 'photo_upload',
-      internalInstruction: `Photo URI: ${photoUri}`,
-      userContent: 'What do you see in this image?'
+      type: 'multimodal',
+      content: [
+        {
+          type: 'image',
+          uri: photoUri
+        },
+        {
+          type: 'text',
+          text: 'What do you see in this image?'
+        }
+      ]
     };
     
     console.log('Photo Upload Message:', messageObject);
@@ -230,12 +236,18 @@ export default function ChatInput({
   }, [onSend]);
 
   const handleAudioRecorded = useCallback((audioUri: string) => {
-    const fileName = `audio_${Date.now()}.m4a`;
-    
     const messageObject = {
-      type: 'audio_upload',
-      internalInstruction: `Audio URI: ${audioUri}`,
-      userContent: 'Please transcribe or describe this audio.'
+      type: 'multimodal',
+      content: [
+        {
+          type: 'audio',
+          uri: audioUri
+        },
+        {
+          type: 'text',
+          text: 'Please transcribe or describe this audio.'
+        }
+      ]
     };
     
     console.log('Audio Upload Message:', messageObject);
