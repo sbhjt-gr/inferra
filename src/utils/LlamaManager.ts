@@ -62,7 +62,7 @@ const DEFAULT_SETTINGS: ModelSettings = {
   topK: 40,
   topP: 0.9,
   minP: 0.05,
-  stopWords: ['<|end|>', '<end_of_turn>', '<|im_end|>', '<|endoftext|>', '<\uff5cend\u2581of\u2581sentence\uff5c>'],
+  stopWords: ['<|end|>', '<end_of_turn>', '<|im_end|>', '<|endoftext|>', '<end_of_utterance>'],
   systemPrompt: 'You are an AI assistant.'
 };
 
