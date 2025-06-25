@@ -5,9 +5,9 @@ import {
   TextInput,
   TouchableOpacity,
   TouchableWithoutFeedback,
-  ActivityIndicator,
   Keyboard,
-  Alert,
+  Animated,
+  Platform,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
@@ -47,10 +47,10 @@ export default function ChatInput({
   isRegenerating = false,
   onCancel = () => {},
   style = {},
-  placeholderColor = 'rgba(0, 0, 0, 0.6)'
+  placeholderColor
 }: ChatInputProps) {
   const [text, setText] = useState('');
-  const [inputHeight, setInputHeight] = useState(48);
+  const [inputHeight, setInputHeight] = useState(52);
   const [fileModalVisible, setFileModalVisible] = useState(false);
   const [cameraVisible, setCameraVisible] = useState(false);
   const [selectedFile, setSelectedFile] = useState<{uri: string, name?: string} | null>(null);
@@ -59,8 +59,13 @@ export default function ChatInput({
   const [mmProjSelectorVisible, setMmProjSelectorVisible] = useState(false);
   const [storedModels, setStoredModels] = useState<StoredModel[]>([]);
   const [pendingMultimodalAction, setPendingMultimodalAction] = useState<'camera' | 'file' | null>(null);
+  const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
+  
   const inputRef = useRef<TextInput>(null);
   const recordingRef = useRef<Audio.Recording | null>(null);
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const attachmentMenuAnim = useRef(new Animated.Value(0)).current;
+  
   const { theme: currentTheme } = useTheme();
   const { selectedModelPath, isModelLoading, loadModel, isMultimodalEnabled } = useModel();
   const themeColors = useMemo(() => theme[currentTheme as 'light' | 'dark'], [currentTheme]);
@@ -71,10 +76,62 @@ export default function ChatInput({
   const [dialogMessage, setDialogMessage] = useState('');
 
   const isGenerating = isLoading || isRegenerating;
+  const hasText = text.trim().length > 0;
 
   React.useEffect(() => {
     checkAudioPermissions();
   }, []);
+
+  React.useEffect(() => {
+    if (isRecording) {
+      startPulseAnimation();
+    } else {
+      stopPulseAnimation();
+    }
+  }, [isRecording]);
+
+  React.useEffect(() => {
+    if (showAttachmentMenu) {
+      Animated.spring(attachmentMenuAnim, {
+        toValue: 1,
+        useNativeDriver: true,
+        tension: 100,
+        friction: 8,
+      }).start();
+    } else {
+      Animated.spring(attachmentMenuAnim, {
+        toValue: 0,
+        useNativeDriver: true,
+        tension: 100,
+        friction: 8,
+      }).start();
+    }
+  }, [showAttachmentMenu]);
+
+  const startPulseAnimation = () => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.2,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  };
+
+  const stopPulseAnimation = () => {
+    Animated.timing(pulseAnim, {
+      toValue: 1,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+  };
 
   const checkAudioPermissions = async () => {
     try {
@@ -166,10 +223,12 @@ export default function ChatInput({
     setPendingMultimodalAction(null);
   };
 
-
+  const toggleAttachmentMenu = () => {
+    setShowAttachmentMenu(!showAttachmentMenu);
+  };
 
   const handleSend = useCallback(() => {
-    if (!text.trim()) return;
+    if (!hasText) return;
 
     if (!selectedModelPath) {
       showDialog(
@@ -190,11 +249,12 @@ export default function ChatInput({
     
     onSend(text);
     setText('');
-    setInputHeight(48);
-  }, [text, onSend, selectedModelPath, isModelLoading]);
+    setInputHeight(52);
+    setShowAttachmentMenu(false);
+  }, [text, onSend, selectedModelPath, isModelLoading, hasText]);
 
   const handleContentSizeChange = useCallback((event: any) => {
-    const height = Math.min(120, Math.max(48, event.nativeEvent.contentSize.height));
+    const height = Math.min(120, Math.max(52, event.nativeEvent.contentSize.height + 8));
     setInputHeight(height);
   }, []);
 
@@ -213,6 +273,7 @@ export default function ChatInput({
     });
     
     onSend(JSON.stringify(messageObject));
+    setShowAttachmentMenu(false);
   }, [onSend]);
 
   const handlePhotoTaken = useCallback((photoUri: string) => {
@@ -233,6 +294,7 @@ export default function ChatInput({
     console.log('Photo Upload Message:', messageObject);
     
     onSend(JSON.stringify(messageObject));
+    setShowAttachmentMenu(false);
   }, [onSend]);
 
   const handleAudioRecorded = useCallback((audioUri: string) => {
@@ -253,6 +315,7 @@ export default function ChatInput({
     console.log('Audio Upload Message:', messageObject);
     
     onSend(JSON.stringify(messageObject));
+    setShowAttachmentMenu(false);
   }, [onSend]);
 
   const startRecording = async () => {
@@ -298,6 +361,7 @@ export default function ChatInput({
       await recording.startAsync();
       recordingRef.current = recording;
       setIsRecording(true);
+      setShowAttachmentMenu(false);
       console.log('Recording started');
     } catch (error) {
       console.error('Failed to start recording:', error);
@@ -384,6 +448,7 @@ export default function ChatInput({
     }
     
     setCameraVisible(true);
+    setShowAttachmentMenu(false);
   }, [selectedModelPath, isMultimodalEnabled]);
 
   const closeCamera = useCallback(() => {
@@ -419,6 +484,7 @@ export default function ChatInput({
           name: file.name
         });
         setFileModalVisible(true);
+        setShowAttachmentMenu(false);
       }
     } catch (error) {
       console.error('Error picking document:', error);
@@ -429,34 +495,6 @@ export default function ChatInput({
   const closeFileModal = useCallback(() => {
     setFileModalVisible(false);
   }, []);
-
-  const inputContainerStyle = useMemo(() => [
-    styles.input,
-    {
-      height: inputHeight,
-      color: isDark ? '#fff' : '#000',
-      backgroundColor: isDark ? '#2a2a2a' : '#f1f1f1',
-      paddingRight: 120,
-    },
-  ], [inputHeight, isDark]);
-
-  const sendButtonStyle = useMemo(() => [
-    styles.sendButton,
-    !text.trim() && styles.sendButtonDisabled
-  ], [text]);
-
-  const sendButtonColor = useMemo(() => 
-    text.trim() ? getThemeAwareColor('#660880', currentTheme) : isDark ? themeColors.secondaryText : '#999'
-  , [text, currentTheme, isDark, themeColors.secondaryText]);
-
-  const attachmentIconColor = useMemo(() => 
-    isDark ? '#ffffff' : "#660880"
-  , [isDark]);
-
-  const microphoneIconColor = useMemo(() => {
-    if (isRecording) return '#ff4444';
-    return isDark ? '#ffffff' : '#660880';
-  }, [isRecording, isDark]);
 
   const handleCancel = () => {
     if (onCancel) {
@@ -472,75 +510,183 @@ export default function ChatInput({
     };
   }, []);
 
+  const inputContainerStyle = useMemo(() => [
+    styles.inputContainer,
+    {
+      backgroundColor: isDark ? themeColors.background : '#ffffff',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+      minHeight: inputHeight,
+    },
+  ], [inputHeight, isDark, themeColors.background]);
+
+  const inputStyle = useMemo(() => [
+    styles.input,
+    {
+      color: isDark ? themeColors.text : '#000000',
+      height: Math.max(40, inputHeight - 12),
+    },
+  ], [inputHeight, isDark, themeColors.text]);
+
+  const defaultPlaceholderColor = useMemo(() => 
+    isDark ? 'rgba(255, 255, 255, 0.6)' : 'rgba(0, 0, 0, 0.4)'
+  , [isDark]);
+
+  const sendButtonStyle = useMemo(() => [
+    styles.sendButton,
+    {
+      backgroundColor: hasText 
+        ? getThemeAwareColor('#660880', currentTheme)
+        : isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
+    }
+  ], [hasText, currentTheme, isDark]);
+
+  const sendIconColor = useMemo(() => 
+    hasText ? '#ffffff' : isDark ? 'rgba(255, 255, 255, 0.4)' : 'rgba(0, 0, 0, 0.3)'
+  , [hasText, isDark]);
+
+  const attachmentButtonStyle = useMemo(() => [
+    styles.attachmentButton,
+    {
+      backgroundColor: showAttachmentMenu 
+        ? getThemeAwareColor('#660880', currentTheme)
+        : isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
+    }
+  ], [showAttachmentMenu, currentTheme, isDark]);
+
+  const attachmentIconColor = useMemo(() => 
+    showAttachmentMenu ? '#ffffff' : isDark ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.6)'
+  , [showAttachmentMenu, isDark]);
+
+  const recordingButtonStyle = useMemo(() => [
+    styles.recordingButton,
+    {
+      backgroundColor: isRecording ? '#ff4444' : 'transparent',
+      transform: [{ scale: pulseAnim }],
+    }
+  ], [isRecording, pulseAnim]);
+
   return (
     <View style={styles.wrapper}>
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+      <TouchableWithoutFeedback onPress={() => {
+        Keyboard.dismiss();
+        setShowAttachmentMenu(false);
+      }}>
         <View style={[styles.container, style]}>
-          <TouchableOpacity 
-            style={styles.attachmentButton} 
-            onPress={pickDocument}
-            disabled={disabled}
-          >
-            <MaterialCommunityIcons 
-              name="attachment" 
-              size={24} 
-              color={attachmentIconColor} 
-            />
-          </TouchableOpacity>
-
-          <View style={styles.inputContainer}>
-            <TextInput
-              ref={inputRef}
-              style={inputContainerStyle}
-              placeholder="Type a message..."
-              placeholderTextColor={placeholderColor}
-              value={text}
-              onChangeText={setText}
-              onContentSizeChange={handleContentSizeChange}
-              multiline
-              maxLength={10000}
-              editable={!disabled}
-              returnKeyType="default"
-            />
-            <View style={styles.inputIconsContainer}>
-              <TouchableOpacity style={styles.inputIcon} onPress={openCamera}>
-                <MaterialCommunityIcons name="camera" size={20} color="#999" />
+          {showAttachmentMenu && (
+            <Animated.View
+              style={[
+                                 styles.attachmentMenu,
+                 {
+                   backgroundColor: isDark ? themeColors.background : '#ffffff',
+                   borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+                  transform: [
+                    {
+                      translateY: attachmentMenuAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [20, 0],
+                      }),
+                    },
+                    {
+                      scale: attachmentMenuAnim,
+                    },
+                  ],
+                  opacity: attachmentMenuAnim,
+                },
+              ]}
+            >
+              <TouchableOpacity style={styles.attachmentMenuItem} onPress={pickDocument}>
+                <View style={[styles.attachmentMenuIcon, { backgroundColor: '#4285f4' }]}>
+                  <MaterialCommunityIcons name="file-document-outline" size={20} color="#ffffff" />
+                </View>
+                <Text style={[styles.attachmentMenuText, { color: isDark ? themeColors.text : '#000000' }]}>
+                  File
+                </Text>
               </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.inputIcon, isRecording && styles.recordingIcon]} 
-                onPress={handleMicrophonePress}
-                disabled={disabled}
-              >
-                <MaterialCommunityIcons 
-                  name={isRecording ? "stop" : "microphone"} 
-                  size={20} 
-                  color={microphoneIconColor} 
-                />
+              
+              <TouchableOpacity style={styles.attachmentMenuItem} onPress={openCamera}>
+                <View style={[styles.attachmentMenuIcon, { backgroundColor: '#34a853' }]}>
+                  <MaterialCommunityIcons name="camera-outline" size={20} color="#ffffff" />
+                </View>
+                <Text style={[styles.attachmentMenuText, { color: isDark ? themeColors.text : '#000000' }]}>
+                  Camera
+                </Text>
               </TouchableOpacity>
-            </View>
-          </View>
+              
+              <TouchableOpacity style={styles.attachmentMenuItem} onPress={handleMicrophonePress}>
+                <View style={[styles.attachmentMenuIcon, { backgroundColor: '#ea4335' }]}>
+                  <MaterialCommunityIcons 
+                    name={isRecording ? "stop" : "microphone-outline"} 
+                    size={20} 
+                    color="#ffffff" 
+                  />
+                </View>
+                <Text style={[styles.attachmentMenuText, { color: isDark ? themeColors.text : '#000000' }]}>
+                  {isRecording ? 'Stop' : 'Audio'}
+                </Text>
+              </TouchableOpacity>
+            </Animated.View>
+          )}
 
-          {isGenerating ? (
-            <TouchableOpacity style={styles.cancelButton} onPress={handleCancel}>
-              <MaterialCommunityIcons 
-                name="stop" 
-                size={24} 
-                color={getThemeAwareColor('#660880', currentTheme)} 
-              />
-            </TouchableOpacity>
-          ) : (
+          <View style={styles.inputWrapper}>
             <TouchableOpacity 
-              style={sendButtonStyle} 
-              onPress={handleSend}
-              disabled={!text.trim() || disabled}
+              style={attachmentButtonStyle} 
+              onPress={toggleAttachmentMenu}
+              disabled={disabled}
             >
               <MaterialCommunityIcons 
-                name="send" 
-                size={24} 
-                color={sendButtonColor} 
+                name={showAttachmentMenu ? "close" : "plus"} 
+                size={20} 
+                color={attachmentIconColor} 
               />
             </TouchableOpacity>
-          )}
+
+            <View style={inputContainerStyle}>
+              <TextInput
+                ref={inputRef}
+                style={inputStyle}
+                placeholder="Type a message..."
+                placeholderTextColor={placeholderColor || defaultPlaceholderColor}
+                value={text}
+                onChangeText={setText}
+                onContentSizeChange={handleContentSizeChange}
+                multiline
+                maxLength={10000}
+                editable={!disabled}
+                returnKeyType="default"
+                textAlignVertical="center"
+              />
+            </View>
+
+            {isRecording && (
+              <Animated.View style={recordingButtonStyle}>
+                <TouchableOpacity 
+                  style={styles.recordingButtonInner} 
+                  onPress={stopRecording}
+                >
+                  <MaterialCommunityIcons name="stop" size={20} color="#ffffff" />
+                </TouchableOpacity>
+              </Animated.View>
+            )}
+
+            {isGenerating ? (
+              <TouchableOpacity style={styles.cancelButton} onPress={handleCancel}>
+                <MaterialCommunityIcons name="stop-circle-outline" size={24} color="#ff4444" />
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity 
+                style={sendButtonStyle} 
+                onPress={handleSend}
+                disabled={!hasText || disabled}
+                activeOpacity={0.7}
+              >
+                <MaterialCommunityIcons 
+                  name="send" 
+                  size={20} 
+                  color={sendIconColor} 
+                />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
       </TouchableWithoutFeedback>
 
@@ -560,35 +706,42 @@ export default function ChatInput({
 
       <Portal>
         <Dialog visible={dialogVisible} onDismiss={hideDialog}>
-          <Dialog.Title>{dialogTitle}</Dialog.Title>
+          <Dialog.Title style={{ color: isDark ? '#ffffff' : '#000000' }}>
+            {dialogTitle}
+          </Dialog.Title>
           <Dialog.Content>
-            <Text>{dialogMessage}</Text>
+            <Text style={{ color: isDark ? '#ffffff' : '#000000' }}>
+              {dialogMessage}
+            </Text>
           </Dialog.Content>
           <Dialog.Actions>
-            <Button onPress={hideDialog}>OK</Button>
+            <Button onPress={hideDialog} textColor={getThemeAwareColor('#660880', currentTheme)}>
+              OK
+            </Button>
           </Dialog.Actions>
         </Dialog>
       </Portal>
 
       <Portal>
         <Dialog visible={mmProjSelectorVisible} onDismiss={handleMmProjSelectorClose}>
-          <Dialog.Title>Select Multimodal Projector</Dialog.Title>
+          <Dialog.Title style={{ color: isDark ? '#ffffff' : '#000000' }}>
+            Select Multimodal Projector
+          </Dialog.Title>
           <Dialog.Content>
-            <Text style={{ marginBottom: 16 }}>
+            <Text style={{ marginBottom: 16, color: isDark ? '#ffffff' : '#000000' }}>
               Choose a projector (mmproj) model to enable multimodal capabilities:
             </Text>
             {storedModels.length === 0 ? (
-              <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+              <View style={styles.emptyState}>
                 <MaterialCommunityIcons 
                   name="cube-outline" 
                   size={48} 
                   color={isDark ? '#666' : '#ccc'} 
                 />
-                <Text style={{ 
-                  marginTop: 12, 
-                  textAlign: 'center',
-                  color: isDark ? '#ccc' : '#666' 
-                }}>
+                <Text style={[
+                  styles.emptyStateText,
+                  { color: isDark ? '#ccc' : '#666' }
+                ]}>
                   No projector models found in your stored models.{'\n'}
                   Please download a compatible mmproj file first.
                 </Text>
@@ -599,15 +752,17 @@ export default function ChatInput({
                   key={model.path}
                   style={[
                     styles.projectorModelItem,
-                    { backgroundColor: isDark ? '#2a2a2a' : '#f1f1f1' }
+                    { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)' }
                   ]}
                   onPress={() => handleMmProjSelect(model)}
                 >
-                  <MaterialCommunityIcons
-                    name="cube-outline"
-                    size={20}
-                    color={isDark ? '#fff' : '#000'}
-                  />
+                  <View style={[styles.projectorModelIcon, { backgroundColor: getThemeAwareColor('#660880', currentTheme) }]}>
+                    <MaterialCommunityIcons
+                      name="cube-outline"
+                      size={16}
+                      color="#ffffff"
+                    />
+                  </View>
                   <View style={styles.projectorModelInfo}>
                     <Text style={[
                       styles.projectorModelName,
@@ -622,16 +777,22 @@ export default function ChatInput({
                       {(model.size / (1024 * 1024)).toFixed(1)} MB
                     </Text>
                   </View>
+                  <MaterialCommunityIcons
+                    name="chevron-right"
+                    size={20}
+                    color={isDark ? '#666' : '#ccc'}
+                  />
                 </TouchableOpacity>
               ))
             )}
           </Dialog.Content>
           <Dialog.Actions>
-            {storedModels.length === 0 ? (
-              <Button onPress={handleMmProjSelectorClose}>Close</Button>
-            ) : (
-              <Button onPress={handleMmProjSelectorClose}>Cancel</Button>
-            )}
+            <Button 
+              onPress={handleMmProjSelectorClose}
+              textColor={getThemeAwareColor('#660880', currentTheme)}
+            >
+              {storedModels.length === 0 ? 'Close' : 'Cancel'}
+            </Button>
           </Dialog.Actions>
         </Dialog>
       </Portal>
@@ -642,9 +803,12 @@ export default function ChatInput({
 const styles = StyleSheet.create({
   wrapper: {
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 8,
   },
   container: {
+    position: 'relative',
+  },
+  inputWrapper: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     gap: 8,
@@ -655,37 +819,30 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'transparent',
   },
   inputContainer: {
     flex: 1,
-    position: 'relative',
+    borderRadius: 24,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    justifyContent: 'center',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
   input: {
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
     fontSize: 16,
-    maxHeight: 120,
+    lineHeight: 20,
     textAlignVertical: 'center',
-  },
-  inputIconsContainer: {
-    position: 'absolute',
-    right: 12,
-    bottom: 8,
-    flexDirection: 'row',
-    gap: 8,
-  },
-  inputIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
-  },
-  recordingIcon: {
-    backgroundColor: 'rgba(255, 68, 68, 0.1)',
   },
   sendButton: {
     width: 40,
@@ -693,10 +850,17 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'transparent',
-  },
-  sendButtonDisabled: {
-    opacity: 0.5,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
   },
   cancelButton: {
     width: 40,
@@ -704,14 +868,76 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'transparent',
+  },
+  recordingButton: {
+    position: 'absolute',
+    right: 56,
+    bottom: 0,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  recordingButtonInner: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  attachmentMenu: {
+    position: 'absolute',
+    bottom: 56,
+    left: 0,
+    flexDirection: 'row',
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    gap: 16,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
+  },
+  attachmentMenuItem: {
+    alignItems: 'center',
+    gap: 6,
+  },
+  attachmentMenuIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  attachmentMenuText: {
+    fontSize: 12,
+    fontWeight: '500',
   },
   projectorModelItem: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 12,
-    marginVertical: 4,
-    borderRadius: 8,
+    marginVertical: 2,
+    borderRadius: 12,
+  },
+  projectorModelIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   projectorModelInfo: {
     flex: 1,
@@ -720,9 +946,20 @@ const styles = StyleSheet.create({
   projectorModelName: {
     fontSize: 16,
     fontWeight: '500',
+    lineHeight: 20,
   },
   projectorModelSize: {
     fontSize: 12,
     marginTop: 2,
+    lineHeight: 16,
+  },
+  emptyState: {
+    paddingVertical: 24,
+    alignItems: 'center',
+  },
+  emptyStateText: {
+    marginTop: 12,
+    textAlign: 'center',
+    lineHeight: 20,
   },
 }); 
