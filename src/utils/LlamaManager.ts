@@ -157,13 +157,7 @@ class LlamaManager {
         finalProjectorPath = finalProjectorPath.slice(7);
       }
 
-      const fileInfo = await FileSystem.getInfoAsync(finalProjectorPath);
-      if (!fileInfo.exists) {
-        console.error('[LlamaManager] Projector file does not exist:', finalProjectorPath);
-        return false;
-      }
-
-      console.log('[LlamaManager] Projector file found, size:', fileInfo.size);
+      console.log('[LlamaManager] Attempting to initialize multimodal with path:', finalProjectorPath);
 
       const success = await this.context.initMultimodal({
         path: finalProjectorPath,
