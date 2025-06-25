@@ -9,6 +9,7 @@ import {
   Platform,
   Modal,
   StatusBar,
+  TextInput,
 } from 'react-native';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -21,13 +22,16 @@ const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 type CameraOverlayProps = {
   visible: boolean;
   onClose: () => void;
-  onPhotoTaken: (uri: string) => void;
+  onPhotoTaken: (uri: string, prompt: string) => void;
 };
 
 export default function CameraOverlay({ visible, onClose, onPhotoTaken }: CameraOverlayProps) {
   const [facing, setFacing] = useState<CameraType>('back');
   const [permission, requestPermission] = useCameraPermissions();
   const [mediaLibraryPermission, requestMediaLibraryPermission] = MediaLibrary.usePermissions();
+  const [showPromptDialog, setShowPromptDialog] = useState(false);
+  const [capturedPhotoUri, setCapturedPhotoUri] = useState<string>('');
+  const [userPrompt, setUserPrompt] = useState('');
   const cameraRef = useRef<CameraView>(null);
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
@@ -59,13 +63,30 @@ export default function CameraOverlay({ visible, onClose, onPhotoTaken }: Camera
           if (mediaLibraryPermission?.granted) {
             await MediaLibrary.saveToLibraryAsync(photo.uri);
           }
-          onPhotoTaken(photo.uri);
-          onClose();
+          setCapturedPhotoUri(photo.uri);
+          setUserPrompt('What do you see in this image?');
+          setShowPromptDialog(true);
         }
       } catch (error) {
         console.error('Error taking picture:', error);
       }
     }
+  };
+
+  const handleSendPhoto = () => {
+    if (capturedPhotoUri && userPrompt.trim()) {
+      onPhotoTaken(capturedPhotoUri, userPrompt.trim());
+      setShowPromptDialog(false);
+      setCapturedPhotoUri('');
+      setUserPrompt('');
+      onClose();
+    }
+  };
+
+  const handleCancelPhoto = () => {
+    setShowPromptDialog(false);
+    setCapturedPhotoUri('');
+    setUserPrompt('');
   };
 
   if (!visible) {
@@ -153,6 +174,53 @@ export default function CameraOverlay({ visible, onClose, onPhotoTaken }: Camera
             <View style={styles.captureButtonInner} />
           </TouchableOpacity>
         </View>
+
+        {showPromptDialog && (
+          <View style={styles.promptOverlay}>
+            <View style={[styles.promptDialog, { backgroundColor: themeColors.background }]}>
+              <Text style={[styles.promptTitle, { color: themeColors.text }]}>
+                Add a prompt for your image
+              </Text>
+              <TextInput
+                style={[
+                  styles.promptInput,
+                  {
+                    color: themeColors.text,
+                    borderColor: isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)',
+                    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)',
+                  }
+                ]}
+                placeholder="What would you like to ask about this image?"
+                placeholderTextColor={isDark ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.5)'}
+                value={userPrompt}
+                onChangeText={setUserPrompt}
+                multiline
+                autoFocus
+                maxLength={500}
+              />
+              <View style={styles.promptButtons}>
+                <TouchableOpacity
+                  style={[styles.promptButton, styles.cancelPromptButton]}
+                  onPress={handleCancelPhoto}
+                >
+                  <Text style={styles.cancelPromptButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.promptButton, styles.sendPromptButton]}
+                  onPress={handleSendPhoto}
+                  disabled={!userPrompt.trim()}
+                >
+                  <Text style={[
+                    styles.sendPromptButtonText,
+                    { opacity: userPrompt.trim() ? 1 : 0.5 }
+                  ]}>
+                    Send
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        )}
       </View>
     </Modal>
   );
@@ -269,6 +337,62 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   grantButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  promptOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  promptDialog: {
+    width: '80%',
+    padding: 20,
+    borderRadius: 10,
+    backgroundColor: '#fff',
+  },
+  promptTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+  promptInput: {
+    width: '100%',
+    height: 100,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.2)',
+    padding: 10,
+    marginBottom: 10,
+  },
+  promptButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  promptButton: {
+    padding: 10,
+    borderRadius: 6,
+    minWidth: 80,
+    alignItems: 'center',
+  },
+  cancelPromptButton: {
+    backgroundColor: '#ccc',
+  },
+  sendPromptButton: {
+    backgroundColor: '#660880',
+  },
+  cancelPromptButtonText: {
+    color: '#333',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  sendPromptButtonText: {
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',

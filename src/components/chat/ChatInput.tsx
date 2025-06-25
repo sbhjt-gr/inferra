@@ -276,7 +276,7 @@ export default function ChatInput({
     setShowAttachmentMenu(false);
   }, [onSend]);
 
-  const handlePhotoTaken = useCallback((photoUri: string) => {
+  const handlePhotoTaken = useCallback((photoUri: string, userPrompt: string) => {
     const messageObject = {
       type: 'multimodal',
       content: [
@@ -286,7 +286,7 @@ export default function ChatInput({
         },
         {
           type: 'text',
-          text: 'What do you see in this image?'
+          text: userPrompt
         }
       ]
     };
@@ -535,7 +535,7 @@ export default function ChatInput({
     styles.sendButton,
     {
       backgroundColor: hasText 
-        ? getThemeAwareColor('#660880', currentTheme)
+        ? getThemeAwareColor('#4a0660', currentTheme)
         : isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
     }
   ], [hasText, currentTheme, isDark]);
@@ -548,7 +548,7 @@ export default function ChatInput({
     styles.attachmentButton,
     {
       backgroundColor: showAttachmentMenu 
-        ? getThemeAwareColor('#660880', currentTheme)
+        ? getThemeAwareColor('#4a0660', currentTheme)
         : isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
     }
   ], [showAttachmentMenu, currentTheme, isDark]);
@@ -715,9 +715,9 @@ export default function ChatInput({
             </Text>
           </Dialog.Content>
           <Dialog.Actions>
-            <Button onPress={hideDialog} textColor={getThemeAwareColor('#660880', currentTheme)}>
-              OK
-            </Button>
+                         <Button onPress={hideDialog} textColor={getThemeAwareColor('#4a0660', currentTheme)}>
+               OK
+             </Button>
           </Dialog.Actions>
         </Dialog>
       </Portal>
@@ -756,13 +756,13 @@ export default function ChatInput({
                   ]}
                   onPress={() => handleMmProjSelect(model)}
                 >
-                  <View style={[styles.projectorModelIcon, { backgroundColor: getThemeAwareColor('#660880', currentTheme) }]}>
-                    <MaterialCommunityIcons
-                      name="cube-outline"
-                      size={16}
-                      color="#ffffff"
-                    />
-                  </View>
+                                     <View style={[styles.projectorModelIcon, { backgroundColor: getThemeAwareColor('#4a0660', currentTheme) }]}>
+                     <MaterialCommunityIcons
+                       name="cube-outline"
+                       size={16}
+                       color="#ffffff"
+                     />
+                   </View>
                   <View style={styles.projectorModelInfo}>
                     <Text style={[
                       styles.projectorModelName,
@@ -787,12 +787,12 @@ export default function ChatInput({
             )}
           </Dialog.Content>
           <Dialog.Actions>
-            <Button 
-              onPress={handleMmProjSelectorClose}
-              textColor={getThemeAwareColor('#660880', currentTheme)}
-            >
-              {storedModels.length === 0 ? 'Close' : 'Cancel'}
-            </Button>
+                         <Button 
+               onPress={handleMmProjSelectorClose}
+               textColor={getThemeAwareColor('#4a0660', currentTheme)}
+             >
+               {storedModels.length === 0 ? 'Close' : 'Cancel'}
+             </Button>
           </Dialog.Actions>
         </Dialog>
       </Portal>
@@ -810,7 +810,7 @@ const styles = StyleSheet.create({
   },
   inputWrapper: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     gap: 8,
   },
   attachmentButton: {
@@ -827,17 +827,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 6,
     justifyContent: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 3,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
   },
   input: {
     fontSize: 16,
@@ -850,17 +839,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
   },
   cancelButton: {
     width: 40,
@@ -898,17 +876,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
     gap: 16,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.15,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
   },
   attachmentMenuItem: {
     alignItems: 'center',
