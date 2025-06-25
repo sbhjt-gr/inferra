@@ -15,7 +15,7 @@ import RootNavigator from './src/navigation/RootNavigator';
 import { DownloadProvider } from './src/context/DownloadContext';
 import { modelDownloader } from './src/services/ModelDownloader';
 import * as TaskManager from 'expo-task-manager';
-import * as BackgroundFetch from 'expo-background-task';
+import * as BackgroundFetch from 'expo-background-fetch';
 import { ThemeColors } from './src/types/theme';
 import { notificationService } from './src/services/NotificationService';
 import { initializeFirebase } from './src/services/FirebaseAuth';
