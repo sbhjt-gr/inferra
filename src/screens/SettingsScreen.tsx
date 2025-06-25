@@ -46,7 +46,7 @@ const DEFAULT_SETTINGS = {
   topK: 40,
   topP: 0.9,
   minP: 0.05,
-  stopWords: ['<|end|>', '<end_of_turn>', '<|im_end|>', '<|endoftext|>'],
+  stopWords: ['<|end|>', '<end_of_turn>', '<|im_end|>', '<|endoftext|>','<end_of_utterance>'],
   systemPrompt: 'You are an AI assistant.',
   inferenceEngine: 'llama.cpp' as InferenceEngine
 };
