@@ -9,6 +9,7 @@ import {
   Platform,
   ActivityIndicator,
   Keyboard,
+  Image,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Markdown from 'react-native-markdown-display';
@@ -80,10 +81,18 @@ export default function ChatView({
     const showLoadingIndicator = isCurrentlyStreaming && !streamingMessage && !justCancelled;
     
     let fileAttachment: { name: string; type?: string } | null = null;
+    let multimodalContent: { type: string; uri?: string; text?: string }[] = [];
     
     const processContent = (content: string): string => {
       try {
         const parsedMessage = JSON.parse(content);
+        
+        if (parsedMessage && parsedMessage.type === 'multimodal' && parsedMessage.content) {
+          multimodalContent = parsedMessage.content;
+          const textContent = parsedMessage.content.find((item: any) => item.type === 'text');
+          return textContent ? textContent.text : '';
+        }
+        
         if (parsedMessage && 
             parsedMessage.type === 'file_upload' && 
             parsedMessage.internalInstruction) {
@@ -162,6 +171,45 @@ export default function ChatView({
         </View>
       );
     };
+
+    const renderMultimodalContent = () => {
+      if (!multimodalContent.length) return null;
+      
+      const mediaItems = multimodalContent.filter(item => item.type === 'image' || item.type === 'audio');
+      if (!mediaItems.length) return null;
+      
+      return (
+        <View style={[styles.multimodalWrapper, { alignSelf: 'flex-end' }]}>
+          {mediaItems.map((item, index) => {
+            if (item.type === 'image' && item.uri) {
+              return (
+                <View key={index} style={styles.imageContainer}>
+                  <Image
+                    source={{ uri: item.uri }}
+                    style={styles.messageImage}
+                    resizeMode="cover"
+                  />
+                </View>
+              );
+            } else if (item.type === 'audio' && item.uri) {
+              return (
+                <View key={index} style={[styles.audioContainer, { backgroundColor: themeColors.borderColor }]}>
+                  <MaterialCommunityIcons 
+                    name="volume-high" 
+                    size={24} 
+                    color={themeColors.text} 
+                  />
+                  <Text style={[styles.audioLabel, { color: themeColors.text }]}>
+                    Audio Recording
+                  </Text>
+                </View>
+              );
+            }
+            return null;
+          })}
+        </View>
+      );
+    };
     
     return (
       <View style={styles.messageContainer}>
@@ -199,6 +247,7 @@ export default function ChatView({
         )}
         
         {item.role === 'user' && fileAttachment && renderFileAttachment()}
+        {item.role === 'user' && multimodalContent.length > 0 && renderMultimodalContent()}
 
         <View style={[
           styles.messageCard,
@@ -694,5 +743,31 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 12,
     fontWeight: '600',
+  },
+  multimodalWrapper: {
+    marginBottom: 8,
+    width: '85%',
+  },
+  imageContainer: {
+    marginBottom: 8,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  messageImage: {
+    width: '100%',
+    height: 200,
+    borderRadius: 12,
+  },
+  audioContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  audioLabel: {
+    marginLeft: 8,
+    fontSize: 14,
+    fontWeight: '500',
   },
 }); 
