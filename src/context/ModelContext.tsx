@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { llamaManager } from '../utils/LlamaManager';
-import { Snackbar } from 'react-native-paper';
+import { Snackbar, Text } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from './ThemeContext';
 
 interface ModelContextType {
   selectedModelPath: string | null;
@@ -22,6 +23,7 @@ export const ModelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarType, setSnackbarType] = useState<'success' | 'error'>('success');
   const insets = useSafeAreaInsets();
+  const { theme: currentTheme } = useTheme();
 
   const showSnackbar = (message: string, type: 'success' | 'error' = 'success') => {
     setSnackbarMessage(message);
@@ -53,7 +55,7 @@ export const ModelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const multimodalText = mmProjectorPath ? ' (Multimodal)' : '';
         showSnackbar(`${modelName}${multimodalText} loaded successfully`);
         
-        console.log('[ModelContext] Model loaded successfully');
+
         return true;
       } else {
         showSnackbar('Failed to load model', 'error');
@@ -85,14 +87,12 @@ export const ModelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   useEffect(() => {
-    const unsubscribeLoaded = llamaManager.addListener('model-loaded', (modelPath) => {
-      console.log('[ModelContext] Model loaded event:', modelPath);
+    const unsubscribeLoaded = llamaManager.addListener('model-loaded', (modelPath: string) => {
       setSelectedModelPath(modelPath);
       setIsMultimodalEnabled(llamaManager.isMultimodalInitialized());
     });
 
     const unsubscribeUnloaded = llamaManager.addListener('model-unloaded', () => {
-      console.log('[ModelContext] Model unloaded event');
       setSelectedModelPath(null);
       setIsMultimodalEnabled(false);
     });
@@ -124,9 +124,12 @@ export const ModelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         action={{
           label: 'Dismiss',
           onPress: () => setSnackbarVisible(false),
+          textColor: '#FFFFFF',
         }}
       >
-        {snackbarMessage}
+        <Text style={{ color: '#FFFFFF' }}>
+          {snackbarMessage}
+        </Text>
       </Snackbar>
     </ModelContext.Provider>
   );
