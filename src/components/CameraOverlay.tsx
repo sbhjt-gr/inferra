@@ -10,19 +10,28 @@ import {
   Modal,
   StatusBar,
   TextInput,
+  ActivityIndicator,
 } from 'react-native';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
+import { getThemeAwareColor } from '../utils/ColorUtils';
 import * as MediaLibrary from 'expo-media-library';
+import ImageProcessingSelector from './ImageProcessingSelector';
+import { 
+  ImageProcessingMode, 
+  performOCROnImage, 
+  createOCRMessage, 
+  createMultimodalMessage 
+} from '../utils/ImageProcessingUtils';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 type CameraOverlayProps = {
   visible: boolean;
   onClose: () => void;
-  onPhotoTaken: (uri: string, prompt: string) => void;
+  onPhotoTaken: (uri: string, messageContent: string) => void;
 };
 
 export default function CameraOverlay({ visible, onClose, onPhotoTaken }: CameraOverlayProps) {
@@ -32,6 +41,9 @@ export default function CameraOverlay({ visible, onClose, onPhotoTaken }: Camera
   const [showPromptDialog, setShowPromptDialog] = useState(false);
   const [capturedPhotoUri, setCapturedPhotoUri] = useState<string>('');
   const [userPrompt, setUserPrompt] = useState('');
+  const [processingMode, setProcessingMode] = useState<ImageProcessingMode>('multimodal');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [processingProgress, setProcessingProgress] = useState('');
   const cameraRef = useRef<CameraView>(null);
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
@@ -73,20 +85,40 @@ export default function CameraOverlay({ visible, onClose, onPhotoTaken }: Camera
     }
   };
 
-  const handleSendPhoto = () => {
-    if (capturedPhotoUri && userPrompt.trim()) {
-      onPhotoTaken(capturedPhotoUri, userPrompt.trim());
+  const handleSendPhoto = async () => {
+    if (!capturedPhotoUri || !userPrompt.trim() || isProcessing) return;
+
+    try {
+      setIsProcessing(true);
+      
+      if (processingMode === 'ocr') {
+        const extractedText = await performOCROnImage(capturedPhotoUri, setProcessingProgress);
+        const ocrMessage = createOCRMessage(extractedText, 'camera_photo', userPrompt);
+        onPhotoTaken(capturedPhotoUri, ocrMessage);
+      } else {
+        const multimodalMessage = createMultimodalMessage(capturedPhotoUri, userPrompt);
+        onPhotoTaken(capturedPhotoUri, multimodalMessage);
+      }
+      
       setShowPromptDialog(false);
       setCapturedPhotoUri('');
       setUserPrompt('');
+      setProcessingProgress('');
       onClose();
+    } catch (error) {
+      console.error('Error processing photo:', error);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
   const handleCancelPhoto = () => {
+    if (isProcessing) return;
     setShowPromptDialog(false);
     setCapturedPhotoUri('');
     setUserPrompt('');
+    setProcessingMode('multimodal');
+    setProcessingProgress('');
   };
 
   if (!visible) {
@@ -179,8 +211,22 @@ export default function CameraOverlay({ visible, onClose, onPhotoTaken }: Camera
           <View style={styles.promptOverlay}>
             <View style={[styles.promptDialog, { backgroundColor: themeColors.background }]}>
               <Text style={[styles.promptTitle, { color: themeColors.text }]}>
-                Add a prompt for your image
+                Configure Image Processing
               </Text>
+              
+              <ImageProcessingSelector
+                selectedMode={processingMode}
+                onModeChange={setProcessingMode}
+                disabled={isProcessing}
+              />
+              
+              <Text style={[styles.promptSubtitle, { color: themeColors.text }]}>
+                {processingMode === 'ocr' 
+                  ? 'Instructions for text processing:' 
+                  : 'What would you like to ask about this image?'
+                }
+              </Text>
+              
               <TextInput
                 style={[
                   styles.promptInput,
@@ -190,14 +236,27 @@ export default function CameraOverlay({ visible, onClose, onPhotoTaken }: Camera
                     backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)',
                   }
                 ]}
-                placeholder="What would you like to ask about this image?"
+                placeholder={processingMode === 'ocr' 
+                  ? 'Enter instructions for processing the extracted text...' 
+                  : 'What would you like to ask about this image?'
+                }
                 placeholderTextColor={isDark ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.5)'}
                 value={userPrompt}
                 onChangeText={setUserPrompt}
                 multiline
                 autoFocus
                 maxLength={500}
+                editable={!isProcessing}
               />
+
+              {isProcessing && (
+                <View style={styles.processingContainer}>
+                  <ActivityIndicator size="small" color={getThemeAwareColor('#4a0660', currentTheme)} />
+                  <Text style={[styles.processingText, { color: themeColors.text }]}>
+                    {processingProgress || 'Processing image...'}
+                  </Text>
+                </View>
+              )}
               <View style={styles.promptButtons}>
                 <TouchableOpacity
                   style={[styles.promptButton, styles.cancelPromptButton]}
@@ -208,14 +267,18 @@ export default function CameraOverlay({ visible, onClose, onPhotoTaken }: Camera
                 <TouchableOpacity
                   style={[styles.promptButton, styles.sendPromptButton]}
                   onPress={handleSendPhoto}
-                  disabled={!userPrompt.trim()}
+                  disabled={!userPrompt.trim() || isProcessing}
                 >
-                  <Text style={[
-                    styles.sendPromptButtonText,
-                    { opacity: userPrompt.trim() ? 1 : 0.5 }
-                  ]}>
-                    Send
-                  </Text>
+                  {isProcessing ? (
+                    <ActivityIndicator size="small" color="#ffffff" />
+                  ) : (
+                    <Text style={[
+                      styles.sendPromptButtonText,
+                      { opacity: (userPrompt.trim() && !isProcessing) ? 1 : 0.5 }
+                    ]}>
+                      {processingMode === 'ocr' ? 'Extract' : 'Send'}
+                    </Text>
+                  )}
                 </TouchableOpacity>
               </View>
             </View>
@@ -396,5 +459,21 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',
+  },
+  promptSubtitle: {
+    fontSize: 16,
+    fontWeight: '500',
+    marginBottom: 8,
+    marginTop: 12,
+  },
+  processingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    gap: 8,
+  },
+  processingText: {
+    fontSize: 14,
+    fontStyle: 'italic',
   },
 }); 

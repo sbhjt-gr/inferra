@@ -276,24 +276,10 @@ export default function ChatInput({
     setShowAttachmentMenu(false);
   }, [onSend]);
 
-  const handlePhotoTaken = useCallback((photoUri: string, userPrompt: string) => {
-    const messageObject = {
-      type: 'multimodal',
-      content: [
-        {
-          type: 'image',
-          uri: photoUri
-        },
-        {
-          type: 'text',
-          text: userPrompt
-        }
-      ]
-    };
+  const handlePhotoTaken = useCallback((photoUri: string, messageContent: string) => {
+    console.log('Photo Upload Message:', messageContent);
     
-    console.log('Photo Upload Message:', messageObject);
-    
-    onSend(JSON.stringify(messageObject));
+    onSend(messageContent);
     setShowAttachmentMenu(false);
   }, [onSend]);
 
