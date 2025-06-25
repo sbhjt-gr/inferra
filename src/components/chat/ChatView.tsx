@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -10,11 +10,16 @@ import {
   ActivityIndicator,
   Keyboard,
   Image,
+  Modal,
+  Dimensions,
+  Alert,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Markdown from 'react-native-markdown-display';
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../constants/theme';
+import * as MediaLibrary from 'expo-media-library';
+import * as FileSystem from 'expo-file-system';
 
 export type Message = {
   id: string;
@@ -75,6 +80,62 @@ export default function ChatView({
 }: ChatViewProps) {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
+  
+  const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
+  const [isImageViewerVisible, setIsImageViewerVisible] = useState(false);
+
+  const openImageViewer = useCallback((imageUri: string) => {
+    setFullScreenImage(imageUri);
+    setIsImageViewerVisible(true);
+  }, []);
+
+  const closeImageViewer = useCallback(() => {
+    setIsImageViewerVisible(false);
+    setFullScreenImage(null);
+  }, []);
+
+  const saveImageToGallery = useCallback(async () => {
+    if (!fullScreenImage) return;
+
+    try {
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permission Required',
+          'Please grant permission to access your photo library to save images.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      let imageUri = fullScreenImage;
+      if (imageUri.startsWith('file://')) {
+        imageUri = imageUri.slice(7);
+      }
+
+      const fileInfo = await FileSystem.getInfoAsync(imageUri);
+      if (!fileInfo.exists) {
+        Alert.alert('Error', 'Image file not found.');
+        return;
+      }
+
+      const asset = await MediaLibrary.createAssetAsync(imageUri);
+      
+      Alert.alert(
+        'Success',
+        'Image saved to gallery successfully!',
+        [{ text: 'OK' }]
+      );
+    } catch (error) {
+      console.error('Error saving image to gallery:', error);
+      Alert.alert(
+        'Error',
+        'Failed to save image to gallery. Please try again.',
+        [{ text: 'OK' }]
+      );
+    }
+  }, [fullScreenImage]);
 
   const renderMessage = useCallback(({ item }: { item: Message }) => {
     const isCurrentlyStreaming = (isStreaming || justCancelled) && item.id === streamingMessageId;
@@ -183,13 +244,18 @@ export default function ChatView({
           {mediaItems.map((item, index) => {
             if (item.type === 'image' && item.uri) {
               return (
-                <View key={index} style={styles.imageContainer}>
+                <TouchableOpacity 
+                  key={index} 
+                  style={styles.imageContainer}
+                  onPress={() => openImageViewer(item.uri!)}
+                  activeOpacity={0.8}
+                >
                   <Image
                     source={{ uri: item.uri }}
                     style={styles.messageImage}
                     resizeMode="cover"
                   />
-                </View>
+                </TouchableOpacity>
               );
             } else if (item.type === 'audio' && item.uri) {
               return (
@@ -563,6 +629,54 @@ export default function ChatView({
   return (
     <View style={styles.container}>
       {renderContent()}
+      
+      <Modal
+        visible={isImageViewerVisible}
+        transparent={true}
+        animationType="fade"
+        statusBarTranslucent={true}
+        onRequestClose={closeImageViewer}
+      >
+        <View style={styles.imageViewerModal}>
+          <TouchableWithoutFeedback onPress={closeImageViewer}>
+            <View style={styles.imageViewerBackdrop} />
+          </TouchableWithoutFeedback>
+          
+          <View style={styles.imageViewerContent}>
+            <View style={styles.imageViewerHeader}>
+              <TouchableOpacity
+                style={[styles.imageViewerButton, styles.closeButton]}
+                onPress={closeImageViewer}
+              >
+                <MaterialCommunityIcons 
+                  name="close" 
+                  size={24} 
+                  color="#fff" 
+                />
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.imageViewerButton, styles.saveButton]}
+                onPress={saveImageToGallery}
+              >
+                <MaterialCommunityIcons 
+                  name="download" 
+                  size={24} 
+                  color="#fff" 
+                />
+              </TouchableOpacity>
+            </View>
+            
+            {fullScreenImage && (
+              <Image
+                source={{ uri: fullScreenImage }}
+                style={styles.fullScreenImage}
+                resizeMode="contain"
+              />
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -769,5 +883,52 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     fontSize: 14,
     fontWeight: '500',
+  },
+  imageViewerModal: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageViewerBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  imageViewerContent: {
+    flex: 1,
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageViewerHeader: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 60 : 40,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    zIndex: 1,
+  },
+  imageViewerButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  closeButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  saveButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  fullScreenImage: {
+    width: Dimensions.get('window').width,
+    height: Dimensions.get('window').height,
   },
 }); 
