@@ -59,7 +59,7 @@ export default function ImageProcessingSelector({
   };
 
   const handleModePress = async (mode: ImageProcessingMode) => {
-    if (disabled) return;
+    if (disabled || mode === null) return;
     
     if (mode === 'multimodal') {
       if (!selectedModelPath) {
@@ -82,7 +82,7 @@ export default function ImageProcessingSelector({
       
       onModeChange('multimodal');
       onMultimodalReady?.();
-    } else {
+    } else if (mode === 'ocr') {
       onModeChange('ocr');
     }
   };
@@ -121,6 +121,7 @@ export default function ImageProcessingSelector({
         return 'Extract text from the image';
       case 'multimodal':
         return 'Analyze image content with AI vision';
+      case null:
       default:
         return '';
     }
@@ -328,13 +329,13 @@ export default function ImageProcessingSelector({
                 >
                   Skip
                 </Button>
-                <Button 
-                  onPress={handleProjectorSelectorClose}
-                  textColor={getThemeAwareColor('#4a0660', currentTheme)}
-                  disabled={isLoadingProjector}
-                >
+            <Button 
+              onPress={handleProjectorSelectorClose}
+              textColor={getThemeAwareColor('#4a0660', currentTheme)}
+              disabled={isLoadingProjector}
+            >
                   Cancel
-                </Button>
+            </Button>
               </>
             )}
           </Dialog.Actions>

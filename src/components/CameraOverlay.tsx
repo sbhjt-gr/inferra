@@ -41,7 +41,7 @@ export default function CameraOverlay({ visible, onClose, onPhotoTaken }: Camera
   const [showPromptDialog, setShowPromptDialog] = useState(false);
   const [capturedPhotoUri, setCapturedPhotoUri] = useState<string>('');
   const [userPrompt, setUserPrompt] = useState('');
-  const [processingMode, setProcessingMode] = useState<ImageProcessingMode>('multimodal');
+  const [processingMode, setProcessingMode] = useState<ImageProcessingMode>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingProgress, setProcessingProgress] = useState('');
   const cameraRef = useRef<CameraView>(null);
@@ -86,16 +86,16 @@ export default function CameraOverlay({ visible, onClose, onPhotoTaken }: Camera
   };
 
   const handleSendPhoto = async () => {
-    if (!capturedPhotoUri || !userPrompt.trim() || isProcessing) return;
+    if (!capturedPhotoUri || !userPrompt.trim() || isProcessing || !processingMode) return;
 
     try {
       setIsProcessing(true);
       
       if (processingMode === 'ocr') {
         const extractedText = await performOCROnImage(capturedPhotoUri, setProcessingProgress);
-        const ocrMessage = createOCRMessage(extractedText, 'camera_photo', userPrompt);
+        const ocrMessage = createOCRMessage(extractedText, capturedPhotoUri, 'camera_photo', userPrompt);
         onPhotoTaken(capturedPhotoUri, ocrMessage);
-      } else {
+      } else if (processingMode === 'multimodal') {
         const multimodalMessage = createMultimodalMessage(capturedPhotoUri, userPrompt);
         onPhotoTaken(capturedPhotoUri, multimodalMessage);
       }
@@ -117,7 +117,7 @@ export default function CameraOverlay({ visible, onClose, onPhotoTaken }: Camera
     setShowPromptDialog(false);
     setCapturedPhotoUri('');
     setUserPrompt('');
-    setProcessingMode('multimodal');
+    setProcessingMode(null);
     setProcessingProgress('');
   };
 
@@ -267,16 +267,16 @@ export default function CameraOverlay({ visible, onClose, onPhotoTaken }: Camera
                 <TouchableOpacity
                   style={[styles.promptButton, styles.sendPromptButton]}
                   onPress={handleSendPhoto}
-                  disabled={!userPrompt.trim() || isProcessing}
+                  disabled={!userPrompt.trim() || isProcessing || !processingMode}
                 >
                   {isProcessing ? (
                     <ActivityIndicator size="small" color="#ffffff" />
                   ) : (
                   <Text style={[
                     styles.sendPromptButtonText,
-                      { opacity: (userPrompt.trim() && !isProcessing) ? 1 : 0.5 }
+                      { opacity: (userPrompt.trim() && !isProcessing && processingMode) ? 1 : 0.5 }
                   ]}>
-                      {processingMode === 'ocr' ? 'Extract' : 'Send'}
+                      {processingMode === 'ocr' ? 'Extract' : processingMode === 'multimodal' ? 'Send' : 'Select Mode'}
                   </Text>
                   )}
                 </TouchableOpacity>

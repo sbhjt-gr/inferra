@@ -110,6 +110,14 @@ export default function ChatView({
         }
         
         if (parsedMessage && parsedMessage.type === 'ocr_result') {
+          if (parsedMessage.imageUri) {
+            multimodalContent = [
+              {
+                type: 'image',
+                uri: parsedMessage.imageUri
+              }
+            ];
+          }
           return parsedMessage.userPrompt || '';
         }
         

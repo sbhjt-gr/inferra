@@ -42,7 +42,7 @@ export default function ImageViewerModal({
   onUpload,
 }: ImageViewerModalProps) {
   const [userPrompt, setUserPrompt] = useState('Describe this image in detail.');
-  const [processingMode, setProcessingMode] = useState<ImageProcessingMode>('multimodal');
+  const [processingMode, setProcessingMode] = useState<ImageProcessingMode>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingProgress, setProcessingProgress] = useState('');
   const { theme: currentTheme } = useTheme();
@@ -50,16 +50,16 @@ export default function ImageViewerModal({
   const isDark = currentTheme === 'dark';
 
   const handleSend = async () => {
-    if (!onUpload || !imagePath || isProcessing) return;
+    if (!onUpload || !imagePath || isProcessing || !processingMode) return;
 
     try {
       setIsProcessing(true);
       
       if (processingMode === 'ocr') {
         const extractedText = await performOCROnImage(imagePath, setProcessingProgress);
-        const ocrMessage = createOCRMessage(extractedText, fileName, userPrompt);
+        const ocrMessage = createOCRMessage(extractedText, imagePath, fileName, userPrompt);
         onUpload(ocrMessage, fileName || 'image', userPrompt);
-      } else {
+      } else if (processingMode === 'multimodal') {
         const multimodalMessage = createMultimodalMessage(imagePath, userPrompt);
         onUpload(multimodalMessage, fileName || 'image', userPrompt);
       }
@@ -76,7 +76,7 @@ export default function ImageViewerModal({
   const handleClose = () => {
     if (isProcessing) return;
     setUserPrompt('Describe this image in detail.');
-    setProcessingMode('multimodal');
+    setProcessingMode(null);
     setProcessingProgress('');
     onClose();
   };
@@ -201,18 +201,18 @@ export default function ImageViewerModal({
             <Button
               mode="contained"
               onPress={handleSend}
-              disabled={!userPrompt.trim() || isProcessing}
+              disabled={!userPrompt.trim() || isProcessing || !processingMode}
               style={[
                 styles.button,
                 { 
                   backgroundColor: getThemeAwareColor('#4a0660', currentTheme),
-                  opacity: (userPrompt.trim() && !isProcessing) ? 1 : 0.5
+                  opacity: (userPrompt.trim() && !isProcessing && processingMode) ? 1 : 0.5
                 }
               ]}
               labelStyle={{ color: '#ffffff' }}
               loading={isProcessing}
             >
-              {processingMode === 'ocr' ? 'Extract Text' : 'Send Image'}
+              {processingMode === 'ocr' ? 'Extract Text' : processingMode === 'multimodal' ? 'Send Image' : 'Select Processing Mode'}
             </Button>
           </View>
         </View>
