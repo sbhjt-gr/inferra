@@ -31,6 +31,8 @@ import { getThemeAwareColor } from '../utils/ColorUtils';
 import { onlineModelService } from '../services/OnlineModelService';
 import DownloadableModelList from '../components/model/DownloadableModelList';
 import ApiKeySection from '../components/model/ApiKeySection';
+import ModelFilter, { FilterOptions } from '../components/ModelFilter';
+import { DownloadableModel } from '../components/model/DownloadableModelItem';
 import ModelDownloadsDialog from '../components/model/ModelDownloadsDialog';
 import StoredModelItem from '../components/model/StoredModelItem';
 import { getActiveDownloadsCount } from '../utils/ModelUtils';
@@ -100,6 +102,12 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
   const [dialogActions, setDialogActions] = useState<React.ReactNode[]>([]);
 
   const [username, setUsername] = useState<string | null>(null);
+  const [filters, setFilters] = useState<FilterOptions>({
+    tags: [],
+    modelFamilies: [],
+    quantizations: [],
+  });
+  const [filteredModels, setFilteredModels] = useState<DownloadableModel[]>(DOWNLOADABLE_MODELS);
 
   const hideDialog = () => setDialogVisible(false);
 
@@ -109,6 +117,45 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     setDialogActions(actions);
     setDialogVisible(true);
   };
+
+  const applyFilters = (newFilters: FilterOptions) => {
+    setFilters(newFilters);
+    
+    let filtered = DOWNLOADABLE_MODELS;
+    
+    if (newFilters.tags.length > 0) {
+      filtered = filtered.filter(model => 
+        model.tags && model.tags.some(tag => newFilters.tags.includes(tag))
+      );
+    }
+    
+    if (newFilters.modelFamilies.length > 0) {
+      filtered = filtered.filter(model => 
+        newFilters.modelFamilies.includes(model.modelFamily)
+      );
+    }
+    
+    if (newFilters.quantizations.length > 0) {
+      filtered = filtered.filter(model => 
+        newFilters.quantizations.includes(model.quantization)
+      );
+    }
+    
+    setFilteredModels(filtered);
+  };
+
+  const getAvailableFilterOptions = () => {
+    const allTags = [...new Set(DOWNLOADABLE_MODELS.flatMap(model => model.tags || []))];
+    const allModelFamilies = [...new Set(DOWNLOADABLE_MODELS.map(model => model.modelFamily))];
+    const allQuantizations = [...new Set(DOWNLOADABLE_MODELS.map(model => model.quantization))];
+    
+    return {
+      tags: allTags,
+      modelFamilies: allModelFamilies,
+      quantizations: allQuantizations,
+    };
+  };
+
   useEffect(() => {
     checkLoginStatusAndUpdateUsername();
   }, []);
@@ -573,8 +620,15 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
           </View>
         </TouchableOpacity>
         
+        <ModelFilter
+          onFiltersChange={applyFilters}
+          availableTags={getAvailableFilterOptions().tags}
+          availableModelFamilies={getAvailableFilterOptions().modelFamilies}
+          availableQuantizations={getAvailableFilterOptions().quantizations}
+        />
+        
         <DownloadableModelList 
-          models={DOWNLOADABLE_MODELS}
+          models={filteredModels}
           storedModels={storedModels}
           downloadProgress={downloadProgress}
           setDownloadProgress={setDownloadProgress}
