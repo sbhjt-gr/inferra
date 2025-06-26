@@ -189,7 +189,7 @@ export default function ChatView({
             </View>
             <View style={styles.fileAttachmentContent}>
               <Text style={[styles.fileAttachmentName, { color: themeColors.text }]} numberOfLines={1} ellipsizeMode="middle">
-                {fileAttachment.name}
+                {fileAttachment.name || ''}
               </Text>
               <Text style={[styles.fileAttachmentType, { color: themeColors.secondaryText }]}>
                 File attachment
@@ -274,7 +274,7 @@ export default function ChatView({
               style={[styles.thinkingText, { color: themeColors.secondaryText }]} 
               selectable={true}
             >
-              {thinkingContent}
+              {thinkingContent || ''}
             </Text>
           </View>
         )}
@@ -319,7 +319,7 @@ export default function ChatView({
               </Text>
             </View>
           ) : !hasMarkdownFormatting(messageContent) ? (
-            messageContent ? (
+            messageContent && messageContent.trim() ? (
               <View style={styles.messageContent}>
                 <Text 
                   style={[
@@ -451,7 +451,7 @@ export default function ChatView({
                     return (
                       <View style={[styles.fence, { position: 'relative' }]} key={node.key}>
                         <Text style={styles.fence_text} selectable={true}>
-                          {codeContent}
+                          {codeContent || ''}
                         </Text>
                         <TouchableOpacity 
                           style={styles.codeBlockCopyButton}
@@ -472,7 +472,7 @@ export default function ChatView({
                     return (
                       <View style={[styles.code_block, { position: 'relative' }]} key={node.key}>
                         <Text style={styles.code_block_text} selectable={true}>
-                          {codeContent}
+                          {codeContent || ''}
                         </Text>
                         <TouchableOpacity 
                           style={styles.codeBlockCopyButton}
@@ -490,7 +490,7 @@ export default function ChatView({
                   }
                 }}
               >
-                {messageContent}
+                {messageContent && messageContent.trim() ? messageContent : ''}
               </Markdown>
             </View>
           )}
@@ -498,11 +498,11 @@ export default function ChatView({
           {item.role === 'assistant' && stats && (
             <View style={styles.statsContainer}>
               <Text style={[styles.statsText, { color: themeColors.secondaryText }]}>
-                {`${stats.tokens.toLocaleString()} tokens`}
+                {`${(stats?.tokens ?? 0).toLocaleString()} tokens`}
               </Text>
-              {stats.duration && stats.duration > 0 && (
+              {stats?.duration && stats.duration > 0 && (
                 <Text style={[styles.statsText, { color: themeColors.secondaryText, marginLeft: 6 }]}> 
-                  {`${(stats.tokens / stats.duration).toFixed(1)} tok/s`}
+                  {`${((stats?.tokens ?? 0) / stats.duration).toFixed(1)} tok/s`}
                 </Text>
               )}
               
