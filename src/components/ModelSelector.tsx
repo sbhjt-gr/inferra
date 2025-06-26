@@ -912,7 +912,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
               ) : (
                 <>
                   <Button onPress={handleProjectorSkip}>Skip</Button>
-                  <Button onPress={handleProjectorSelectorClose}>Cancel</Button>
+                <Button onPress={handleProjectorSelectorClose}>Cancel</Button>
                 </>
               )}
             </Dialog.Actions>

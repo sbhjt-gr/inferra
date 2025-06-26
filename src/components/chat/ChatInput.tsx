@@ -59,6 +59,7 @@ export default function ChatInput({
   const [mmProjSelectorVisible, setMmProjSelectorVisible] = useState(false);
   const [storedModels, setStoredModels] = useState<StoredModel[]>([]);
   const [pendingMultimodalAction, setPendingMultimodalAction] = useState<'camera' | 'file' | null>(null);
+  const [pendingFileForMultimodal, setPendingFileForMultimodal] = useState<{uri: string, name?: string} | null>(null);
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
   
   const inputRef = useRef<TextInput>(null);
@@ -182,6 +183,12 @@ export default function ChatInput({
     return isMultimodalEnabled;
   };
 
+  const isImageFile = (fileName: string): boolean => {
+    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff', '.tif'];
+    const lowerCaseName = fileName.toLowerCase();
+    return imageExtensions.some(ext => lowerCaseName.endsWith(ext));
+  };
+
   const showMmProjSelector = async (action: 'camera' | 'file') => {
     setPendingMultimodalAction(action);
     await loadStoredModels();
@@ -199,7 +206,14 @@ export default function ChatInput({
         if (pendingMultimodalAction === 'camera') {
           setCameraVisible(true);
         } else if (pendingMultimodalAction === 'file') {
-          pickDocument();
+          if (pendingFileForMultimodal) {
+            // Open the previously selected file
+            setSelectedFile(pendingFileForMultimodal);
+            setFileModalVisible(true);
+            setPendingFileForMultimodal(null);
+          } else {
+            pickDocument();
+          }
         }
       } else {
         showDialog(
@@ -224,7 +238,14 @@ export default function ChatInput({
     if (pendingMultimodalAction === 'camera') {
       setCameraVisible(true);
     } else if (pendingMultimodalAction === 'file') {
-      pickDocument();
+      if (pendingFileForMultimodal) {
+        // Open the previously selected file
+        setSelectedFile(pendingFileForMultimodal);
+        setFileModalVisible(true);
+        setPendingFileForMultimodal(null);
+      } else {
+        pickDocument();
+      }
     }
     
     setPendingMultimodalAction(null);
@@ -233,6 +254,7 @@ export default function ChatInput({
   const handleMmProjSelectorClose = () => {
     setMmProjSelectorVisible(false);
     setPendingMultimodalAction(null);
+    setPendingFileForMultimodal(null);
   };
 
   const toggleAttachmentMenu = () => {
@@ -470,6 +492,21 @@ export default function ChatInput({
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const file = result.assets[0];
+        
+        // Check if the selected file is an image and if multimodal support is available
+        if (isImageFile(file.name) && !checkMultimodalSupport()) {
+          const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude'].includes(selectedModelPath);
+          if (!isOnlineModel) {
+            // Store the file for later use after projector selection
+            setPendingFileForMultimodal({
+              uri: file.uri,
+              name: file.name
+            });
+            showMmProjSelector('file');
+            return;
+          }
+        }
+        
         setSelectedFile({
           uri: file.uri,
           name: file.name
@@ -481,7 +518,7 @@ export default function ChatInput({
       console.error('Error picking document:', error);
       showDialog('Error', 'Could not pick the document. Please try again.');
     }
-  }, [selectedModelPath]);
+  }, [selectedModelPath, isMultimodalEnabled]);
 
   const closeFileModal = useCallback(() => {
     setFileModalVisible(false);
@@ -779,12 +816,12 @@ export default function ChatInput({
           </Dialog.Content>
           <Dialog.Actions>
             {storedModels.length === 0 ? (
-              <Button 
-                onPress={handleMmProjSelectorClose}
-                textColor={getThemeAwareColor('#4a0660', currentTheme)}
-              >
+                         <Button 
+               onPress={handleMmProjSelectorClose}
+               textColor={getThemeAwareColor('#4a0660', currentTheme)}
+             >
                 Close
-              </Button>
+             </Button>
             ) : (
               <>
                 <Button 

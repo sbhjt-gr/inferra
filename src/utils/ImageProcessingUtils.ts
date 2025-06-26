@@ -2,7 +2,7 @@ import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system';
 import TextRecognition from '@react-native-ml-kit/text-recognition';
 
-export type ImageProcessingMode = 'ocr' | 'multimodal';
+export type ImageProcessingMode = 'ocr' | 'multimodal' | null;
 
 export interface ProcessingProgress {
   onProgress: (message: string) => void;
@@ -66,13 +66,14 @@ export const formatExtractedImageText = (extractedText: string, fileName?: strin
   return `${header}${formattedText}`;
 };
 
-export const createOCRMessage = (extractedText: string, fileName?: string, userPrompt?: string): string => {
+export const createOCRMessage = (extractedText: string, imageUri: string, fileName?: string, userPrompt?: string): string => {
   const formattedText = formatExtractedImageText(extractedText, fileName);
   
   const messageObject = {
     type: 'ocr_result',
     extractedText: formattedText,
     userPrompt: userPrompt || 'Please process this extracted text',
+    imageUri: imageUri,
     internalInstruction: `You're reading text extracted from an image${fileName ? ` named: ${fileName}` : ''}.\n\n--- EXTRACTED TEXT START ---\n${formattedText}\n--- EXTRACTED TEXT END ---`
   };
   
