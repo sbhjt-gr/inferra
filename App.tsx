@@ -1,6 +1,6 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, Fragment } from 'react';
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
-import { AppState, AppStateStatus, Text, TextInput } from 'react-native';
+import { AppState, AppStateStatus, Text, TextInput, LogBox } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -29,7 +29,11 @@ import { ShowDialog } from './src/components/ShowDialog';
 
 SplashScreen.preventAutoHideAsync();
 
-// Initialize services asynchronously
+LogBox.ignoreLogs([
+  'Invalid prop `compact` supplied to `React.Fragment`',
+  'React.Fragment can only have `key` and `children` props'
+]);
+
 const initializeServices = async () => {
   try {
     await initializeFirebase();
@@ -44,7 +48,6 @@ const initializeServices = async () => {
   initClaudeService();
 };
 
-// Don't await this to avoid blocking the app startup
 initializeServices();
 
 const BACKGROUND_DOWNLOAD_TASK = 'background-download-check';
