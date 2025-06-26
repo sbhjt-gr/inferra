@@ -1079,6 +1079,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: 6,
+    // flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1095,6 +1096,7 @@ const styles = StyleSheet.create({
   segmentText: {
     fontSize: 14,
     fontWeight: '600',
+    textAlign: 'center',
   },
   segmentIcon: {
     marginRight: 6,

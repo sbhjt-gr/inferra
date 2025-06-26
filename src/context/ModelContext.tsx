@@ -6,9 +6,11 @@ import { useTheme } from './ThemeContext';
 
 interface ModelContextType {
   selectedModelPath: string | null;
+  selectedProjectorPath: string | null;
   isModelLoading: boolean;
   loadModel: (modelPath: string, mmProjectorPath?: string) => Promise<boolean>;
   unloadModel: () => Promise<void>;
+  unloadProjector: () => Promise<void>;
   setSelectedModelPath: (path: string | null) => void;
   isMultimodalEnabled: boolean;
 }
@@ -17,6 +19,7 @@ const ModelContext = createContext<ModelContextType | undefined>(undefined);
 
 export const ModelProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [selectedModelPath, setSelectedModelPath] = useState<string | null>(null);
+  const [selectedProjectorPath, setSelectedProjectorPath] = useState<string | null>(null);
   const [isModelLoading, setIsModelLoading] = useState(false);
   const [isMultimodalEnabled, setIsMultimodalEnabled] = useState(false);
   const [snackbarVisible, setSnackbarVisible] = useState(false);
@@ -29,6 +32,14 @@ export const ModelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setSnackbarMessage(message);
     setSnackbarType(type);
     setSnackbarVisible(true);
+  };
+
+  const updateProjectorState = () => {
+    const projectorPath = llamaManager.getMultimodalProjectorPath();
+    const multimodalEnabled = llamaManager.isMultimodalInitialized();
+    
+    setSelectedProjectorPath(projectorPath);
+    setIsMultimodalEnabled(multimodalEnabled);
   };
 
   const loadModel = async (modelPath: string, mmProjectorPath?: string): Promise<boolean> => {
@@ -49,7 +60,7 @@ export const ModelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       
       if (success) {
         setSelectedModelPath(modelPath);
-        setIsMultimodalEnabled(llamaManager.isMultimodalInitialized());
+        updateProjectorState();
         
         const modelName = modelPath.split('/').pop() || 'Model';
         const multimodalText = mmProjectorPath ? ' (Multimodal)' : '';
@@ -60,6 +71,7 @@ export const ModelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       } else {
         showSnackbar('Failed to load model', 'error');
         setSelectedModelPath(null);
+        setSelectedProjectorPath(null);
         setIsMultimodalEnabled(false);
         return false;
       }
@@ -67,6 +79,7 @@ export const ModelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       console.error('[ModelContext] Error loading model:', error);
       showSnackbar('Error loading model', 'error');
       setSelectedModelPath(null);
+      setSelectedProjectorPath(null);
       setIsMultimodalEnabled(false);
       return false;
     } finally {
@@ -78,6 +91,7 @@ export const ModelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     try {
       await llamaManager.unloadModel();
       setSelectedModelPath(null);
+      setSelectedProjectorPath(null);
       setIsMultimodalEnabled(false);
       showSnackbar('Model unloaded');
     } catch (error) {
@@ -86,14 +100,27 @@ export const ModelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
+  const unloadProjector = async (): Promise<void> => {
+    try {
+      await llamaManager.releaseMultimodal();
+      setSelectedProjectorPath(null);
+      setIsMultimodalEnabled(false);
+      showSnackbar('Projector model unloaded');
+    } catch (error) {
+      console.error('[ModelContext] Error unloading projector:', error);
+      showSnackbar('Error unloading projector', 'error');
+    }
+  };
+
   useEffect(() => {
     const unsubscribeLoaded = llamaManager.addListener('model-loaded', (modelPath: string) => {
       setSelectedModelPath(modelPath);
-      setIsMultimodalEnabled(llamaManager.isMultimodalInitialized());
+      updateProjectorState();
     });
 
     const unsubscribeUnloaded = llamaManager.addListener('model-unloaded', () => {
       setSelectedModelPath(null);
+      setSelectedProjectorPath(null);
       setIsMultimodalEnabled(false);
     });
 
@@ -106,9 +133,11 @@ export const ModelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   return (
     <ModelContext.Provider value={{
       selectedModelPath,
+      selectedProjectorPath,
       isModelLoading,
       loadModel,
       unloadModel,
+      unloadProjector,
       setSelectedModelPath,
       isMultimodalEnabled
     }}>

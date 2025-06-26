@@ -267,7 +267,6 @@ export default function ImageProcessingSelector({
                   { color: isDark ? '#ccc' : '#666' }
                 ]}>
                   No projector models found in your stored models.{'\n'}
-                  Please download a compatible mmproj file first.
                 </Text>
               </View>
             ) : (
@@ -312,32 +311,20 @@ export default function ImageProcessingSelector({
             )}
           </Dialog.Content>
           <Dialog.Actions>
-            {storedModels.length === 0 ? (
-              <Button 
-                onPress={handleProjectorSelectorClose}
-                textColor={getThemeAwareColor('#4a0660', currentTheme)}
-                disabled={isLoadingProjector}
-              >
-                Close
-              </Button>
-            ) : (
-              <>
-                <Button 
-                  onPress={handleProjectorSkip}
-                  textColor={getThemeAwareColor('#4a0660', currentTheme)}
-                  disabled={isLoadingProjector}
-                >
-                  Skip
-                </Button>
+            <Button 
+              onPress={handleProjectorSkip}
+              textColor={getThemeAwareColor('#4a0660', currentTheme)}
+              disabled={isLoadingProjector}
+            >
+              Skip
+            </Button>
             <Button 
               onPress={handleProjectorSelectorClose}
               textColor={getThemeAwareColor('#4a0660', currentTheme)}
               disabled={isLoadingProjector}
             >
-                  Cancel
+              Cancel
             </Button>
-              </>
-            )}
           </Dialog.Actions>
         </Dialog>
       </Portal>
