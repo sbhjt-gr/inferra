@@ -106,6 +106,11 @@ export default function ImageProcessingSelector({
     }
   };
 
+  const handleProjectorSkip = () => {
+    setMmProjSelectorVisible(false);
+    onModeChange('ocr');
+  };
+
   const handleProjectorSelectorClose = () => {
     setMmProjSelectorVisible(false);
   };
@@ -306,13 +311,32 @@ export default function ImageProcessingSelector({
             )}
           </Dialog.Content>
           <Dialog.Actions>
-            <Button 
-              onPress={handleProjectorSelectorClose}
-              textColor={getThemeAwareColor('#4a0660', currentTheme)}
-              disabled={isLoadingProjector}
-            >
-              {storedModels.length === 0 ? 'Close' : 'Cancel'}
-            </Button>
+            {storedModels.length === 0 ? (
+              <Button 
+                onPress={handleProjectorSelectorClose}
+                textColor={getThemeAwareColor('#4a0660', currentTheme)}
+                disabled={isLoadingProjector}
+              >
+                Close
+              </Button>
+            ) : (
+              <>
+                <Button 
+                  onPress={handleProjectorSkip}
+                  textColor={getThemeAwareColor('#4a0660', currentTheme)}
+                  disabled={isLoadingProjector}
+                >
+                  Skip
+                </Button>
+                <Button 
+                  onPress={handleProjectorSelectorClose}
+                  textColor={getThemeAwareColor('#4a0660', currentTheme)}
+                  disabled={isLoadingProjector}
+                >
+                  Cancel
+                </Button>
+              </>
+            )}
           </Dialog.Actions>
         </Dialog>
       </Portal>
