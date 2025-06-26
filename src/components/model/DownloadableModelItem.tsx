@@ -20,6 +20,11 @@ export interface DownloadableModel {
   modelFamily: string;
   quantization: string;
   tags?: string[];
+  additionalFiles?: {
+    name: string;
+    url: string;
+    description?: string;
+  }[];
 }
 
 interface DownloadableModelItemProps {
@@ -126,6 +131,12 @@ const DownloadableModelItem: React.FC<DownloadableModelItemProps> = ({
                     <Text style={styles.modelTagText}>Recommended</Text>
                   </View>
                 )}
+                {model.tags?.includes('vision') && (
+                  <View style={[styles.modelTag, { backgroundColor: getThemeAwareColor('#9C27B0', currentTheme) }]}>
+                    <MaterialCommunityIcons name="eye" size={12} color={themeColors.headerText} style={{ marginRight: 4 }} />
+                    <Text style={styles.modelTagText}>Vision</Text>
+                  </View>
+                )}
                 {isDownloaded && (
                   <View style={[styles.modelTag, { backgroundColor: getThemeAwareColor('#666', currentTheme) }]}>
                     <MaterialCommunityIcons name="check" size={12} color={themeColors.headerText} style={{ marginRight: 4 }} />
@@ -179,6 +190,13 @@ const DownloadableModelItem: React.FC<DownloadableModelItemProps> = ({
           {model.description && (
             <Text style={[styles.modelDescription, { color: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.75)' }]}>
               {model.description}
+            </Text>
+          )}
+          
+          {model.additionalFiles && model.additionalFiles.length > 0 && (
+            <Text style={[styles.additionalFilesNote, { color: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.6)' }]}>
+              <MaterialCommunityIcons name="information-outline" size={14} color={currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.6)'} />
+              {' '}This download includes {model.additionalFiles.length} additional file{model.additionalFiles.length > 1 ? 's' : ''}: {model.additionalFiles.map(file => file.name.split('.')[0]).join(', ')}
             </Text>
           )}
           
@@ -349,6 +367,12 @@ const styles = StyleSheet.create({
   modelDetails: {
     fontSize: 14,
     opacity: 0.7,
+  },
+  additionalFilesNote: {
+    marginTop: 4,
+    marginBottom: 6,
+    fontSize: 14,
+    lineHeight: 20,
   },
 });
 

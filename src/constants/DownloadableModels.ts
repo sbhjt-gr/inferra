@@ -11,6 +11,22 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "tags": ["recommended", "fastest"]
   },
   {
+    "name": "SmolVLM2 Instruct",
+    "description": "Compact vision-language model with 2.2B parameters optimized for multimodal tasks.",
+    "size": "2.5 GB",
+    "huggingFaceLink": "https://huggingface.co/ggml-org/SmolVLM2-2.2B-Instruct-GGUF/resolve/main/SmolVLM2-2.2B-Instruct-Q8_0.gguf",
+    "modelFamily": "2.2 Billion",
+    "quantization": "Q8_0",
+    "tags": ["vision", "fastest"],
+    "additionalFiles": [
+      {
+        "name": "mmproj-SmolVLM2-2.2B-Instruct-Q8_0.gguf",
+        "url": "https://huggingface.co/ggml-org/SmolVLM2-2.2B-Instruct-GGUF/resolve/main/mmproj-SmolVLM2-2.2B-Instruct-Q8_0.gguf",
+        "description": "Multimodal projector for SmolVLM2"
+      }
+    ]
+  },
+  {
     "name": "Gemma 3 Instruct - 4B",
     "description": "Google's latest compact instruction-tuned model with strong reasoning and fast inference with 4 billion parameters.",
     "size": "2.83 GB",
