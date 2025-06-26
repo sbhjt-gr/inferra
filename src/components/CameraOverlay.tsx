@@ -272,12 +272,12 @@ export default function CameraOverlay({ visible, onClose, onPhotoTaken }: Camera
                   {isProcessing ? (
                     <ActivityIndicator size="small" color="#ffffff" />
                   ) : (
-                    <Text style={[
-                      styles.sendPromptButtonText,
+                  <Text style={[
+                    styles.sendPromptButtonText,
                       { opacity: (userPrompt.trim() && !isProcessing) ? 1 : 0.5 }
-                    ]}>
+                  ]}>
                       {processingMode === 'ocr' ? 'Extract' : 'Send'}
-                    </Text>
+                  </Text>
                   )}
                 </TouchableOpacity>
               </View>

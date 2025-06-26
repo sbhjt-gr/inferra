@@ -335,6 +335,31 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
       setSelectedVisionModel(null);
     };
 
+    const handleProjectorSkip = async () => {
+      setProjectorSelectorVisible(false);
+      
+      if (!selectedVisionModel) return;
+
+      if (onModelSelect) {
+        showDialog(
+          'Text-Only Model Ready',
+          `Loading ${selectedVisionModel.name} in text-only mode (without vision capabilities)`,
+          [<Button key="ok" onPress={hideDialog}>OK</Button>]
+        );
+        onModelSelect('local', (selectedVisionModel as StoredModel).path);
+      } else {
+        const success = await loadModel((selectedVisionModel as StoredModel).path);
+        if (success) {
+          showDialog(
+            'Success',
+            'Model loaded successfully in text-only mode.',
+            [<Button key="ok" onPress={hideDialog}>OK</Button>]
+          );
+        }
+      }
+      setSelectedVisionModel(null);
+    };
+
     const handleProjectorSelectorClose = () => {
       setProjectorSelectorVisible(false);
       setSelectedVisionModel(null);
@@ -885,7 +910,10 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
               {projectorModels.length === 0 ? (
                 <Button onPress={handleProjectorSelectorClose}>Close</Button>
               ) : (
-                <Button onPress={handleProjectorSelectorClose}>Cancel</Button>
+                <>
+                  <Button onPress={handleProjectorSkip}>Skip</Button>
+                  <Button onPress={handleProjectorSelectorClose}>Cancel</Button>
+                </>
               )}
             </Dialog.Actions>
           </Dialog>

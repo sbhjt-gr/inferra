@@ -218,6 +218,18 @@ export default function ChatInput({
     }
   };
 
+  const handleMmProjSkip = () => {
+    setMmProjSelectorVisible(false);
+    
+    if (pendingMultimodalAction === 'camera') {
+      setCameraVisible(true);
+    } else if (pendingMultimodalAction === 'file') {
+      pickDocument();
+    }
+    
+    setPendingMultimodalAction(null);
+  };
+
   const handleMmProjSelectorClose = () => {
     setMmProjSelectorVisible(false);
     setPendingMultimodalAction(null);
@@ -766,12 +778,29 @@ export default function ChatInput({
             )}
           </Dialog.Content>
           <Dialog.Actions>
-                         <Button 
-               onPress={handleMmProjSelectorClose}
-               textColor={getThemeAwareColor('#4a0660', currentTheme)}
-             >
-               {storedModels.length === 0 ? 'Close' : 'Cancel'}
-             </Button>
+            {storedModels.length === 0 ? (
+              <Button 
+                onPress={handleMmProjSelectorClose}
+                textColor={getThemeAwareColor('#4a0660', currentTheme)}
+              >
+                Close
+              </Button>
+            ) : (
+              <>
+                <Button 
+                  onPress={handleMmProjSkip}
+                  textColor={getThemeAwareColor('#4a0660', currentTheme)}
+                >
+                  Skip
+                </Button>
+                <Button 
+                  onPress={handleMmProjSelectorClose}
+                  textColor={getThemeAwareColor('#4a0660', currentTheme)}
+                >
+                  Cancel
+                </Button>
+              </>
+            )}
           </Dialog.Actions>
         </Dialog>
       </Portal>
