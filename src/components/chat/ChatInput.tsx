@@ -771,7 +771,6 @@ export default function ChatInput({
                   { color: isDark ? '#ccc' : '#666' }
                 ]}>
                   No projector models found in your stored models.{'\n'}
-                  Please download a compatible mmproj file first.
                 </Text>
               </View>
             ) : (
@@ -815,29 +814,18 @@ export default function ChatInput({
             )}
           </Dialog.Content>
           <Dialog.Actions>
-            {storedModels.length === 0 ? (
-                         <Button 
-               onPress={handleMmProjSelectorClose}
-               textColor={getThemeAwareColor('#4a0660', currentTheme)}
-             >
-                Close
-             </Button>
-            ) : (
-              <>
-                <Button 
-                  onPress={handleMmProjSkip}
-                  textColor={getThemeAwareColor('#4a0660', currentTheme)}
-                >
-                  Skip
-                </Button>
-                <Button 
-                  onPress={handleMmProjSelectorClose}
-                  textColor={getThemeAwareColor('#4a0660', currentTheme)}
-                >
-                  Cancel
-                </Button>
-              </>
-            )}
+            <Button 
+              onPress={handleMmProjSkip}
+              textColor={getThemeAwareColor('#4a0660', currentTheme)}
+            >
+              Skip
+            </Button>
+            <Button 
+              onPress={handleMmProjSelectorClose}
+              textColor={getThemeAwareColor('#4a0660', currentTheme)}
+            >
+              Cancel
+            </Button>
           </Dialog.Actions>
         </Dialog>
       </Portal>

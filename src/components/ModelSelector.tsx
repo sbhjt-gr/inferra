@@ -73,7 +73,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     const [modalVisible, setModalVisible] = useState(false);
     const [models, setModels] = useState<StoredModel[]>([]);
     const [sections, setSections] = useState<SectionData[]>([]);
-    const { selectedModelPath, isModelLoading, loadModel, unloadModel } = useModel();
+    const { selectedModelPath, selectedProjectorPath, isModelLoading, loadModel, unloadModel, unloadProjector } = useModel();
     const [onlineModelStatuses, setOnlineModelStatuses] = useState<{[key: string]: boolean}>({
       gemini: false,
       chatgpt: false,
@@ -384,6 +384,25 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
       showDialog(title, message, actions);
     };
 
+    const handleUnloadProjector = () => {
+      const title = 'Unload Projector';
+      const message = isGenerating
+        ? 'This will disable vision capabilities and stop the current generation. Are you sure you want to unload the projector?'
+        : 'Are you sure you want to unload the projector model? This will disable vision capabilities.';
+
+      const actions = [
+        <Button key="cancel" onPress={hideDialog}>Cancel</Button>,
+        <Button key="unload" onPress={async () => {
+          hideDialog();
+          await unloadProjector();
+        }}>
+          Unload Projector
+        </Button>
+      ];
+
+      showDialog(title, message, actions);
+    };
+
     const handleApiKeyRequired = (model: OnlineModel) => {
       showDialog(
         'API Key Required',
@@ -411,6 +430,13 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
       if (path === 'chatgpt') return 'ChatGPT';
       if (path === 'deepseek') return 'DeepSeek';
       if (path === 'claude') return 'Claude';
+      
+      const model = models.find(m => m.path === path);
+      return model ? getDisplayName(model.name) : getDisplayName(path.split('/').pop() || '');
+    };
+
+    const getProjectorNameFromPath = (path: string | null, models: StoredModel[]): string => {
+      if (!path) return '';
       
       const model = models.find(m => m.path === path);
       return model ? getDisplayName(model.name) : getDisplayName(path.split('/').pop() || '');
@@ -762,9 +788,52 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                   </View>
                 )}
               </View>
+              {selectedProjectorPath && !isModelLoading && (
+                <>
+                  <Text style={[styles.projectorLabel, { color: currentTheme === 'dark' ? '#ccc' : themeColors.secondaryText }]}>
+                    Vision Projector
+                  </Text>
+                  <View style={styles.projectorNameContainer}>
+                    <MaterialCommunityIcons 
+                      name="eye" 
+                      size={16} 
+                      color={currentTheme === 'dark' ? '#5FD584' : '#2a8c42'} 
+                    />
+                    <Text style={[styles.projectorText, { color: currentTheme === 'dark' ? '#ccc' : themeColors.secondaryText }]}>
+                      {getProjectorNameFromPath(selectedProjectorPath, models)}
+                    </Text>
+                    <View style={[
+                      styles.connectionTypeBadge,
+                      { backgroundColor: 'rgba(95, 213, 132, 0.15)' }
+                    ]}>
+                      <Text style={[styles.connectionTypeText, { color: currentTheme === 'dark' ? '#5FD584' : '#2a8c42' }]}>
+                        VISION
+                      </Text>
+                    </View>
+                  </View>
+                </>
+              )}
             </View>
           </View>
           <View style={styles.selectorActions}>
+            {selectedProjectorPath && !isModelLoading && (
+              <TouchableOpacity 
+                onPress={handleUnloadProjector}
+                style={[
+                  styles.unloadButton,
+                  styles.projectorUnloadButton,
+                  isGenerating && styles.unloadButtonActive
+                ]}
+              >
+                <MaterialCommunityIcons 
+                  name="eye-off" 
+                  size={16} 
+                  color={isGenerating ? 
+                    getThemeAwareColor('#d32f2f', currentTheme) : 
+                    currentTheme === 'dark' ? '#5FD584' : '#2a8c42'} 
+                />
+              </TouchableOpacity>
+            )}
             {selectedModelPath && !isModelLoading && (
               <TouchableOpacity 
                 onPress={handleUnloadModel}
@@ -870,7 +939,6 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                     color: currentTheme === 'dark' ? '#ccc' : '#666' 
                   }}>
                     No projector models found in your stored models.{'\n'}
-                    Please download a compatible mmproj file first.
                   </Text>
                 </View>
               ) : (
@@ -907,14 +975,8 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
               )}
             </Dialog.Content>
             <Dialog.Actions>
-              {projectorModels.length === 0 ? (
-                <Button onPress={handleProjectorSelectorClose}>Close</Button>
-              ) : (
-                <>
-                  <Button onPress={handleProjectorSkip}>Skip</Button>
-                <Button onPress={handleProjectorSelectorClose}>Cancel</Button>
-                </>
-              )}
+              <Button onPress={handleProjectorSkip}>Skip</Button>
+              <Button onPress={handleProjectorSelectorClose}>Cancel</Button>
             </Dialog.Actions>
           </Dialog>
         </Portal>
@@ -1157,5 +1219,26 @@ const styles = StyleSheet.create({
   projectorModelSize: {
     fontSize: 12,
     marginTop: 2,
+  },
+  projectorLabel: {
+    fontSize: 10,
+    marginTop: 8,
+    marginBottom: 2,
+    textTransform: 'uppercase',
+    fontWeight: '600',
+    letterSpacing: 0.5,
+  },
+  projectorNameContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  projectorText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  projectorUnloadButton: {
+    backgroundColor: 'rgba(95, 213, 132, 0.1)',
+    borderRadius: 12,
   },
 }); 
