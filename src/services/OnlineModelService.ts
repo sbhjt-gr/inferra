@@ -309,6 +309,79 @@ class OnlineModelService {
     
     return fullResponse;
   }
+
+  async generateChatTitle(userMessage: string, provider: string): Promise<string> {
+    const titlePrompt: ChatMessage[] = [
+      {
+        id: 'system-title',
+        role: 'system',
+        content: 'Create a 3-6 word title for this conversation. Respond with only the title, no quotes.'
+      },
+      {
+        id: 'user-title',
+        role: 'user',
+        content: `Title for: "${userMessage.slice(0, 100)}"`
+      }
+    ];
+
+    const options: OnlineModelRequestOptions = {
+      temperature: 0.3,
+      maxTokens: 200,
+      stream: false,
+      streamTokens: false
+    };
+
+    try {
+      let title = '';
+      
+      console.log(`[OnlineModelService] Generating chat title using ${provider}`);
+      
+      switch (provider) {
+        case 'gemini':
+          try {
+            title = await this.sendMessageToGemini(titlePrompt, options);
+          } catch (error) {
+            if (error instanceof Error && error.message.includes('token limit')) {
+              console.warn('[OnlineModelService] Gemini title generation failed due to token limit, using simple title');
+              const now = new Date();
+              const dateStr = now.toLocaleDateString();
+              const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+              return `Chat ${dateStr} ${timeStr}`;
+            }
+            throw error;
+          }
+          break;
+        case 'chatgpt':
+          title = await this.sendMessageToOpenAI(titlePrompt, options);
+          break;
+        case 'deepseek':
+          title = await this.sendMessageToDeepSeek(titlePrompt, options);
+          break;
+        case 'claude':
+          title = await this.sendMessageToClaude(titlePrompt, options);
+          break;
+        default:
+          throw new Error(`Unknown provider: ${provider}`);
+      }
+      
+      console.log(`[OnlineModelService] Generated title: "${title}"`);
+
+      const cleanTitle = title.trim().replace(/['"]/g, '').substring(0, 50);
+      if (cleanTitle) {
+        return cleanTitle;
+      }
+      
+      const now = new Date();
+      const dateStr = now.toLocaleDateString();
+      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      return `Chat ${dateStr} ${timeStr}`;
+    } catch (error) {
+      const now = new Date();
+      const dateStr = now.toLocaleDateString();
+      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      return `Chat ${dateStr} ${timeStr}`;
+    }
+  }
 }
 
 export const onlineModelService = new OnlineModelService(); 

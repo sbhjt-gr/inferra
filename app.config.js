@@ -48,7 +48,10 @@ export default {
         "NOTIFICATIONS",
         "BACKGROUND_FETCH",
         "WAKE_LOCK",
-        "FOREGROUND_SERVICE"
+        "FOREGROUND_SERVICE",
+        "CAMERA",
+        "READ_MEDIA_IMAGES",
+        "WRITE_EXTERNAL_STORAGE"
       ],
       statusBar: {
         barStyle: "default",

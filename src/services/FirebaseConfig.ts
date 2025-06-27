@@ -141,7 +141,6 @@ export const initializeFirebase = async (): Promise<void> => {
         if (__DEV__) {
           console.log('Google Sign-In configured successfully');
           
-          // Verify configuration
           try {
             const isConfigured = await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: false });
             console.log('Google Play Services available:', isConfigured);

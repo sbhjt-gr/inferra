@@ -31,6 +31,8 @@ import { getThemeAwareColor } from '../utils/ColorUtils';
 import { onlineModelService } from '../services/OnlineModelService';
 import DownloadableModelList from '../components/model/DownloadableModelList';
 import ApiKeySection from '../components/model/ApiKeySection';
+import ModelFilter, { FilterOptions } from '../components/ModelFilter';
+import { DownloadableModel } from '../components/model/DownloadableModelItem';
 import ModelDownloadsDialog from '../components/model/ModelDownloadsDialog';
 import StoredModelItem from '../components/model/StoredModelItem';
 import { getActiveDownloadsCount } from '../utils/ModelUtils';
@@ -100,6 +102,13 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
   const [dialogActions, setDialogActions] = useState<React.ReactNode[]>([]);
 
   const [username, setUsername] = useState<string | null>(null);
+  const [filters, setFilters] = useState<FilterOptions>({
+    tags: [],
+    modelFamilies: [],
+    quantizations: [],
+  });
+  const [filteredModels, setFilteredModels] = useState<DownloadableModel[]>(DOWNLOADABLE_MODELS);
+  const [guidanceDialogVisible, setGuidanceDialogVisible] = useState(false);
 
   const hideDialog = () => setDialogVisible(false);
 
@@ -109,6 +118,45 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     setDialogActions(actions);
     setDialogVisible(true);
   };
+
+  const applyFilters = (newFilters: FilterOptions) => {
+    setFilters(newFilters);
+    
+    let filtered = DOWNLOADABLE_MODELS;
+    
+    if (newFilters.tags.length > 0) {
+      filtered = filtered.filter(model => 
+        model.tags && model.tags.some(tag => newFilters.tags.includes(tag))
+      );
+    }
+    
+    if (newFilters.modelFamilies.length > 0) {
+      filtered = filtered.filter(model => 
+        newFilters.modelFamilies.includes(model.modelFamily)
+      );
+    }
+    
+    if (newFilters.quantizations.length > 0) {
+      filtered = filtered.filter(model => 
+        newFilters.quantizations.includes(model.quantization)
+      );
+    }
+    
+    setFilteredModels(filtered);
+  };
+
+  const getAvailableFilterOptions = () => {
+    const allTags = [...new Set(DOWNLOADABLE_MODELS.flatMap(model => model.tags || []))];
+    const allModelFamilies = [...new Set(DOWNLOADABLE_MODELS.map(model => model.modelFamily))];
+    const allQuantizations = [...new Set(DOWNLOADABLE_MODELS.map(model => model.quantization))];
+    
+    return {
+      tags: allTags,
+      modelFamilies: allModelFamilies,
+      quantizations: allQuantizations,
+    };
+  };
+
   useEffect(() => {
     checkLoginStatusAndUpdateUsername();
   }, []);
@@ -573,8 +621,27 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
           </View>
         </TouchableOpacity>
         
+        <ModelFilter
+          onFiltersChange={applyFilters}
+          availableTags={getAvailableFilterOptions().tags}
+          availableModelFamilies={getAvailableFilterOptions().modelFamilies}
+          availableQuantizations={getAvailableFilterOptions().quantizations}
+        />
+        
+        <TouchableOpacity
+          style={[styles.guidanceButton, { backgroundColor: themeColors.borderColor }]}
+          onPress={() => setGuidanceDialogVisible(true)}
+        >
+          <View style={styles.guidanceButtonContent}>
+            <MaterialCommunityIcons name="help-circle-outline" size={24} color={getThemeAwareColor('#4a0660', currentTheme)} />
+            <RNText style={[styles.guidanceButtonText, { color: themeColors.text }]}>
+              I don't know what to download
+            </RNText>
+          </View>
+        </TouchableOpacity>
+        
         <DownloadableModelList 
-          models={DOWNLOADABLE_MODELS}
+          models={filteredModels}
           storedModels={storedModels}
           downloadProgress={downloadProgress}
           setDownloadProgress={setDownloadProgress}
@@ -586,6 +653,65 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
           onDownloadStart={handleCustomDownload}
           navigation={navigation}
         />
+
+        <Portal>
+          <Dialog visible={guidanceDialogVisible} onDismiss={() => setGuidanceDialogVisible(false)}>
+            <Dialog.Title>Model Download Guidance</Dialog.Title>
+            <Dialog.Content>
+              <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={false}>
+                <PaperText style={{ fontSize: 16, fontWeight: '600', marginBottom: 8 }}>
+                  Unsure what to download?
+                </PaperText>
+                <PaperText style={{ marginBottom: 16, lineHeight: 20 }}>
+                  If you don't know what to download first, start with Gemma 3 Instruct - 1B.
+                </PaperText>
+
+                <PaperText style={{ fontSize: 16, fontWeight: '600', marginBottom: 8 }}>
+                  Understanding Model Sizes
+                </PaperText>
+                <PaperText style={{ marginBottom: 16, lineHeight: 20 }}>
+                  • <PaperText style={{ fontWeight: '600' }}>1B-3B models:</PaperText> Fast and lightweight, great for simple tasks{'\n'}
+                  • <PaperText style={{ fontWeight: '600' }}>7B-9B models:</PaperText> Good balance of speed and capability{'\n'}
+                  • <PaperText style={{ fontWeight: '600' }}>13B+ models:</PaperText> More capable but slower, need more memory
+                </PaperText>
+
+                <PaperText style={{ fontSize: 16, fontWeight: '600', marginBottom: 8 }}>
+                  Quantization Explained
+                </PaperText>
+                <PaperText style={{ marginBottom: 12, lineHeight: 20 }}>
+                  Quantization reduces model size while trying to preserve quality:
+                </PaperText>
+
+                <PaperText style={{ fontWeight: '600', marginBottom: 4 }}>Quality Levels (Best to Fastest):</PaperText>
+                <PaperText style={{ marginBottom: 12, lineHeight: 18 }}>
+                  • <PaperText style={{ fontWeight: '600' }}>Q8_0:</PaperText> Highest quality, largest size{'\n'}
+                  • <PaperText style={{ fontWeight: '600' }}>Q6_K:</PaperText> Very good quality{'\n'}
+                  • <PaperText style={{ fontWeight: '600' }}>Q5_K_M:</PaperText> Good balance{'\n'}
+                  • <PaperText style={{ fontWeight: '600' }}>Q4_K_M:</PaperText> Decent quality, smaller size{'\n'}
+                  • <PaperText style={{ fontWeight: '600' }}>Q3_K_M:</PaperText> Lower quality but very fast
+                </PaperText>
+
+                <PaperText style={{ fontWeight: '600', marginBottom: 4 }}>Advanced Types:</PaperText>
+                <PaperText style={{ marginBottom: 12, lineHeight: 18 }}>
+                  • <PaperText style={{ fontWeight: '600' }}>IQ types:</PaperText> More precise but slower than Q types{'\n'}
+                  • <PaperText style={{ fontWeight: '600' }}>_XS:</PaperText> Extra small, more compressed{'\n'}
+                  • <PaperText style={{ fontWeight: '600' }}>_NL:</PaperText> Non-linear, better results with more compute{'\n'}
+                  • <PaperText style={{ fontWeight: '600' }}>_K types:</PaperText> Mixed precision for better quality
+                </PaperText>
+
+                <PaperText style={{ lineHeight: 20 }}>
+                  • <PaperText style={{ fontWeight: '600' }}>Just starting?</PaperText> Gemma 3 - 1B{'\n'}
+                  • <PaperText style={{ fontWeight: '600' }}>Want vision support?</PaperText> SmolVLM2 Instruct{'\n'}
+                  • <PaperText style={{ fontWeight: '600' }}>Coding help?</PaperText> Qwen 2.5 Coder Instruct{'\n'}
+                  • <PaperText style={{ fontWeight: '600' }}>More power?</PaperText> Try a 7B model like LLaMA 3.1
+                </PaperText>
+              </ScrollView>
+            </Dialog.Content>
+            <Dialog.Actions>
+              <Button onPress={() => setGuidanceDialogVisible(false)}>Got it!</Button>
+            </Dialog.Actions>
+          </Dialog>
+        </Portal>
       </ScrollView>
     </View>
   );
@@ -953,6 +1079,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: 6,
+    // flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -969,6 +1096,7 @@ const styles = StyleSheet.create({
   segmentText: {
     fontSize: 14,
     fontWeight: '600',
+    textAlign: 'center',
   },
   segmentIcon: {
     marginRight: 6,
@@ -1120,5 +1248,21 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     marginBottom: 16,
+  },
+  guidanceButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 16,
+  },
+  guidanceButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  guidanceButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 12,
   },
 }); 

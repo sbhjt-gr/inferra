@@ -26,11 +26,9 @@ export const ShowDialogExample = () => {
       cancelText: 'Cancel',
       onConfirm: () => {
         console.log('User confirmed the action');
-        // Perform the action here
       },
       onCancel: () => {
         console.log('User cancelled the action');
-        // Handle cancellation here
       }
     });
   };
@@ -43,7 +41,6 @@ export const ShowDialogExample = () => {
       cancelText: 'Close',
       onConfirm: () => {
         console.log('User wants to retry');
-        // Retry the action here
       }
     });
   };

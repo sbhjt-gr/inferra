@@ -27,6 +27,7 @@ import SupportSection from '../components/settings/SupportSection';
 import ModelSettingsSection from '../components/settings/ModelSettingsSection';
 import SystemInfoSection from '../components/settings/SystemInfoSection';
 import StorageSection from '../components/settings/StorageSection';
+import InferenceEngineSection from '../components/settings/InferenceEngine';
 import { Dialog, Portal, PaperProvider, Button, Text as PaperText } from 'react-native-paper';
 
 type SettingsScreenProps = {
@@ -37,6 +38,7 @@ type SettingsScreenProps = {
 };
 
 type ThemeOption = 'system' | 'light' | 'dark';
+type InferenceEngine = 'llama.cpp' | 'mlc-llm' | 'mnn' | 'mlx';
 
 const DEFAULT_SETTINGS = {
   maxTokens: 1200,
@@ -44,8 +46,9 @@ const DEFAULT_SETTINGS = {
   topK: 40,
   topP: 0.9,
   minP: 0.05,
-  stopWords: ['<|end|>', '<end_of_turn>', '<|im_end|>', '<|endoftext|>'],
-  systemPrompt: 'You are an AI assistant.'
+  stopWords: ['<|end|>', '<end_of_turn>', '<|im_end|>', '<|endoftext|>','<end_of_utterance>'],
+  systemPrompt: 'You are an AI assistant.',
+  inferenceEngine: 'llama.cpp' as InferenceEngine
 };
 
 export default function SettingsScreen({ navigation }: SettingsScreenProps) {
@@ -63,6 +66,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
   });
   const [modelSettings, setModelSettings] = useState(llamaManager.getSettings());
   const [error, setError] = useState<string | null>(null);
+  const [selectedInferenceEngine, setSelectedInferenceEngine] = useState<InferenceEngine>('llama.cpp');
   const [dialogConfig, setDialogConfig] = useState<{
     visible: boolean;
     setting?: {
@@ -104,6 +108,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     React.useCallback(() => {
       setModelSettings(llamaManager.getSettings());
       loadStorageInfo();
+      loadInferenceEnginePreference();
     }, [])
   );
 
@@ -133,12 +138,35 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     getSystemInfo();
   }, []);
 
+  const loadInferenceEnginePreference = async () => {
+    try {
+      const saved = await AsyncStorage.getItem('@inference_engine');
+      if (saved) {
+        setSelectedInferenceEngine(saved as InferenceEngine);
+      }
+    } catch (error) {
+      console.error('Error loading inference engine preference:', error);
+    }
+  };
+
   const handleThemeChange = async (newTheme: ThemeOption) => {
     try {
       await AsyncStorage.setItem('@theme_preference', newTheme);
       toggleTheme(newTheme);
     } catch (error) {
       console.error('Error saving theme preference:', error);
+    }
+  };
+
+  const handleInferenceEngineChange = async (engine: InferenceEngine) => {
+    try {
+      await AsyncStorage.setItem('@inference_engine', engine);
+      setSelectedInferenceEngine(engine);
+    } catch (error) {
+      console.error('Error saving inference engine preference:', error);
+      showDialog('Error', 'Failed to save inference engine preference', [
+        <Button key="ok" onPress={hideDialog}>OK</Button>
+      ]);
     }
   };
 
@@ -462,6 +490,11 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
        <AppearanceSection
         selectedTheme={selectedTheme}
         onThemeChange={handleThemeChange}
+        />
+
+        <InferenceEngineSection
+          selectedEngine={selectedInferenceEngine}
+          onEngineChange={handleInferenceEngineChange}
         />
         
         <RemoteModelsSection

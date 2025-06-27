@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 
-export type FileType = 'pdf' | 'text' | 'unknown';
+export type FileType = 'pdf' | 'text' | 'image' | 'unknown';
 
 const TEXT_FILE_EXTENSIONS = [
   '.c', '.cpp', '.cc', '.h', '.hpp', '.hh', '.java', '.kt', '.kts',
@@ -27,6 +27,10 @@ const TEXT_FILE_EXTENSIONS = [
   '.m3u', '.m3u8', '.pls', '.cue', '.srt', '.vtt', '.ass', '.ssa'
 ];
 
+const IMAGE_FILE_EXTENSIONS = [
+  '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg', '.tiff', '.tif', '.ico', '.heic', '.heif'
+];
+
 export function getFileType(fileName: string): FileType {
   if (!fileName) return 'unknown';
   
@@ -34,6 +38,12 @@ export function getFileType(fileName: string): FileType {
   
   if (lowerCaseName.endsWith('.pdf')) {
     return 'pdf';
+  }
+  
+  for (const ext of IMAGE_FILE_EXTENSIONS) {
+    if (lowerCaseName.endsWith(ext)) {
+      return 'image';
+    }
   }
   
   for (const ext of TEXT_FILE_EXTENSIONS) {

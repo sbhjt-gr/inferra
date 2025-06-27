@@ -79,6 +79,19 @@ const DownloadableModelList: React.FC<DownloadableModelListProps> = ({
         }
       }));
 
+      if (model.additionalFiles && model.additionalFiles.length > 0) {
+        for (const additionalFile of model.additionalFiles) {
+          try {
+            await modelDownloader.downloadModel(
+              additionalFile.url,
+              additionalFile.name
+            );
+          } catch (error) {
+            console.error(`Failed to download additional file ${additionalFile.name}:`, error);
+          }
+        }
+      }
+
     } catch (error) {
       console.error('Download error:', error);
       setDownloadProgress((prev: any) => {
