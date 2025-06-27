@@ -20,6 +20,22 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "tags": ["recommended", "fastest"]
   },
   {
+    "name": "SmolVLM2 500M Video Instruct",
+    "description": "Ultra-compact vision-language model with 500M parameters specialized for visual understanding and instruction following.",
+    "size": "1.02 GB",
+    "huggingFaceLink": "https://huggingface.co/ggml-org/SmolVLM2-500M-Video-Instruct-GGUF/resolve/main/SmolVLM2-500M-Video-Instruct-f16.gguf",
+    "modelFamily": "500 Million",
+    "quantization": "f16",
+    "tags": ["vision", "video", "fastest"],
+    "additionalFiles": [
+      {
+        "name": "mmproj-SmolVLM2-500M-Video-Instruct-f16.gguf",
+        "url": "https://huggingface.co/ggml-org/SmolVLM2-500M-Video-Instruct-GGUF/resolve/main/mmproj-SmolVLM2-500M-Video-Instruct-f16.gguf",
+        "description": "Multimodal projector for SmolVLM2 Video"
+      }
+    ]
+  },
+  {
     "name": "SmolVLM2 Instruct",
     "description": "Compact vision-language model with 2.2B parameters optimized for multimodal tasks.",
     "size": "2.5 GB",
