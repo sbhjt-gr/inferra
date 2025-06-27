@@ -207,7 +207,6 @@ export default function ChatInput({
           setCameraVisible(true);
         } else if (pendingMultimodalAction === 'file') {
           if (pendingFileForMultimodal) {
-            // Open the previously selected file
             setSelectedFile(pendingFileForMultimodal);
             setFileModalVisible(true);
             setPendingFileForMultimodal(null);
@@ -239,7 +238,6 @@ export default function ChatInput({
       setCameraVisible(true);
     } else if (pendingMultimodalAction === 'file') {
       if (pendingFileForMultimodal) {
-        // Open the previously selected file
         setSelectedFile(pendingFileForMultimodal);
         setFileModalVisible(true);
         setPendingFileForMultimodal(null);
@@ -488,11 +486,9 @@ export default function ChatInput({
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const file = result.assets[0];
         
-        // Check if the selected file is an image and if multimodal support is available
         if (isImageFile(file.name) && !checkMultimodalSupport()) {
           const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude'].includes(selectedModelPath);
           if (!isOnlineModel) {
-            // Store the file for later use after projector selection
             setPendingFileForMultimodal({
               uri: file.uri,
               name: file.name

@@ -212,7 +212,7 @@ export default function ImageViewerModal({
               labelStyle={{ color: '#ffffff' }}
               loading={isProcessing}
             >
-              {processingMode === 'ocr' ? 'Extract Text' : processingMode === 'multimodal' ? 'Send Image' : 'Select Processing Mode'}
+              {processingMode === 'ocr' ? 'Extract Text' : processingMode === 'multimodal' ? 'Analyze Image' : 'Select Processing Mode'}
             </Button>
           </View>
         </View>

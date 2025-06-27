@@ -74,7 +74,8 @@ export const createOCRMessage = (extractedText: string, imageUri: string, fileNa
     extractedText: formattedText,
     userPrompt: userPrompt || 'Please process this extracted text',
     imageUri: imageUri,
-    internalInstruction: `You're reading text extracted from an image${fileName ? ` named: ${fileName}` : ''}.\n\n--- EXTRACTED TEXT START ---\n${formattedText}\n--- EXTRACTED TEXT END ---`
+    fileName: fileName,
+    internalInstruction: `You are processing text that was extracted from an image${fileName ? ` named: ${fileName}` : ''}. Here is the extracted text:\n\n${formattedText}\n\nPlease respond to the user's request about this text.`
   };
   
   return JSON.stringify(messageObject);
