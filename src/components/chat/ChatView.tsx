@@ -13,11 +13,14 @@ import {
   Modal,
   Dimensions,
   Alert,
+  TextInput,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Markdown from 'react-native-markdown-display';
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../constants/theme';
+import { Dialog, Portal, Button } from 'react-native-paper';
+import chatManager from '../../utils/ChatManager';
 
 export type Message = {
   id: string;
@@ -42,7 +45,8 @@ type ChatViewProps = {
   onRegenerateResponse: () => void;
   isRegenerating: boolean;
   justCancelled?: boolean;
-  flatListRef: React.RefObject<FlatList>;
+  flatListRef: React.RefObject<FlatList | null>;
+  onEditMessageAndRegenerate?: () => void;
 };
 
 const hasMarkdownFormatting = (content: string): boolean => {
@@ -81,6 +85,8 @@ export default function ChatView({
   
   const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
   const [isImageViewerVisible, setIsImageViewerVisible] = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editedMessageContent, setEditedMessageContent] = useState('');
 
   const openImageViewer = useCallback((imageUri: string) => {
     setFullScreenImage(imageUri);
@@ -91,6 +97,46 @@ export default function ChatView({
     setIsImageViewerVisible(false);
     setFullScreenImage(null);
   }, []);
+
+  const openEditDialog = useCallback((messageId: string, currentContent: string) => {
+    let contentToEdit = currentContent;
+    
+    try {
+      const parsedMessage = JSON.parse(currentContent);
+      if (parsedMessage && parsedMessage.type === 'file_upload' && parsedMessage.userContent) {
+        contentToEdit = parsedMessage.userContent;
+      }
+    } catch (e) {
+      // Not JSON, use as is
+    }
+    
+    setEditingMessageId(messageId);
+    setEditedMessageContent(contentToEdit);
+  }, []);
+
+  const closeEditDialog = useCallback(() => {
+    setEditingMessageId(null);
+    setEditedMessageContent('');
+  }, []);
+
+  const saveEditedMessage = useCallback(async () => {
+    if (!editingMessageId || !editedMessageContent.trim()) {
+      closeEditDialog();
+      return;
+    }
+
+    try {
+      const success = await chatManager.editMessage(editingMessageId, editedMessageContent.trim());
+      
+      if (success) {
+        closeEditDialog();
+      } else {
+        Alert.alert('Error', 'Failed to edit message');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to edit message');
+    }
+  }, [editingMessageId, editedMessageContent, closeEditDialog]);
 
   const renderMessage = useCallback(({ item }: { item: Message }) => {
     const isCurrentlyStreaming = (isStreaming || justCancelled) && item.id === streamingMessageId;
@@ -295,17 +341,32 @@ export default function ChatView({
             <Text style={[styles.roleLabel, { color: item.role === 'user' ? '#fff' : themeColors.text }]}>
               {item.role === 'user' ? 'You' : 'Model'}
             </Text>
-            <TouchableOpacity 
-              style={styles.copyButton} 
-              onPress={() => onCopyText(messageContent)}
-              hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
-            >
-              <MaterialCommunityIcons 
-                name="content-copy" 
-                size={16} 
-                color={item.role === 'user' ? '#fff' : themeColors.text} 
-              />
-            </TouchableOpacity>
+            <View style={styles.messageHeaderActions}>
+              {item.role === 'user' && (
+                <TouchableOpacity 
+                  style={styles.copyButton} 
+                  onPress={() => openEditDialog(item.id, item.content)}
+                  hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+                >
+                  <MaterialCommunityIcons 
+                    name="pencil" 
+                    size={16} 
+                    color="#fff" 
+                  />
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity 
+                style={styles.copyButton} 
+                onPress={() => onCopyText(messageContent)}
+                hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+              >
+                <MaterialCommunityIcons 
+                  name="content-copy" 
+                  size={16} 
+                  color={item.role === 'user' ? '#fff' : themeColors.text} 
+                />
+              </TouchableOpacity>
+            </View>
           </View>
 
           {showLoadingIndicator ? (
@@ -540,7 +601,7 @@ export default function ChatView({
         </View>
       </View>
     );
-  }, [themeColors, messages, isStreaming, streamingMessageId, streamingMessage, streamingThinking, streamingStats, onCopyText, isRegenerating, onRegenerateResponse, justCancelled]);
+  }, [themeColors, messages, isStreaming, streamingMessageId, streamingMessage, streamingThinking, streamingStats, onCopyText, isRegenerating, onRegenerateResponse, justCancelled, openImageViewer, openEditDialog]);
 
   const renderContent = () => {
     if (messages.length === 0) {
@@ -633,6 +694,51 @@ export default function ChatView({
           </View>
         </View>
       </Modal>
+
+      <Portal>
+        <Dialog 
+          visible={editingMessageId !== null} 
+          onDismiss={closeEditDialog}
+          style={{ backgroundColor: themeColors.background }}
+        >
+          <Dialog.Title style={{ color: themeColors.text }}>
+            Edit Message
+          </Dialog.Title>
+          <Dialog.Content>
+            <Text style={[{ color: themeColors.secondaryText, marginBottom: 12, fontSize: 14 }]}>
+              All messages after this one will be deleted.
+            </Text>
+            <TextInput
+              style={[
+                styles.editInput,
+                { 
+                  backgroundColor: themeColors.borderColor,
+                  color: themeColors.text,
+                  borderColor: themeColors.headerBackground 
+                }
+              ]}
+              value={editedMessageContent}
+              onChangeText={setEditedMessageContent}
+              multiline
+              placeholder="Enter your message..."
+              placeholderTextColor={themeColors.secondaryText}
+              autoFocus
+            />
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={closeEditDialog} textColor={themeColors.secondaryText}>
+              Cancel
+            </Button>
+            <Button 
+              onPress={saveEditedMessage} 
+              textColor={themeColors.headerBackground}
+              disabled={!editedMessageContent.trim()}
+            >
+              Save
+            </Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
     </View>
   );
 }
@@ -671,6 +777,11 @@ const styles = StyleSheet.create({
     paddingBottom: 6,
     borderBottomWidth: 0.5,
     borderBottomColor: 'rgba(0, 0, 0, 0.1)',
+  },
+  messageHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   roleLabel: {
     fontSize: 12,
@@ -883,5 +994,14 @@ const styles = StyleSheet.create({
   fullScreenImage: {
     width: Dimensions.get('window').width,
     height: Dimensions.get('window').height,
+  },
+  editInput: {
+    minHeight: 80,
+    maxHeight: 200,
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    textAlignVertical: 'top',
   },
 }); 
