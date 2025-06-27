@@ -79,6 +79,7 @@ export default function ChatView({
   isRegenerating,
   justCancelled = false,
   flatListRef,
+  onEditMessageAndRegenerate,
 }: ChatViewProps) {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
@@ -130,13 +131,16 @@ export default function ChatView({
       
       if (success) {
         closeEditDialog();
+        if (onEditMessageAndRegenerate) {
+          onEditMessageAndRegenerate();
+        }
       } else {
         Alert.alert('Error', 'Failed to edit message');
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to edit message');
     }
-  }, [editingMessageId, editedMessageContent, closeEditDialog]);
+  }, [editingMessageId, editedMessageContent, closeEditDialog, onEditMessageAndRegenerate]);
 
   const renderMessage = useCallback(({ item }: { item: Message }) => {
     const isCurrentlyStreaming = (isStreaming || justCancelled) && item.id === streamingMessageId;
