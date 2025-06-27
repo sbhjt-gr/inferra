@@ -1587,6 +1587,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
            isRegenerating={isRegenerating}
            justCancelled={justCancelled}
            flatListRef={flatListRef}
+           onEditMessageAndRegenerate={processMessage}
         />
 
         <ChatInput
