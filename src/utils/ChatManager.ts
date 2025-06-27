@@ -421,6 +421,29 @@ class ChatManager {
       this.saveDebounceTimeout = null;
     }, 500); 
   }
+
+  async editMessage(messageId: string, newContent: string): Promise<boolean> {
+    if (!this.currentChatId) return false;
+    
+    const currentChat = this.getChatById(this.currentChatId);
+    if (!currentChat) return false;
+
+    const messageIndex = currentChat.messages.findIndex(m => m.id === messageId);
+    if (messageIndex === -1) return false;
+
+    const message = currentChat.messages[messageIndex];
+    if (message.role !== 'user') return false;
+
+    message.content = newContent;
+    
+    currentChat.messages = currentChat.messages.slice(0, messageIndex + 1);
+    currentChat.timestamp = Date.now();
+
+    await this.saveAllChats();
+    this.notifyListeners();
+    
+    return true;
+  }
 }
 
 
