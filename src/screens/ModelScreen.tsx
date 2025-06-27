@@ -663,7 +663,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
                   Unsure what to download?
                 </PaperText>
                 <PaperText style={{ marginBottom: 16, lineHeight: 20 }}>
-                  If you don't know what to download first, start with Gemma 3 - 1B.
+                  If you don't know what to download first, start with Gemma 3 Instruct - 1B.
                 </PaperText>
 
                 <PaperText style={{ fontSize: 16, fontWeight: '600', marginBottom: 8 }}>
