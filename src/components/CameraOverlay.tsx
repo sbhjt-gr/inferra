@@ -276,7 +276,7 @@ export default function CameraOverlay({ visible, onClose, onPhotoTaken }: Camera
                     styles.sendPromptButtonText,
                       { opacity: (userPrompt.trim() && !isProcessing && processingMode) ? 1 : 0.5 }
                   ]}>
-                      {processingMode === 'ocr' ? 'Extract' : processingMode === 'multimodal' ? 'Send' : 'Select Mode'}
+                      {processingMode === 'ocr' ? 'Extract' : processingMode === 'multimodal' ? 'Analyze' : 'Select Mode'}
                   </Text>
                   )}
                 </TouchableOpacity>

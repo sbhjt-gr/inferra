@@ -1,3 +1,5 @@
+import * as FileSystem from 'expo-file-system';
+
 type ChatMessage = {
   id: string;
   content: string;
@@ -21,6 +23,85 @@ export class OpenAIService {
 
   constructor(apiKeyProvider: (provider: string) => Promise<string | null>) {
     this.apiKeyProvider = apiKeyProvider;
+  }
+
+  private async convertImageToBase64(imageUri: string): Promise<{ data: string; mimeType: string }> {
+    try {
+      const base64String = await FileSystem.readAsStringAsync(imageUri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      
+      const fileExtension = imageUri.toLowerCase().split('.').pop();
+      let mimeType = 'image/jpeg'; // default
+      
+      switch (fileExtension) {
+        case 'png':
+          mimeType = 'image/png';
+          break;
+        case 'webp':
+          mimeType = 'image/webp';
+          break;
+        case 'gif':
+          mimeType = 'image/gif';
+          break;
+        default:
+          mimeType = 'image/jpeg';
+      }
+      
+      return { data: base64String, mimeType };
+    } catch (error) {
+      console.error('Error converting image to base64:', error);
+      throw new Error('Failed to process image for OpenAI API');
+    }
+  }
+
+  private async parseMessageContent(message: ChatMessage): Promise<any> {
+    try {
+      const parsed = JSON.parse(message.content);
+      
+      if (parsed.type === 'multimodal' && parsed.content) {
+        const content: any[] = [];
+        
+        for (const item of parsed.content) {
+          if (item.type === 'text') {
+            content.push({
+              type: 'text',
+              text: item.text
+            });
+          } else if (item.type === 'image' && item.uri) {
+            const { data, mimeType } = await this.convertImageToBase64(item.uri);
+            content.push({
+              type: 'image_url',
+              image_url: {
+                url: `data:${mimeType};base64,${data}`
+              }
+            });
+          }
+        }
+        
+        return {
+          role: message.role,
+          content: content
+        };
+      }
+      
+      if (parsed.type === 'ocr_result') {
+        const instruction = parsed.internalInstruction || '';
+        const userPrompt = parsed.userPrompt || '';
+        
+        return {
+          role: message.role,
+          content: `${instruction}\n\nUser request: ${userPrompt}`
+        };
+      }
+    } catch (error) {
+      // Not a JSON message, treat as regular text
+    }
+    
+    return {
+      role: message.role,
+      content: message.content
+    };
   }
 
   async generateResponse(
@@ -48,10 +129,11 @@ export class OpenAIService {
       const model = options.model ?? 'gpt-4o';
       console.log(`Using OpenAI model: ${model}`);
 
-      const formattedMessages = messages.map(msg => ({
-        role: msg.role,
-        content: msg.content
-      }));
+      const formattedMessages = [];
+      for (const msg of messages) {
+        const formattedMessage = await this.parseMessageContent(msg);
+        formattedMessages.push(formattedMessage);
+      }
 
       const url = `https://api.openai.com/v1/chat/completions`;
       

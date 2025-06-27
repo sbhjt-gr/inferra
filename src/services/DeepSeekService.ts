@@ -23,6 +23,33 @@ export class DeepSeekService {
     this.apiKeyProvider = apiKeyProvider;
   }
 
+  private parseMessageContent(message: ChatMessage): any {
+    try {
+      const parsed = JSON.parse(message.content);
+      
+      if (parsed.type === 'multimodal') {
+        throw new Error('DeepSeek does not support vision analysis. Please use OCR mode to extract text from images first.');
+      }
+      
+      if (parsed.type === 'ocr_result') {
+        const instruction = parsed.internalInstruction || '';
+        const userPrompt = parsed.userPrompt || '';
+        
+        return {
+          role: message.role,
+          content: `${instruction}\n\nUser request: ${userPrompt}`
+        };
+      }
+    } catch (error) {
+      // Not a JSON message, treat as regular text
+    }
+    
+    return {
+      role: message.role,
+      content: message.content
+    };
+  }
+
   async generateResponse(
     messages: ChatMessage[],
     options: DeepSeekRequestOptions = {},
@@ -48,10 +75,7 @@ export class DeepSeekService {
       const model = options.model ?? 'deepseek-reasoner';
       console.log(`Using DeepSeek model: ${model}`);
 
-      const formattedMessages = messages.map(msg => ({
-        role: msg.role,
-        content: msg.content
-      }));
+      const formattedMessages = messages.map(msg => this.parseMessageContent(msg));
 
       const url = `https://api.deepseek.com/chat/completions`;
       

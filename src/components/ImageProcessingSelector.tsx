@@ -120,7 +120,8 @@ export default function ImageProcessingSelector({
       case 'ocr':
         return 'Extract text from the image';
       case 'multimodal':
-        return 'Analyze image content with AI vision';
+        const isOnlineModel = selectedModelPath && ['gemini', 'chatgpt', 'deepseek', 'claude'].includes(selectedModelPath);
+        return isOnlineModel ? 'Analyze image content with AI' : 'Analyze image content with AI vision';
       case null:
       default:
         return '';
@@ -131,7 +132,17 @@ export default function ImageProcessingSelector({
     if (!selectedModelPath) return false;
     
     const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude'].includes(selectedModelPath);
-    return isOnlineModel || isMultimodalEnabled;
+    if (isOnlineModel) {
+      return selectedModelPath !== 'deepseek';
+    }
+    return isMultimodalEnabled;
+  };
+
+  const getMultimodalTitle = (): string => {
+    if (!selectedModelPath) return 'Vision Analysis';
+    
+    const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude'].includes(selectedModelPath);
+    return isOnlineModel ? 'Vision Analysis' : 'Multimodal (AI Vision)';
   };
 
   return (
@@ -218,7 +229,7 @@ export default function ImageProcessingSelector({
               styles.modeTitle,
               { color: selectedMode === 'multimodal' ? '#ffffff' : themeColors.text }
             ]}>
-              Multimodal (AI Vision)
+              {getMultimodalTitle()}
             </Text>
             <Text style={[
               styles.modeDescription,
