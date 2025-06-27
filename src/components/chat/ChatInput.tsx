@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
-import { Audio } from 'expo-av';
+import { useAudioRecorder, AudioModule, RecordingPresets } from 'expo-audio';
 import * as FileSystem from 'expo-file-system';
 import { useTheme } from '../../context/ThemeContext';
 import { useModel } from '../../context/ModelContext';
@@ -63,7 +63,7 @@ export default function ChatInput({
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
   
   const inputRef = useRef<TextInput>(null);
-  const recordingRef = useRef<Audio.Recording | null>(null);
+  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const attachmentMenuAnim = useRef(new Animated.Value(0)).current;
   
@@ -136,11 +136,11 @@ export default function ChatInput({
 
   const checkAudioPermissions = async () => {
     try {
-      const { granted } = await Audio.getPermissionsAsync();
+      const { granted } = await AudioModule.getRecordingPermissionsAsync();
       setRecordingPermission(granted);
       
       if (!granted) {
-        const { granted: newGranted } = await Audio.requestPermissionsAsync();
+        const { granted: newGranted } = await AudioModule.requestRecordingPermissionsAsync();
         setRecordingPermission(newGranted);
       }
     } catch (error) {
@@ -370,16 +370,13 @@ export default function ChatInput({
 
       console.log('Starting audio recording...');
       
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
+      await AudioModule.setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
       });
 
-      const recording = new Audio.Recording();
-      await recording.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-
-      await recording.startAsync();
-      recordingRef.current = recording;
+      await audioRecorder.prepareToRecordAsync();
+      audioRecorder.record();
       setIsRecording(true);
       setShowAttachmentMenu(false);
       console.log('Recording started');
@@ -394,13 +391,12 @@ export default function ChatInput({
 
   const stopRecording = async () => {
     try {
-      if (!recordingRef.current) return;
+      if (!audioRecorder.isRecording) return;
 
       console.log('Stopping audio recording...');
-      await recordingRef.current.stopAndUnloadAsync();
+      await audioRecorder.stop();
       
-      const uri = recordingRef.current.getURI();
-      recordingRef.current = null;
+      const uri = audioRecorder.uri;
       setIsRecording(false);
 
       if (uri) {
@@ -438,7 +434,6 @@ export default function ChatInput({
         'Failed to save audio recording. Please try again.'
       );
       setIsRecording(false);
-      recordingRef.current = null;
     }
   };
 
@@ -532,8 +527,8 @@ export default function ChatInput({
 
   React.useEffect(() => {
     return () => {
-      if (recordingRef.current) {
-        recordingRef.current.stopAndUnloadAsync().catch(() => {});
+      if (audioRecorder.isRecording) {
+        audioRecorder.stop().catch(() => {});
       }
     };
   }, []);
@@ -836,7 +831,8 @@ export default function ChatInput({
 const styles = StyleSheet.create({
   wrapper: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingBottom: 0,
+    paddingTop: 8,
   },
   container: {
     position: 'relative',

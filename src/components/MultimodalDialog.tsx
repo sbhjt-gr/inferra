@@ -9,7 +9,7 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Button, Dialog, Portal } from 'react-native-paper';
 import * as DocumentPicker from 'expo-document-picker';
-import { Audio } from 'expo-av';
+import { AudioModule } from 'expo-audio';
 import { useTheme } from '../context/ThemeContext';
 import { useModel } from '../context/ModelContext';
 import { llamaManager } from '../utils/LlamaManager';
@@ -87,7 +87,7 @@ export default function MultimodalDialog({ visible, onDismiss }: MultimodalDialo
         return;
       }
 
-      const permissionResult = await Audio.requestPermissionsAsync();
+      const permissionResult = await AudioModule.requestRecordingPermissionsAsync();
       if (!permissionResult.granted) {
         setTestResult('Audio permission denied');
         return;
