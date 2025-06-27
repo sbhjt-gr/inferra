@@ -2,6 +2,15 @@ import { DownloadableModel } from "../components/model/DownloadableModelItem";
 
 export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
   {
+    "name": "Gemma 3n-E4B Instruct (Q2_K)",
+    "description": "Google's enhanced Gemma 3 variant with optimized efficiency and fast inference capabilities.",
+    "size": "2.76 GB",
+    "huggingFaceLink": "https://huggingface.co/unsloth/gemma-3n-E4B-it-GGUF/resolve/main/gemma-3n-E4B-it-Q2_K.gguf",
+    "modelFamily": "3+ Billion",
+    "quantization": "Q2_K",
+    "tags": ["recommended"]
+  },
+  {
     "name": "Gemma 3 Instruct - 1B",
     "description": "Google's latest compact instruction-tuned model with strong reasoning and fast inference with 1 billion parameters.",
     "size": "1.07 GB",
@@ -11,6 +20,22 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "tags": ["recommended", "fastest"]
   },
   {
+    "name": "SmolVLM2 Instruct",
+    "description": "Compact vision-language model with 2.2B parameters optimized for multimodal tasks.",
+    "size": "2.5 GB",
+    "huggingFaceLink": "https://huggingface.co/ggml-org/SmolVLM2-2.2B-Instruct-GGUF/resolve/main/SmolVLM2-2.2B-Instruct-Q8_0.gguf",
+    "modelFamily": "2.2 Billion",
+    "quantization": "Q8_0",
+    "tags": ["vision", "fastest"],
+    "additionalFiles": [
+      {
+        "name": "mmproj-SmolVLM2-2.2B-Instruct-Q8_0.gguf",
+        "url": "https://huggingface.co/ggml-org/SmolVLM2-2.2B-Instruct-GGUF/resolve/main/mmproj-SmolVLM2-2.2B-Instruct-Q8_0.gguf",
+        "description": "Multimodal projector for SmolVLM2"
+      }
+    ]
+  },
+  {
     "name": "Gemma 3 Instruct - 4B",
     "description": "Google's latest compact instruction-tuned model with strong reasoning and fast inference with 4 billion parameters.",
     "size": "2.83 GB",
@@ -18,6 +43,14 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "modelFamily": "4 Billion",
     "quantization": "Q5_K_M",
     "tags": ["recommended"]
+  },
+  {
+    "name": "Gemma 3n-E4B Instruct (Q4_K_S)",
+    "description": "Google's enhanced Gemma 3 variant with balanced performance and quality optimization.",
+    "size": "4.1 GB",
+    "huggingFaceLink": "https://huggingface.co/unsloth/gemma-3n-E4B-it-GGUF/resolve/main/gemma-3n-E4B-it-Q4_K_S.gguf",
+    "modelFamily": "3+ Billion",
+    "quantization": "Q4_K_S",
   },
   {
     "name": "DeepSeek-R1 Distill Qwen",

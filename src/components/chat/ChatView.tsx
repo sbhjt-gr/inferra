@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -9,11 +9,18 @@ import {
   Platform,
   ActivityIndicator,
   Keyboard,
+  Image,
+  Modal,
+  Dimensions,
+  Alert,
+  TextInput,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Markdown from 'react-native-markdown-display';
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../constants/theme';
+import { Dialog, Portal, Button } from 'react-native-paper';
+import chatManager from '../../utils/ChatManager';
 
 export type Message = {
   id: string;
@@ -38,7 +45,8 @@ type ChatViewProps = {
   onRegenerateResponse: () => void;
   isRegenerating: boolean;
   justCancelled?: boolean;
-  flatListRef: React.RefObject<FlatList>;
+  flatListRef: React.RefObject<FlatList | null>;
+  onEditMessageAndRegenerate?: () => void;
 };
 
 const hasMarkdownFormatting = (content: string): boolean => {
@@ -71,27 +79,103 @@ export default function ChatView({
   isRegenerating,
   justCancelled = false,
   flatListRef,
+  onEditMessageAndRegenerate,
 }: ChatViewProps) {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
+  
+  const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
+  const [isImageViewerVisible, setIsImageViewerVisible] = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editedMessageContent, setEditedMessageContent] = useState('');
+
+  const openImageViewer = useCallback((imageUri: string) => {
+    setFullScreenImage(imageUri);
+    setIsImageViewerVisible(true);
+  }, []);
+
+  const closeImageViewer = useCallback(() => {
+    setIsImageViewerVisible(false);
+    setFullScreenImage(null);
+  }, []);
+
+  const openEditDialog = useCallback((messageId: string, currentContent: string) => {
+    let contentToEdit = currentContent;
+    
+    try {
+      const parsedMessage = JSON.parse(currentContent);
+      if (parsedMessage && parsedMessage.type === 'file_upload' && parsedMessage.userContent) {
+        contentToEdit = parsedMessage.userContent;
+      }
+    } catch (e) {
+      // Not JSON, use as is
+    }
+    
+    setEditingMessageId(messageId);
+    setEditedMessageContent(contentToEdit);
+  }, []);
+
+  const closeEditDialog = useCallback(() => {
+    setEditingMessageId(null);
+    setEditedMessageContent('');
+  }, []);
+
+  const saveEditedMessage = useCallback(async () => {
+    if (!editingMessageId || !editedMessageContent.trim()) {
+      closeEditDialog();
+      return;
+    }
+
+    try {
+      const success = await chatManager.editMessage(editingMessageId, editedMessageContent.trim());
+      
+      if (success) {
+        closeEditDialog();
+        if (onEditMessageAndRegenerate) {
+          onEditMessageAndRegenerate();
+        }
+      } else {
+        Alert.alert('Error', 'Failed to edit message');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to edit message');
+    }
+  }, [editingMessageId, editedMessageContent, closeEditDialog, onEditMessageAndRegenerate]);
 
   const renderMessage = useCallback(({ item }: { item: Message }) => {
     const isCurrentlyStreaming = (isStreaming || justCancelled) && item.id === streamingMessageId;
     const showLoadingIndicator = isCurrentlyStreaming && !streamingMessage && !justCancelled;
     
     let fileAttachment: { name: string; type?: string } | null = null;
+    let multimodalContent: { type: string; uri?: string; text?: string }[] = [];
     
     const processContent = (content: string): string => {
       try {
         const parsedMessage = JSON.parse(content);
+        
+        if (parsedMessage && parsedMessage.type === 'multimodal' && parsedMessage.content) {
+          multimodalContent = parsedMessage.content;
+          const textContent = parsedMessage.content.find((item: any) => item.type === 'text');
+          return textContent ? textContent.text : '';
+        }
+        
+        if (parsedMessage && parsedMessage.type === 'ocr_result') {
+          if (parsedMessage.imageUri) {
+            multimodalContent = [
+              {
+                type: 'image',
+                uri: parsedMessage.imageUri
+              }
+            ];
+          }
+          return parsedMessage.userPrompt || '';
+        }
+        
         if (parsedMessage && 
             parsedMessage.type === 'file_upload' && 
             parsedMessage.internalInstruction) {
           
-          console.log('Processing JSON Message:', {
-            internalInstruction: parsedMessage.internalInstruction,
-            userContent: parsedMessage.userContent
-          });
+
           
           const match = parsedMessage.internalInstruction.match(/You're reading a file named: (.+?)\n/);
           if (match && match[1]) {
@@ -155,13 +239,57 @@ export default function ChatView({
             </View>
             <View style={styles.fileAttachmentContent}>
               <Text style={[styles.fileAttachmentName, { color: themeColors.text }]} numberOfLines={1} ellipsizeMode="middle">
-                {fileAttachment.name}
+                {fileAttachment.name || ''}
               </Text>
               <Text style={[styles.fileAttachmentType, { color: themeColors.secondaryText }]}>
                 File attachment
               </Text>
             </View>
           </View>
+        </View>
+      );
+    };
+
+    const renderMultimodalContent = () => {
+      if (!multimodalContent.length) return null;
+      
+      const mediaItems = multimodalContent.filter(item => item.type === 'image' || item.type === 'audio');
+      if (!mediaItems.length) return null;
+      
+      return (
+        <View style={[styles.multimodalWrapper, { alignSelf: 'flex-end' }]}>
+          {mediaItems.map((item, index) => {
+            if (item.type === 'image' && item.uri) {
+              return (
+                <TouchableOpacity 
+                  key={index} 
+                  style={styles.imageContainer}
+                  onPress={() => openImageViewer(item.uri!)}
+                  activeOpacity={0.8}
+                >
+                  <Image
+                    source={{ uri: item.uri }}
+                    style={styles.messageImage}
+                    resizeMode="cover"
+                  />
+                </TouchableOpacity>
+              );
+            } else if (item.type === 'audio' && item.uri) {
+              return (
+                <View key={index} style={[styles.audioContainer, { backgroundColor: themeColors.borderColor }]}>
+                  <MaterialCommunityIcons 
+                    name="volume-high" 
+                    size={24} 
+                    color={themeColors.text} 
+                  />
+                  <Text style={[styles.audioLabel, { color: themeColors.text }]}>
+                    Audio Recording
+                  </Text>
+                </View>
+              );
+            }
+            return null;
+          })}
         </View>
       );
     };
@@ -196,12 +324,13 @@ export default function ChatView({
               style={[styles.thinkingText, { color: themeColors.secondaryText }]} 
               selectable={true}
             >
-              {thinkingContent}
+              {thinkingContent || ''}
             </Text>
           </View>
         )}
         
         {item.role === 'user' && fileAttachment && renderFileAttachment()}
+        {item.role === 'user' && multimodalContent.length > 0 && renderMultimodalContent()}
 
         <View style={[
           styles.messageCard,
@@ -216,17 +345,32 @@ export default function ChatView({
             <Text style={[styles.roleLabel, { color: item.role === 'user' ? '#fff' : themeColors.text }]}>
               {item.role === 'user' ? 'You' : 'Model'}
             </Text>
-            <TouchableOpacity 
-              style={styles.copyButton} 
-              onPress={() => onCopyText(messageContent)}
-              hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
-            >
-              <MaterialCommunityIcons 
-                name="content-copy" 
-                size={16} 
-                color={item.role === 'user' ? '#fff' : themeColors.text} 
-              />
-            </TouchableOpacity>
+            <View style={styles.messageHeaderActions}>
+              {item.role === 'user' && (
+                <TouchableOpacity 
+                  style={styles.copyButton} 
+                  onPress={() => openEditDialog(item.id, item.content)}
+                  hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+                >
+                  <MaterialCommunityIcons 
+                    name="pencil" 
+                    size={16} 
+                    color="#fff" 
+                  />
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity 
+                style={styles.copyButton} 
+                onPress={() => onCopyText(messageContent)}
+                hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+              >
+                <MaterialCommunityIcons 
+                  name="content-copy" 
+                  size={16} 
+                  color={item.role === 'user' ? '#fff' : themeColors.text} 
+                />
+              </TouchableOpacity>
+            </View>
           </View>
 
           {showLoadingIndicator ? (
@@ -240,7 +384,7 @@ export default function ChatView({
               </Text>
             </View>
           ) : !hasMarkdownFormatting(messageContent) ? (
-            messageContent ? (
+            messageContent && messageContent.trim() ? (
               <View style={styles.messageContent}>
                 <Text 
                   style={[
@@ -372,7 +516,7 @@ export default function ChatView({
                     return (
                       <View style={[styles.fence, { position: 'relative' }]} key={node.key}>
                         <Text style={styles.fence_text} selectable={true}>
-                          {codeContent}
+                          {codeContent || ''}
                         </Text>
                         <TouchableOpacity 
                           style={styles.codeBlockCopyButton}
@@ -393,7 +537,7 @@ export default function ChatView({
                     return (
                       <View style={[styles.code_block, { position: 'relative' }]} key={node.key}>
                         <Text style={styles.code_block_text} selectable={true}>
-                          {codeContent}
+                          {codeContent || ''}
                         </Text>
                         <TouchableOpacity 
                           style={styles.codeBlockCopyButton}
@@ -411,7 +555,7 @@ export default function ChatView({
                   }
                 }}
               >
-                {messageContent}
+                {messageContent && messageContent.trim() ? messageContent : ''}
               </Markdown>
             </View>
           )}
@@ -419,8 +563,13 @@ export default function ChatView({
           {item.role === 'assistant' && stats && (
             <View style={styles.statsContainer}>
               <Text style={[styles.statsText, { color: themeColors.secondaryText }]}>
-                {`${stats.tokens.toLocaleString()} tokens`}
+                {`${(stats?.tokens ?? 0).toLocaleString()} tokens`}
               </Text>
+              {stats?.duration && stats.duration > 0 && (
+                <Text style={[styles.statsText, { color: themeColors.secondaryText, marginLeft: 6 }]}> 
+                  {`${((stats?.tokens ?? 0) / stats.duration).toFixed(1)} tok/s`}
+                </Text>
+              )}
               
               {item === messages[messages.length - 1] && (
                 <TouchableOpacity 
@@ -456,7 +605,7 @@ export default function ChatView({
         </View>
       </View>
     );
-  }, [themeColors, messages, isStreaming, streamingMessageId, streamingMessage, streamingThinking, streamingStats, onCopyText, isRegenerating, onRegenerateResponse, justCancelled]);
+  }, [themeColors, messages, isStreaming, streamingMessageId, streamingMessage, streamingThinking, streamingStats, onCopyText, isRegenerating, onRegenerateResponse, justCancelled, openImageViewer, openEditDialog]);
 
   const renderContent = () => {
     if (messages.length === 0) {
@@ -512,6 +661,88 @@ export default function ChatView({
   return (
     <View style={styles.container}>
       {renderContent()}
+      
+      <Modal
+        visible={isImageViewerVisible}
+        transparent={true}
+        animationType="fade"
+        statusBarTranslucent={true}
+        onRequestClose={closeImageViewer}
+      >
+        <View style={styles.imageViewerModal}>
+          <TouchableWithoutFeedback onPress={closeImageViewer}>
+            <View style={styles.imageViewerBackdrop} />
+          </TouchableWithoutFeedback>
+          
+          <View style={styles.imageViewerContent}>
+            <View style={styles.imageViewerHeader}>
+              <TouchableOpacity
+                style={[styles.imageViewerButton, styles.closeButton]}
+                onPress={closeImageViewer}
+              >
+                <MaterialCommunityIcons 
+                  name="close" 
+                  size={24} 
+                  color="#fff" 
+                />
+              </TouchableOpacity>
+            </View>
+            
+            {fullScreenImage && (
+              <Image
+                source={{ uri: fullScreenImage }}
+                style={styles.fullScreenImage}
+                resizeMode="contain"
+              />
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      <Portal>
+        <Dialog 
+          visible={editingMessageId !== null} 
+          onDismiss={closeEditDialog}
+          style={{ backgroundColor: themeColors.background }}
+        >
+          <Dialog.Title style={{ color: themeColors.text }}>
+            Edit Message
+          </Dialog.Title>
+          <Dialog.Content>
+            <Text style={[{ color: themeColors.secondaryText, marginBottom: 12, fontSize: 14 }]}>
+              All messages after this one will be deleted.
+            </Text>
+            <TextInput
+              style={[
+                styles.editInput,
+                { 
+                  backgroundColor: themeColors.borderColor,
+                  color: themeColors.text,
+                  borderColor: themeColors.headerBackground 
+                }
+              ]}
+              value={editedMessageContent}
+              onChangeText={setEditedMessageContent}
+              multiline
+              placeholder="Enter your message..."
+              placeholderTextColor={themeColors.secondaryText}
+              autoFocus
+            />
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={closeEditDialog} textColor={themeColors.secondaryText}>
+              Cancel
+            </Button>
+            <Button 
+              onPress={saveEditedMessage} 
+              textColor={themeColors.headerBackground}
+              disabled={!editedMessageContent.trim()}
+            >
+              Save
+            </Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
     </View>
   );
 }
@@ -550,6 +781,11 @@ const styles = StyleSheet.create({
     paddingBottom: 6,
     borderBottomWidth: 0.5,
     borderBottomColor: 'rgba(0, 0, 0, 0.1)',
+  },
+  messageHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   roleLabel: {
     fontSize: 12,
@@ -692,5 +928,84 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 12,
     fontWeight: '600',
+  },
+  multimodalWrapper: {
+    marginBottom: 8,
+    width: '85%',
+  },
+  imageContainer: {
+    marginBottom: 8,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  messageImage: {
+    width: '100%',
+    height: 200,
+    borderRadius: 12,
+  },
+  audioContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  audioLabel: {
+    marginLeft: 8,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  imageViewerModal: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageViewerBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  imageViewerContent: {
+    flex: 1,
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageViewerHeader: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 60 : 40,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    zIndex: 1,
+  },
+  imageViewerButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  closeButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  fullScreenImage: {
+    width: Dimensions.get('window').width,
+    height: Dimensions.get('window').height,
+  },
+  editInput: {
+    minHeight: 80,
+    maxHeight: 200,
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    textAlignVertical: 'top',
   },
 }); 

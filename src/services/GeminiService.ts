@@ -1,3 +1,5 @@
+import * as FileSystem from 'expo-file-system';
+
 type ChatMessage = {
   id: string;
   content: string;
@@ -22,6 +24,76 @@ export class GeminiService {
 
   constructor(apiKeyProvider: (provider: string) => Promise<string | null>) {
     this.apiKeyProvider = apiKeyProvider;
+  }
+
+  private async convertImageToBase64(imageUri: string): Promise<{ data: string; mimeType: string }> {
+    try {
+      const base64String = await FileSystem.readAsStringAsync(imageUri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      
+      const fileExtension = imageUri.toLowerCase().split('.').pop();
+      let mimeType = 'image/jpeg'; // default
+      
+      switch (fileExtension) {
+        case 'png':
+          mimeType = 'image/png';
+          break;
+        case 'webp':
+          mimeType = 'image/webp';
+          break;
+        case 'heic':
+          mimeType = 'image/heic';
+          break;
+        case 'heif':
+          mimeType = 'image/heif';
+          break;
+        default:
+          mimeType = 'image/jpeg';
+      }
+      
+      return { data: base64String, mimeType };
+    } catch (error) {
+      console.error('Error converting image to base64:', error);
+      throw new Error('Failed to process image for Gemini API');
+    }
+  }
+
+  private async parseMessageContent(message: ChatMessage): Promise<any[]> {
+    try {
+      const parsed = JSON.parse(message.content);
+      
+      if (parsed.type === 'multimodal' && parsed.content) {
+        const parts: any[] = [];
+        
+        for (const item of parsed.content) {
+          if (item.type === 'text') {
+            parts.push({ text: item.text });
+          } else if (item.type === 'image' && item.uri) {
+            const { data, mimeType } = await this.convertImageToBase64(item.uri);
+            parts.push({
+              inlineData: {
+                mimeType: mimeType,
+                data: data
+              }
+            });
+          }
+        }
+        
+        return parts;
+      }
+      
+      if (parsed.type === 'ocr_result') {
+        const instruction = parsed.internalInstruction || '';
+        const userPrompt = parsed.userPrompt || '';
+        
+        return [{ text: `${instruction}\n\nUser request: ${userPrompt}` }];
+      }
+    } catch (error) {
+      // Not a JSON message, treat as regular text
+    }
+    
+    return [{ text: message.content }];
   }
 
   async generateResponse(
@@ -60,10 +132,14 @@ export class GeminiService {
         prompt = `${systemMessage.content}\n\n`;
       }
 
-      const formattedMessages = userMessages.map(msg => ({
-        role: msg.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: msg.content }]
-      }));
+      const formattedMessages = [];
+      for (const msg of userMessages) {
+        const parts = await this.parseMessageContent(msg);
+        formattedMessages.push({
+          role: msg.role === 'assistant' ? 'model' : 'user',
+          parts: parts
+        });
+      }
 
       const modelPath = model.startsWith('models/') ? model : `models/${model}`;
       const url = `https://generativelanguage.googleapis.com/v1beta/${modelPath}:${shouldStreamTokens ? 'streamGenerateContent' : 'generateContent'}?key=${apiKey}`;
@@ -350,15 +426,22 @@ export class GeminiService {
         console.log("Single response object format detected");
         
         let text = '';
-        if (jsonResponse.candidates.length > 0 && 
-            jsonResponse.candidates[0].content && 
-            jsonResponse.candidates[0].content.parts) {
+        if (jsonResponse.candidates.length > 0) {
+          const candidate = jsonResponse.candidates[0];
           
-          const parts = jsonResponse.candidates[0].content.parts;
-          for (const part of parts) {
-            if (part.text) {
-              text += part.text;
+          
+          if (candidate.content && candidate.content.parts && candidate.content.parts.length > 0) {
+            const parts = candidate.content.parts;
+            for (const part of parts) {
+              if (part.text) {
+                text += part.text;
+              }
             }
+          } 
+          
+          else if (candidate.finishReason === 'MAX_TOKENS' && !text) {
+            console.warn("Gemini response hit MAX_TOKENS with empty content, likely due to low maxTokens setting");
+            throw new Error('Response was cut off due to token limit. Please try with a higher token limit.');
           }
           
           console.log(`Response length: ${text.length} characters`);

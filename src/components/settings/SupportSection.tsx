@@ -38,7 +38,7 @@ const SupportSection = ({ onOpenLink }: SupportSectionProps) => {
 
       <TouchableOpacity 
         style={[styles.settingItem, styles.settingItemBorder]}
-        onPress={() => onOpenLink('https://github.com/ggerganov/llama.cpp')}
+        onPress={() => onOpenLink('https://github.com/sbhjt-gr/inferra')}
       >
         <View style={styles.settingLeft}>
           <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
@@ -49,7 +49,7 @@ const SupportSection = ({ onOpenLink }: SupportSectionProps) => {
               GitHub Repository
             </Text>
             <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
-              Contribute to llama.cpp
+              Star my project on GitHub
             </Text>
           </View>
         </View>
@@ -58,7 +58,7 @@ const SupportSection = ({ onOpenLink }: SupportSectionProps) => {
 
       <TouchableOpacity 
         style={[styles.settingItem, styles.settingItemBorder]}
-        onPress={() => onOpenLink('https://ragionare.ct.ws/privacy-policy')}
+        onPress={() => onOpenLink('https://inferra.me/privacy-policy')}
       >
         <View style={styles.settingLeft}>
           <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
@@ -70,6 +70,26 @@ const SupportSection = ({ onOpenLink }: SupportSectionProps) => {
             </Text>
             <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
               View the app's privacy policy page
+            </Text>
+          </View>
+        </View>
+        <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
+      </TouchableOpacity>
+
+      <TouchableOpacity 
+        style={[styles.settingItem, styles.settingItemBorder]}
+        onPress={() => onOpenLink('https://ko-fi.com/subhajitgorai')}
+      >
+        <View style={styles.settingLeft}>
+          <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
+            <MaterialCommunityIcons name="currency-usd" size={22} color={iconColor} />
+          </View>
+          <View style={styles.settingTextContainer}>
+            <Text style={[styles.settingText, { color: themeColors.text }]}>
+              Support Development
+            </Text>
+            <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
+              Donate to me for my work
             </Text>
           </View>
         </View>

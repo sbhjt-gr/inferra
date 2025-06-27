@@ -1,25 +1,32 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { llamaManager } from '../utils/LlamaManager';
-import { Snackbar } from 'react-native-paper';
+import { Snackbar, Text } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from './ThemeContext';
 
 interface ModelContextType {
   selectedModelPath: string | null;
+  selectedProjectorPath: string | null;
   isModelLoading: boolean;
-  loadModel: (modelPath: string) => Promise<void>;
+  loadModel: (modelPath: string, mmProjectorPath?: string) => Promise<boolean>;
   unloadModel: () => Promise<void>;
-  setSelectedModelPath: (modelPath: string) => void;
+  unloadProjector: () => Promise<void>;
+  setSelectedModelPath: (path: string | null) => void;
+  isMultimodalEnabled: boolean;
 }
 
 const ModelContext = createContext<ModelContextType | undefined>(undefined);
 
 export const ModelProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [selectedModelPath, setSelectedModelPath] = useState<string | null>(null);
+  const [selectedProjectorPath, setSelectedProjectorPath] = useState<string | null>(null);
   const [isModelLoading, setIsModelLoading] = useState(false);
+  const [isMultimodalEnabled, setIsMultimodalEnabled] = useState(false);
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarType, setSnackbarType] = useState<'success' | 'error'>('success');
   const insets = useSafeAreaInsets();
+  const { theme: currentTheme } = useTheme();
 
   const showSnackbar = (message: string, type: 'success' | 'error' = 'success') => {
     setSnackbarMessage(message);
@@ -27,54 +34,112 @@ export const ModelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setSnackbarVisible(true);
   };
 
-  const loadModel = useCallback(async (modelPath: string) => {
+  const updateProjectorState = () => {
+    const projectorPath = llamaManager.getMultimodalProjectorPath();
+    const multimodalEnabled = llamaManager.isMultimodalInitialized();
+    
+    setSelectedProjectorPath(projectorPath);
+    setIsMultimodalEnabled(multimodalEnabled);
+  };
+
+  const loadModel = async (modelPath: string, mmProjectorPath?: string): Promise<boolean> => {
+    if (isModelLoading) {
+      showSnackbar('Model is already loading', 'error');
+      return false;
+    }
+
+    setIsModelLoading(true);
+    
     try {
-      setIsModelLoading(true);
-      
-      if (!modelPath) {
-        throw new Error('Invalid model path');
+      console.log('[ModelContext] Loading model:', modelPath);
+      if (mmProjectorPath) {
+        console.log('[ModelContext] With multimodal projector:', mmProjectorPath);
       }
-
-      if (modelPath !== selectedModelPath) {
-        const success = await llamaManager.loadModel(modelPath);
-        
-        if (!success || !llamaManager.isInitialized()) {
-          throw new Error('Model failed to initialize properly');
-        }
-
+      
+      const success = await llamaManager.loadModel(modelPath, mmProjectorPath);
+      
+      if (success) {
         setSelectedModelPath(modelPath);
+        updateProjectorState();
+        
+        const modelName = modelPath.split('/').pop() || 'Model';
+        const multimodalText = mmProjectorPath ? ' (Multimodal)' : '';
+        showSnackbar(`${modelName}${multimodalText} loaded successfully`);
+        
+
+        return true;
+      } else {
+        showSnackbar('Failed to load model', 'error');
+        setSelectedModelPath(null);
+        setSelectedProjectorPath(null);
+        setIsMultimodalEnabled(false);
+        return false;
       }
     } catch (error) {
-      console.error('Model loading error:', error);
-      showSnackbar(
-        error instanceof Error ? error.message : 'Failed to load model',
-        'error'
-      );
+      console.error('[ModelContext] Error loading model:', error);
+      showSnackbar('Error loading model', 'error');
+      setSelectedModelPath(null);
+      setSelectedProjectorPath(null);
+      setIsMultimodalEnabled(false);
+      return false;
     } finally {
       setIsModelLoading(false);
     }
-  }, [selectedModelPath]);
+  };
 
-  const unloadModel = useCallback(async () => {
+  const unloadModel = async (): Promise<void> => {
     try {
-      setIsModelLoading(true);
       await llamaManager.unloadModel();
       setSelectedModelPath(null);
+      setSelectedProjectorPath(null);
+      setIsMultimodalEnabled(false);
+      showSnackbar('Model unloaded');
     } catch (error) {
-      console.error('Error unloading model:', error);
-      showSnackbar('Failed to unload model', 'error');
-    } finally {
-      setIsModelLoading(false);
+      console.error('[ModelContext] Error unloading model:', error);
+      showSnackbar('Error unloading model', 'error');
     }
+  };
+
+  const unloadProjector = async (): Promise<void> => {
+    try {
+      await llamaManager.releaseMultimodal();
+      setSelectedProjectorPath(null);
+      setIsMultimodalEnabled(false);
+      showSnackbar('Projector model unloaded');
+    } catch (error) {
+      console.error('[ModelContext] Error unloading projector:', error);
+      showSnackbar('Error unloading projector', 'error');
+    }
+  };
+
+  useEffect(() => {
+    const unsubscribeLoaded = llamaManager.addListener('model-loaded', (modelPath: string) => {
+      setSelectedModelPath(modelPath);
+      updateProjectorState();
+    });
+
+    const unsubscribeUnloaded = llamaManager.addListener('model-unloaded', () => {
+      setSelectedModelPath(null);
+      setSelectedProjectorPath(null);
+      setIsMultimodalEnabled(false);
+    });
+
+    return () => {
+      unsubscribeLoaded();
+      unsubscribeUnloaded();
+    };
   }, []);
 
   return (
     <ModelContext.Provider value={{
       selectedModelPath,
+      selectedProjectorPath,
       isModelLoading,
       loadModel,
       unloadModel,
-      setSelectedModelPath
+      unloadProjector,
+      setSelectedModelPath,
+      isMultimodalEnabled
     }}>
       {children}
       <Snackbar
@@ -88,9 +153,12 @@ export const ModelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         action={{
           label: 'Dismiss',
           onPress: () => setSnackbarVisible(false),
+          textColor: '#FFFFFF',
         }}
       >
-        {snackbarMessage}
+        <Text style={{ color: '#FFFFFF' }}>
+          {snackbarMessage}
+        </Text>
       </Snackbar>
     </ModelContext.Provider>
   );

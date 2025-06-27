@@ -47,7 +47,7 @@ interface ModelSelectorProps {
   onClose?: () => void;
   preselectedModelPath?: string | null;
   isGenerating?: boolean;
-  onModelSelect?: (provider: 'local' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude', modelPath?: string) => void;
+  onModelSelect?: (provider: 'local' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude', modelPath?: string, projectorPath?: string) => void;
   navigation?: NativeStackNavigationProp<RootStackParamList>;
 }
 
@@ -73,7 +73,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     const [modalVisible, setModalVisible] = useState(false);
     const [models, setModels] = useState<StoredModel[]>([]);
     const [sections, setSections] = useState<SectionData[]>([]);
-    const { selectedModelPath, isModelLoading, loadModel, unloadModel } = useModel();
+    const { selectedModelPath, selectedProjectorPath, isModelLoading, loadModel, unloadModel, unloadProjector } = useModel();
     const [onlineModelStatuses, setOnlineModelStatuses] = useState<{[key: string]: boolean}>({
       gemini: false,
       chatgpt: false,
@@ -87,6 +87,10 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     const [dialogTitle, setDialogTitle] = useState('');
     const [dialogMessage, setDialogMessage] = useState('');
     const [dialogActions, setDialogActions] = useState<React.ReactNode[]>([]);
+
+    const [projectorSelectorVisible, setProjectorSelectorVisible] = useState(false);
+    const [projectorModels, setProjectorModels] = useState<StoredModel[]>([]);
+    const [selectedVisionModel, setSelectedVisionModel] = useState<Model | null>(null);
 
     const hideDialog = () => setDialogVisible(false);
 
@@ -237,12 +241,128 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
           onModelSelect(model.id as 'gemini' | 'chatgpt' | 'deepseek' | 'claude');
         }
       } else {
-        if (onModelSelect) {
-          onModelSelect('local', model.path);
+        const isVisionModel = model.name.toLowerCase().includes('llava') || 
+                             model.name.toLowerCase().includes('vision') ||
+                             model.name.toLowerCase().includes('minicpm');
+        
+        if (isVisionModel) {
+          showMultimodalDialog(model);
         } else {
-          await loadModel(model.path);
+          if (onModelSelect) {
+            onModelSelect('local', model.path);
+          } else {
+            await loadModel(model.path);
+          }
         }
       }
+    };
+
+    const showMultimodalDialog = (model: Model) => {
+      showDialog(
+        'Vision Model Detected',
+        `${model.name} appears to be a vision model. Do you want to load it with multimodal capabilities?`,
+        [
+          <Button 
+            key="text-only" 
+            onPress={() => {
+              hideDialog();
+              if (onModelSelect) {
+                onModelSelect('local', (model as StoredModel).path);
+              } else {
+                loadModel((model as StoredModel).path);
+              }
+            }}
+          >
+            Text Only
+          </Button>,
+          <Button 
+            key="multimodal" 
+            onPress={() => {
+              hideDialog();
+              promptForProjector(model);
+            }}
+          >
+            With Vision
+          </Button>
+        ]
+      );
+    };
+
+    const loadProjectorModels = async () => {
+      try {
+        const storedModels = await modelDownloader.getStoredModels();
+        const projectorModels = storedModels.filter(model => 
+          model.name.toLowerCase().includes('proj') || 
+          model.name.toLowerCase().includes('mmproj') ||
+          model.name.toLowerCase().includes('vision') ||
+          model.name.toLowerCase().includes('clip')
+        );
+        setProjectorModels(projectorModels);
+      } catch (error) {
+        console.error('Error loading projector models:', error);
+        setProjectorModels([]);
+      }
+    };
+
+    const promptForProjector = async (model: Model) => {
+      setSelectedVisionModel(model);
+      await loadProjectorModels();
+      setProjectorSelectorVisible(true);
+    };
+
+    const handleProjectorSelect = async (projectorModel: StoredModel) => {
+      setProjectorSelectorVisible(false);
+      
+      if (!selectedVisionModel) return;
+
+      if (onModelSelect) {
+        showDialog(
+          'Multimodal Model Ready',
+          `Loading ${selectedVisionModel.name} with vision capabilities using ${projectorModel.name}`,
+          [<Button key="ok" onPress={hideDialog}>OK</Button>]
+        );
+        onModelSelect('local', (selectedVisionModel as StoredModel).path, projectorModel.path);
+      } else {
+        const success = await loadModel((selectedVisionModel as StoredModel).path, projectorModel.path);
+        if (success) {
+          showDialog(
+            'Success',
+            'Vision model loaded successfully! You can now send images and photos.',
+            [<Button key="ok" onPress={hideDialog}>OK</Button>]
+          );
+        }
+      }
+      setSelectedVisionModel(null);
+    };
+
+    const handleProjectorSkip = async () => {
+      setProjectorSelectorVisible(false);
+      
+      if (!selectedVisionModel) return;
+
+      if (onModelSelect) {
+        showDialog(
+          'Text-Only Model Ready',
+          `Loading ${selectedVisionModel.name} in text-only mode (without vision capabilities)`,
+          [<Button key="ok" onPress={hideDialog}>OK</Button>]
+        );
+        onModelSelect('local', (selectedVisionModel as StoredModel).path);
+      } else {
+        const success = await loadModel((selectedVisionModel as StoredModel).path);
+        if (success) {
+          showDialog(
+            'Success',
+            'Model loaded successfully in text-only mode.',
+            [<Button key="ok" onPress={hideDialog}>OK</Button>]
+          );
+        }
+      }
+      setSelectedVisionModel(null);
+    };
+
+    const handleProjectorSelectorClose = () => {
+      setProjectorSelectorVisible(false);
+      setSelectedVisionModel(null);
     };
 
     const handleUnloadModel = () => {
@@ -258,6 +378,25 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
           await unloadModel();
         }}>
           Unload
+        </Button>
+      ];
+
+      showDialog(title, message, actions);
+    };
+
+    const handleUnloadProjector = () => {
+      const title = 'Unload Projector';
+      const message = isGenerating
+        ? 'This will disable vision capabilities and stop the current generation. Are you sure you want to unload the projector?'
+        : 'Are you sure you want to unload the projector model? This will disable vision capabilities.';
+
+      const actions = [
+        <Button key="cancel" onPress={hideDialog}>Cancel</Button>,
+        <Button key="unload" onPress={async () => {
+          hideDialog();
+          await unloadProjector();
+        }}>
+          Unload Projector
         </Button>
       ];
 
@@ -291,6 +430,13 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
       if (path === 'chatgpt') return 'ChatGPT';
       if (path === 'deepseek') return 'DeepSeek';
       if (path === 'claude') return 'Claude';
+      
+      const model = models.find(m => m.path === path);
+      return model ? getDisplayName(model.name) : getDisplayName(path.split('/').pop() || '');
+    };
+
+    const getProjectorNameFromPath = (path: string | null, models: StoredModel[]): string => {
+      if (!path) return '';
       
       const model = models.find(m => m.path === path);
       return model ? getDisplayName(model.name) : getDisplayName(path.split('/').pop() || '');
@@ -642,9 +788,52 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                   </View>
                 )}
               </View>
+              {selectedProjectorPath && !isModelLoading && (
+                <>
+                  <Text style={[styles.projectorLabel, { color: currentTheme === 'dark' ? '#ccc' : themeColors.secondaryText }]}>
+                    Vision Projector
+                  </Text>
+                  <View style={styles.projectorNameContainer}>
+                    <MaterialCommunityIcons 
+                      name="eye" 
+                      size={16} 
+                      color={currentTheme === 'dark' ? '#5FD584' : '#2a8c42'} 
+                    />
+                    <Text style={[styles.projectorText, { color: currentTheme === 'dark' ? '#ccc' : themeColors.secondaryText }]}>
+                      {getProjectorNameFromPath(selectedProjectorPath, models)}
+                    </Text>
+                    <View style={[
+                      styles.connectionTypeBadge,
+                      { backgroundColor: 'rgba(95, 213, 132, 0.15)' }
+                    ]}>
+                      <Text style={[styles.connectionTypeText, { color: currentTheme === 'dark' ? '#5FD584' : '#2a8c42' }]}>
+                        VISION
+                      </Text>
+                    </View>
+                  </View>
+                </>
+              )}
             </View>
           </View>
           <View style={styles.selectorActions}>
+            {selectedProjectorPath && !isModelLoading && (
+              <TouchableOpacity 
+                onPress={handleUnloadProjector}
+                style={[
+                  styles.unloadButton,
+                  styles.projectorUnloadButton,
+                  isGenerating && styles.unloadButtonActive
+                ]}
+              >
+                <MaterialCommunityIcons 
+                  name="eye-off" 
+                  size={16} 
+                  color={isGenerating ? 
+                    getThemeAwareColor('#d32f2f', currentTheme) : 
+                    currentTheme === 'dark' ? '#5FD584' : '#2a8c42'} 
+                />
+              </TouchableOpacity>
+            )}
             {selectedModelPath && !isModelLoading && (
               <TouchableOpacity 
                 onPress={handleUnloadModel}
@@ -727,6 +916,67 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
             </Dialog.Content>
             <Dialog.Actions>
               {dialogActions}
+            </Dialog.Actions>
+          </Dialog>
+
+          {/* Projector Selector Dialog */}
+          <Dialog visible={projectorSelectorVisible} onDismiss={handleProjectorSelectorClose}>
+            <Dialog.Title>Select Multimodal Projector</Dialog.Title>
+            <Dialog.Content>
+              <Text style={{ marginBottom: 16, color: currentTheme === 'dark' ? '#fff' : themeColors.text }}>
+                Choose a projector (mmproj) model to enable multimodal capabilities:
+              </Text>
+              {projectorModels.length === 0 ? (
+                <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                  <MaterialCommunityIcons 
+                    name="cube-outline" 
+                    size={48} 
+                    color={currentTheme === 'dark' ? '#666' : '#ccc'} 
+                  />
+                  <Text style={{ 
+                    marginTop: 12, 
+                    textAlign: 'center',
+                    color: currentTheme === 'dark' ? '#ccc' : '#666' 
+                  }}>
+                    No projector models found in your stored models.{'\n'}
+                  </Text>
+                </View>
+              ) : (
+                projectorModels.map((model) => (
+                  <TouchableOpacity
+                    key={model.path}
+                    style={[
+                      styles.projectorModelItem,
+                      { backgroundColor: currentTheme === 'dark' ? '#2a2a2a' : '#f1f1f1' }
+                    ]}
+                    onPress={() => handleProjectorSelect(model)}
+                  >
+                    <MaterialCommunityIcons
+                      name="cube-outline"
+                      size={20}
+                      color={currentTheme === 'dark' ? '#fff' : '#000'}
+                    />
+                    <View style={styles.projectorModelInfo}>
+                      <Text style={[
+                        styles.projectorModelName,
+                        { color: currentTheme === 'dark' ? '#fff' : '#000' }
+                      ]}>
+                        {model.name}
+                      </Text>
+                      <Text style={[
+                        styles.projectorModelSize,
+                        { color: currentTheme === 'dark' ? '#ccc' : '#666' }
+                      ]}>
+                        {(model.size / (1024 * 1024)).toFixed(1)} MB
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ))
+              )}
+            </Dialog.Content>
+            <Dialog.Actions>
+              <Button onPress={handleProjectorSkip}>Skip</Button>
+              <Button onPress={handleProjectorSelectorClose}>Cancel</Button>
             </Dialog.Actions>
           </Dialog>
         </Portal>
@@ -950,5 +1200,45 @@ const styles = StyleSheet.create({
   onlineModelsHeaderWithKeys: {
     borderColor: 'rgba(74, 180, 96, 0.3)',
     backgroundColor: 'rgba(74, 180, 96, 0.05)',
+  },
+  projectorModelItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    marginVertical: 4,
+    borderRadius: 8,
+  },
+  projectorModelInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  projectorModelName: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  projectorModelSize: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  projectorLabel: {
+    fontSize: 10,
+    marginTop: 8,
+    marginBottom: 2,
+    textTransform: 'uppercase',
+    fontWeight: '600',
+    letterSpacing: 0.5,
+  },
+  projectorNameContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  projectorText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  projectorUnloadButton: {
+    backgroundColor: 'rgba(95, 213, 132, 0.1)',
+    borderRadius: 12,
   },
 }); 

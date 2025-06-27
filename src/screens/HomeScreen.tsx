@@ -1341,7 +1341,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     }
   };
 
-  const handleModelSelect = async (model: 'local' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude', modelPath?: string) => {
+  const handleModelSelect = async (model: 'local' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude', modelPath?: string, projectorPath?: string) => {
     if (model !== 'local' && (!enableRemoteModels || !isLoggedIn)) {
       showDialog(
         'Remote Models Disabled',
@@ -1364,9 +1364,10 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     
     if (model === 'local') {
       if (modelPath) {
-        await loadModel(modelPath);
+        await loadModel(modelPath, projectorPath);
       }
       setActiveProvider('local');
+      chatManager.setCurrentProvider('local');
     } else {
       if (model === 'gemini') {
         const hasApiKey = await onlineModelService.hasApiKey('gemini');
@@ -1392,10 +1393,12 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         await unloadModel();
         setActiveProvider('gemini');
         setSelectedModelPath('gemini');
+        chatManager.setCurrentProvider('gemini');
       } else if (model === 'chatgpt' || model === 'deepseek' || model === 'claude') {
         await unloadModel();
         setActiveProvider(model);
         setSelectedModelPath(model);
+        chatManager.setCurrentProvider(model);
       }
     }
   };
@@ -1405,8 +1408,10 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       const modelPath = llamaManager.getModelPath();
       if (modelPath) {
         setActiveProvider('local');
+        chatManager.setCurrentProvider('local');
       } else if (activeProvider === null) {
         setActiveProvider('local');
+        chatManager.setCurrentProvider('local');
       }
     };
     
@@ -1417,6 +1422,13 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     return () => {
       unsubscribe();
     };
+  }, [activeProvider]);
+
+  useEffect(() => {
+    
+    if (activeProvider) {
+      chatManager.setCurrentProvider(activeProvider);
+    }
   }, [activeProvider]);
 
   useEffect(() => {
@@ -1575,6 +1587,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
            isRegenerating={isRegenerating}
            justCancelled={justCancelled}
            flatListRef={flatListRef}
+           onEditMessageAndRegenerate={processMessage}
         />
 
         <ChatInput

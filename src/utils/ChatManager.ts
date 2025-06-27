@@ -41,6 +41,7 @@ class ChatManager {
   private chats: Chat[] = [];
   private currentChatId: string | null = null;
   private listeners: Set<() => void> = new Set();
+  private currentProvider: 'local' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude' | null = null;
 
   constructor() {
     this.loadAllChats();
@@ -218,13 +219,110 @@ class ChatManager {
     
     if (message.role === 'user' && 
         currentChat.messages.filter(m => m.role === 'user').length === 1) {
-      currentChat.title = message.content.slice(0, 50) + (message.content.length > 50 ? '...' : '');
+      
+      const now = new Date();
+      const dateStr = now.toLocaleDateString();
+      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      currentChat.title = `Chat ${dateStr} ${timeStr}`;
+      
+      
+      this.generateTitleForCurrentChat(message.content);
     }
 
     await this.saveAllChats();
     this.notifyListeners();
     
     return true;
+  }
+
+  
+  private async generateTitleForCurrentChat(userMessage: string): Promise<void> {
+    if (!this.currentChatId) return;
+    
+    const currentChat = this.getChatById(this.currentChatId);
+    if (!currentChat) return;
+
+    try {
+      
+      setTimeout(async () => {
+        try {
+          console.log('[ChatManager] Starting title generation for user message:', userMessage.slice(0, 50) + '...');
+          const title = await this.generateChatTitle(userMessage);
+          console.log('[ChatManager] Generated title:', title);
+          
+          
+          const chatToUpdate = this.getChatById(this.currentChatId!);
+          if (chatToUpdate && chatToUpdate.messages.filter(m => m.role === 'user').length === 1) {
+            chatToUpdate.title = title;
+            await this.saveAllChats();
+            this.notifyListeners();
+            console.log('[ChatManager] Title updated successfully');
+          }
+        } catch (error) {
+          console.error('[ChatManager] Title generation failed:', error);
+        }
+      }, 1000);
+    } catch (error) {
+      
+    }
+  }
+
+  
+  setCurrentProvider(provider: 'local' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude' | null) {
+    this.currentProvider = provider;
+  }
+
+  getCurrentProvider(): 'local' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude' | null {
+    return this.currentProvider;
+  }
+
+  
+  private async generateChatTitle(userMessage: string): Promise<string> {
+    try {
+      
+      if (this.currentProvider === 'local') {
+        const { llamaManager } = await import('./LlamaManager');
+        if (llamaManager.isInitialized()) {
+          return await llamaManager.generateChatTitle(userMessage);
+        }
+      } else if (this.currentProvider === 'gemini' || this.currentProvider === 'chatgpt' || 
+                 this.currentProvider === 'deepseek' || this.currentProvider === 'claude') {
+        
+        const { onlineModelService } = await import('../services/OnlineModelService');
+        const hasApiKey = await onlineModelService.hasApiKey(this.currentProvider);
+        if (hasApiKey) {
+          return await onlineModelService.generateChatTitle(userMessage, this.currentProvider);
+        }
+      }
+
+      
+      const { llamaManager } = await import('./LlamaManager');
+      if (llamaManager.isInitialized()) {
+        return await llamaManager.generateChatTitle(userMessage);
+      }
+
+      
+      const { onlineModelService } = await import('../services/OnlineModelService');
+      const providers: ('gemini' | 'chatgpt' | 'deepseek' | 'claude')[] = ['gemini', 'chatgpt', 'deepseek', 'claude'];
+      for (const provider of providers) {
+        const hasApiKey = await onlineModelService.hasApiKey(provider);
+        if (hasApiKey) {
+          return await onlineModelService.generateChatTitle(userMessage, provider);
+        }
+      }
+
+      
+      const now = new Date();
+      const dateStr = now.toLocaleDateString();
+      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      return `Chat ${dateStr} ${timeStr}`;
+    } catch (error) {
+      
+      const now = new Date();
+      const dateStr = now.toLocaleDateString();
+      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      return `Chat ${dateStr} ${timeStr}`;
+    }
   }
 
   
@@ -322,6 +420,29 @@ class ChatManager {
       await this.saveAllChats();
       this.saveDebounceTimeout = null;
     }, 500); 
+  }
+
+  async editMessage(messageId: string, newContent: string): Promise<boolean> {
+    if (!this.currentChatId) return false;
+    
+    const currentChat = this.getChatById(this.currentChatId);
+    if (!currentChat) return false;
+
+    const messageIndex = currentChat.messages.findIndex(m => m.id === messageId);
+    if (messageIndex === -1) return false;
+
+    const message = currentChat.messages[messageIndex];
+    if (message.role !== 'user') return false;
+
+    message.content = newContent;
+    
+    currentChat.messages = currentChat.messages.slice(0, messageIndex + 1);
+    currentChat.timestamp = Date.now();
+
+    await this.saveAllChats();
+    this.notifyListeners();
+    
+    return true;
   }
 }
 
