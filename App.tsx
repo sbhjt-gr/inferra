@@ -6,6 +6,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
+import * as Updates from 'expo-updates';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { RemoteModelProvider } from './src/context/RemoteModelContext';
 import { theme } from './src/constants/theme';
@@ -118,6 +119,22 @@ function Navigation() {
   };
 
   useEffect(() => {
+    const checkForUpdates = async () => {
+      if (!__DEV__ && Updates.isEnabled) {
+        try {
+          const update = await Updates.checkForUpdateAsync();
+          if (update.isAvailable) {
+            await Updates.fetchUpdateAsync();
+            Updates.reloadAsync();
+          }
+        } catch (error) {
+          
+        }
+      }
+    };
+
+    checkForUpdates();
+
     const timer = setTimeout(() => {
       registerBackgroundFetchAsync().catch(error => {
         // do nothing

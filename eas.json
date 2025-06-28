@@ -25,12 +25,23 @@
     "production": {
       "distribution": "store",
       "android": {
-        "buildType": "app-bundle"
+        "buildType": "apk"
       },
       "channel": "production",
       "env": {
         "ANDROID_HOME": "/home/subhajit/Android/Sdk"
       }
+    }
+  },
+  "update": {
+    "development": {
+      "channel": "development"
+    },
+    "preview": {
+      "channel": "preview"
+    },
+    "production": {
+      "channel": "production"
     }
   },
   "submit": {
