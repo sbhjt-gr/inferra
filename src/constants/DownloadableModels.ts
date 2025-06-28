@@ -6,7 +6,7 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "description": "Google's enhanced Gemma 3 variant with optimized efficiency and fast inference capabilities.",
     "size": "2.76 GB",
     "huggingFaceLink": "https://huggingface.co/unsloth/gemma-3n-E4B-it-GGUF/resolve/main/gemma-3n-E4B-it-Q2_K.gguf",
-    "modelFamily": "3+ Billion",
+    "modelFamily": "4 Billion",
     "quantization": "Q2_K",
     "tags": ["recommended"]
   },
@@ -65,7 +65,7 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "description": "Google's enhanced Gemma 3 variant with balanced performance and quality optimization.",
     "size": "4.1 GB",
     "huggingFaceLink": "https://huggingface.co/unsloth/gemma-3n-E4B-it-GGUF/resolve/main/gemma-3n-E4B-it-Q4_K_S.gguf",
-    "modelFamily": "3+ Billion",
+    "modelFamily": "4 Billion",
     "quantization": "Q4_K_S",
   },
   {
