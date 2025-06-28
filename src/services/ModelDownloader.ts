@@ -64,8 +64,6 @@ class ModelDownloader extends EventEmitter {
         console.error('Error setting up AppState listener in ModelDownloader:', error);
       }
       
-      await this.setupNotifications();
-      
       await this.downloadTaskManager.processCompletedDownloads();
       
       await this.fileManager.cleanupTempDirectory();
@@ -76,11 +74,7 @@ class ModelDownloader extends EventEmitter {
     }
   }
 
-  private async setupNotifications() {
-    if (Platform.OS === 'android') {
-      await downloadNotificationService.requestPermissions();
-    }
-  }
+
 
   private async requestNotificationPermissions(): Promise<boolean> {
     if (Device.isDevice) {
