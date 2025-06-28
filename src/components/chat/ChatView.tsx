@@ -142,12 +142,6 @@ export default function ChatView({
     }
   }, [editingMessageId, editedMessageContent, closeEditDialog, onEditMessageAndRegenerate]);
 
-  const formatDuration = useCallback((seconds: number): string => {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = Math.floor(seconds % 60);
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-  }, []);
-
   const renderMessage = useCallback(({ item }: { item: Message }) => {
     const isCurrentlyStreaming = (isStreaming || justCancelled) && item.id === streamingMessageId;
     const showLoadingIndicator = isCurrentlyStreaming && !streamingMessage && !justCancelled;
@@ -574,11 +568,6 @@ export default function ChatView({
               {stats?.duration && stats.duration > 0 && (
                 <Text style={[styles.statsText, { color: themeColors.secondaryText, marginLeft: 6 }]}> 
                   {`${((stats?.tokens ?? 0) / stats.duration).toFixed(1)} tok/s`}
-                </Text>
-              )}
-              {stats?.duration && stats.duration > 0 && (
-                <Text style={[styles.statsText, { color: themeColors.secondaryText, marginLeft: 6 }]}> 
-                  {formatDuration(stats.duration)}
                 </Text>
               )}
               

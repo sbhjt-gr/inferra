@@ -83,6 +83,7 @@
     "@types/react": "~19.0.10",
     "@types/react-test-renderer": "^18.3.0",
     "@types/uuid": "^10.0.0",
+    "babel-plugin-transform-remove-console": "^6.9.4",
     "eslint": "^8.57.0",
     "eslint-config-expo": "~9.2.0",
     "expo-build-properties": "~0.14.6",
