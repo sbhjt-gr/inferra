@@ -5,7 +5,7 @@ export default {
     name: "Inferra",
     slug: "inferra",
     owner: "subhajitgorai",
-    version: "2.0.0",
+    version: "2.5.0",
     orientation: "portrait",
     icon: "./assets/icon.png",
     userInterfaceStyle: "automatic",
@@ -16,7 +16,10 @@ export default {
       backgroundColor: "#660880"
     },
     updates: {
-      fallbackToCacheTimeout: 0
+      enabled: true,
+      checkAutomatically: 'ON_LOAD',
+      fallbackToCacheTimeout: 30000,
+      url: `https://u.expo.dev/${process.env.EAS_PROJECT_ID}`
     },
     assetBundlePatterns: [
       "**/*"
@@ -24,8 +27,8 @@ export default {
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.gorai.ragionare",
-      buildNumber: "200",
-      runtimeVersion: "2.0.0",
+      buildNumber: "250",
+      runtimeVersion: "2.5.0",
       infoPlist: {
         UIBackgroundModes: [
           "fetch",
@@ -37,13 +40,13 @@ export default {
       scheme: "com.gorai.ragionare"
     },
     android: {
-      versionCode: 201,
+      versionCode: 250,
       adaptiveIcon: {
         foregroundImage: "./assets/icon.png",
         backgroundColor: "#660880"
       },
       package: "com.gorai.ragionare",
-      runtimeVersion: "2.0.0",
+      runtimeVersion: "2.5.0",
       permissions: [
         "NOTIFICATIONS",
         "BACKGROUND_FETCH",
