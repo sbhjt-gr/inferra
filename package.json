@@ -58,7 +58,7 @@
     "expo-symbols": "~0.4.4",
     "expo-system-ui": "~5.0.7",
     "expo-task-manager": "~13.1.5",
-    "expo-updates": "^0.28.13",
+    "expo-updates": "~0.28.15",
     "expo-web-browser": "~14.1.6",
     "inferra-llama": "^1.8.3",
     "jest-expo": "~53.0.5",
