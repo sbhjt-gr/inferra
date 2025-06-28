@@ -30,11 +30,6 @@ import { ShowDialog } from './src/components/ShowDialog';
 
 SplashScreen.preventAutoHideAsync();
 
-LogBox.ignoreLogs([
-  'Invalid prop `compact` supplied to `React.Fragment`',
-  'React.Fragment can only have `key` and `children` props'
-]);
-
 const initializeServices = async () => {
   try {
     await initializeFirebase();
