@@ -10,6 +10,8 @@ import {
   ScrollView,
   Animated,
   Platform,
+  AppState,
+  AppStateStatus,
 } from 'react-native';
 import { CompositeNavigationProp } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
@@ -107,8 +109,24 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     modelFamilies: [],
     quantizations: [],
   });
-  const [filteredModels, setFilteredModels] = useState<DownloadableModel[]>(DOWNLOADABLE_MODELS);
+  const [filteredModels, setFilteredModels] = useState<DownloadableModel[]>([]);
   const [guidanceDialogVisible, setGuidanceDialogVisible] = useState(false);
+
+  useEffect(() => {
+    setFilteredModels(DOWNLOADABLE_MODELS);
+  }, []);
+
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'active') {
+        setFilteredModels(DOWNLOADABLE_MODELS);
+        applyFilters(filters);
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription?.remove();
+  }, [filters]);
 
   const hideDialog = () => setDialogVisible(false);
 
@@ -122,7 +140,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
   const applyFilters = (newFilters: FilterOptions) => {
     setFilters(newFilters);
     
-    let filtered = DOWNLOADABLE_MODELS;
+    let filtered = [...DOWNLOADABLE_MODELS];
     
     if (newFilters.tags.length > 0) {
       filtered = filtered.filter(model => 
