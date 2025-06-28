@@ -48,16 +48,7 @@ export default function CameraOverlay({ visible, onClose, onPhotoTaken }: Camera
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
   const isDark = currentTheme === 'dark';
-  useEffect(() => {
-    if (visible) {
-      if (!permission?.granted) {
-        requestPermission();
-      }
-      if (!mediaLibraryPermission?.granted) {
-        requestMediaLibraryPermission();
-      }
-    }
-  }, [visible]);
+
 
   const toggleCameraFacing = () => {
     setFacing(current => (current === 'back' ? 'front' : 'back'));

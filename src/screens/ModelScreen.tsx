@@ -512,10 +512,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       }
     };
 
-    const setupNotifications = async () => {
-      if (Platform.OS === 'android') {
-        await downloadNotificationService.requestPermissions();
-      }
+    const setupBackgroundTask = async () => {
       await registerBackgroundTask();
     };
 
@@ -525,7 +522,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     
     modelDownloader.on('modelsChanged', loadStoredModels);
     
-    setupNotifications();
+    setupBackgroundTask();
     
     return () => {
       modelDownloader.off('downloadProgress', handleProgress);
