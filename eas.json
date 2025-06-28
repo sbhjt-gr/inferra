@@ -1,35 +1,27 @@
 {
   "cli": {
-    "version": ">=16.0.0",
-    "appVersionSource": "local"
+    "version": ">= 12.0.0"
   },
   "build": {
     "development": {
-      "developmentClient": true,
       "distribution": "internal",
-      "channel": "development",
       "android": {
         "gradleCommand": ":app:assembleDebug"
+      },
+      "ios": {
+        "simulator": true
       }
     },
     "preview": {
       "distribution": "internal",
-      "channel": "preview",
       "android": {
         "buildType": "apk"
-      },
-      "env": {
-        "ANDROID_HOME": "/home/subhajit/Android/Sdk"
       }
     },
     "production": {
       "distribution": "store",
       "android": {
-        "buildType": "app-bundle"
-      },
-      "channel": "production",
-      "env": {
-        "ANDROID_HOME": "/home/subhajit/Android/Sdk"
+        "buildType": "apk"
       }
     }
   },

@@ -79,9 +79,7 @@ export default function ChatInput({
   const isGenerating = isLoading || isRegenerating;
   const hasText = text.trim().length > 0;
 
-  React.useEffect(() => {
-    checkAudioPermissions();
-  }, []);
+
 
   React.useEffect(() => {
     if (isRecording) {
@@ -134,18 +132,27 @@ export default function ChatInput({
     }).start();
   };
 
-  const checkAudioPermissions = async () => {
+  const checkAudioPermissions = async (): Promise<boolean> => {
     try {
       const { granted } = await AudioModule.getRecordingPermissionsAsync();
       setRecordingPermission(granted);
-      
-      if (!granted) {
-        const { granted: newGranted } = await AudioModule.requestRecordingPermissionsAsync();
-        setRecordingPermission(newGranted);
-      }
+      return granted;
     } catch (error) {
       console.error('Error checking audio permissions:', error);
       setRecordingPermission(false);
+      return false;
+    }
+  };
+
+  const requestAudioPermissions = async (): Promise<boolean> => {
+    try {
+      const { granted } = await AudioModule.requestRecordingPermissionsAsync();
+      setRecordingPermission(granted);
+      return granted;
+    } catch (error) {
+      console.error('Error requesting audio permissions:', error);
+      setRecordingPermission(false);
+      return false;
     }
   };
 
@@ -338,9 +345,15 @@ export default function ChatInput({
 
   const startRecording = async () => {
     try {
-      if (!recordingPermission) {
-        await checkAudioPermissions();
-        if (!recordingPermission) {
+      let hasPermission = recordingPermission;
+      
+      if (hasPermission === null) {
+        hasPermission = await checkAudioPermissions();
+      }
+      
+      if (!hasPermission) {
+        hasPermission = await requestAudioPermissions();
+        if (!hasPermission) {
           showDialog(
             'Permission Required',
             'Microphone permission is required to record audio.'
