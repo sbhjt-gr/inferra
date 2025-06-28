@@ -135,7 +135,8 @@ export default function ImageProcessingSelector({
     if (isOnlineModel) {
       return selectedModelPath !== 'deepseek';
     }
-    return isMultimodalEnabled;
+    
+    return true;
   };
 
   const getMultimodalTitle = (): string => {

@@ -44,7 +44,7 @@ export default function MultimodalDialog({ visible, onDismiss }: MultimodalDialo
       setTestResult('Testing vision support...');
 
       if (!llamaManager.hasVisionSupport()) {
-        setTestResult('Vision support not available. Please load a multimodal model with projector.');
+        setTestResult('AI Vision support not available with current model configuration.\n\nTo use AI Vision:\n• Load a vision-capable model (e.g., LLaVA)\n• Add a multimodal projector (mmproj)\n\nNote: OCR text extraction is still available and works independently of AI vision support.');
         return;
       }
 
