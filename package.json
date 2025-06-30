@@ -24,11 +24,11 @@
     "@react-native-firebase/firestore": "^22.2.1",
     "@react-native-google-signin/google-signin": "^14.0.1",
     "@react-native-menu/menu": "^1.2.3",
-    "@react-native-ml-kit/text-recognition": "^1.5.2",
     "@react-navigation/bottom-tabs": "^7.2.0",
     "@react-navigation/native": "^7.0.14",
     "@react-navigation/native-stack": "^7.2.0",
     "@react-navigation/stack": "^7.1.1",
+    "@subhajit-gorai/react-native-ml-kit-text-recognition": "^2.0.0",
     "eas": "^0.1.0",
     "eas-cli": "^16.0.1",
     "eventemitter3": "^5.0.1",
@@ -60,8 +60,8 @@
     "expo-task-manager": "~13.1.5",
     "expo-updates": "~0.28.15",
     "expo-web-browser": "~14.1.6",
-    "inferra-llama": "^1.8.3",
     "jest-expo": "~53.0.5",
+    "llama.rn": "^0.5.11",
     "react": "19.0.0",
     "react-native": "0.79.3",
     "react-native-dotenv": "^3.4.9",
@@ -72,7 +72,8 @@
     "react-native-pdf-page-image": "^0.2.1",
     "react-native-pdf-renderer": "^1.6.0",
     "react-native-safe-area-context": "5.4.0",
-    "react-native-screens": "~4.11.1"
+    "react-native-screens": "~4.11.1",
+    "react-native-vision-camera": "^4.7.0"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
