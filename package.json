@@ -63,7 +63,7 @@
     "inferra-llama": "^1.8.6",
     "jest-expo": "~53.0.5",
     "react": "19.0.0",
-    "react-native": "0.79.3",
+    "react-native": "^0.79.5",
     "react-native-dotenv": "^3.4.9",
     "react-native-gesture-handler": "~2.24.0",
     "react-native-get-random-values": "^1.11.0",
