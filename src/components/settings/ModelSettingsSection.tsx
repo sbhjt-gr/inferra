@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View, Switch } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
@@ -69,9 +69,69 @@ const ModelSettingsSection = ({
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme];
   const iconColor = currentTheme === 'dark' ? '#FFFFFF' : themeColors.primary;
+  const [showModelSettings, setShowModelSettings] = useState(false);
+  const [showEssentialSettings, setShowEssentialSettings] = useState(false);
+  const [showAdvancedSampling, setShowAdvancedSampling] = useState(false);
+  const [showGenerationControl, setShowGenerationControl] = useState(false);
+  const [showCoreSettings, setShowCoreSettings] = useState(false);
+  const [showExpertSettings, setShowExpertSettings] = useState(false);
+  const [showRepetitionPenalties, setShowRepetitionPenalties] = useState(false);
+  const [showMirostatSettings, setShowMirostatSettings] = useState(false);
+  const [showDrySettings, setShowDrySettings] = useState(false);
+  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
 
   return (
     <SettingsSection title="MODEL SETTINGS">
+      <TouchableOpacity 
+        style={[styles.settingItem]}
+        onPress={() => setShowModelSettings(!showModelSettings)}
+      >
+        <View style={styles.settingLeft}>
+          <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
+            <MaterialCommunityIcons name="cog-outline" size={22} color={iconColor} />
+          </View>
+          <View style={styles.settingTextContainer}>
+            <View style={styles.labelRow}>
+              <Text style={[styles.settingText, { color: themeColors.text }]}>
+                Model Parameters
+              </Text>
+              <View style={[styles.advancedTag, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
+                <Text style={[styles.advancedTagText, { color: currentTheme === 'dark' ? '#FFFFFF' : themeColors.primary }]}>
+                  ADVANCED
+                </Text>
+              </View>
+            </View>
+            <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
+              Tap to {showModelSettings ? 'hide' : 'view'} advanced settings
+            </Text>
+          </View>
+        </View>
+        <MaterialCommunityIcons 
+          name={showModelSettings ? "chevron-up" : "chevron-down"} 
+          size={20} 
+          color={themeColors.secondaryText} 
+        />
+      </TouchableOpacity>
+
+      {showModelSettings && (
+        <>
+      
+      {/* Essential Settings */}
+      <TouchableOpacity 
+        style={[styles.sectionHeader, { borderTopColor: 'rgba(150, 150, 150, 0.1)' }]}
+        onPress={() => setShowEssentialSettings(!showEssentialSettings)}
+      >
+        <Text style={[styles.sectionTitle, { color: themeColors.secondaryText }]}>ESSENTIAL SETTINGS</Text>
+        <MaterialCommunityIcons 
+          name={showEssentialSettings ? "chevron-up" : "chevron-down"} 
+          size={16} 
+          color={themeColors.secondaryText} 
+        />
+      </TouchableOpacity>
+
+      {showEssentialSettings && (
+        <>
+
       <TouchableOpacity 
         style={[styles.settingItem, styles.settingItemBorder]}
         onPress={onMaxTokensPress}
@@ -110,7 +170,183 @@ const ModelSettingsSection = ({
         </View>
         <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
       </TouchableOpacity>
-      
+
+      <SettingSlider
+        label="Temperature"
+        value={modelSettings.temperature}
+        defaultValue={defaultSettings.temperature}
+        onValueChange={(value) => onSettingsChange({ temperature: value })}
+        minimumValue={0}
+        maximumValue={2}
+        step={0.01}
+        description="Controls randomness in responses. Higher values make the output more creative but less focused."
+        onPressChange={() => onDialogOpen({
+          key: 'temperature',
+          label: 'Temperature',
+          value: modelSettings.temperature,
+          minimumValue: 0,
+          maximumValue: 2,
+          step: 0.01,
+          description: "Controls randomness in responses. Higher values make the output more creative but less focused."
+        })}
+      />
+
+      <SettingSlider
+        label="Top P"
+        value={modelSettings.topP}
+        defaultValue={defaultSettings.topP}
+        onValueChange={(value) => onSettingsChange({ topP: value })}
+        minimumValue={0}
+        maximumValue={1}
+        step={0.01}
+        description="Controls diversity of responses. Higher values = more diverse but potentially less focused."
+        onPressChange={() => onDialogOpen({
+          key: 'topP',
+          label: 'Top P',
+          value: modelSettings.topP,
+          minimumValue: 0,
+          maximumValue: 1,
+          step: 0.01,
+          description: "Controls diversity of responses. Higher values = more diverse but potentially less focused."
+        })}
+      />
+
+      <SettingSlider
+        label="Top K"
+        value={modelSettings.topK}
+        defaultValue={defaultSettings.topK}
+        onValueChange={(value) => onSettingsChange({ topK: value })}
+        minimumValue={1}
+        maximumValue={100}
+        step={1}
+        description="Limits the cumulative probability of tokens considered for each step of text generation."
+        onPressChange={() => onDialogOpen({
+          key: 'topK',
+          label: 'Top K',
+          value: modelSettings.topK,
+          minimumValue: 1,
+          maximumValue: 100,
+          step: 1,
+          description: "Limits the cumulative probability of tokens considered for each step of text generation."
+        })}
+      />
+        </>
+      )}
+
+      {/* Advanced Sampling */}
+      <TouchableOpacity 
+        style={[styles.sectionHeader, { borderTopColor: 'rgba(150, 150, 150, 0.1)' }]}
+        onPress={() => setShowAdvancedSampling(!showAdvancedSampling)}
+      >
+        <Text style={[styles.sectionTitle, { color: themeColors.secondaryText }]}>ADVANCED SAMPLING</Text>
+        <MaterialCommunityIcons 
+          name={showAdvancedSampling ? "chevron-up" : "chevron-down"} 
+          size={16} 
+          color={themeColors.secondaryText} 
+        />
+      </TouchableOpacity>
+
+      {showAdvancedSampling && (
+        <>
+
+      <SettingSlider
+        label="Min P"
+        value={modelSettings.minP}
+        defaultValue={defaultSettings.minP}
+        onValueChange={(value) => onSettingsChange({ minP: value })}
+        minimumValue={0}
+        maximumValue={1}
+        step={0.01}
+        description="Minimum probability threshold. Higher values = more focused on likely tokens."
+        onPressChange={() => onDialogOpen({
+          key: 'minP',
+          label: 'Min P',
+          value: modelSettings.minP,
+          minimumValue: 0,
+          maximumValue: 1,
+          step: 0.01,
+          description: "Minimum probability threshold. Higher values = more focused on likely tokens."
+        })}
+      />
+
+      <SettingSlider
+        label="XTC Probability"
+        value={modelSettings.xtcProbability}
+        defaultValue={defaultSettings.xtcProbability}
+        onValueChange={(value) => onSettingsChange({ xtcProbability: value })}
+        minimumValue={0}
+        maximumValue={1}
+        step={0.01}
+        description="Chance for token removal via XTC sampler. 0 disables XTC sampling."
+        onPressChange={() => onDialogOpen({
+          key: 'xtcProbability',
+          label: 'XTC Probability',
+          value: modelSettings.xtcProbability,
+          minimumValue: 0,
+          maximumValue: 1,
+          step: 0.01,
+          description: "Chance for token removal via XTC sampler. 0 disables XTC sampling."
+        })}
+      />
+
+      <SettingSlider
+        label="XTC Threshold"
+        value={modelSettings.xtcThreshold}
+        defaultValue={defaultSettings.xtcThreshold}
+        onValueChange={(value) => onSettingsChange({ xtcThreshold: value })}
+        minimumValue={0}
+        maximumValue={1}
+        step={0.01}
+        description="Minimum probability threshold for XTC removal. Values > 0.5 disable XTC."
+        onPressChange={() => onDialogOpen({
+          key: 'xtcThreshold',
+          label: 'XTC Threshold',
+          value: modelSettings.xtcThreshold,
+          minimumValue: 0,
+          maximumValue: 1,
+          step: 0.01,
+          description: "Minimum probability threshold for XTC removal. Values > 0.5 disable XTC."
+        })}
+      />
+
+      <SettingSlider
+        label="Typical P"
+        value={modelSettings.typicalP}
+        defaultValue={defaultSettings.typicalP}
+        onValueChange={(value) => onSettingsChange({ typicalP: value })}
+        minimumValue={0}
+        maximumValue={1}
+        step={0.01}
+        description="Enable locally typical sampling. 1.0 disables, lower values filter unlikely tokens."
+        onPressChange={() => onDialogOpen({
+          key: 'typicalP',
+          label: 'Typical P',
+          value: modelSettings.typicalP,
+          minimumValue: 0,
+          maximumValue: 1,
+          step: 0.01,
+          description: "Enable locally typical sampling. 1.0 disables, lower values filter unlikely tokens."
+        })}
+      />
+        </>
+      )}
+
+      {/* Generation Control */}
+      <TouchableOpacity 
+        style={[styles.sectionHeader, { borderTopColor: 'rgba(150, 150, 150, 0.1)' }]}
+        onPress={() => setShowGenerationControl(!showGenerationControl)}
+      >
+        <Text style={[styles.sectionTitle, { color: themeColors.secondaryText }]}>GENERATION CONTROL</Text>
+        <MaterialCommunityIcons 
+          name={showGenerationControl ? "chevron-up" : "chevron-down"} 
+          size={16} 
+          color={themeColors.secondaryText} 
+        />
+      </TouchableOpacity>
+
+      {showGenerationControl && (
+        <>
+
       <TouchableOpacity 
         style={[styles.settingItem, styles.settingItemBorder]}
         onPress={onStopWordsPress}
@@ -145,89 +381,11 @@ const ModelSettingsSection = ({
         <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
       </TouchableOpacity>
 
-      <SettingSlider
-        label="Temperature"
-        value={modelSettings.temperature}
-        defaultValue={defaultSettings.temperature}
-        onValueChange={(value) => onSettingsChange({ temperature: value })}
-        minimumValue={0}
-        maximumValue={2}
-        step={0.01}
-        description="Controls randomness in responses. Higher values make the output more creative but less focused."
-        onPressChange={() => onDialogOpen({
-          key: 'temperature',
-          label: 'Temperature',
-          value: modelSettings.temperature,
-          minimumValue: 0,
-          maximumValue: 2,
-          step: 0.01,
-          description: "Controls randomness in responses. Higher values make the output more creative but less focused."
-        })}
-      />
 
-      <SettingSlider
-        label="Top K"
-        value={modelSettings.topK}
-        defaultValue={defaultSettings.topK}
-        onValueChange={(value) => onSettingsChange({ topK: value })}
-        minimumValue={1}
-        maximumValue={100}
-        step={1}
-        description="Limits the cumulative probability of tokens considered for each step of text generation."
-        onPressChange={() => onDialogOpen({
-          key: 'topK',
-          label: 'Top K',
-          value: modelSettings.topK,
-          minimumValue: 1,
-          maximumValue: 100,
-          step: 1,
-          description: "Limits the cumulative probability of tokens considered for each step of text generation."
-        })}
-      />
 
-      <SettingSlider
-        label="Top P"
-        value={modelSettings.topP}
-        defaultValue={defaultSettings.topP}
-        onValueChange={(value) => onSettingsChange({ topP: value })}
-        minimumValue={0}
-        maximumValue={1}
-        step={0.01}
-        description="Controls diversity of responses. Higher values = more diverse but potentially less focused."
-        onPressChange={() => onDialogOpen({
-          key: 'topP',
-          label: 'Top P',
-          value: modelSettings.topP,
-          minimumValue: 0,
-          maximumValue: 1,
-          step: 0.01,
-          description: "Controls diversity of responses. Higher values = more diverse but potentially less focused."
-        })}
-      />
-
-      <SettingSlider
-        label="Min P"
-        value={modelSettings.minP}
-        defaultValue={defaultSettings.minP}
-        onValueChange={(value) => onSettingsChange({ minP: value })}
-        minimumValue={0}
-        maximumValue={1}
-        step={0.01}
-        description="Minimum probability threshold. Higher values = more focused on likely tokens."
-        onPressChange={() => onDialogOpen({
-          key: 'minP',
-          label: 'Min P',
-          value: modelSettings.minP,
-          minimumValue: 0,
-          maximumValue: 1,
-          step: 0.01,
-          description: "Minimum probability threshold. Higher values = more focused on likely tokens."
-        })}
-      />
-
-      {/* Core Generation Settings */}
+      {/* Core Settings */}
       <View style={[styles.sectionHeader, { borderTopColor: 'rgba(150, 150, 150, 0.1)' }]}>
-        <Text style={[styles.sectionTitle, { color: themeColors.secondaryText }]}>CORE GENERATION</Text>
+        <Text style={[styles.sectionTitle, { color: themeColors.secondaryText }]}>CORE SETTINGS</Text>
       </View>
 
       <View style={[styles.settingItem, styles.settingItemBorder]}>
@@ -325,11 +483,24 @@ const ModelSettingsSection = ({
           thumbColor={modelSettings.enableThinking ? themeColors.primary : themeColors.background}
         />
       </View>
+        </>
+      )}
 
-      {/* Probability and Sampling Settings */}
-      <View style={[styles.sectionHeader, { borderTopColor: 'rgba(150, 150, 150, 0.1)' }]}>
-        <Text style={[styles.sectionTitle, { color: themeColors.secondaryText }]}>PROBABILITY & SAMPLING</Text>
-      </View>
+      {/* Expert Settings */}
+      <TouchableOpacity 
+        style={[styles.sectionHeader, { borderTopColor: 'rgba(150, 150, 150, 0.1)' }]}
+        onPress={() => setShowExpertSettings(!showExpertSettings)}
+      >
+        <Text style={[styles.sectionTitle, { color: themeColors.secondaryText }]}>EXPERT SETTINGS</Text>
+        <MaterialCommunityIcons 
+          name={showExpertSettings ? "chevron-up" : "chevron-down"} 
+          size={16} 
+          color={themeColors.secondaryText} 
+        />
+      </TouchableOpacity>
+
+      {showExpertSettings && (
+        <>
 
       <TouchableOpacity 
         style={[styles.settingItem, styles.settingItemBorder]}
@@ -398,71 +569,24 @@ const ModelSettingsSection = ({
         </View>
         <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
       </TouchableOpacity>
-
-      <SettingSlider
-        label="XTC Probability"
-        value={modelSettings.xtcProbability}
-        defaultValue={defaultSettings.xtcProbability}
-        onValueChange={(value) => onSettingsChange({ xtcProbability: value })}
-        minimumValue={0}
-        maximumValue={1}
-        step={0.01}
-        description="Chance for token removal via XTC sampler. 0 disables XTC sampling."
-        onPressChange={() => onDialogOpen({
-          key: 'xtcProbability',
-          label: 'XTC Probability',
-          value: modelSettings.xtcProbability,
-          minimumValue: 0,
-          maximumValue: 1,
-          step: 0.01,
-          description: "Chance for token removal via XTC sampler. 0 disables XTC sampling."
-        })}
-      />
-
-      <SettingSlider
-        label="XTC Threshold"
-        value={modelSettings.xtcThreshold}
-        defaultValue={defaultSettings.xtcThreshold}
-        onValueChange={(value) => onSettingsChange({ xtcThreshold: value })}
-        minimumValue={0}
-        maximumValue={1}
-        step={0.01}
-        description="Minimum probability threshold for XTC removal. Values > 0.5 disable XTC."
-        onPressChange={() => onDialogOpen({
-          key: 'xtcThreshold',
-          label: 'XTC Threshold',
-          value: modelSettings.xtcThreshold,
-          minimumValue: 0,
-          maximumValue: 1,
-          step: 0.01,
-          description: "Minimum probability threshold for XTC removal. Values > 0.5 disable XTC."
-        })}
-      />
-
-      <SettingSlider
-        label="Typical P"
-        value={modelSettings.typicalP}
-        defaultValue={defaultSettings.typicalP}
-        onValueChange={(value) => onSettingsChange({ typicalP: value })}
-        minimumValue={0}
-        maximumValue={1}
-        step={0.01}
-        description="Enable locally typical sampling. 1.0 disables, lower values filter unlikely tokens."
-        onPressChange={() => onDialogOpen({
-          key: 'typicalP',
-          label: 'Typical P',
-          value: modelSettings.typicalP,
-          minimumValue: 0,
-          maximumValue: 1,
-          step: 0.01,
-          description: "Enable locally typical sampling. 1.0 disables, lower values filter unlikely tokens."
-        })}
-      />
+        </>
+      )}
 
       {/* Repetition Penalties */}
-      <View style={[styles.sectionHeader, { borderTopColor: 'rgba(150, 150, 150, 0.1)' }]}>
+      <TouchableOpacity 
+        style={[styles.sectionHeader, { borderTopColor: 'rgba(150, 150, 150, 0.1)' }]}
+        onPress={() => setShowRepetitionPenalties(!showRepetitionPenalties)}
+      >
         <Text style={[styles.sectionTitle, { color: themeColors.secondaryText }]}>REPETITION PENALTIES</Text>
-      </View>
+        <MaterialCommunityIcons 
+          name={showRepetitionPenalties ? "chevron-up" : "chevron-down"} 
+          size={16} 
+          color={themeColors.secondaryText} 
+        />
+      </TouchableOpacity>
+
+      {showRepetitionPenalties && (
+        <>
 
       <SettingSlider
         label="Penalty Last N"
@@ -543,11 +667,24 @@ const ModelSettingsSection = ({
           description: "Reduce repetition of themes and ideas. Higher values encourage more diverse content."
         })}
       />
+        </>
+      )}
 
       {/* Mirostat Settings */}
-      <View style={[styles.sectionHeader, { borderTopColor: 'rgba(150, 150, 150, 0.1)' }]}>
+      <TouchableOpacity 
+        style={[styles.sectionHeader, { borderTopColor: 'rgba(150, 150, 150, 0.1)' }]}
+        onPress={() => setShowMirostatSettings(!showMirostatSettings)}
+      >
         <Text style={[styles.sectionTitle, { color: themeColors.secondaryText }]}>MIROSTAT SETTINGS</Text>
-      </View>
+        <MaterialCommunityIcons 
+          name={showMirostatSettings ? "chevron-up" : "chevron-down"} 
+          size={16} 
+          color={themeColors.secondaryText} 
+        />
+      </TouchableOpacity>
+
+      {showMirostatSettings && (
+        <>
 
       <SettingSlider
         label="Mirostat Mode"
@@ -727,11 +864,24 @@ const ModelSettingsSection = ({
         </View>
         <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
       </TouchableOpacity>
+        </>
+      )}
 
       {/* Advanced Settings */}
-      <View style={[styles.sectionHeader, { borderTopColor: 'rgba(150, 150, 150, 0.1)' }]}>
+      <TouchableOpacity 
+        style={[styles.sectionHeader, { borderTopColor: 'rgba(150, 150, 150, 0.1)' }]}
+        onPress={() => setShowAdvancedSettings(!showAdvancedSettings)}
+      >
         <Text style={[styles.sectionTitle, { color: themeColors.secondaryText }]}>ADVANCED SETTINGS</Text>
-      </View>
+        <MaterialCommunityIcons 
+          name={showAdvancedSettings ? "chevron-up" : "chevron-down"} 
+          size={16} 
+          color={themeColors.secondaryText} 
+        />
+      </TouchableOpacity>
+
+      {showAdvancedSettings && (
+        <>
 
       <View style={[styles.settingItem, styles.settingItemBorder]}>
         <View style={styles.settingLeft}>
@@ -797,6 +947,10 @@ const ModelSettingsSection = ({
         </View>
         <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
       </TouchableOpacity>
+        </>
+      )}
+        </>
+      )}
     </SettingsSection>
   );
 };
@@ -875,6 +1029,17 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 14,
     fontWeight: '600',
+  },
+  advancedTag: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    alignSelf: 'center',
+  },
+  advancedTagText: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
 });
 
