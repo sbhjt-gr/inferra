@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View, Switch } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View, Switch, Modal, TextInput, ScrollView, Dimensions } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../constants/theme';
@@ -70,15 +70,18 @@ const ModelSettingsSection = ({
   const themeColors = theme[currentTheme];
   const iconColor = currentTheme === 'dark' ? '#FFFFFF' : themeColors.primary;
   const [showModelSettings, setShowModelSettings] = useState(false);
-  const [showEssentialSettings, setShowEssentialSettings] = useState(false);
-  const [showAdvancedSampling, setShowAdvancedSampling] = useState(false);
-  const [showGenerationControl, setShowGenerationControl] = useState(false);
-  const [showCoreSettings, setShowCoreSettings] = useState(false);
-  const [showExpertSettings, setShowExpertSettings] = useState(false);
-  const [showRepetitionPenalties, setShowRepetitionPenalties] = useState(false);
-  const [showMirostatSettings, setShowMirostatSettings] = useState(false);
-  const [showDrySettings, setShowDrySettings] = useState(false);
-  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
+  
+  const [showGrammarDialog, setShowGrammarDialog] = useState(false);
+  const [showSeedDialog, setShowSeedDialog] = useState(false);
+  const [showNProbsDialog, setShowNProbsDialog] = useState(false);
+  const [showLogitBiasDialog, setShowLogitBiasDialog] = useState(false);
+  const [showDrySequenceBreakersDialog, setShowDrySequenceBreakersDialog] = useState(false);
+  
+  const [tempGrammar, setTempGrammar] = useState('');
+  const [tempSeed, setTempSeed] = useState('');
+  const [tempNProbs, setTempNProbs] = useState('');
+  const [tempLogitBias, setTempLogitBias] = useState('');
+  const [tempDrySequenceBreakers, setTempDrySequenceBreakers] = useState('');
 
   return (
     <SettingsSection title="MODEL SETTINGS">
@@ -117,20 +120,9 @@ const ModelSettingsSection = ({
         <>
       
       {/* Essential Settings */}
-      <TouchableOpacity 
-        style={[styles.sectionHeader, { borderTopColor: 'rgba(150, 150, 150, 0.1)' }]}
-        onPress={() => setShowEssentialSettings(!showEssentialSettings)}
-      >
+      <View style={[styles.sectionHeader, { borderTopColor: 'rgba(150, 150, 150, 0.1)' }]}>
         <Text style={[styles.sectionTitle, { color: themeColors.secondaryText }]}>ESSENTIAL SETTINGS</Text>
-        <MaterialCommunityIcons 
-          name={showEssentialSettings ? "chevron-up" : "chevron-down"} 
-          size={16} 
-          color={themeColors.secondaryText} 
-        />
-      </TouchableOpacity>
-
-      {showEssentialSettings && (
-        <>
+      </View>
 
       <TouchableOpacity 
         style={[styles.settingItem, styles.settingItemBorder]}
@@ -230,24 +222,11 @@ const ModelSettingsSection = ({
           description: "Limits the cumulative probability of tokens considered for each step of text generation."
         })}
       />
-        </>
-      )}
 
       {/* Advanced Sampling */}
-      <TouchableOpacity 
-        style={[styles.sectionHeader, { borderTopColor: 'rgba(150, 150, 150, 0.1)' }]}
-        onPress={() => setShowAdvancedSampling(!showAdvancedSampling)}
-      >
+      <View style={[styles.sectionHeader, { borderTopColor: 'rgba(150, 150, 150, 0.1)' }]}>
         <Text style={[styles.sectionTitle, { color: themeColors.secondaryText }]}>ADVANCED SAMPLING</Text>
-        <MaterialCommunityIcons 
-          name={showAdvancedSampling ? "chevron-up" : "chevron-down"} 
-          size={16} 
-          color={themeColors.secondaryText} 
-        />
-      </TouchableOpacity>
-
-      {showAdvancedSampling && (
-        <>
+      </View>
 
       <SettingSlider
         label="Min P"
@@ -328,24 +307,11 @@ const ModelSettingsSection = ({
           description: "Enable locally typical sampling. 1.0 disables, lower values filter unlikely tokens."
         })}
       />
-        </>
-      )}
 
       {/* Generation Control */}
-      <TouchableOpacity 
-        style={[styles.sectionHeader, { borderTopColor: 'rgba(150, 150, 150, 0.1)' }]}
-        onPress={() => setShowGenerationControl(!showGenerationControl)}
-      >
+      <View style={[styles.sectionHeader, { borderTopColor: 'rgba(150, 150, 150, 0.1)' }]}>
         <Text style={[styles.sectionTitle, { color: themeColors.secondaryText }]}>GENERATION CONTROL</Text>
-        <MaterialCommunityIcons 
-          name={showGenerationControl ? "chevron-up" : "chevron-down"} 
-          size={16} 
-          color={themeColors.secondaryText} 
-        />
-      </TouchableOpacity>
-
-      {showGenerationControl && (
-        <>
+      </View>
 
       <TouchableOpacity 
         style={[styles.settingItem, styles.settingItemBorder]}
@@ -421,7 +387,10 @@ const ModelSettingsSection = ({
 
       <TouchableOpacity 
         style={[styles.settingItem, styles.settingItemBorder]}
-        onPress={onGrammarPress}
+        onPress={() => {
+          setTempGrammar(modelSettings.grammar);
+          setShowGrammarDialog(true);
+        }}
       >
         <View style={styles.settingLeft}>
           <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
@@ -483,28 +452,18 @@ const ModelSettingsSection = ({
           thumbColor={modelSettings.enableThinking ? themeColors.primary : themeColors.background}
         />
       </View>
-        </>
-      )}
 
       {/* Expert Settings */}
-      <TouchableOpacity 
-        style={[styles.sectionHeader, { borderTopColor: 'rgba(150, 150, 150, 0.1)' }]}
-        onPress={() => setShowExpertSettings(!showExpertSettings)}
-      >
+      <View style={[styles.sectionHeader, { borderTopColor: 'rgba(150, 150, 150, 0.1)' }]}>
         <Text style={[styles.sectionTitle, { color: themeColors.secondaryText }]}>EXPERT SETTINGS</Text>
-        <MaterialCommunityIcons 
-          name={showExpertSettings ? "chevron-up" : "chevron-down"} 
-          size={16} 
-          color={themeColors.secondaryText} 
-        />
-      </TouchableOpacity>
-
-      {showExpertSettings && (
-        <>
+      </View>
 
       <TouchableOpacity 
         style={[styles.settingItem, styles.settingItemBorder]}
-        onPress={onNProbsPress}
+        onPress={() => {
+          setTempNProbs(modelSettings.nProbs.toString());
+          setShowNProbsDialog(true);
+        }}
       >
         <View style={styles.settingLeft}>
           <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
@@ -538,7 +497,10 @@ const ModelSettingsSection = ({
 
       <TouchableOpacity 
         style={[styles.settingItem, styles.settingItemBorder]}
-        onPress={onSeedPress}
+        onPress={() => {
+          setTempSeed(modelSettings.seed.toString());
+          setShowSeedDialog(true);
+        }}
       >
         <View style={styles.settingLeft}>
           <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
@@ -569,24 +531,11 @@ const ModelSettingsSection = ({
         </View>
         <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
       </TouchableOpacity>
-        </>
-      )}
 
       {/* Repetition Penalties */}
-      <TouchableOpacity 
-        style={[styles.sectionHeader, { borderTopColor: 'rgba(150, 150, 150, 0.1)' }]}
-        onPress={() => setShowRepetitionPenalties(!showRepetitionPenalties)}
-      >
+      <View style={[styles.sectionHeader, { borderTopColor: 'rgba(150, 150, 150, 0.1)' }]}>
         <Text style={[styles.sectionTitle, { color: themeColors.secondaryText }]}>REPETITION PENALTIES</Text>
-        <MaterialCommunityIcons 
-          name={showRepetitionPenalties ? "chevron-up" : "chevron-down"} 
-          size={16} 
-          color={themeColors.secondaryText} 
-        />
-      </TouchableOpacity>
-
-      {showRepetitionPenalties && (
-        <>
+      </View>
 
       <SettingSlider
         label="Penalty Last N"
@@ -667,24 +616,11 @@ const ModelSettingsSection = ({
           description: "Reduce repetition of themes and ideas. Higher values encourage more diverse content."
         })}
       />
-        </>
-      )}
 
       {/* Mirostat Settings */}
-      <TouchableOpacity 
-        style={[styles.sectionHeader, { borderTopColor: 'rgba(150, 150, 150, 0.1)' }]}
-        onPress={() => setShowMirostatSettings(!showMirostatSettings)}
-      >
+      <View style={[styles.sectionHeader, { borderTopColor: 'rgba(150, 150, 150, 0.1)' }]}>
         <Text style={[styles.sectionTitle, { color: themeColors.secondaryText }]}>MIROSTAT SETTINGS</Text>
-        <MaterialCommunityIcons 
-          name={showMirostatSettings ? "chevron-up" : "chevron-down"} 
-          size={16} 
-          color={themeColors.secondaryText} 
-        />
-      </TouchableOpacity>
-
-      {showMirostatSettings && (
-        <>
+      </View>
 
       <SettingSlider
         label="Mirostat Mode"
@@ -833,7 +769,10 @@ const ModelSettingsSection = ({
 
       <TouchableOpacity 
         style={[styles.settingItem, styles.settingItemBorder]}
-        onPress={onDrySequenceBreakersPress}
+        onPress={() => {
+          setTempDrySequenceBreakers((modelSettings.drySequenceBreakers || []).join('\n'));
+          setShowDrySequenceBreakersDialog(true);
+        }}
       >
         <View style={styles.settingLeft}>
           <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
@@ -864,24 +803,11 @@ const ModelSettingsSection = ({
         </View>
         <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
       </TouchableOpacity>
-        </>
-      )}
 
       {/* Advanced Settings */}
-      <TouchableOpacity 
-        style={[styles.sectionHeader, { borderTopColor: 'rgba(150, 150, 150, 0.1)' }]}
-        onPress={() => setShowAdvancedSettings(!showAdvancedSettings)}
-      >
+      <View style={[styles.sectionHeader, { borderTopColor: 'rgba(150, 150, 150, 0.1)' }]}>
         <Text style={[styles.sectionTitle, { color: themeColors.secondaryText }]}>ADVANCED SETTINGS</Text>
-        <MaterialCommunityIcons 
-          name={showAdvancedSettings ? "chevron-up" : "chevron-down"} 
-          size={16} 
-          color={themeColors.secondaryText} 
-        />
-      </TouchableOpacity>
-
-      {showAdvancedSettings && (
-        <>
+      </View>
 
       <View style={[styles.settingItem, styles.settingItemBorder]}>
         <View style={styles.settingLeft}>
@@ -916,7 +842,13 @@ const ModelSettingsSection = ({
 
       <TouchableOpacity 
         style={[styles.settingItem, styles.settingItemBorder]}
-        onPress={onLogitBiasPress}
+        onPress={() => {
+          const logitBiasText = (modelSettings.logitBias || [])
+            .map(([tokenId, bias]) => `${tokenId}, ${bias}`)
+            .join('\n');
+          setTempLogitBias(logitBiasText);
+          setShowLogitBiasDialog(true);
+        }}
       >
         <View style={styles.settingLeft}>
           <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
@@ -949,8 +881,320 @@ const ModelSettingsSection = ({
       </TouchableOpacity>
         </>
       )}
-        </>
-      )}
+
+      {/* Grammar Dialog */}
+      <Modal
+        visible={showGrammarDialog}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowGrammarDialog(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: themeColors.background }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: themeColors.text }]}>Grammar Rules</Text>
+              <TouchableOpacity onPress={() => setShowGrammarDialog(false)} style={styles.closeButton}>
+                <MaterialCommunityIcons name="close" size={24} color={themeColors.text} />
+              </TouchableOpacity>
+            </View>
+            
+            <Text style={[styles.modalDescription, { color: themeColors.secondaryText }]}>
+              Define grammar rules in BNF format to constrain the model's output structure. Leave empty to disable grammar constraints.
+            </Text>
+
+            <ScrollView style={styles.textAreaContainer}>
+              <TextInput
+                style={[styles.textArea, { 
+                  color: themeColors.text,
+                  backgroundColor: themeColors.borderColor + '20',
+                  borderColor: themeColors.borderColor,
+                }]}
+                value={tempGrammar}
+                onChangeText={setTempGrammar}
+                placeholder="Enter grammar rules in BNF format..."
+                placeholderTextColor={themeColors.secondaryText}
+                multiline
+                numberOfLines={8}
+                textAlignVertical="top"
+              />
+            </ScrollView>
+
+            <View style={styles.modalFooter}>
+              {tempGrammar !== defaultSettings.grammar && (
+                <TouchableOpacity
+                  style={[styles.resetButton, { backgroundColor: themeColors.primary + '20' }]}
+                  onPress={() => setTempGrammar(defaultSettings.grammar)}
+                >
+                  <MaterialCommunityIcons name="refresh" size={20} color={themeColors.primary} />
+                  <Text style={[styles.resetText, { color: themeColors.primary }]}>Reset to Default</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={[styles.saveButton, { backgroundColor: themeColors.primary }]}
+                onPress={() => {
+                  onSettingsChange({ grammar: tempGrammar });
+                  setShowGrammarDialog(false);
+                }}
+              >
+                <Text style={styles.saveButtonText}>Save Changes</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Seed Dialog */}
+      <Modal
+        visible={showSeedDialog}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowSeedDialog(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: themeColors.background }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: themeColors.text }]}>Random Seed</Text>
+              <TouchableOpacity onPress={() => setShowSeedDialog(false)} style={styles.closeButton}>
+                <MaterialCommunityIcons name="close" size={24} color={themeColors.text} />
+              </TouchableOpacity>
+            </View>
+            
+            <Text style={[styles.modalDescription, { color: themeColors.secondaryText }]}>
+              Set random number generator seed for reproducible results. Use -1 for random seed each time.
+            </Text>
+
+            <TextInput
+              style={[styles.numberInput, {
+                color: themeColors.text,
+                backgroundColor: themeColors.borderColor + '20',
+                borderColor: themeColors.borderColor,
+              }]}
+              value={tempSeed}
+              onChangeText={setTempSeed}
+              placeholder="Enter seed (-1 for random)"
+              placeholderTextColor={themeColors.secondaryText}
+              keyboardType="numeric"
+            />
+
+            <View style={styles.modalFooter}>
+              {parseInt(tempSeed) !== defaultSettings.seed && (
+                <TouchableOpacity
+                  style={[styles.resetButton, { backgroundColor: themeColors.primary + '20' }]}
+                  onPress={() => setTempSeed(defaultSettings.seed.toString())}
+                >
+                  <MaterialCommunityIcons name="refresh" size={20} color={themeColors.primary} />
+                  <Text style={[styles.resetText, { color: themeColors.primary }]}>Reset to Default</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={[styles.saveButton, { backgroundColor: themeColors.primary }]}
+                onPress={() => {
+                  const seedValue = parseInt(tempSeed) || -1;
+                  onSettingsChange({ seed: seedValue });
+                  setShowSeedDialog(false);
+                }}
+              >
+                <Text style={styles.saveButtonText}>Save Changes</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* N-Probs Dialog */}
+      <Modal
+        visible={showNProbsDialog}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowNProbsDialog(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: themeColors.background }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: themeColors.text }]}>Token Probabilities</Text>
+              <TouchableOpacity onPress={() => setShowNProbsDialog(false)} style={styles.closeButton}>
+                <MaterialCommunityIcons name="close" size={24} color={themeColors.text} />
+              </TouchableOpacity>
+            </View>
+            
+            <Text style={[styles.modalDescription, { color: themeColors.secondaryText }]}>
+              Number of most likely tokens to show probability scores for. Set to 0 to disable probability display.
+            </Text>
+
+            <TextInput
+              style={[styles.numberInput, {
+                color: themeColors.text,
+                backgroundColor: themeColors.borderColor + '20',
+                borderColor: themeColors.borderColor,
+              }]}
+              value={tempNProbs}
+              onChangeText={setTempNProbs}
+              placeholder="Enter number (0-10)"
+              placeholderTextColor={themeColors.secondaryText}
+              keyboardType="numeric"
+            />
+
+            <View style={styles.modalFooter}>
+              {parseInt(tempNProbs) !== defaultSettings.nProbs && (
+                <TouchableOpacity
+                  style={[styles.resetButton, { backgroundColor: themeColors.primary + '20' }]}
+                  onPress={() => setTempNProbs(defaultSettings.nProbs.toString())}
+                >
+                  <MaterialCommunityIcons name="refresh" size={20} color={themeColors.primary} />
+                  <Text style={[styles.resetText, { color: themeColors.primary }]}>Reset to Default</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={[styles.saveButton, { backgroundColor: themeColors.primary }]}
+                onPress={() => {
+                  const nProbsValue = Math.max(0, Math.min(10, parseInt(tempNProbs) || 0));
+                  onSettingsChange({ nProbs: nProbsValue });
+                  setShowNProbsDialog(false);
+                }}
+              >
+                <Text style={styles.saveButtonText}>Save Changes</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Logit Bias Dialog */}
+      <Modal
+        visible={showLogitBiasDialog}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowLogitBiasDialog(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: themeColors.background }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: themeColors.text }]}>Logit Bias</Text>
+              <TouchableOpacity onPress={() => setShowLogitBiasDialog(false)} style={styles.closeButton}>
+                <MaterialCommunityIcons name="close" size={24} color={themeColors.text} />
+              </TouchableOpacity>
+            </View>
+            
+            <Text style={[styles.modalDescription, { color: themeColors.secondaryText }]}>
+              Influence how likely specific tokens are to appear. Format: [token_id, bias] per line. Example: "123, 0.5" to make token 123 more likely.
+            </Text>
+
+            <ScrollView style={styles.textAreaContainer}>
+              <TextInput
+                style={[styles.textArea, { 
+                  color: themeColors.text,
+                  backgroundColor: themeColors.borderColor + '20',
+                  borderColor: themeColors.borderColor,
+                }]}
+                value={tempLogitBias}
+                onChangeText={setTempLogitBias}
+                placeholder="Enter token_id, bias pairs (one per line)&#10;Example:&#10;123, 0.5&#10;456, -1.0"
+                placeholderTextColor={themeColors.secondaryText}
+                multiline
+                numberOfLines={6}
+                textAlignVertical="top"
+              />
+            </ScrollView>
+
+            <View style={styles.modalFooter}>
+              {tempLogitBias !== '' && (
+                <TouchableOpacity
+                  style={[styles.resetButton, { backgroundColor: themeColors.primary + '20' }]}
+                  onPress={() => setTempLogitBias('')}
+                >
+                  <MaterialCommunityIcons name="refresh" size={20} color={themeColors.primary} />
+                  <Text style={[styles.resetText, { color: themeColors.primary }]}>Clear All</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={[styles.saveButton, { backgroundColor: themeColors.primary }]}
+                onPress={() => {
+                  try {
+                    const lines = tempLogitBias.split('\n').filter(line => line.trim());
+                    const logitBias = lines.map(line => {
+                      const [tokenId, bias] = line.split(',').map(s => parseFloat(s.trim()));
+                      return [tokenId || 0, bias || 0];
+                    }).filter(([tokenId, bias]) => !isNaN(tokenId) && !isNaN(bias));
+                    onSettingsChange({ logitBias });
+                    setShowLogitBiasDialog(false);
+                  } catch (error) {
+                    // Handle parsing error - could add error state here
+                    onSettingsChange({ logitBias: [] });
+                    setShowLogitBiasDialog(false);
+                  }
+                }}
+              >
+                <Text style={styles.saveButtonText}>Save Changes</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* DRY Sequence Breakers Dialog */}
+      <Modal
+        visible={showDrySequenceBreakersDialog}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDrySequenceBreakersDialog(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: themeColors.background }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: themeColors.text }]}>DRY Sequence Breakers</Text>
+              <TouchableOpacity onPress={() => setShowDrySequenceBreakersDialog(false)} style={styles.closeButton}>
+                <MaterialCommunityIcons name="close" size={24} color={themeColors.text} />
+              </TouchableOpacity>
+            </View>
+            
+            <Text style={[styles.modalDescription, { color: themeColors.secondaryText }]}>
+              Enter symbols that reset the repetition checker in DRY mode. Each symbol should be on a new line.
+            </Text>
+
+            <ScrollView style={styles.textAreaContainer}>
+              <TextInput
+                style={[styles.textArea, { 
+                  color: themeColors.text,
+                  backgroundColor: themeColors.borderColor + '20',
+                  borderColor: themeColors.borderColor,
+                }]}
+                value={tempDrySequenceBreakers}
+                onChangeText={setTempDrySequenceBreakers}
+                placeholder="Enter sequence breakers (one per line)&#10;Example:&#10;.&#10;!&#10;?"
+                placeholderTextColor={themeColors.secondaryText}
+                multiline
+                numberOfLines={6}
+                textAlignVertical="top"
+              />
+            </ScrollView>
+
+            <View style={styles.modalFooter}>
+              {JSON.stringify(tempDrySequenceBreakers.split('\n').filter(s => s.trim())) !== JSON.stringify(defaultSettings.drySequenceBreakers || []) && (
+                <TouchableOpacity
+                  style={[styles.resetButton, { backgroundColor: themeColors.primary + '20' }]}
+                  onPress={() => setTempDrySequenceBreakers((defaultSettings.drySequenceBreakers || []).join('\n'))}
+                >
+                  <MaterialCommunityIcons name="refresh" size={20} color={themeColors.primary} />
+                  <Text style={[styles.resetText, { color: themeColors.primary }]}>Reset to Default</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={[styles.saveButton, { backgroundColor: themeColors.primary }]}
+                onPress={() => {
+                  const drySequenceBreakers = tempDrySequenceBreakers
+                    .split('\n')
+                    .map(s => s.trim())
+                    .filter(s => s.length > 0);
+                  onSettingsChange({ drySequenceBreakers });
+                  setShowDrySequenceBreakersDialog(false);
+                }}
+              >
+                <Text style={styles.saveButtonText}>Save Changes</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SettingsSection>
   );
 };
@@ -1040,6 +1284,70 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 0.5,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    width: Dimensions.get('window').width - 48,
+    maxHeight: Dimensions.get('window').height - 200,
+    borderRadius: 16,
+    padding: 24,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+  },
+  closeButton: {
+    padding: 4,
+  },
+  modalDescription: {
+    fontSize: 14,
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  textAreaContainer: {
+    maxHeight: 200,
+    marginBottom: 20,
+  },
+  textArea: {
+    minHeight: 120,
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 14,
+    fontFamily: 'monospace',
+  },
+  numberInput: {
+    height: 48,
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  modalFooter: {
+    gap: 12,
+  },
+  saveButton: {
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  saveButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 
