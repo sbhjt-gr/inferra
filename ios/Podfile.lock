@@ -3821,12 +3821,6 @@ PODS:
     - Yoga
   - SocketRocket (0.7.1)
   - UMAppLoader (5.1.3)
-  - VisionCamera (4.7.0):
-    - VisionCamera/Core (= 4.7.0)
-    - VisionCamera/React (= 4.7.0)
-  - VisionCamera/Core (4.7.0)
-  - VisionCamera/React (4.7.0):
-    - React-Core
   - Yoga (0.0.0)
   - ZXingObjC/Core (3.6.9)
   - ZXingObjC/OneD (3.6.9):
@@ -3963,7 +3957,6 @@ DEPENDENCIES:
   - "RNMLKitTextRecognition (from `../node_modules/@subhajit-gorai/react-native-ml-kit-text-recognition`)"
   - RNScreens (from `../node_modules/react-native-screens`)
   - UMAppLoader (from `../node_modules/unimodules-app-loader/ios`)
-  - VisionCamera (from `../node_modules/react-native-vision-camera`)
   - Yoga (from `../node_modules/react-native/ReactCommon/yoga`)
 
 SPEC REPOS:
@@ -4264,8 +4257,6 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native-screens"
   UMAppLoader:
     :path: "../node_modules/unimodules-app-loader/ios"
-  VisionCamera:
-    :path: "../node_modules/react-native-vision-camera"
   Yoga:
     :path: "../node_modules/react-native/ReactCommon/yoga"
 
@@ -4436,7 +4427,6 @@ SPEC CHECKSUMS:
   RNScreens: 90b905d545a5ebbe976985702b8a39e3475727b2
   SocketRocket: d4aabe649be1e368d1318fdf28a022d714d65748
   UMAppLoader: 55159b69750129faa7a51c493cb8ea55a7b64eb9
-  VisionCamera: c5c07db74721d37f4c9f8331ad1f8da7b2539995
   Yoga: bfcce202dba74007f8974ee9c5f903a9a286c445
   ZXingObjC: 8898711ab495761b2dbbdec76d90164a6d7e14c5
 
