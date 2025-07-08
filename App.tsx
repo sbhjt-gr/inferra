@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, Fragment } from 'react';
-import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
-import { AppState, AppStateStatus, Text, TextInput, LogBox } from 'react-native';
+import { NavigationContainer, DefaultTheme, DarkTheme, useNavigationContainerRef } from '@react-navigation/native';
+import { AppState, AppStateStatus, Text, TextInput, LogBox, BackHandler, Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -86,6 +86,7 @@ function Navigation() {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as ThemeColors];
   const appState = useRef(AppState.currentState);
+  const navigationRef = useNavigationContainerRef();
 
   const customDefaultTheme = {
     ...DefaultTheme,
@@ -208,8 +209,40 @@ function Navigation() {
     };
   }, []);
 
+  useEffect(() => {
+    const backHandler = () => {
+      if (navigationRef?.isReady()) {
+        const state = navigationRef.getState();
+        const currentRoute = navigationRef.getCurrentRoute();
+        
+        if (currentRoute?.name === 'MainTabs') {
+          return true;
+        }
+        
+        if (currentRoute?.name === 'HomeTab' || currentRoute?.name === 'SettingsTab' || currentRoute?.name === 'ModelTab') {
+          return true;
+        }
+        
+        if (navigationRef.canGoBack()) {
+          navigationRef.goBack();
+          return true;
+        }
+        
+        return true;
+      }
+      return true;
+    };
+
+    const subscription = BackHandler.addEventListener('hardwareBackPress', backHandler);
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
   return (
       <NavigationContainer 
+        ref={navigationRef}
         theme={currentTheme === 'dark' ? customDarkTheme : customDefaultTheme}
       >
         <StatusBar style="light" backgroundColor="transparent" translucent />
