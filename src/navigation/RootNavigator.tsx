@@ -16,6 +16,7 @@ export default function RootNavigator() {
       <Stack.Navigator
         screenOptions={{
           headerShown: false,
+          gestureEnabled: false,
         }}
       >
         <Stack.Screen name="MainTabs" component={MainTabNavigator} />
