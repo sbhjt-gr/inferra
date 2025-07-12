@@ -626,6 +626,12 @@ export default function ChatInput({
                 },
               ]}
             >
+              <View style={styles.experimentalTag}>
+                <Text style={[styles.experimentalText, { color: isDark ? '#ffb74d' : '#f57c00' }]}>
+                  Experimental
+                </Text>
+              </View>
+              
               <TouchableOpacity style={styles.attachmentMenuItem} onPress={pickDocument}>
                 <View style={[styles.attachmentMenuIcon, { backgroundColor: '#4285f4' }]}>
                   <MaterialCommunityIcons name="file-document-outline" size={20} color="#ffffff" />
@@ -966,5 +972,19 @@ const styles = StyleSheet.create({
     marginTop: 12,
     textAlign: 'center',
     lineHeight: 20,
+  },
+  experimentalTag: {
+    position: 'absolute',
+    top: -8,
+    left: 12,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  experimentalText: {
+    fontSize: 10,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
 }); 
