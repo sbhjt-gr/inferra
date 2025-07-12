@@ -29,6 +29,9 @@ export default {
       bundleIdentifier: "com.gorai.ragionare",
       buildNumber: "255",
       runtimeVersion: "2.5.5",
+      updates: {
+        enabled: false
+      },
       infoPlist: {
         UIBackgroundModes: [
           "fetch",
