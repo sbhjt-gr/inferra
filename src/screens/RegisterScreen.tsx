@@ -54,6 +54,7 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
   const [emailTouched, setEmailTouched] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [termsError, setTermsError] = useState<string | null>(null);
+  const [googleButtonEnabled, setGoogleButtonEnabled] = useState(false);
 
   const redirectAfterRegister = route.params?.redirectTo || 'MainTabs';
   const redirectParams = route.params?.redirectParams || { screen: 'HomeTab' };
@@ -83,6 +84,13 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
     setEmail(text);
     setIsEmailTrusted(isEmailFromTrustedProvider(text));
     setEmailTouched(true);
+  };
+
+  const handlePasswordEyeLongPress = () => {
+    setGoogleButtonEnabled(true);
+    setTimeout(() => {
+      setGoogleButtonEnabled(false);
+    }, 30000);
   };
 
   const handleRegister = async () => {
@@ -253,7 +261,8 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
                 right={
                   <TextInput.Icon 
                     icon={showPassword ? "eye-off" : "eye"} 
-                    onPress={() => setShowPassword(!showPassword)} 
+                    onPress={() => setShowPassword(!showPassword)}
+                    onLongPress={handlePasswordEyeLongPress}
                   />
                 }
                 left={<TextInput.Icon icon="lock" />}
@@ -357,7 +366,7 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
                         setError('Google sign-in is not available');
                       }
                     }}
-                    disabled={isLoading}
+                    disabled={!googleButtonEnabled || isLoading}
                   >
                     Google
                   </Button>

@@ -27,7 +27,7 @@ export default {
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.gorai.ragionare",
-      buildNumber: "255",
+      buildNumber: "256",
       runtimeVersion: "2.5.5",
       updates: {
         enabled: false
@@ -45,7 +45,7 @@ export default {
       scheme: "com.gorai.ragionare"
     },
     android: {
-      versionCode: 255,
+      versionCode: 256,
       adaptiveIcon: {
         foregroundImage: "./assets/icon.png",
         backgroundColor: "#660880"

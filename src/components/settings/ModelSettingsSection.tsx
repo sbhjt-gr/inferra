@@ -83,6 +83,24 @@ const ModelSettingsSection = ({
   const [tempLogitBias, setTempLogitBias] = useState('');
   const [tempDrySequenceBreakers, setTempDrySequenceBreakers] = useState('');
 
+  // Helper function to safely compare numeric values
+  const isNumberDifferent = (current: number, defaultValue: number): boolean => {
+    return Math.abs(current - defaultValue) > 0.001; // Use small epsilon for floating point comparison
+  };
+
+  // Helper function to safely compare string values
+  const isStringDifferent = (current: string, defaultValue: string): boolean => {
+    return (current || '') !== (defaultValue || '');
+  };
+
+  // Helper function to safely compare arrays
+  const isArrayDifferent = (current: any[] | undefined, defaultValue: any[] | undefined): boolean => {
+    const currArray = current || [];
+    const defArray = defaultValue || [];
+    return currArray.length !== defArray.length || 
+           !currArray.every((item, index) => item === defArray[index]);
+  };
+
   return (
     <SettingsSection title="MODEL SETTINGS">
       <TouchableOpacity 
@@ -165,8 +183,8 @@ const ModelSettingsSection = ({
 
       <SettingSlider
         label="Temperature"
-        value={modelSettings.temperature}
-        defaultValue={defaultSettings.temperature}
+        value={modelSettings.temperature ?? 0.7}
+        defaultValue={defaultSettings.temperature ?? 0.7}
         onValueChange={(value) => onSettingsChange({ temperature: value })}
         minimumValue={0}
         maximumValue={2}
@@ -175,7 +193,7 @@ const ModelSettingsSection = ({
         onPressChange={() => onDialogOpen({
           key: 'temperature',
           label: 'Temperature',
-          value: modelSettings.temperature,
+          value: modelSettings.temperature ?? 0.7,
           minimumValue: 0,
           maximumValue: 2,
           step: 0.01,
@@ -185,8 +203,8 @@ const ModelSettingsSection = ({
 
       <SettingSlider
         label="Top P"
-        value={modelSettings.topP}
-        defaultValue={defaultSettings.topP}
+        value={modelSettings.topP ?? 0.95}
+        defaultValue={defaultSettings.topP ?? 0.95}
         onValueChange={(value) => onSettingsChange({ topP: value })}
         minimumValue={0}
         maximumValue={1}
@@ -195,7 +213,7 @@ const ModelSettingsSection = ({
         onPressChange={() => onDialogOpen({
           key: 'topP',
           label: 'Top P',
-          value: modelSettings.topP,
+          value: modelSettings.topP ?? 0.95,
           minimumValue: 0,
           maximumValue: 1,
           step: 0.01,
@@ -205,8 +223,8 @@ const ModelSettingsSection = ({
 
       <SettingSlider
         label="Top K"
-        value={modelSettings.topK}
-        defaultValue={defaultSettings.topK}
+        value={modelSettings.topK ?? 40}
+        defaultValue={defaultSettings.topK ?? 40}
         onValueChange={(value) => onSettingsChange({ topK: value })}
         minimumValue={1}
         maximumValue={100}
@@ -215,7 +233,7 @@ const ModelSettingsSection = ({
         onPressChange={() => onDialogOpen({
           key: 'topK',
           label: 'Top K',
-          value: modelSettings.topK,
+          value: modelSettings.topK ?? 40,
           minimumValue: 1,
           maximumValue: 100,
           step: 1,
@@ -230,8 +248,8 @@ const ModelSettingsSection = ({
 
       <SettingSlider
         label="Min P"
-        value={modelSettings.minP}
-        defaultValue={defaultSettings.minP}
+        value={modelSettings.minP ?? 0.05}
+        defaultValue={defaultSettings.minP ?? 0.05}
         onValueChange={(value) => onSettingsChange({ minP: value })}
         minimumValue={0}
         maximumValue={1}
@@ -240,7 +258,7 @@ const ModelSettingsSection = ({
         onPressChange={() => onDialogOpen({
           key: 'minP',
           label: 'Min P',
-          value: modelSettings.minP,
+          value: modelSettings.minP ?? 0.05,
           minimumValue: 0,
           maximumValue: 1,
           step: 0.01,
@@ -250,8 +268,8 @@ const ModelSettingsSection = ({
 
       <SettingSlider
         label="XTC Probability"
-        value={modelSettings.xtcProbability}
-        defaultValue={defaultSettings.xtcProbability}
+        value={modelSettings.xtcProbability ?? 0}
+        defaultValue={defaultSettings.xtcProbability ?? 0}
         onValueChange={(value) => onSettingsChange({ xtcProbability: value })}
         minimumValue={0}
         maximumValue={1}
@@ -260,7 +278,7 @@ const ModelSettingsSection = ({
         onPressChange={() => onDialogOpen({
           key: 'xtcProbability',
           label: 'XTC Probability',
-          value: modelSettings.xtcProbability,
+          value: modelSettings.xtcProbability ?? 0,
           minimumValue: 0,
           maximumValue: 1,
           step: 0.01,
@@ -270,8 +288,8 @@ const ModelSettingsSection = ({
 
       <SettingSlider
         label="XTC Threshold"
-        value={modelSettings.xtcThreshold}
-        defaultValue={defaultSettings.xtcThreshold}
+        value={modelSettings.xtcThreshold ?? 0.1}
+        defaultValue={defaultSettings.xtcThreshold ?? 0.1}
         onValueChange={(value) => onSettingsChange({ xtcThreshold: value })}
         minimumValue={0}
         maximumValue={1}
@@ -280,7 +298,7 @@ const ModelSettingsSection = ({
         onPressChange={() => onDialogOpen({
           key: 'xtcThreshold',
           label: 'XTC Threshold',
-          value: modelSettings.xtcThreshold,
+          value: modelSettings.xtcThreshold ?? 0.1,
           minimumValue: 0,
           maximumValue: 1,
           step: 0.01,
@@ -290,8 +308,8 @@ const ModelSettingsSection = ({
 
       <SettingSlider
         label="Typical P"
-        value={modelSettings.typicalP}
-        defaultValue={defaultSettings.typicalP}
+        value={modelSettings.typicalP ?? 1}
+        defaultValue={defaultSettings.typicalP ?? 1}
         onValueChange={(value) => onSettingsChange({ typicalP: value })}
         minimumValue={0}
         maximumValue={1}
@@ -300,7 +318,7 @@ const ModelSettingsSection = ({
         onPressChange={() => onDialogOpen({
           key: 'typicalP',
           label: 'Typical P',
-          value: modelSettings.typicalP,
+          value: modelSettings.typicalP ?? 1,
           minimumValue: 0,
           maximumValue: 1,
           step: 0.01,
@@ -333,9 +351,9 @@ const ModelSettingsSection = ({
             <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
               Words that will cause the model to stop generating. One word per line.
             </Text>
-            {JSON.stringify(modelSettings.stopWords || []) !== JSON.stringify(defaultSettings.stopWords || []) && (
+            {isArrayDifferent(modelSettings.stopWords, defaultSettings.stopWords) && (
               <TouchableOpacity
-                onPress={() => onSettingsChange({ stopWords: defaultSettings.stopWords })}
+                onPress={() => onSettingsChange({ stopWords: defaultSettings.stopWords || [] })}
                 style={[styles.resetButton, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}
               >
                 <MaterialCommunityIcons name="refresh" size={14} color={iconColor} />
@@ -366,9 +384,9 @@ const ModelSettingsSection = ({
             <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
               Enable Jinja templating for chat formatting. Better compatibility with modern models.
             </Text>
-            {modelSettings.jinja !== defaultSettings.jinja && (
+            {(modelSettings.jinja ?? false) !== (defaultSettings.jinja ?? false) && (
               <TouchableOpacity
-                onPress={() => onSettingsChange({ jinja: defaultSettings.jinja })}
+                onPress={() => onSettingsChange({ jinja: defaultSettings.jinja ?? false })}
                 style={[styles.resetButton, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}
               >
                 <MaterialCommunityIcons name="refresh" size={14} color={iconColor} />
@@ -408,7 +426,7 @@ const ModelSettingsSection = ({
             <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
               Enforce specific grammar rules to ensure generated text follows a particular structure.
             </Text>
-            {modelSettings.grammar !== defaultSettings.grammar && (
+            {isStringDifferent(modelSettings.grammar, defaultSettings.grammar) && (
               <TouchableOpacity
                 onPress={() => onSettingsChange({ grammar: defaultSettings.grammar })}
                 style={[styles.resetButton, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}
@@ -434,9 +452,9 @@ const ModelSettingsSection = ({
             <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
               Include AI thinking/reasoning parts in context. Disabling saves context space but may impact performance.
             </Text>
-            {modelSettings.enableThinking !== defaultSettings.enableThinking && (
+            {(modelSettings.enableThinking ?? true) !== (defaultSettings.enableThinking ?? true) && (
               <TouchableOpacity
-                onPress={() => onSettingsChange({ enableThinking: defaultSettings.enableThinking })}
+                onPress={() => onSettingsChange({ enableThinking: defaultSettings.enableThinking ?? true })}
                 style={[styles.resetButton, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}
               >
                 <MaterialCommunityIcons name="refresh" size={14} color={iconColor} />
@@ -461,7 +479,7 @@ const ModelSettingsSection = ({
       <TouchableOpacity 
         style={[styles.settingItem, styles.settingItemBorder]}
         onPress={() => {
-          setTempNProbs(modelSettings.nProbs.toString());
+          setTempNProbs((modelSettings.nProbs ?? 0).toString());
           setShowNProbsDialog(true);
         }}
       >
@@ -475,15 +493,15 @@ const ModelSettingsSection = ({
                 Token Probabilities
               </Text>
               <Text style={[styles.valueText, { color: themeColors.text }]}>
-                {modelSettings.nProbs}
+                {modelSettings.nProbs ?? 0}
               </Text>
             </View>
             <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
               Show probability scores for alternative words. 0 disables, higher values show more alternatives.
             </Text>
-            {modelSettings.nProbs !== defaultSettings.nProbs && (
+            {(modelSettings.nProbs ?? 0) !== (defaultSettings.nProbs ?? 0) && (
               <TouchableOpacity
-                onPress={() => onSettingsChange({ nProbs: defaultSettings.nProbs })}
+                onPress={() => onSettingsChange({ nProbs: defaultSettings.nProbs ?? 0 })}
                 style={[styles.resetButton, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}
               >
                 <MaterialCommunityIcons name="refresh" size={14} color={iconColor} />
@@ -498,7 +516,7 @@ const ModelSettingsSection = ({
       <TouchableOpacity 
         style={[styles.settingItem, styles.settingItemBorder]}
         onPress={() => {
-          setTempSeed(modelSettings.seed.toString());
+          setTempSeed((modelSettings.seed ?? -1).toString());
           setShowSeedDialog(true);
         }}
       >
@@ -512,15 +530,15 @@ const ModelSettingsSection = ({
                 Random Seed
               </Text>
               <Text style={[styles.valueText, { color: themeColors.text }]}>
-                {modelSettings.seed === -1 ? 'Random' : modelSettings.seed}
+                {(modelSettings.seed ?? -1) === -1 ? 'Random' : (modelSettings.seed ?? -1)}
               </Text>
             </View>
             <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
               Set random number generator seed for reproducible results. -1 for random seed.
             </Text>
-            {modelSettings.seed !== defaultSettings.seed && (
+            {(modelSettings.seed ?? -1) !== (defaultSettings.seed ?? -1) && (
               <TouchableOpacity
-                onPress={() => onSettingsChange({ seed: defaultSettings.seed })}
+                onPress={() => onSettingsChange({ seed: defaultSettings.seed ?? -1 })}
                 style={[styles.resetButton, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}
               >
                 <MaterialCommunityIcons name="refresh" size={14} color={iconColor} />
@@ -539,8 +557,8 @@ const ModelSettingsSection = ({
 
       <SettingSlider
         label="Penalty Last N"
-        value={modelSettings.penaltyLastN}
-        defaultValue={defaultSettings.penaltyLastN}
+        value={modelSettings.penaltyLastN ?? 64}
+        defaultValue={defaultSettings.penaltyLastN ?? 64}
         onValueChange={(value) => onSettingsChange({ penaltyLastN: Math.round(value) })}
         minimumValue={0}
         maximumValue={512}
@@ -549,7 +567,7 @@ const ModelSettingsSection = ({
         onPressChange={() => onDialogOpen({
           key: 'penaltyLastN',
           label: 'Penalty Last N',
-          value: modelSettings.penaltyLastN,
+          value: modelSettings.penaltyLastN ?? 64,
           minimumValue: 0,
           maximumValue: 512,
           step: 1,
@@ -559,8 +577,8 @@ const ModelSettingsSection = ({
 
       <SettingSlider
         label="Repetition Penalty"
-        value={modelSettings.penaltyRepeat}
-        defaultValue={defaultSettings.penaltyRepeat}
+        value={modelSettings.penaltyRepeat ?? 1.1}
+        defaultValue={defaultSettings.penaltyRepeat ?? 1.1}
         onValueChange={(value) => onSettingsChange({ penaltyRepeat: value })}
         minimumValue={0.5}
         maximumValue={2}
@@ -569,7 +587,7 @@ const ModelSettingsSection = ({
         onPressChange={() => onDialogOpen({
           key: 'penaltyRepeat',
           label: 'Repetition Penalty',
-          value: modelSettings.penaltyRepeat,
+          value: modelSettings.penaltyRepeat ?? 1.1,
           minimumValue: 0.5,
           maximumValue: 2,
           step: 0.01,
@@ -579,8 +597,8 @@ const ModelSettingsSection = ({
 
       <SettingSlider
         label="Frequency Penalty"
-        value={modelSettings.penaltyFreq}
-        defaultValue={defaultSettings.penaltyFreq}
+        value={modelSettings.penaltyFreq ?? 0}
+        defaultValue={defaultSettings.penaltyFreq ?? 0}
         onValueChange={(value) => onSettingsChange({ penaltyFreq: value })}
         minimumValue={0}
         maximumValue={2}
@@ -589,7 +607,7 @@ const ModelSettingsSection = ({
         onPressChange={() => onDialogOpen({
           key: 'penaltyFreq',
           label: 'Frequency Penalty',
-          value: modelSettings.penaltyFreq,
+          value: modelSettings.penaltyFreq ?? 0,
           minimumValue: 0,
           maximumValue: 2,
           step: 0.01,
@@ -599,8 +617,8 @@ const ModelSettingsSection = ({
 
       <SettingSlider
         label="Presence Penalty"
-        value={modelSettings.penaltyPresent}
-        defaultValue={defaultSettings.penaltyPresent}
+        value={modelSettings.penaltyPresent ?? 0}
+        defaultValue={defaultSettings.penaltyPresent ?? 0}
         onValueChange={(value) => onSettingsChange({ penaltyPresent: value })}
         minimumValue={0}
         maximumValue={2}
@@ -609,7 +627,7 @@ const ModelSettingsSection = ({
         onPressChange={() => onDialogOpen({
           key: 'penaltyPresent',
           label: 'Presence Penalty',
-          value: modelSettings.penaltyPresent,
+          value: modelSettings.penaltyPresent ?? 0,
           minimumValue: 0,
           maximumValue: 2,
           step: 0.01,
@@ -624,8 +642,8 @@ const ModelSettingsSection = ({
 
       <SettingSlider
         label="Mirostat Mode"
-        value={modelSettings.mirostat}
-        defaultValue={defaultSettings.mirostat}
+        value={modelSettings.mirostat ?? 0}
+        defaultValue={defaultSettings.mirostat ?? 0}
         onValueChange={(value) => onSettingsChange({ mirostat: Math.round(value) })}
         minimumValue={0}
         maximumValue={2}
@@ -634,7 +652,7 @@ const ModelSettingsSection = ({
         onPressChange={() => onDialogOpen({
           key: 'mirostat',
           label: 'Mirostat Mode',
-          value: modelSettings.mirostat,
+          value: modelSettings.mirostat ?? 0,
           minimumValue: 0,
           maximumValue: 2,
           step: 1,
@@ -644,8 +662,8 @@ const ModelSettingsSection = ({
 
       <SettingSlider
         label="Mirostat Tau"
-        value={modelSettings.mirostatTau}
-        defaultValue={defaultSettings.mirostatTau}
+        value={modelSettings.mirostatTau ?? 5}
+        defaultValue={defaultSettings.mirostatTau ?? 5}
         onValueChange={(value) => onSettingsChange({ mirostatTau: value })}
         minimumValue={1}
         maximumValue={10}
@@ -654,7 +672,7 @@ const ModelSettingsSection = ({
         onPressChange={() => onDialogOpen({
           key: 'mirostatTau',
           label: 'Mirostat Tau',
-          value: modelSettings.mirostatTau,
+          value: modelSettings.mirostatTau ?? 5,
           minimumValue: 1,
           maximumValue: 10,
           step: 0.1,
@@ -664,8 +682,8 @@ const ModelSettingsSection = ({
 
       <SettingSlider
         label="Mirostat Eta"
-        value={modelSettings.mirostatEta}
-        defaultValue={defaultSettings.mirostatEta}
+        value={modelSettings.mirostatEta ?? 0.1}
+        defaultValue={defaultSettings.mirostatEta ?? 0.1}
         onValueChange={(value) => onSettingsChange({ mirostatEta: value })}
         minimumValue={0.01}
         maximumValue={1}
@@ -674,7 +692,7 @@ const ModelSettingsSection = ({
         onPressChange={() => onDialogOpen({
           key: 'mirostatEta',
           label: 'Mirostat Eta',
-          value: modelSettings.mirostatEta,
+          value: modelSettings.mirostatEta ?? 0.1,
           minimumValue: 0.01,
           maximumValue: 1,
           step: 0.01,
@@ -689,8 +707,8 @@ const ModelSettingsSection = ({
 
       <SettingSlider
         label="DRY Multiplier"
-        value={modelSettings.dryMultiplier}
-        defaultValue={defaultSettings.dryMultiplier}
+        value={modelSettings.dryMultiplier ?? 0}
+        defaultValue={defaultSettings.dryMultiplier ?? 0}
         onValueChange={(value) => onSettingsChange({ dryMultiplier: value })}
         minimumValue={0}
         maximumValue={5}
@@ -699,7 +717,7 @@ const ModelSettingsSection = ({
         onPressChange={() => onDialogOpen({
           key: 'dryMultiplier',
           label: 'DRY Multiplier',
-          value: modelSettings.dryMultiplier,
+          value: modelSettings.dryMultiplier ?? 0,
           minimumValue: 0,
           maximumValue: 5,
           step: 0.1,
@@ -709,8 +727,8 @@ const ModelSettingsSection = ({
 
       <SettingSlider
         label="DRY Base"
-        value={modelSettings.dryBase}
-        defaultValue={defaultSettings.dryBase}
+        value={modelSettings.dryBase ?? 1.75}
+        defaultValue={defaultSettings.dryBase ?? 1.75}
         onValueChange={(value) => onSettingsChange({ dryBase: value })}
         minimumValue={1}
         maximumValue={4}
@@ -719,7 +737,7 @@ const ModelSettingsSection = ({
         onPressChange={() => onDialogOpen({
           key: 'dryBase',
           label: 'DRY Base',
-          value: modelSettings.dryBase,
+          value: modelSettings.dryBase ?? 1.75,
           minimumValue: 1,
           maximumValue: 4,
           step: 0.05,
@@ -729,8 +747,8 @@ const ModelSettingsSection = ({
 
       <SettingSlider
         label="DRY Allowed Length"
-        value={modelSettings.dryAllowedLength}
-        defaultValue={defaultSettings.dryAllowedLength}
+        value={modelSettings.dryAllowedLength ?? 2}
+        defaultValue={defaultSettings.dryAllowedLength ?? 2}
         onValueChange={(value) => onSettingsChange({ dryAllowedLength: Math.round(value) })}
         minimumValue={1}
         maximumValue={20}
@@ -739,7 +757,7 @@ const ModelSettingsSection = ({
         onPressChange={() => onDialogOpen({
           key: 'dryAllowedLength',
           label: 'DRY Allowed Length',
-          value: modelSettings.dryAllowedLength,
+          value: modelSettings.dryAllowedLength ?? 2,
           minimumValue: 1,
           maximumValue: 20,
           step: 1,
@@ -749,8 +767,8 @@ const ModelSettingsSection = ({
 
       <SettingSlider
         label="DRY Penalty Last N"
-        value={modelSettings.dryPenaltyLastN}
-        defaultValue={defaultSettings.dryPenaltyLastN}
+        value={modelSettings.dryPenaltyLastN ?? -1}
+        defaultValue={defaultSettings.dryPenaltyLastN ?? -1}
         onValueChange={(value) => onSettingsChange({ dryPenaltyLastN: Math.round(value) })}
         minimumValue={-1}
         maximumValue={512}
@@ -759,7 +777,7 @@ const ModelSettingsSection = ({
         onPressChange={() => onDialogOpen({
           key: 'dryPenaltyLastN',
           label: 'DRY Penalty Last N',
-          value: modelSettings.dryPenaltyLastN,
+          value: modelSettings.dryPenaltyLastN ?? -1,
           minimumValue: -1,
           maximumValue: 512,
           step: 1,
@@ -790,9 +808,9 @@ const ModelSettingsSection = ({
             <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
               Symbols that reset the repetition checker in DRY mode.
             </Text>
-            {JSON.stringify(modelSettings.drySequenceBreakers || []) !== JSON.stringify(defaultSettings.drySequenceBreakers || []) && (
+            {isArrayDifferent(modelSettings.drySequenceBreakers, defaultSettings.drySequenceBreakers) && (
               <TouchableOpacity
-                onPress={() => onSettingsChange({ drySequenceBreakers: defaultSettings.drySequenceBreakers })}
+                onPress={() => onSettingsChange({ drySequenceBreakers: defaultSettings.drySequenceBreakers || [] })}
                 style={[styles.resetButton, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}
               >
                 <MaterialCommunityIcons name="refresh" size={14} color={iconColor} />
@@ -821,9 +839,9 @@ const ModelSettingsSection = ({
             <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
               Continue generating even if the model wants to stop. Useful for forcing longer responses.
             </Text>
-            {modelSettings.ignoreEos !== defaultSettings.ignoreEos && (
+            {(modelSettings.ignoreEos ?? false) !== (defaultSettings.ignoreEos ?? false) && (
               <TouchableOpacity
-                onPress={() => onSettingsChange({ ignoreEos: defaultSettings.ignoreEos })}
+                onPress={() => onSettingsChange({ ignoreEos: defaultSettings.ignoreEos ?? false })}
                 style={[styles.resetButton, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}
               >
                 <MaterialCommunityIcons name="refresh" size={14} color={iconColor} />
@@ -866,9 +884,9 @@ const ModelSettingsSection = ({
             <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
               Influence how likely specific words are to appear in the response.
             </Text>
-            {(modelSettings.logitBias?.length || 0) !== (defaultSettings.logitBias?.length || 0) && (
+            {(JSON.stringify(modelSettings.logitBias || []) !== JSON.stringify(defaultSettings.logitBias || [])) && (
               <TouchableOpacity
-                onPress={() => onSettingsChange({ logitBias: defaultSettings.logitBias })}
+                onPress={() => onSettingsChange({ logitBias: defaultSettings.logitBias || [] })}
                 style={[styles.resetButton, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}
               >
                 <MaterialCommunityIcons name="refresh" size={14} color={iconColor} />
@@ -920,7 +938,7 @@ const ModelSettingsSection = ({
             </ScrollView>
 
             <View style={styles.modalFooter}>
-              {tempGrammar !== defaultSettings.grammar && (
+              {isStringDifferent(tempGrammar, defaultSettings.grammar) && (
                 <TouchableOpacity
                   style={[styles.resetButton, { backgroundColor: themeColors.primary + '20' }]}
                   onPress={() => setTempGrammar(defaultSettings.grammar)}
@@ -977,7 +995,7 @@ const ModelSettingsSection = ({
             />
 
             <View style={styles.modalFooter}>
-              {parseInt(tempSeed) !== defaultSettings.seed && (
+              {(parseInt(tempSeed) || -1) !== defaultSettings.seed && (
                 <TouchableOpacity
                   style={[styles.resetButton, { backgroundColor: themeColors.primary + '20' }]}
                   onPress={() => setTempSeed(defaultSettings.seed.toString())}
@@ -1035,7 +1053,7 @@ const ModelSettingsSection = ({
             />
 
             <View style={styles.modalFooter}>
-              {parseInt(tempNProbs) !== defaultSettings.nProbs && (
+              {(parseInt(tempNProbs) || 0) !== defaultSettings.nProbs && (
                 <TouchableOpacity
                   style={[styles.resetButton, { backgroundColor: themeColors.primary + '20' }]}
                   onPress={() => setTempNProbs(defaultSettings.nProbs.toString())}
@@ -1169,7 +1187,8 @@ const ModelSettingsSection = ({
             </ScrollView>
 
             <View style={styles.modalFooter}>
-              {JSON.stringify(tempDrySequenceBreakers.split('\n').filter(s => s.trim())) !== JSON.stringify(defaultSettings.drySequenceBreakers || []) && (
+              {(tempDrySequenceBreakers.split('\n').filter(s => s.trim()).length !== (defaultSettings.drySequenceBreakers || []).length ||
+                !tempDrySequenceBreakers.split('\n').filter(s => s.trim()).every((item, index) => item === (defaultSettings.drySequenceBreakers || [])[index])) && (
                 <TouchableOpacity
                   style={[styles.resetButton, { backgroundColor: themeColors.primary + '20' }]}
                   onPress={() => setTempDrySequenceBreakers((defaultSettings.drySequenceBreakers || []).join('\n'))}
