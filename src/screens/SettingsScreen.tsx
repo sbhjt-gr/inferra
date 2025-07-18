@@ -38,7 +38,7 @@ type SettingsScreenProps = {
 };
 
 type ThemeOption = 'system' | 'light' | 'dark';
-type InferenceEngine = 'llama.cpp' | 'mlc-llm' | 'mnn' | 'mlx';
+type InferenceEngine = 'llama.cpp' | 'mediapipe' | 'mlc-llm' | 'mlx';
 
 const DEFAULT_SETTINGS = {
   maxTokens: 1200,
