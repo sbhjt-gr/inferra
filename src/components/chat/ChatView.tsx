@@ -1,26 +1,27 @@
-import React, { useCallback, useState } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
-  StyleSheet,
   View,
-  Text,
   FlatList,
-  TouchableOpacity,
-  TouchableWithoutFeedback,
-  Platform,
+  StyleSheet,
   ActivityIndicator,
-  Keyboard,
-  Image,
-  Modal,
-  Dimensions,
   Alert,
-  TextInput,
+  Linking,
+  TouchableOpacity,
+  Image,
+  Text as RNText,
+  Animated,
 } from 'react-native';
+import { Text, Portal, Dialog, Button } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Markdown from 'react-native-markdown-display';
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../constants/theme';
-import { Dialog, Portal, Button } from 'react-native-paper';
-import chatManager from '../../utils/ChatManager';
+import { Message } from '../../utils/ChatManager';
+import { useDialog } from '../../context/DialogContext';
+import * as Clipboard from 'expo-clipboard';
+import { formatElapsedTime } from '../../utils/timeUtils';
+import TypingIndicator from './TypingIndicator';
+import AIContentLabel from './AIContentLabel';
 
 export type Message = {
   id: string;
@@ -378,6 +379,13 @@ export default function ChatView({
               </TouchableOpacity>
             </View>
           </View>
+
+          {item.role === 'assistant' && (
+            <AIContentLabel 
+              type="local"
+              modelName="AI Model"
+            />
+          )}
 
           {showLoadingIndicator ? (
             <View style={styles.loadingContainer}>

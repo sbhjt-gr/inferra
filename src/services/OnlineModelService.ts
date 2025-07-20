@@ -15,6 +15,11 @@ export interface ChatMessage {
     duration: number;
     tokens: number;
   };
+  aiSource?: {
+    type: 'local' | 'remote' | 'ocr';
+    modelName?: string;
+    provider?: string;
+  };
 }
 
 export interface OnlineModelRequestOptions {
