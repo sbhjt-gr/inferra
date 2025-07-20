@@ -28,6 +28,8 @@ import ModelSettingsSection from '../components/settings/ModelSettingsSection';
 import SystemInfoSection from '../components/settings/SystemInfoSection';
 import StorageSection from '../components/settings/StorageSection';
 import InferenceEngineSection from '../components/settings/InferenceEngine';
+import PrivacyControls from '../components/settings/PrivacyControls';
+import { getAgeVerification } from '../services/PrivacyService';
 import { Dialog, Portal, PaperProvider, Button, Text as PaperText } from 'react-native-paper';
 
 type SettingsScreenProps = {
@@ -83,6 +85,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
   });
   const [showStopWordsDialog, setShowStopWordsDialog] = useState(false);
   const [showSystemPromptDialog, setShowSystemPromptDialog] = useState(false);
+  const [isMinor, setIsMinor] = useState(false);
   const [storageInfo, setStorageInfo] = useState({
     tempSize: '0 B',
     modelsSize: '0 B',
@@ -115,6 +118,10 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
   useEffect(() => {
     const getSystemInfo = async () => {
       try {
+        const ageVerification = await getAgeVerification();
+        if (ageVerification) {
+          setIsMinor(ageVerification.isMinor);
+        }
         const memory = Device.totalMemory;
         const memoryGB = memory ? (memory / (1024 * 1024 * 1024)).toFixed(1) : 'Unknown';
         
@@ -530,6 +537,8 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
         />
 
         <SupportSection onOpenLink={openLink} />  
+
+        <PrivacyControls isMinor={isMinor} />
 
         <SystemInfoSection systemInfo={systemInfo} />
         

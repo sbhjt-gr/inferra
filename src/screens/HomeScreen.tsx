@@ -28,6 +28,7 @@ import { useFocusEffect, RouteProp } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList, TabParamList } from '../types/navigation';
+import { AIDisclosureNotice } from '../components/chat/AIContentLabel';
 import * as Device from 'expo-device';
 import chatManager, { Chat, ChatMessage } from '../utils/ChatManager';
 import { getThemeAwareColor } from '../utils/ColorUtils';
@@ -1567,6 +1568,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
           </View>
         } 
       />
+      <AIDisclosureNotice />
       <View style={[styles.modelSelectorContainer, { borderBottomColor: themeColors.borderColor }]}>
          {renderModelSelectorComponent()}
       </View>
