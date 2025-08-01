@@ -1,4 +1,4 @@
-# Inferra
+# Inferra (Previously "Ragionare")
 
 Inferra is a mobile application built on React Native and Expo that brings large language models (LLMs) & small language models (SLMs) directly to your Android & iOS device. Cloud-based models (remote models) like Claude, DeepSeek, Gemini and ChatGPT are also supported. File attachments are also well-supported for both local & remote models.
 
