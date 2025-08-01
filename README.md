@@ -4,7 +4,7 @@ Inferra is a mobile application built on React Native and Expo that brings large
 
 <a href="https://play.google.com/store/apps/details?id=com.gorai.ragionare">
   <img src="https://github.com/user-attachments/assets/bdc18fc5-5a99-410c-b383-eaf9c737176e" alt="play_download" width="200"/>
-</a>
+</a> (app is currently unavailable due to a policy issue but should be back by next week)
 <br>
 <i>iOS version is ready and scheduled to be released soon.</i>
 <br><br>
