@@ -28,8 +28,6 @@ import {
   Checkbox,
 } from 'react-native-paper';
 import { registerWithEmail, signInWithGoogle, isEmailFromTrustedProvider, testFirebaseConnection, debugGoogleOAuthConfig } from '../services/FirebaseService';
-import AgeVerificationModal from '../components/modals/AgeVerificationModal';
-import { getAgeVerification } from '../services/PrivacyService';
 
 type RegisterScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList>;
@@ -57,9 +55,6 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [termsError, setTermsError] = useState<string | null>(null);
   const [googleButtonEnabled, setGoogleButtonEnabled] = useState(false);
-  const [ageVerificationVisible, setAgeVerificationVisible] = useState(false);
-  const [isAgeVerified, setIsAgeVerified] = useState(false);
-  const [isMinor, setIsMinor] = useState(false);
 
   const redirectAfterRegister = route.params?.redirectTo || 'MainTabs';
   const redirectParams = route.params?.redirectParams || { screen: 'HomeTab' };
@@ -107,18 +102,6 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
     if (!termsAccepted) {
       setTermsError('You must accept the Terms & Conditions and Privacy Policy to continue');
       return;
-    }
-
-    // Check age verification first
-    if (!isAgeVerified) {
-      const existingVerification = await getAgeVerification();
-      if (!existingVerification?.isVerified) {
-        setAgeVerificationVisible(true);
-        return;
-      } else {
-        setIsAgeVerified(true);
-        setIsMinor(existingVerification.isMinor);
-      }
     }
 
     setIsLoading(true);
@@ -173,18 +156,6 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
         return;
       }
 
-      // Check age verification first
-      if (!isAgeVerified) {
-        const existingVerification = await getAgeVerification();
-        if (!existingVerification?.isVerified) {
-          setAgeVerificationVisible(true);
-          return;
-        } else {
-          setIsAgeVerified(true);
-          setIsMinor(existingVerification.isMinor);
-        }
-      }
-
       setIsLoading(true);
       setError(null);
       setTermsError(null);
@@ -217,16 +188,6 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
       redirectTo: route.params?.redirectTo,
       redirectParams: route.params?.redirectParams
     });
-  };
-
-  const handleAgeVerified = (userIsMinor: boolean) => {
-    setIsAgeVerified(true);
-    setIsMinor(userIsMinor);
-    setAgeVerificationVisible(false);
-  };
-
-  const handleAgeVerificationDismiss = () => {
-    setAgeVerificationVisible(false);
   };
 
   return (
@@ -463,12 +424,6 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
           </Dialog.Actions>
         </Dialog>
       </Portal>
-
-      <AgeVerificationModal
-        visible={ageVerificationVisible}
-        onVerified={handleAgeVerified}
-        onDismiss={handleAgeVerificationDismiss}
-      />
     </SafeAreaView>
   );
 }

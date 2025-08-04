@@ -189,33 +189,46 @@ export const getDeviceInfo = async (): Promise<any> => {
   }
 };
 
-export const storeUserSecurityInfo = async (userId: string): Promise<boolean> => {
+export const storeUserSecurityInfo = async (
+  uid: string, 
+  ipData: {ip: string | null, error?: string}, 
+  geoData: {geo: any | null, error?: string}, 
+  deviceInfo: any
+): Promise<void> => {
   try {
-    const deviceInfoResult = await getDeviceInfo();
-    const ipResult = await getIpAddress();
+    const { 
+      getFirestore, 
+      collection, 
+      doc, 
+      setDoc, 
+      addDoc, 
+      serverTimestamp 
+    } = await import('@react-native-firebase/firestore');
     
-    let geoData = null;
-    if (ipResult.ip) {
-      const geoResult = await getGeoLocationFromIp(ipResult.ip);
-      geoData = geoResult.geo;
-    }
-
+    const firestore = getFirestore();
+    
     const securityRecord = {
-      userId,
-      timestamp: new Date().toISOString(),
-      deviceInfo: deviceInfoResult.deviceInfo,
-      ipAddress: ipResult.ip,
-      geoLocation: geoData,
-      error: deviceInfoResult.error || ipResult.error
+      ipAddress: ipData.ip,
+      ipError: ipData.error || null,
+      geolocation: geoData.geo,
+      geoError: geoData.error || null,
+      deviceInfo: deviceInfo,
+      timestamp: serverTimestamp(),
+      sessionId: Math.random().toString(36).substring(2, 15),
     };
-
-    // For now, just store locally until we have proper Firestore setup
-    const key = `security_${userId}_${Date.now()}`;
-    await AsyncStorage.setItem(key, JSON.stringify(securityRecord));
     
-    return true;
+    const userDocRef = doc(firestore, 'users', uid);
+    
+    await setDoc(userDocRef, {
+      uid: uid,
+      lastLoginAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+    
+    await addDoc(collection(firestore, 'users', uid, 'security_info'), securityRecord);
   } catch (error) {
-    console.error('Error storing user security info:', error);
-    return false;
+    if (__DEV__) {
+      console.error('Error storing user security info:', error);
+    }
   }
 }; 

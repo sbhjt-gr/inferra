@@ -22,6 +22,8 @@ import CameraOverlay from '../../components/CameraOverlay';
 import { llamaManager } from '../../utils/LlamaManager';
 import { Dialog, Portal, Text, Button } from 'react-native-paper';
 import { modelDownloader } from '../../services/ModelDownloader';
+import AITermsDialog from './AITermsDialog';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type ChatInputProps = {
   onSend: (text: string) => void;
@@ -75,9 +77,34 @@ export default function ChatInput({
   const [dialogVisible, setDialogVisible] = useState(false);
   const [dialogTitle, setDialogTitle] = useState('');
   const [dialogMessage, setDialogMessage] = useState('');
+  const [showAITermsDialog, setShowAITermsDialog] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   const isGenerating = isLoading || isRegenerating;
   const hasText = text.trim().length > 0;
+
+  React.useEffect(() => {
+    loadTermsAcceptance();
+  }, []);
+
+  const loadTermsAcceptance = async () => {
+    try {
+      const termsValue = await AsyncStorage.getItem('@ai_terms_accepted');
+      setTermsAccepted(termsValue === 'true');
+    } catch (error) {
+      console.warn('Failed to load AI terms acceptance:', error);
+    }
+  };
+
+  const handleAcceptTerms = async () => {
+    try {
+      await AsyncStorage.setItem('@ai_terms_accepted', 'true');
+      setTermsAccepted(true);
+      setShowAITermsDialog(false);
+    } catch (error) {
+      console.warn('Failed to save terms acceptance:', error);
+    }
+  };
 
 
 
@@ -728,6 +755,35 @@ export default function ChatInput({
         </View>
       </TouchableWithoutFeedback>
 
+      <View style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 50,
+        paddingVertical: 4,
+        // flexWrap: 'wrap'
+      }}>
+        <Text style={{
+          fontSize: 12,
+          color: isDark ? '#888' : '#666',
+          textAlign: 'center'
+        }}
+        numberOfLines={1}
+        >
+          AI-generated content may contain errors. Always verify important information.{' '}
+        </Text>
+        <TouchableOpacity onPress={() => setShowAITermsDialog(true)}>
+          <Text style={{
+            fontSize: 12,
+            color: isDark ? '#BB86FC' : '#6200EA',
+            // textDecorationLine: 'underline'
+          }}
+          >
+            Learn more
+          </Text>
+        </TouchableOpacity>
+      </View>
+
       <FileViewerModal
         visible={fileModalVisible}
         onClose={closeFileModal}
@@ -839,6 +895,12 @@ export default function ChatInput({
           </Dialog.Actions>
         </Dialog>
       </Portal>
+
+      <AITermsDialog
+        visible={showAITermsDialog}
+        onDismiss={() => setShowAITermsDialog(false)}
+        onAccept={handleAcceptTerms}
+      />
     </View>
   );
 }
@@ -847,7 +909,6 @@ const styles = StyleSheet.create({
   wrapper: {
     paddingHorizontal: 16,
     paddingBottom: 0,
-    paddingTop: 8,
   },
   container: {
     position: 'relative',
