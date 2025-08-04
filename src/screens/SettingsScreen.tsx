@@ -28,8 +28,6 @@ import ModelSettingsSection from '../components/settings/ModelSettingsSection';
 import SystemInfoSection from '../components/settings/SystemInfoSection';
 import StorageSection from '../components/settings/StorageSection';
 import InferenceEngineSection from '../components/settings/InferenceEngine';
-import PrivacyControls from '../components/settings/PrivacyControls';
-import { getAgeVerification } from '../services/PrivacyService';
 import { Dialog, Portal, PaperProvider, Button, Text as PaperText } from 'react-native-paper';
 
 type SettingsScreenProps = {
@@ -49,7 +47,7 @@ const DEFAULT_SETTINGS = {
   topP: 0.9,
   minP: 0.05,
   stopWords: ['<|end|>', '<end_of_turn>', '<|im_end|>', '<|endoftext|>','<end_of_utterance>'],
-  systemPrompt: 'You are an AI assistant.',
+  systemPrompt: 'You are a helpful, honest, and safe AI assistant. Always follow the law and prioritize user safety and well-being. Provide accurate, respectful, and non-biased information. Do not produce harmful, misleading, or offensive content. If asked for actions or information that may be illegal, unethical, dangerous, or violate privacy, refuse clearly and explain why. If a request is ambiguous, seek clarification before responding. Maintain a neutral and professional tone, avoid personal opinions unless explicitly requested, and always respect user boundaries.',
   inferenceEngine: 'llama.cpp' as InferenceEngine
 };
 
@@ -85,7 +83,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
   });
   const [showStopWordsDialog, setShowStopWordsDialog] = useState(false);
   const [showSystemPromptDialog, setShowSystemPromptDialog] = useState(false);
-  const [isMinor, setIsMinor] = useState(false);
   const [storageInfo, setStorageInfo] = useState({
     tempSize: '0 B',
     modelsSize: '0 B',
@@ -118,10 +115,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
   useEffect(() => {
     const getSystemInfo = async () => {
       try {
-        const ageVerification = await getAgeVerification();
-        if (ageVerification) {
-          setIsMinor(ageVerification.isMinor);
-        }
         const memory = Device.totalMemory;
         const memoryGB = memory ? (memory / (1024 * 1024 * 1024)).toFixed(1) : 'Unknown';
         
@@ -509,12 +502,12 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           onToggleRemoteModels={handleRemoteModelsToggle}
         />
         
-        <ChatSettingsSection
+        {/* <ChatSettingsSection
           modelSettings={modelSettings}
           defaultSettings={DEFAULT_SETTINGS}
           onOpenSystemPromptDialog={() => setShowSystemPromptDialog(true)}
           onResetSystemPrompt={() => handleSettingsChange({ systemPrompt: DEFAULT_SETTINGS.systemPrompt })}
-        />
+        /> */}
 
 
         <ModelSettingsSection
@@ -537,8 +530,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
         />
 
         <SupportSection onOpenLink={openLink} />  
-
-        <PrivacyControls isMinor={isMinor} />
 
         <SystemInfoSection systemInfo={systemInfo} />
         

@@ -1,27 +1,26 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
-  View,
-  FlatList,
   StyleSheet,
-  ActivityIndicator,
-  Alert,
-  Linking,
+  View,
+  Text,
+  FlatList,
   TouchableOpacity,
+  TouchableWithoutFeedback,
+  Platform,
+  ActivityIndicator,
+  Keyboard,
   Image,
-  Text as RNText,
-  Animated,
+  Modal,
+  Dimensions,
+  Alert,
+  TextInput,
 } from 'react-native';
-import { Text, Portal, Dialog, Button } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Markdown from 'react-native-markdown-display';
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../constants/theme';
-import { Message } from '../../utils/ChatManager';
-import { useDialog } from '../../context/DialogContext';
-import * as Clipboard from 'expo-clipboard';
-import { formatElapsedTime } from '../../utils/timeUtils';
-import TypingIndicator from './TypingIndicator';
-import AIContentLabel from './AIContentLabel';
+import { Dialog, Portal, Button } from 'react-native-paper';
+import chatManager from '../../utils/ChatManager';
 
 export type Message = {
   id: string;
@@ -89,6 +88,18 @@ export default function ChatView({
   const [isImageViewerVisible, setIsImageViewerVisible] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editedMessageContent, setEditedMessageContent] = useState('');
+  const [reportDialogVisible, setReportDialogVisible] = useState(false);
+  const [reportingMessage, setReportingMessage] = useState<{ content: string; provider: string } | null>(null);
+
+  const openReportDialog = useCallback((messageContent: string, provider: string) => {
+    setReportingMessage({ content: messageContent, provider });
+    setReportDialogVisible(true);
+  }, []);
+
+  const closeReportDialog = useCallback(() => {
+    setReportDialogVisible(false);
+    setReportingMessage(null);
+  }, []);
 
   const openImageViewer = useCallback((imageUri: string) => {
     setFullScreenImage(imageUri);
@@ -366,6 +377,19 @@ export default function ChatView({
                   />
                 </TouchableOpacity>
               )}
+              {item.role === 'assistant' && (
+                <TouchableOpacity 
+                  style={styles.copyButton} 
+                  onPress={() => openReportDialog(messageContent, chatManager.getCurrentProvider() || 'local')}
+                  hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+                >
+                  <MaterialCommunityIcons 
+                    name="flag-outline" 
+                    size={16} 
+                    color={themeColors.text} 
+                  />
+                </TouchableOpacity>
+              )}
               <TouchableOpacity 
                 style={styles.copyButton} 
                 onPress={() => onCopyText(messageContent)}
@@ -379,13 +403,6 @@ export default function ChatView({
               </TouchableOpacity>
             </View>
           </View>
-
-          {item.role === 'assistant' && (
-            <AIContentLabel 
-              type="local"
-              modelName="AI Model"
-            />
-          )}
 
           {showLoadingIndicator ? (
             <View style={styles.loadingContainer}>
@@ -772,9 +789,9 @@ const styles = StyleSheet.create({
   },
   messageList: {
     flexGrow: 1,
-    paddingVertical: 16,
+    paddingTop: 16,
     paddingHorizontal: 8,
-    paddingBottom: 80,
+    paddingBottom: 16,
   },
   messageContainer: {
     marginVertical: 4,

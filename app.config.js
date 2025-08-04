@@ -9,6 +9,9 @@ export default {
     orientation: "portrait",
     icon: "./assets/icon.png",
     userInterfaceStyle: "automatic",
+    description: "AI-powered mobile chat assistant supporting both local and cloud-based language models. Features include AI text generation, image analysis, document processing, and multimodal interactions. All AI-generated content is clearly labeled for transparency.",
+    privacy: "public",
+    keywords: ["AI", "chat", "assistant", "machine learning", "language model", "artificial intelligence"],
     newArchEnabled: true,
     splash: {
       image: "./assets/icon.png",
