@@ -7,6 +7,7 @@ import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import LicensesScreen from '../screens/LicensesScreen';
+import ReportScreen from '../screens/ReportScreen';
 import { RootStackParamList } from '../types/navigation';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -56,6 +57,13 @@ export default function RootNavigator() {
           component={LicensesScreen}
           options={{
             animation: 'slide_from_right'
+          }}
+        />
+        <Stack.Screen 
+          name="Report" 
+          component={ReportScreen}
+          options={{
+            animation: 'slide_from_bottom'
           }}
         />
       </Stack.Navigator>
