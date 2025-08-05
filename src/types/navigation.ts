@@ -21,6 +21,10 @@ export type RootStackParamList = {
   Downloads: undefined;
   Profile: undefined;
   Licenses: undefined;
+  Report: {
+    messageContent: string;
+    provider: string;
+  };
 };
 
 export type TabParamList = {

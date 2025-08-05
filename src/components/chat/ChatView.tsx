@@ -21,6 +21,9 @@ import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../constants/theme';
 import { Dialog, Portal, Button } from 'react-native-paper';
 import chatManager from '../../utils/ChatManager';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../../types/navigation';
 
 export type Message = {
   id: string;
@@ -83,22 +86,22 @@ export default function ChatView({
 }: ChatViewProps) {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   
   const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
   const [isImageViewerVisible, setIsImageViewerVisible] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editedMessageContent, setEditedMessageContent] = useState('');
-  const [reportDialogVisible, setReportDialogVisible] = useState(false);
-  const [reportingMessage, setReportingMessage] = useState<{ content: string; provider: string } | null>(null);
 
   const openReportDialog = useCallback((messageContent: string, provider: string) => {
-    setReportingMessage({ content: messageContent, provider });
-    setReportDialogVisible(true);
-  }, []);
+    navigation.navigate('Report', {
+      messageContent,
+      provider
+    });
+  }, [navigation]);
 
   const closeReportDialog = useCallback(() => {
-    setReportDialogVisible(false);
-    setReportingMessage(null);
+    // No longer needed since we're using navigation
   }, []);
 
   const openImageViewer = useCallback((imageUri: string) => {
