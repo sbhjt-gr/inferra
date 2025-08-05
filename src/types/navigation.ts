@@ -20,6 +20,7 @@ export type RootStackParamList = {
   ChatHistory: undefined;
   Downloads: undefined;
   Profile: undefined;
+  Licenses: undefined;
 };
 
 export type TabParamList = {
