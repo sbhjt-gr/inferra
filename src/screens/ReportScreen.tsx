@@ -8,10 +8,13 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { TextInput, Button } from 'react-native-paper';
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -48,6 +51,94 @@ export default function ReportScreen({ navigation, route }: ReportScreenProps) {
   const [description, setDescription] = useState('');
   const [email, setEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [attachedMedia, setAttachedMedia] = useState<Array<{
+    uri: string;
+    type: 'image' | 'video';
+    fileName: string;
+    fileSize: number;
+  }>>([]);
+
+  const MAX_FILE_SIZE = 40 * 1024 * 1024;
+  const MAX_ATTACHMENTS = 3;
+
+  const requestPermissions = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Required', 'We need media library permissions to attach files.');
+      return false;
+    }
+    
+    return true;
+  };
+
+  const pickMedia = async () => {
+    if (attachedMedia.length >= MAX_ATTACHMENTS) {
+      Alert.alert('Limit Reached', `You can attach up to ${MAX_ATTACHMENTS} files.`);
+      return;
+    }
+
+    const hasPermission = await requestPermissions();
+    if (!hasPermission) return;
+
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.All,
+        allowsEditing: true,
+        quality: 0.8,
+        videoMaxDuration: 60,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        const type = asset.type === 'video' ? 'video' : 'image';
+        await addMediaFile(asset, type);
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to pick media');
+    }
+  };
+
+
+
+  const addMediaFile = async (asset: ImagePicker.ImagePickerAsset, type: 'image' | 'video') => {
+    try {
+      const fileInfo = await FileSystem.getInfoAsync(asset.uri);
+      
+      if (!fileInfo.exists) {
+        Alert.alert('Error', 'File not found');
+        return;
+      }
+
+      const fileSize = fileInfo.size || 0;
+      
+      if (fileSize > MAX_FILE_SIZE) {
+        const sizeMB = (fileSize / (1024 * 1024)).toFixed(1);
+        Alert.alert('File Too Large', `File size (${sizeMB}MB) exceeds the 40MB limit.`);
+        return;
+      }
+
+      const fileName = asset.fileName || `${type}_${Date.now()}.${type === 'image' ? 'jpg' : 'mp4'}`;
+      
+      setAttachedMedia(prev => [...prev, {
+        uri: asset.uri,
+        type,
+        fileName,
+        fileSize
+      }]);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to process file');
+    }
+  };
+
+  const removeMediaFile = (index: number) => {
+    setAttachedMedia(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
 
   const handleSubmit = async () => {
     if (!selectedCategory) {
@@ -80,6 +171,7 @@ export default function ReportScreen({ navigation, route }: ReportScreenProps) {
         timestamp: new Date().toISOString(),
         appVersion: '2.5.7', 
         platform: Platform.OS,
+        attachments: attachedMedia,
       };
 
       await submitReport(reportData);
@@ -218,8 +310,72 @@ export default function ReportScreen({ navigation, route }: ReportScreenProps) {
           </View>
 
           <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: themeColors.text }]}>
+              Attach Screenshot or Video (Optional)
+            </Text>
+            <Text style={[styles.sectionSubtext, { color: themeColors.secondaryText }]}>
+              Add up to {MAX_ATTACHMENTS} files, max 40MB each
+            </Text>
+            
+            <TouchableOpacity
+              style={[styles.mediaButton, { backgroundColor: themeColors.borderColor }]}
+              onPress={pickMedia}
+              disabled={attachedMedia.length >= MAX_ATTACHMENTS}
+            >
+              <MaterialCommunityIcons 
+                name="attachment" 
+                size={24} 
+                color={themeColors.text} 
+              />
+              <Text style={[styles.mediaButtonText, { color: themeColors.text }]}>
+                Add Media
+              </Text>
+            </TouchableOpacity>
+
+            {attachedMedia.length > 0 && (
+              <View style={styles.attachedMediaContainer}>
+                {attachedMedia.map((media, index) => (
+                  <View key={index} style={[styles.mediaItem, { backgroundColor: themeColors.borderColor }]}>
+                    <View style={styles.mediaItemLeft}>
+                      {media.type === 'image' ? (
+                        <Image source={{ uri: media.uri }} style={styles.mediaThumbnail} />
+                      ) : (
+                        <View style={[styles.videoThumbnail, { backgroundColor: themeColors.background }]}>
+                          <MaterialCommunityIcons 
+                            name="play-circle" 
+                            size={32} 
+                            color={themeColors.primary} 
+                          />
+                        </View>
+                      )}
+                      <View style={styles.mediaInfo}>
+                        <Text style={[styles.mediaFileName, { color: themeColors.text }]} numberOfLines={1}>
+                          {media.fileName}
+                        </Text>
+                        <Text style={[styles.mediaFileSize, { color: themeColors.secondaryText }]}>
+                          {formatFileSize(media.fileSize)} • {media.type}
+                        </Text>
+                      </View>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.removeMediaButton}
+                      onPress={() => removeMediaFile(index)}
+                    >
+                      <MaterialCommunityIcons 
+                        name="close-circle" 
+                        size={24} 
+                        color="#ef4444" 
+                      />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+
+          <View style={styles.section}>
             <Text style={[styles.infoText, { color: themeColors.secondaryText }]}>
-              You can also record your screen or take a screenshot of your issue.
+              Screenshots and screen recordings help us understand your issue better.
             </Text>
           </View>
 
@@ -332,5 +488,67 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#fff',
+  },
+  sectionSubtext: {
+    fontSize: 12,
+    marginBottom: 12,
+  },
+  mediaButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    gap: 8,
+    marginBottom: 12,
+  },
+  mediaButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  attachedMediaContainer: {
+    marginTop: 12,
+    gap: 8,
+  },
+  mediaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    borderRadius: 8,
+  },
+  mediaItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  mediaThumbnail: {
+    width: 48,
+    height: 48,
+    borderRadius: 6,
+    marginRight: 12,
+  },
+  videoThumbnail: {
+    width: 48,
+    height: 48,
+    borderRadius: 6,
+    marginRight: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mediaInfo: {
+    flex: 1,
+  },
+  mediaFileName: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginBottom: 2,
+  },
+  mediaFileSize: {
+    fontSize: 12,
+  },
+  removeMediaButton: {
+    padding: 4,
   },
 });
