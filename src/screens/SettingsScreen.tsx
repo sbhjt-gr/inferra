@@ -509,7 +509,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           onResetSystemPrompt={() => handleSettingsChange({ systemPrompt: DEFAULT_SETTINGS.systemPrompt })}
         /> */}
 
-
         <ModelSettingsSection
           modelSettings={modelSettings}
           defaultSettings={DEFAULT_SETTINGS}
@@ -520,7 +519,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           onDialogOpen={handleOpenDialog}
         />
 
-
         <StorageSection
           storageInfo={storageInfo}
           isClearing={isClearing}
@@ -529,7 +527,10 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           onClearAllModels={clearAllModels}
         />
 
-        <SupportSection onOpenLink={openLink} />  
+        <SupportSection 
+          onOpenLink={openLink} 
+          onNavigateToLicenses={() => navigation.navigate('Licenses')}
+        />  
 
         <SystemInfoSection systemInfo={systemInfo} />
         

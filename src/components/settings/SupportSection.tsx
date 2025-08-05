@@ -11,9 +11,10 @@ const AI_TERMS_ACCEPTED_KEY = '@ai_terms_accepted';
 
 type SupportSectionProps = {
   onOpenLink: (url: string) => void;
+  onNavigateToLicenses: () => void;
 };
 
-const SupportSection = ({ onOpenLink }: SupportSectionProps) => {
+const SupportSection = ({ onOpenLink, onNavigateToLicenses }: SupportSectionProps) => {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme];
   const iconColor = currentTheme === 'dark' ? '#FFFFFF' : themeColors.primary;
@@ -127,16 +128,13 @@ const SupportSection = ({ onOpenLink }: SupportSectionProps) => {
         <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
       </TouchableOpacity>
 
-        <TouchableOpacity 
-          style={[styles.settingItem]}
+      <TouchableOpacity 
+          style={[styles.settingItem, styles.settingItemBorder]}
           onPress={() => setShowTermsDialog(true)}
         >
           <View style={styles.settingLeft}>
-            <View style={[
-              styles.iconContainer, 
-              { backgroundColor: currentTheme === 'dark' ? 'rgba(33, 150, 243, 0.2)' : 'rgba(33, 150, 243, 0.2)' }
-            ]}>
-              <MaterialIcons name="description" size={22} color="#2196F3" />
+          <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
+              <MaterialIcons name="description" size={22} color={iconColor} />
             </View>
             <View style={styles.settingTextContainer}>
               <Text style={[styles.settingText, { color: themeColors.text }]}>
@@ -150,6 +148,30 @@ const SupportSection = ({ onOpenLink }: SupportSectionProps) => {
           <MaterialCommunityIcons 
             name="chevron-right" 
             size={24} 
+            color={themeColors.secondaryText} 
+          />
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={[styles.settingItem, styles.settingItemBorder]}
+          onPress={onNavigateToLicenses}
+        >
+          <View style={styles.settingLeft}>
+            <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
+              <MaterialCommunityIcons name="license" size={22} color={iconColor} />
+            </View>
+            <View style={styles.settingTextContainer}>
+              <Text style={[styles.settingText, { color: themeColors.text }]}>
+                Open Source Licenses
+              </Text>
+              <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
+                View licenses of open source libraries
+              </Text>
+            </View>
+          </View>
+          <MaterialCommunityIcons 
+            name="chevron-right" 
+            size={20} 
             color={themeColors.secondaryText} 
           />
         </TouchableOpacity>
