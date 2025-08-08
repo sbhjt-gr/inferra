@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, View, Platform, ScrollView, Linking, TouchableOpacity } from 'react-native';
+import { StyleSheet, View, Platform, ScrollView, Linking, TouchableOpacity, Text } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { CompositeNavigationProp } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
@@ -67,6 +67,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
   const [modelSettings, setModelSettings] = useState(llamaManager.getSettings());
   const [error, setError] = useState<string | null>(null);
   const [selectedInferenceEngine, setSelectedInferenceEngine] = useState<InferenceEngine>('llama.cpp');
+  
   const [dialogConfig, setDialogConfig] = useState<{
     visible: boolean;
     setting?: {
@@ -611,5 +612,28 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  section: {
+    marginHorizontal: 16,
+    marginBottom: 16,
+  },
+  debugButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: '#f5f5f5',
+  },
+  debugButtonContent: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  debugButtonTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  debugButtonSubtitle: {
+    fontSize: 14,
+    marginTop: 2,
   },
 }); 
