@@ -82,30 +82,12 @@ const AITermsDialog: React.FC<AITermsDialogProps> = ({
                 { color: currentTheme === 'dark' ? '#CCCCCC' : '#666666' }
               ]}>
                 • AI models are designed to refuse harmful content generation{'\n'}
-                • Report any inappropriate AI-generated content immediately{'\n'}
                 • Content filters may not catch all potentially harmful output{'\n'}
                 • Users are responsible for appropriate use of AI features
               </Text>
             </View>
 
-            <View style={styles.section}>
-              <Text style={[
-                styles.sectionTitle,
-                { color: currentTheme === 'dark' ? '#FFFFFF' : '#000000' }
-              ]}>
-                Feedback & Reporting
-              </Text>
-              <Text style={[
-                styles.sectionText,
-                { color: currentTheme === 'dark' ? '#CCCCCC' : '#666666' }
-              ]}>
-                Help us improve AI safety by reporting:{'\n'}
-                • Inaccurate or misleading AI responses{'\n'}
-                • Potentially harmful content generation{'\n'}
-                • Bias or inappropriate behavior in AI outputs{'\n'}
-                • Technical issues with AI functionality
-              </Text>
-            </View>
+      
           </ScrollView>
         </Dialog.Content>
         

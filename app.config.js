@@ -55,6 +55,7 @@ export default {
       },
       package: "com.gorai.ragionare",
       runtimeVersion: "2.5.7",
+      edgeToEdgeEnabled: true,
       permissions: [
         "NOTIFICATIONS",
         "BACKGROUND_FETCH",

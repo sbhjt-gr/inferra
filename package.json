@@ -65,7 +65,7 @@
     "expo-video": "~2.2.2",
     "expo-web-browser": "~14.1.6",
     "jest-expo": "~53.0.5",
-    "llama.rn": "^0.6.5",
+    "llama.rn": "^0.6.7",
     "react": "19.0.0",
     "react-native": "^0.79.5",
     "react-native-dotenv": "^3.4.9",
