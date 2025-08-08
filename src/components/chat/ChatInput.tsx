@@ -908,6 +908,7 @@ const styles = StyleSheet.create({
   wrapper: {
     paddingHorizontal: 16,
     paddingBottom: 0,
+    paddingTop: 8,
   },
   container: {
     position: 'relative',

@@ -1650,7 +1650,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]} edges={['bottom', 'left', 'right']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]} edges={['left', 'right']}>
       <AppHeader 
         onNewChat={startNewChat}
         rightButtons={
