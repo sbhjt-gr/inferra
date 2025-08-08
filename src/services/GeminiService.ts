@@ -33,7 +33,7 @@ export class GeminiService {
       });
       
       const fileExtension = imageUri.toLowerCase().split('.').pop();
-      let mimeType = 'image/jpeg'; // default
+      let mimeType = 'image/jpeg';
       
       switch (fileExtension) {
         case 'png':
@@ -90,7 +90,7 @@ export class GeminiService {
         return [{ text: `${instruction}\n\nUser request: ${userPrompt}` }];
       }
     } catch (error) {
-      // Not a JSON message, treat as regular text
+      // treat as regular text
     }
     
     return [{ text: message.content }];

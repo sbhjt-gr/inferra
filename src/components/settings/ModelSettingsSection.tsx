@@ -83,17 +83,14 @@ const ModelSettingsSection = ({
   const [tempLogitBias, setTempLogitBias] = useState('');
   const [tempDrySequenceBreakers, setTempDrySequenceBreakers] = useState('');
 
-  // Helper function to safely compare numeric values
   const isNumberDifferent = (current: number, defaultValue: number): boolean => {
-    return Math.abs(current - defaultValue) > 0.001; // Use small epsilon for floating point comparison
+    return Math.abs(current - defaultValue) > 0.001;
   };
 
-  // Helper function to safely compare string values
   const isStringDifferent = (current: string, defaultValue: string): boolean => {
     return (current || '') !== (defaultValue || '');
   };
 
-  // Helper function to safely compare arrays
   const isArrayDifferent = (current: any[] | undefined, defaultValue: any[] | undefined): boolean => {
     const currArray = current || [];
     const defArray = defaultValue || [];
