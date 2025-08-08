@@ -253,7 +253,7 @@ export default function ChatView({
         : 'FILE';
       
       return (
-        <View style={[styles.fileAttachmentWrapper, { alignSelf: 'flex-end' }]}>
+        <View style={[styles.fileAttachmentWrapper]}>
           <View style={[styles.fileAttachment, { backgroundColor: themeColors.borderColor }]}>
             <View style={[styles.fileTypeIcon, { backgroundColor: fileTypeBgColor }]}>
               <Text style={styles.fileTypeText}>{fileTypeDisplay}</Text>
@@ -278,7 +278,7 @@ export default function ChatView({
       if (!mediaItems.length) return null;
       
       return (
-        <View style={[styles.multimodalWrapper, { alignSelf: 'flex-end' }]}>
+        <View style={[styles.multimodalWrapper]}>
           {mediaItems.map((item, index) => {
             if (item.type === 'image' && item.uri) {
               return (
@@ -360,6 +360,7 @@ export default function ChatView({
             alignSelf: item.role === 'user' ? 'flex-end' : 'flex-start',
             borderTopRightRadius: item.role === 'user' ? 4 : 20,
             borderTopLeftRadius: item.role === 'user' ? 20 : 4,
+            width: item.role === 'assistant' ? '90%' : undefined,
           }
         ]}>
           <View style={styles.messageHeader}>
@@ -802,7 +803,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   messageCard: {
-    maxWidth: '85%',
     borderRadius: 20,
     marginVertical: 4,
     elevation: 1,
@@ -933,7 +933,7 @@ const styles = StyleSheet.create({
   },
   fileAttachmentWrapper: {
     marginBottom: 8,
-    width: '85%',
+    width: '100%',
   },
   fileAttachment: {
     flexDirection: 'row',
@@ -970,7 +970,7 @@ const styles = StyleSheet.create({
   },
   multimodalWrapper: {
     marginBottom: 8,
-    width: '85%',
+    width: '100%',
   },
   imageContainer: {
     marginBottom: 8,
