@@ -5,7 +5,7 @@ export default {
     name: "Inferra",
     slug: "inferra",
     owner: "subhajitgorai",
-    version: "2.5.7",
+    version: "2.5.8",
     orientation: "portrait",
     icon: "./assets/icon.png",
     userInterfaceStyle: "automatic",
@@ -29,9 +29,10 @@ export default {
     ],
     ios: {
       supportsTablet: true,
+      requireFullScreen: false,
       bundleIdentifier: "com.gorai.ragionare",
-      buildNumber: "257",
-      runtimeVersion: "2.5.7",
+      buildNumber: "258",
+      runtimeVersion: "2.5.8",
       updates: {
         enabled: false
       },
@@ -48,14 +49,16 @@ export default {
       scheme: "com.gorai.ragionare"
     },
     android: {
-      versionCode: 257,
+      versionCode: 258,
       adaptiveIcon: {
         foregroundImage: "./assets/icon.png",
         backgroundColor: "#660880"
       },
       package: "com.gorai.ragionare",
-      runtimeVersion: "2.5.7",
+      runtimeVersion: "2.5.8",
       edgeToEdgeEnabled: true,
+      resizeableActivity: true,
+      supportsFreeform: true,
       permissions: [
         "NOTIFICATIONS",
         "BACKGROUND_FETCH",
@@ -126,12 +129,15 @@ export default {
         "expo-build-properties",
         {
           android: {
-            compileSdkVersion: 36,
-            targetSdkVersion: 36,
+            compileSdkVersion: 35,
+            targetSdkVersion: 35,
             buildToolsVersion: '35.0.0',
             kotlinVersion: '2.0.21',
             kspVersion: '2.0.21-1.0.20',
-            usesCleartextTraffic: false
+            usesCleartextTraffic: false,
+            manifestPlaceholders: {
+              screenOrientation: "unspecified"
+            }
           },
           ios: {
             deploymentTarget: "15.5",
