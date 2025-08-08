@@ -35,7 +35,9 @@ export default function SettingSlider({
     onValueChange(defaultValue);
   };
 
-  const isDefaultValue = value === defaultValue;
+  const safeValue = value ?? defaultValue ?? 0;
+  const safeDefaultValue = defaultValue ?? 0;
+  const isDefaultValue = Math.abs(safeValue - safeDefaultValue) < 0.001;
 
   return (
     <TouchableOpacity 
@@ -52,7 +54,7 @@ export default function SettingSlider({
               {label}
             </Text>
             <Text style={[styles.valueText, { color: themeColors.text }]}>
-              {value.toFixed(2)}
+              {(value ?? defaultValue ?? 0).toFixed(2)}
             </Text>
           </View>
           <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>

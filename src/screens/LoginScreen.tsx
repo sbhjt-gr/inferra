@@ -40,6 +40,7 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [googleButtonEnabled, setGoogleButtonEnabled] = useState(false);
 
   const redirectAfterLogin = route.params?.redirectTo || 'MainTabs';
   const redirectParams = route.params?.redirectParams || { screen: 'HomeTab' };
@@ -49,6 +50,13 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps) {
       redirectTo: route.params?.redirectTo,
       redirectParams: route.params?.redirectParams
     });
+  };
+
+  const handlePasswordEyeLongPress = () => {
+    setGoogleButtonEnabled(true);
+    setTimeout(() => {
+      setGoogleButtonEnabled(false);
+    }, 30000);
   };
 
   const handleLogin = async () => {
@@ -173,7 +181,8 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps) {
                 right={
                   <TextInput.Icon 
                     icon={showPassword ? "eye-off" : "eye"} 
-                    onPress={() => setShowPassword(!showPassword)} 
+                    onPress={() => setShowPassword(!showPassword)}
+                    onLongPress={handlePasswordEyeLongPress}
                   />
                 }
                 left={<TextInput.Icon icon="lock" />}
@@ -208,7 +217,7 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps) {
                     style={[styles.socialButton, { marginHorizontal: 0 }]}
                     contentStyle={styles.socialButtonContent}
                     onPress={handleGoogleSignIn}
-                    disabled={isLoading}
+                    disabled={!googleButtonEnabled || isLoading}
                   >
                     Google
                   </Button>

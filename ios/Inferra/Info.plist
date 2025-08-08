@@ -19,7 +19,7 @@
     <key>CFBundlePackageType</key>
     <string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
     <key>CFBundleShortVersionString</key>
-    <string>2.5.0</string>
+    <string>2.5.8</string>
     <key>CFBundleSignature</key>
     <string>????</string>
     <key>CFBundleURLTypes</key>
@@ -39,7 +39,7 @@
       </dict>
     </array>
     <key>CFBundleVersion</key>
-    <string>250</string>
+    <string>258</string>
     <key>LSMinimumSystemVersion</key>
     <string>12.0</string>
     <key>LSRequiresIPhoneOS</key>
@@ -64,8 +64,12 @@
       <string>fetch</string>
       <string>remote-notification</string>
     </array>
+    <key>UIGestureRecognizerShouldBegin</key>
+    <false/>
     <key>UILaunchStoryboardName</key>
     <string>SplashScreen</string>
+    <key>UINavigationControllerHidesBarsOnSwipe</key>
+    <false/>
     <key>UIRequiredDeviceCapabilities</key>
     <array>
       <string>arm64</string>

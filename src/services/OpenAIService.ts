@@ -32,7 +32,7 @@ export class OpenAIService {
       });
       
       const fileExtension = imageUri.toLowerCase().split('.').pop();
-      let mimeType = 'image/jpeg'; // default
+      let mimeType = 'image/jpeg';
       
       switch (fileExtension) {
         case 'png':

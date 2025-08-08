@@ -14,6 +14,8 @@ export interface ChatMessage {
   stats?: {
     duration: number;
     tokens: number;
+    firstTokenTime?: number;
+    avgTokenTime?: number;
   };
 }
 

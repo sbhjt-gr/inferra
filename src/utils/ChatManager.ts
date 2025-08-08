@@ -22,6 +22,8 @@ export type ChatMessage = {
   stats?: {
     duration: number;
     tokens: number;
+    firstTokenTime?: number;
+    avgTokenTime?: number;
   };
 };
 
@@ -388,7 +390,7 @@ class ChatManager {
   }
 
   
-  async updateMessageContent(messageId: string, content: string, thinking?: string, stats?: { duration: number; tokens: number }): Promise<boolean> {
+  async updateMessageContent(messageId: string, content: string, thinking?: string, stats?: { duration: number; tokens: number; firstTokenTime?: number; avgTokenTime?: number }): Promise<boolean> {
     if (!this.currentChatId) return false;
     
     const currentChat = this.getChatById(this.currentChatId);

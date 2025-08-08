@@ -7,7 +7,7 @@ import { theme } from '../../constants/theme';
 import SettingsSection from './SettingsSection';
 import * as Device from 'expo-device';
 
-type InferenceEngine = 'llama.cpp' | 'mlc-llm' | 'mnn' | 'mlx';
+type InferenceEngine = 'llama.cpp' | 'mediapipe' | 'mlc-llm' | 'mlx';
 
 interface InferenceEngineProps {
   selectedEngine: InferenceEngine;
@@ -33,21 +33,21 @@ const InferenceEngineSection: React.FC<InferenceEngineProps> = ({
       id: 'llama.cpp' as InferenceEngine,
       name: 'llama.cpp',
       description: 'The most popular inference engine with broad model support',
-      icon: 'cog',
+      icon: 'language-cpp',
       enabled: true,
+    },
+    {
+      id: 'mediapipe' as InferenceEngine,
+      name: 'Google AI Edge Gallery (MediaPipe)',
+      description: 'MediaPipe LLM inference of AI Edge Gallery (not yet implemented)',
+      icon: 'google',
+      enabled: false,
     },
     {
       id: 'mlc-llm' as InferenceEngine,
       name: 'MLC LLM',
       description: 'Machine Learning Compilation for LLMs (not yet implemented)',
       icon: 'flash',
-      enabled: false,
-    },
-    {
-      id: 'mnn' as InferenceEngine,
-      name: 'MNN',
-      description: 'Mobile Neural Network inference framework (not yet implemented)',
-      icon: 'cellphone',
       enabled: false,
     },
     {

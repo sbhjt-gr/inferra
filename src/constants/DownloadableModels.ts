@@ -6,6 +6,7 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "description": "Google's enhanced Gemma 3 variant with optimized efficiency and fast inference capabilities.",
     "size": "2.76 GB",
     "huggingFaceLink": "https://huggingface.co/unsloth/gemma-3n-E4B-it-GGUF/resolve/main/gemma-3n-E4B-it-Q2_K.gguf",
+    "licenseLink": "https://ai.google.dev/gemma/terms",
     "modelFamily": "4 Billion",
     "quantization": "Q2_K",
     "tags": ["recommended"]
@@ -15,6 +16,7 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "description": "Google's latest compact instruction-tuned model with strong reasoning and fast inference with 1 billion parameters.",
     "size": "1.07 GB",
     "huggingFaceLink": "https://huggingface.co/unsloth/gemma-3-1b-it-GGUF/resolve/main/gemma-3-1b-it-Q8_0.gguf",
+    "licenseLink": "https://ai.google.dev/gemma/terms",
     "modelFamily": "1 Billion",
     "quantization": "Q8_0",
     "tags": ["recommended", "fastest"]
@@ -24,6 +26,7 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "description": "Ultra-compact vision-language model with 500M parameters specialized for visual understanding and instruction following.",
     "size": "1.02 GB",
     "huggingFaceLink": "https://huggingface.co/ggml-org/SmolVLM2-500M-Video-Instruct-GGUF/resolve/main/SmolVLM2-500M-Video-Instruct-f16.gguf",
+    "licenseLink": "https://www.apache.org/licenses/LICENSE-2.0",
     "modelFamily": "500 Million",
     "quantization": "f16",
     "tags": ["vision", "video", "fastest"],
@@ -40,6 +43,7 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "description": "Compact vision-language model with 2.2B parameters optimized for multimodal tasks.",
     "size": "2.5 GB",
     "huggingFaceLink": "https://huggingface.co/ggml-org/SmolVLM2-2.2B-Instruct-GGUF/resolve/main/SmolVLM2-2.2B-Instruct-Q8_0.gguf",
+    "licenseLink": "https://www.apache.org/licenses/LICENSE-2.0",
     "modelFamily": "2.2 Billion",
     "quantization": "Q8_0",
     "tags": ["vision", "fastest"],
@@ -56,6 +60,7 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "description": "Google's latest compact instruction-tuned model with strong reasoning and fast inference with 4 billion parameters.",
     "size": "2.83 GB",
     "huggingFaceLink": "https://huggingface.co/unsloth/gemma-3-4b-it-GGUF/resolve/main/gemma-3-4b-it-Q5_K_M.gguf",
+    "licenseLink": "https://ai.google.dev/gemma/terms",
     "modelFamily": "4 Billion",
     "quantization": "Q5_K_M",
     "tags": ["recommended"]
@@ -65,6 +70,7 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "description": "Google's enhanced Gemma 3 variant with balanced performance and quality optimization.",
     "size": "4.1 GB",
     "huggingFaceLink": "https://huggingface.co/unsloth/gemma-3n-E4B-it-GGUF/resolve/main/gemma-3n-E4B-it-Q4_K_S.gguf",
+    "licenseLink": "https://ai.google.dev/gemma/terms",
     "modelFamily": "4 Billion",
     "quantization": "Q4_K_S",
   },
@@ -73,6 +79,7 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "description": "Highly optimized distillation of DeepSeek's R1 model using Qwen architecture for improved efficiency.",
     "size": "1.89 GB",
     "huggingFaceLink": "https://huggingface.co/unsloth/DeepSeek-R1-Distill-Qwen-1.5B-GGUF/resolve/main/DeepSeek-R1-Distill-Qwen-1.5B-Q8_0.gguf",
+    "licenseLink": "https://github.com/deepseek-ai/DeepSeek-LLM/blob/main/LICENSE-MODEL",
     "modelFamily": "1.5 Billion",
     "quantization": "Q8_0",
     "tags": ["fastest"]
@@ -82,6 +89,7 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "description": "Microsoft's compact instruction-tuned model with strong reasoning capabilities despite its small size.",
     "size": "2.2 GB",
     "huggingFaceLink": "https://huggingface.co/bartowski/Phi-3-mini-4k-instruct-GGUF/resolve/main/Phi-3-mini-4k-instruct-Q4_K_M.gguf",
+    "licenseLink": "https://huggingface.co/microsoft/Phi-3-mini-4k-instruct/resolve/main/LICENSE",
     "modelFamily": "3.8 Billion",
     "quantization": "Q4_K_M",
     "tags": ["fastest"]
@@ -91,6 +99,7 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "description": "Alibaba's specialized coding model with excellent code completion and explanation abilities.",
     "size": "2.27 GB",
     "huggingFaceLink": "https://huggingface.co/Qwen/Qwen2.5-Coder-3B-Instruct-GGUF/resolve/main/qwen2.5-coder-3b-instruct-q5_k_m.gguf",
+    "licenseLink": "https://www.apache.org/licenses/LICENSE-2.0",
     "modelFamily": "7 Billion",
     "quantization": "Q5_K_M",
     "tags": ["fastest"]
@@ -100,6 +109,7 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "description": "Meta's code-specialized model trained on code repositories with strong programming capabilities.",
     "size": "2.95 GB",
     "huggingFaceLink": "https://huggingface.co/TheBloke/CodeLlama-7B-GGUF/resolve/main/codellama-7b.Q3_K_S.gguf",
+    "licenseLink": "https://ai.meta.com/llama/license/",
     "modelFamily": "7 Billion",
     "quantization": "Q3_K_S"
   },
@@ -108,6 +118,7 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "description": "Distilled version of DeepSeek's R1 model with balanced performance and efficiency.",
     "size": "3.8 GB",
     "huggingFaceLink": "https://huggingface.co/unsloth/DeepSeek-R1-Distill-Llama-8B-GGUF/resolve/main/DeepSeek-R1-Distill-Llama-8B-Q4_K_M.gguf",
+    "licenseLink": "https://github.com/deepseek-ai/DeepSeek-LLM/blob/main/LICENSE-MODEL",
     "modelFamily": "7 Billion",
     "quantization": "Q4_K_M"
   },
@@ -116,6 +127,7 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "description": "Instruction-tuned version of Mistral's powerful base model with excellent reasoning abilities.",
     "size": "4.1 GB",
     "huggingFaceLink": "https://huggingface.co/TheBloke/Mistral-7B-Instruct-v0.2-GGUF/resolve/main/mistral-7b-instruct-v0.2.Q4_K_M.gguf",
+    "licenseLink": "https://www.apache.org/licenses/LICENSE-2.0",
     "modelFamily": "7 Billion",
     "quantization": "Q4_K_M"
   },
@@ -124,6 +136,7 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "description": "Foundation model from DeepSeek trained on diverse data with strong general capabilities.",
     "size": "4.6 GB",
     "huggingFaceLink": "https://huggingface.co/TheBloke/deepseek-llm-7B-base-GGUF/resolve/main/deepseek-llm-7b-base.Q4_K_S.gguf",
+    "licenseLink": "https://github.com/deepseek-ai/DeepSeek-LLM/blob/main/LICENSE-MODEL",
     "modelFamily": "8 Billion",
     "quantization": "Q4_K_S"
   },
@@ -132,6 +145,7 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "description": "Meta's latest instruction-tuned model with improved reasoning and instruction following.",
     "size": "4.7 GB",
     "huggingFaceLink": "https://huggingface.co/bartowski/Meta-Llama-3.1-8B-Instruct-GGUF/resolve/main/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf",
+    "licenseLink": "https://ai.meta.com/llama/license/",
     "modelFamily": "8 Billion",
     "quantization": "Q4_K_M"
   },
@@ -140,6 +154,7 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "description": "Specialized coding assistant trained on high-quality programming data with instruction tuning.",
     "size": "4.8 GB",
     "huggingFaceLink": "https://huggingface.co/TheBloke/deepseek-coder-6.7B-instruct-GGUF/resolve/main/deepseek-coder-6.7b-instruct-Q6_K.gguf",
+    "licenseLink": "https://github.com/deepseek-ai/DeepSeek-LLM/blob/main/LICENSE-MODEL",
     "modelFamily": "6.7 Billion",
     "quantization": "Q6_K"
   },
@@ -148,6 +163,7 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "description": "Google's code-focused model with strong programming and technical documentation capabilities.",
     "size": "5.1 GB",
     "huggingFaceLink": "https://huggingface.co/bartowski/codegemma-7b-it-GGUF/resolve/main/codegemma-7b-it-Q6_K.gguf",
+    "licenseLink": "https://ai.google.dev/gemma/terms",
     "modelFamily": "7 Billion",
     "quantization": "Q6_K"
   },
@@ -156,6 +172,7 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "description": "Mistral's adaptation of the Grok model with enhanced conversational abilities.",
     "size": "5.1 GB",
     "huggingFaceLink": "https://huggingface.co/mradermacher/mistral-7b-grok-GGUF/resolve/main/mistral-7b-grok.Q3_K_L.gguf",
+    "licenseLink": "https://www.apache.org/licenses/LICENSE-2.0",
     "modelFamily": "7 Billion",
     "quantization": "Q3_K_L"
   },
@@ -164,6 +181,7 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "description": "Alibaba's general-purpose instruction-tuned model with strong multilingual capabilities.",
     "size": "5.2 GB",
     "huggingFaceLink": "https://huggingface.co/bartowski/Qwen2.5-7B-Instruct-GGUF/resolve/main/Qwen2.5-7B-Instruct-Q6_K.gguf",
+    "licenseLink": "https://www.apache.org/licenses/LICENSE-2.0",
     "modelFamily": "7 Billion",
     "quantization": "Q6_K"
   },
@@ -172,6 +190,7 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "description": "Google's previous instruction-tuned model with excellent reasoning and helpfulness.",
     "size": "5.4 GB",
     "huggingFaceLink": "https://huggingface.co/bartowski/gemma-2-9b-it-GGUF/resolve/main/gemma-2-9b-it-Q4_K_M.gguf",
+    "licenseLink": "https://ai.google.dev/gemma/terms",
     "modelFamily": "9 Billion",
     "quantization": "Q4_K_M"
   },
@@ -180,6 +199,7 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "description": "Meta's larger chat-optimized model with enhanced reasoning and instruction following.",
     "size": "8.7 GB",
     "huggingFaceLink": "https://huggingface.co/TheBloke/Llama-2-13B-chat-GGUF/resolve/main/llama-2-13b-chat.Q5_K_M.gguf",
+    "licenseLink": "https://ai.meta.com/llama/license/",
     "modelFamily": "13 Billion",
     "quantization": "Q5_K_M"
   }

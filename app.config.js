@@ -5,10 +5,13 @@ export default {
     name: "Inferra",
     slug: "inferra",
     owner: "subhajitgorai",
-    version: "2.5.0",
+    version: "2.5.8",
     orientation: "portrait",
     icon: "./assets/icon.png",
     userInterfaceStyle: "automatic",
+    description: "AI-powered mobile chat assistant supporting both local and cloud-based language models. Features include AI text generation, image analysis, document processing, and multimodal interactions. All AI-generated content is clearly labeled for transparency.",
+    privacy: "public",
+    keywords: ["AI", "chat", "assistant", "machine learning", "language model", "artificial intelligence"],
     newArchEnabled: true,
     splash: {
       image: "./assets/icon.png",
@@ -26,27 +29,36 @@ export default {
     ],
     ios: {
       supportsTablet: true,
+      requireFullScreen: false,
       bundleIdentifier: "com.gorai.ragionare",
-      buildNumber: "250",
-      runtimeVersion: "2.5.0",
+      buildNumber: "258",
+      runtimeVersion: "2.5.8",
+      updates: {
+        enabled: false
+      },
       infoPlist: {
         UIBackgroundModes: [
           "fetch",
           "remote-notification"
         ],
         UIStatusBarStyle: "UIStatusBarStyleDefault",
-        UIViewControllerBasedStatusBarAppearance: false
+        UIViewControllerBasedStatusBarAppearance: false,
+        UIGestureRecognizerShouldBegin: false,
+        UINavigationControllerHidesBarsOnSwipe: false
       },
       scheme: "com.gorai.ragionare"
     },
     android: {
-      versionCode: 250,
+      versionCode: 258,
       adaptiveIcon: {
         foregroundImage: "./assets/icon.png",
         backgroundColor: "#660880"
       },
       package: "com.gorai.ragionare",
-      runtimeVersion: "2.5.0",
+      runtimeVersion: "2.5.8",
+      edgeToEdgeEnabled: true,
+      resizeableActivity: true,
+      supportsFreeform: true,
       permissions: [
         "NOTIFICATIONS",
         "BACKGROUND_FETCH",
@@ -102,6 +114,7 @@ export default {
       typedRoutes: true
     },
     plugins: [
+      "react-native-edge-to-edge",
       [
         
         "expo-splash-screen",
@@ -121,10 +134,13 @@ export default {
             buildToolsVersion: '35.0.0',
             kotlinVersion: '2.0.21',
             kspVersion: '2.0.21-1.0.20',
-            usesCleartextTraffic: false
+            usesCleartextTraffic: false,
+            manifestPlaceholders: {
+              screenOrientation: "unspecified"
+            }
           },
           ios: {
-            deploymentTarget: "15.1",
+            deploymentTarget: "15.5",
             useFrameworks: "static"
           }
         }

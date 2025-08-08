@@ -22,6 +22,8 @@ import CameraOverlay from '../../components/CameraOverlay';
 import { llamaManager } from '../../utils/LlamaManager';
 import { Dialog, Portal, Text, Button } from 'react-native-paper';
 import { modelDownloader } from '../../services/ModelDownloader';
+import AITermsDialog from './AITermsDialog';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type ChatInputProps = {
   onSend: (text: string) => void;
@@ -75,9 +77,34 @@ export default function ChatInput({
   const [dialogVisible, setDialogVisible] = useState(false);
   const [dialogTitle, setDialogTitle] = useState('');
   const [dialogMessage, setDialogMessage] = useState('');
+  const [showAITermsDialog, setShowAITermsDialog] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   const isGenerating = isLoading || isRegenerating;
   const hasText = text.trim().length > 0;
+
+  React.useEffect(() => {
+    loadTermsAcceptance();
+  }, []);
+
+  const loadTermsAcceptance = async () => {
+    try {
+      const termsValue = await AsyncStorage.getItem('@ai_terms_accepted');
+      setTermsAccepted(termsValue === 'true');
+    } catch (error) {
+      console.warn('Failed to load AI terms acceptance:', error);
+    }
+  };
+
+  const handleAcceptTerms = async () => {
+    try {
+      await AsyncStorage.setItem('@ai_terms_accepted', 'true');
+      setTermsAccepted(true);
+      setShowAITermsDialog(false);
+    } catch (error) {
+      console.warn('Failed to save terms acceptance:', error);
+    }
+  };
 
 
 
@@ -626,6 +653,12 @@ export default function ChatInput({
                 },
               ]}
             >
+              <View style={styles.experimentalTag}>
+                <Text style={[styles.experimentalText, { color: isDark ? '#ffb74d' : '#f57c00' }]}>
+                  Experimental
+                </Text>
+              </View>
+              
               <TouchableOpacity style={styles.attachmentMenuItem} onPress={pickDocument}>
                 <View style={[styles.attachmentMenuIcon, { backgroundColor: '#4285f4' }]}>
                   <MaterialCommunityIcons name="file-document-outline" size={20} color="#ffffff" />
@@ -721,6 +754,34 @@ export default function ChatInput({
           </View>
         </View>
       </TouchableWithoutFeedback>
+
+      <View style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        flexWrap: 'wrap'
+      }}>
+        <Text style={{
+          fontSize: 12,
+          color: isDark ? '#888' : '#666',
+          textAlign: 'center'
+        }}
+        >
+          AI-generated content may contain errors, verify important information.{''}
+        </Text>
+        <TouchableOpacity onPress={() => setShowAITermsDialog(true)}>
+          <Text style={{
+            fontSize: 12,
+            color: isDark ? '#BB86FC' : '#6200EA',
+            // textDecorationLine: 'underline'
+          }}
+          >
+            Learn more
+          </Text>
+        </TouchableOpacity>
+      </View>
 
       <FileViewerModal
         visible={fileModalVisible}
@@ -833,6 +894,12 @@ export default function ChatInput({
           </Dialog.Actions>
         </Dialog>
       </Portal>
+
+      <AITermsDialog
+        visible={showAITermsDialog}
+        onDismiss={() => setShowAITermsDialog(false)}
+        onAccept={handleAcceptTerms}
+      />
     </View>
   );
 }
@@ -966,5 +1033,19 @@ const styles = StyleSheet.create({
     marginTop: 12,
     textAlign: 'center',
     lineHeight: 20,
+  },
+  experimentalTag: {
+    position: 'absolute',
+    top: -8,
+    left: 12,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  experimentalText: {
+    fontSize: 10,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
 }); 
