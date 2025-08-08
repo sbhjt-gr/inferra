@@ -2,30 +2,27 @@
 
 Inferra is a mobile application built on React Native and Expo that brings large language models (LLMs) & small language models (SLMs) directly to your Android & iOS device. Cloud-based models (remote models) like Claude, DeepSeek, Gemini and ChatGPT are also supported. File attachments are also well-supported for both local & remote models.
 
-<a href="https://play.google.com/store/apps/details?id=com.gorai.ragionare">
-  <img src="https://github.com/user-attachments/assets/bdc18fc5-5a99-410c-b383-eaf9c737176e" alt="play_download" width="200"/>
-</a> (app is currently unavailable due to a policy issue but should be back by next week)
-<br>
-<i>iOS version is ready and scheduled to be released soon.</i>
-<br><br>
-If you want to support me and the development of this project, kindly donate through <a href="https://ko-fi.com/subhajitgorai" target="_blank">Ko-fi</a>. Any donation amount is highly appreciated.
+[<img src="https://github.com/user-attachments/assets/bdc18fc5-5a99-410c-b383-eaf9c737176e" alt="Get it on Google Play" width="150">](https://play.google.com/store/apps/details?id=com.gorai.ragionare)
 
-<br>
+*iOS version is ready and scheduled to be released soon.*
+
+If you want to support me and the development of this project, kindly donate through [Ko-fi](https://ko-fi.com/subhajitgorai). Any donation amount is highly appreciated.
 
 ## Screenshots
-<img src="https://lh3.googleusercontent.com/jFJWO1yItb9Nr6xIp66vukWrI2XR1YO2aauREiBolk-D78hzsU_wlxQv7Ny1-9ZELF6FYFPdgLAWQve9g__S" />
-<img src="https://lh3.googleusercontent.com/kmyPf6GGEs5HHFZrUQtYWhsdMw4h0Izsvfdubn10mBFADopTthWJEZfJ7kAKtUWMpJM-QUhF9DQNOc_Hi2pBeg" />
-<img src="https://lh3.googleusercontent.com/GwF7L1kMENYt7TgAZHfzpV4ZCwoTieSc0H4SFPsHgrn9ZARC-nDgtzf2R2VxqaAyCni2efSvxVJIcWIb5HaScKA" />
-<img src="https://lh3.googleusercontent.com/E-VO33t0ZLwkQsZR97_PEWaA18ei4czXCA77nPRp4akBbpsX2pDL-Je9cOYHadQkc3WeDCdM_Q_UovaHoH-k" />
-<img src="https://lh3.googleusercontent.com/ujPaHQZK4Wvbo1pmugeQZepyI2iTP77IrTIbAJn85VLmdqfGrALUqITNZ71PJF0TuJU77DsSRkgeaxnPdop-xw" />
-<img src="https://lh3.googleusercontent.com/hsLQ0OyKlLBxPX_d_X52hLsEbpzRJvrPcU3Sj9N9mKxRbYkpk598wgZF6Yqr3y5vrk8VNPQKF5Hdp8DgoRPO" />
-<img src="https://lh3.googleusercontent.com/kIdj7hMfVmLS_6s_Yk1gtRxgsYLjWXz7evPIBBrGvnZ5-T4FosUqzOucKEMYNxJgpDyvViI8S2x3EjVJUsQe" />
+
+![Screenshot 1](https://lh3.googleusercontent.com/jFJWO1yItb9Nr6xIp66vukWrI2XR1YO2aauREiBolk-D78hzsU_wlxQv7Ny1-9ZELF6FYFPdgLAWQve9g__S)
+![Screenshot 2](https://lh3.googleusercontent.com/kmyPf6GGEs5HHFZrUQtYWhsdMw4h0Izsvfdubn10mBFADopTthWJEZfJ7kAKtUWMpJM-QUhF9DQNOc_Hi2pBeg)
+![Screenshot 3](https://lh3.googleusercontent.com/GwF7L1kMENYt7TgAZHfzpV4ZCwoTieSc0H4SFPsHgrn9ZARC-nDgtzf2R2VxqaAyCni2efSvxVJIcWIb5HaScKA)
+![Screenshot 4](https://lh3.googleusercontent.com/E-VO33t0ZLwkQsZR97_PEWaA18ei4czXCA77nPRp4akBbpsX2pDL-Je9cOYHadQkc3WeDCdM_Q_UovaHoH-k)
+![Screenshot 5](https://lh3.googleusercontent.com/ujPaHQZK4Wvbo1pmugeQZepyI2iTP77IrTIbAJn85VLmdqfGrALUqITNZ71PJF0TuJU77DsSRkgeaxnPdop-xw)
+![Screenshot 6](https://lh3.googleusercontent.com/hsLQ0OyKlLBxPX_d_X52hLsEbpzRJvrPcU3Sj9N9mKxRbYkpk598wgZF6Yqr3y5vrk8VNPQKF5Hdp8DgoRPO)
+![Screenshot 7](https://lh3.googleusercontent.com/kIdj7hMfVmLS_6s_Yk1gtRxgsYLjWXz7evPIBBrGvnZ5-T4FosUqzOucKEMYNxJgpDyvViI8S2x3EjVJUsQe)
 
 ## Features
 
 - Inference, currently only through llama.cpp, is supported but I plan to add more inference engines as I keep working on this project. You can become a contributor to this project by implementing some of these features. See the [contributions guide](#contributing) below.
 - Seamless integration with cloud-based models from OpenAI, Gemini, Anthropic and DeepSeek is also supported, but you need to have your own API keys and an Inferra registered account for that. Using remote models is completely optional.
-- The app supports vision through models with multimodal capabilities. First, you need a multimodal model and its corresponding multimodal projector (mmproj) file which you can find <a target="_blank" href="https://github.com/ggml-org/llama.cpp">here</a>. I've included SmolVLM2 and its corresponding multimodal projector (mmproj) file by default which you can find in the Models -> Download Models tab. Both are combined, meaning downloading "SmolVLM2" will also download its associated projector file, but you can cancel the download of the other file if you don't want it.
+- The app supports vision through models with multimodal capabilities. First, you need a multimodal model and its corresponding multimodal projector (mmproj) file which you can find [here](https://github.com/ggml-org/llama.cpp). I've included SmolVLM2 and its corresponding multimodal projector (mmproj) file by default which you can find in the Models -> Download Models tab. Both are combined, meaning downloading "SmolVLM2" will also download its associated projector file, but you can cancel the download of the other file if you don't want it.
 - The app comes with a built-in camera (based on expo-camera), which lets you click pictures in the app itself and send them to the model directly. The clicked pictures are saved to your gallery by default. 
 - The file attachment support comes with a built-in document extractor which will perform OCR locally on all the pages of your document and extract the text content and send it to the model (whether it's local/remote). I'm working on a RAG-based approach to implement this, which will make the processing much faster. You can help me implement this feature by [contributing](#contributing)!
 - The app comes with a download manager which directly downloads models from HuggingFace. I've cherry-picked many models and made a list ideal for running models on Edge devices. You can find them by going to the Models -> Download Models tab. Any models you download will be visible in the model selector of the chat screen as well as in the "Stored Models" tab of the "Models" tab. You can import models from your local storage as well.
@@ -123,11 +120,11 @@ If you want to contribute or just try to run it locally, follow the guide below.
 
 ## License
 
-This project is distributed under the Apache License 2.0 License. Please read it <a href="https://github.com/sbhjt-gr/inferra/blob/main/LICENSE">here</a>. Any modifications must adhere to the rules of this LICENSE.
+This project is distributed under the Apache License 2.0 License. Please read it [here](https://github.com/sbhjt-gr/inferra/blob/main/LICENSE). Any modifications must adhere to the rules of this LICENSE.
 
 ## Contributing
 
-Contributions are welcome! You can find reported bugs in the <a href="https://github.com/sbhjt-gr/inferra/issues">issues</a> tab. Comment down on the issue if you are willing to work on that particular issue. You should be assigned to the task first before you start working. If you want to contribute a feature of your own, open a new issue first and describe your idea clearly:
+Contributions are welcome! You can find reported bugs in the [issues](https://github.com/sbhjt-gr/inferra/issues) tab. Comment down on the issue if you are willing to work on that particular issue. You should be assigned to the task first before you start working. If you want to contribute a feature of your own, open a new issue first and describe your idea clearly:
 Explain:
   - What the feature is
   - Why it's useful
@@ -145,5 +142,5 @@ If you're interested to work on any one of these (or any other idea you have), y
 ## Acknowledgments
 
 - [llama.cpp](https://github.com/ggerganov/llama.cpp) - This the default underlying engine for running local LLMs and it's the only one that's been implemented yet.
-- [inferra-llama.rn](https://github.com/sbhjt-gr/inferra-llama.rn) - This is the customized React Native adapter which provides the bridge for llama.cpp. Originally forked and self-hosted from <a href="https://github.com/mybigday/llama.rn" target="_blank">llama.rn</a> for updating llama.cpp more frequently.
+- [inferra-llama.rn](https://github.com/sbhjt-gr/inferra-llama.rn) - This is the customized React Native adapter which provides the bridge for llama.cpp. Originally forked and self-hosted from [llama.rn](https://github.com/mybigday/llama.rn) for updating llama.cpp more frequently.
 - If someone thinks they also need to be mentioned here, please let me know.
