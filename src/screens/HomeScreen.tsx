@@ -343,6 +343,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     const currentMessageId = streamingMessageId;
     const currentContent = streamingMessage || '';
     const currentThinking = streamingThinking || '';
+    const currentStats = streamingStats || { tokens: 0, duration: 0 };
     
     setIsLoading(false);
     setIsRegenerating(false);
@@ -354,10 +355,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             ...msg,
             content: currentContent,
             thinking: currentThinking,
-            stats: {
-              duration: 0,
-              tokens: 0
-            }
+            stats: currentStats
           };
         }
         return msg;
@@ -391,10 +389,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             currentMessageId,
             currentContent,
             currentThinking,
-            {
-              duration: 0,
-              tokens: 0,
-            }
+            currentStats
           );
         } catch (error) {
           console.error('[HomeScreen] Error updating message content:', error);
@@ -411,7 +406,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       setIsCooldown(false);
       setJustCancelled(false);
     }, 300);
-  }, [streamingMessage, streamingThinking, streamingMessageId, activeProvider, messages]);
+  }, [streamingMessage, streamingThinking, streamingMessageId, streamingStats, activeProvider, messages]);
 
   const handleApiError = (error: unknown, provider: 'Gemini' | 'OpenAI' | 'DeepSeek' | 'Claude') => {
     console.error(`Error with ${provider} API:`, error);
@@ -578,22 +573,18 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
           
           const currentTime = Date.now();
           
-          // Track first token time when we get the first actual content
           if (firstTokenTime === null && partialResponse.trim().length > 0) {
             firstTokenTime = currentTime - startTime;
           }
           
-          // Estimate token count (rough approximation: 1 token ≈ 0.75 words)
           const wordCount = partialResponse.trim().split(/\s+/).filter(word => word.length > 0).length;
-          tokenCount = Math.max(1, Math.ceil(wordCount * 1.33)); // Convert words to approximate tokens
+          tokenCount = Math.max(1, Math.ceil(wordCount * 1.33));
           fullResponse = partialResponse;
           
-          // Calculate average token time (only if we have tokens and first token has arrived)
           const duration = (currentTime - startTime) / 1000;
           let avgTokenTime = undefined;
           
           if (firstTokenTime !== null && tokenCount > 0) {
-            // Time from first token to now, divided by tokens generated since first token
             const timeAfterFirstToken = currentTime - (startTime + firstTokenTime);
             avgTokenTime = timeAfterFirstToken / tokenCount;
           }
@@ -611,7 +602,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
               partialResponse.endsWith('.') || 
               partialResponse.endsWith('!') || 
               partialResponse.endsWith('?')) {
-            // Calculate debounced avgTokenTime
             let debouncedAvgTokenTime = undefined;
             if (firstTokenTime !== null && tokenCount > 0) {
               const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
@@ -655,7 +645,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             );
             
             if (!cancelGenerationRef.current) {
-              // Calculate final avgTokenTime if we have the data
               let finalAvgTokenTime = undefined;
               if (firstTokenTime !== null && tokenCount > 0) {
                 const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
@@ -708,7 +697,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             );
             
             if (!cancelGenerationRef.current) {
-              // Calculate final avgTokenTime if we have the data
               let finalAvgTokenTime = undefined;
               if (firstTokenTime !== null && tokenCount > 0) {
                 const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
@@ -761,7 +749,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             );
             
             if (!cancelGenerationRef.current) {
-              // Calculate final avgTokenTime if we have the data
               let finalAvgTokenTime = undefined;
               if (firstTokenTime !== null && tokenCount > 0) {
                 const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
@@ -814,7 +801,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             );
             
             if (!cancelGenerationRef.current) {
-              // Calculate final avgTokenTime if we have the data
               let finalAvgTokenTime = undefined;
               if (firstTokenTime !== null && tokenCount > 0) {
                 const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
@@ -865,7 +851,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
               return false;
             }
             
-            // Track first token time when we get the first actual content
             if (firstTokenTime === null && !isThinking && token.trim().length > 0 && !token.includes('<think>') && !token.includes('</think>')) {
               firstTokenTime = Date.now() - startTime;
             }
@@ -888,12 +873,10 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
               setStreamingMessage(fullResponse);
             }
             
-            // Calculate average token time if we have the data
             const duration = (Date.now() - startTime) / 1000;
             let avgTokenTime = undefined;
             
             if (firstTokenTime !== null && tokenCount > 0) {
-              // Time from first token to now, divided by tokens generated since first token
               const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
               avgTokenTime = timeAfterFirstToken / tokenCount;
             }
@@ -907,7 +890,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             
             updateCounter++;
             if (updateCounter % 20 === 0) {
-              // Calculate debounced avgTokenTime
               let debouncedAvgTokenTime = undefined;
               if (firstTokenTime !== null && tokenCount > 0) {
                 const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
@@ -933,7 +915,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       }
       
       if (!cancelGenerationRef.current) {
-        // Calculate final avgTokenTime if we have the data
         let finalAvgTokenTime = undefined;
         if (firstTokenTime !== null && tokenCount > 0) {
           const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
