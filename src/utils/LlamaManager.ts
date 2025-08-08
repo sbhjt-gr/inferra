@@ -9,6 +9,11 @@ interface ModelMemoryInfo {
   availableMemory: number;
 }
 
+interface TokenQueueItem {
+  token: string;
+  timestamp: number;
+}
+
 interface LlamaManagerInterface {
   getMemoryInfo(): Promise<ModelMemoryInfo>;
 }
@@ -121,6 +126,10 @@ class LlamaManager {
   private isMultimodalEnabled: boolean = false;
   private mmProjectorPath: string | null = null;
   private multimodalSupport: MultimodalSupport = { vision: false, audio: false };
+  
+  private tokenQueue: TokenQueueItem[] = [];
+  private isProcessingTokens: boolean = false;
+  private tokenProcessingPromise: Promise<void> | null = null;
 
   constructor() {
     this.loadSettings().catch(error => {
@@ -534,6 +543,63 @@ class LlamaManager {
     await this.updateSettings({ logitBias });
   }
 
+  private queueToken(token: string): void {
+    this.tokenQueue.push({
+      token,
+      timestamp: Date.now()
+    });
+  }
+
+  private async processTokenQueue(onToken?: (token: string) => boolean | void): Promise<void> {
+    if (this.isProcessingTokens || this.tokenQueue.length === 0) {
+      return;
+    }
+
+    this.isProcessingTokens = true;
+
+    try {
+      const tokensToProcess = [...this.tokenQueue];
+      this.tokenQueue = [];
+
+      for (const item of tokensToProcess) {
+        if (this.isCancelled) {
+          break;
+        }
+
+        if (onToken) {
+          const shouldContinue = onToken(item.token);
+          if (shouldContinue === false) {
+            this.isCancelled = true;
+            break;
+          }
+        }
+      }
+    } finally {
+      this.isProcessingTokens = false;
+    }
+  }
+
+  private async waitForTokenQueueCompletion(): Promise<void> {
+    const maxWaitTime = 5000;
+    const checkInterval = 50; 
+    let elapsed = 0;
+
+    while ((this.tokenQueue.length > 0 || this.isProcessingTokens) && elapsed < maxWaitTime) {
+      await new Promise(resolve => setTimeout(resolve, checkInterval));
+      elapsed += checkInterval;
+    }
+
+    if (elapsed >= maxWaitTime) {
+      console.warn('[LlamaManager] Token queue completion timeout reached');
+    }
+  }
+
+  private clearTokenQueue(): void {
+    this.tokenQueue = [];
+    this.isProcessingTokens = false;
+    this.tokenProcessingPromise = null;
+  }
+
   async generateResponse(
     messages: Array<{ role: string; content: string }>,
     onToken?: (token: string) => boolean | void
@@ -623,22 +689,29 @@ class LlamaManager {
           
           if (!this.settings.stopWords.includes(data.token)) {
             fullResponse += data.token;
-            const shouldContinue = onToken?.(data.token);
-            if (shouldContinue === false) {
-              this.isCancelled = true;
-              return false;
+            
+            this.queueToken(data.token);
+            
+            if (!this.tokenProcessingPromise) {
+              this.tokenProcessingPromise = this.processTokenQueue(onToken).finally(() => {
+                this.tokenProcessingPromise = null;
+              });
             }
-            return true;
+            
+            return !this.isCancelled;
           }
           return false;
         }
       );
+
+      await this.waitForTokenQueueCompletion();
 
       return fullResponse.trim();
     } catch (error) {
       console.error('[LlamaManager] Error in generateResponse:', error);
       throw error;
     } finally {
+      this.clearTokenQueue();
       this.isCancelled = false;
     }
   }
@@ -727,8 +800,31 @@ class LlamaManager {
     }
   }
 
+  async stopCompletion() {
+    this.isCancelled = true;
+    
+    if (this.context) {
+      try {
+        if (typeof this.context.stopCompletion === 'function') {
+          await this.context.stopCompletion();
+          console.log('[LlamaManager] Completion stopped using native method');
+        } else {
+          console.log('[LlamaManager] Native stopCompletion not available, using fallback');
+        }
+      } catch (error) {
+        console.error('[LlamaManager] Error stopping completion:', error);
+      }
+    }
+
+    await this.waitForTokenQueueCompletion();
+  }
+
   async cancelGeneration() {
     this.isCancelled = true;
+    
+    await this.stopCompletion();
+    
+    this.clearTokenQueue();
     
     if (this.modelPath && this.context) {
       try {
@@ -768,6 +864,8 @@ class LlamaManager {
     try {
       this.isCancelled = true;
       
+      this.clearTokenQueue();
+      
       if (this.context) {
         await this.releaseMultimodal();
         await this.context.release();
@@ -779,6 +877,12 @@ class LlamaManager {
       console.error('Release error:', error);
       throw error;
     }
+  }
+
+  emergencyCleanup() {
+    this.isCancelled = true;
+    this.clearTokenQueue();
+    console.log('[LlamaManager] Emergency cleanup completed');
   }
 
   getModelPath() {
@@ -848,6 +952,14 @@ class LlamaManager {
 
   isInitialized(): boolean {
     return this.context !== null;
+  }
+
+  isGenerating(): boolean {
+    return !this.isCancelled && this.context !== null;
+  }
+
+  isCancelling(): boolean {
+    return this.isCancelled;
   }
 
   async loadModel(modelPath: string, mmProjectorPath?: string) {

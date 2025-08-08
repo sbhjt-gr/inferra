@@ -368,24 +368,37 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     
     if (activeProvider === 'local') {
       try {
-        await llamaManager.cancelGeneration();
+        console.log('[HomeScreen] Stopping local model generation...');
+        await llamaManager.stopCompletion();
+        console.log('[HomeScreen] Local generation stopped successfully');
       } catch (error) {
-        console.error('Error cancelling generation:', error);
+        console.error('[HomeScreen] Error stopping generation:', error);
+        try {
+          await llamaManager.cancelGeneration();
+        } catch (fallbackError) {
+          console.error('[HomeScreen] Fallback cancellation also failed:', fallbackError);
+        }
       }
+    } else {
+      console.log('[HomeScreen] Cancelling online model generation via flag...');
     }
     
     if (currentMessageId && (currentContent || currentThinking)) {
       const currentChat = chatManager.getCurrentChat();
       if (currentChat) {
-        await chatManager.updateMessageContent(
-          currentMessageId,
-          currentContent,
-          currentThinking,
-          {
-            duration: 0,
-            tokens: 0,
-          }
-        );
+        try {
+          await chatManager.updateMessageContent(
+            currentMessageId,
+            currentContent,
+            currentThinking,
+            {
+              duration: 0,
+              tokens: 0,
+            }
+          );
+        } catch (error) {
+          console.error('[HomeScreen] Error updating message content:', error);
+        }
       }
     }
     
@@ -1342,6 +1355,15 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   };
 
   const handleModelSelect = async (model: 'local' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude', modelPath?: string, projectorPath?: string) => {
+    if (isLoading || isRegenerating || isStreaming) {
+      showDialog(
+        'Model In Use',
+        'Cannot change model while generating a response. Please wait for the current generation to complete or cancel it.',
+        [<Button key="ok" onPress={hideDialog}>OK</Button>]
+      );
+      return;
+    }
+
     if (model !== 'local' && (!enableRemoteModels || !isLoggedIn)) {
       showDialog(
         'Remote Models Disabled',
