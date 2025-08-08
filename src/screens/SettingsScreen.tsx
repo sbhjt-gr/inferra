@@ -47,7 +47,7 @@ const DEFAULT_SETTINGS = {
   topP: 0.9,
   minP: 0.05,
   stopWords: ['<|end|>', '<end_of_turn>', '<|im_end|>', '<|endoftext|>','<end_of_utterance>'],
-  systemPrompt: 'You are a helpful, honest, and safe AI assistant. Always follow the law and prioritize user safety and well-being. Provide accurate, respectful, and non-biased information. Do not produce harmful, misleading, or offensive content. If asked for actions or information that may be illegal, unethical, dangerous, or violate privacy, refuse clearly and explain why. If a request is ambiguous, seek clarification before responding. Maintain a neutral and professional tone, avoid personal opinions unless explicitly requested, and always respect user boundaries.',
+  systemPrompt: 'You are a helpful, honest, and safe AI assistant. Do not produce harmful, misleading, or offensive content. If asked for actions or information that may be illegal, unethical, dangerous, or violate privacy, refuse clearly. Maintain a neutral and professional tone, avoid personal opinions unless explicitly requested.',
   inferenceEngine: 'llama.cpp' as InferenceEngine
 };
 
@@ -503,12 +503,12 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           onToggleRemoteModels={handleRemoteModelsToggle}
         />
         
-        {/* <ChatSettingsSection
+        <ChatSettingsSection
           modelSettings={modelSettings}
           defaultSettings={DEFAULT_SETTINGS}
           onOpenSystemPromptDialog={() => setShowSystemPromptDialog(true)}
           onResetSystemPrompt={() => handleSettingsChange({ systemPrompt: DEFAULT_SETTINGS.systemPrompt })}
-        /> */}
+        />
 
         <ModelSettingsSection
           modelSettings={modelSettings}

@@ -759,18 +759,17 @@ export default function ChatInput({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        paddingHorizontal: 50,
+        paddingHorizontal: 10,
         paddingVertical: 4,
-        // flexWrap: 'wrap'
+        flexWrap: 'wrap'
       }}>
         <Text style={{
           fontSize: 12,
           color: isDark ? '#888' : '#666',
           textAlign: 'center'
         }}
-        numberOfLines={1}
         >
-          AI-generated content may contain errors. Always verify important information.{' '}
+          AI-generated content may contain errors, verify important information.{''}
         </Text>
         <TouchableOpacity onPress={() => setShowAITermsDialog(true)}>
           <Text style={{

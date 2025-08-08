@@ -201,13 +201,15 @@ const DownloadableModelItem: React.FC<DownloadableModelItemProps> = ({
             </Text>
           )}
           
-          <TouchableOpacity
-            style={styles.licenseButtonBottomLeft}
-            onPress={() => handleBrowserDownload(model.licenseLink)}
-          >
-            <MaterialCommunityIcons name="file-document-outline" size={14} color={getBrowserDownloadTextColor(currentTheme)} style={{ marginRight: 4 }} />
-            <Text style={[styles.licenseButtonText, { color: getBrowserDownloadTextColor(currentTheme) }]}>License</Text>
-          </TouchableOpacity>
+          {model.licenseLink && (
+            <TouchableOpacity
+              style={styles.licenseButtonBottomLeft}
+              onPress={() => handleBrowserDownload(model.licenseLink)}
+            >
+              <MaterialCommunityIcons name="file-document-outline" size={14} color={getBrowserDownloadTextColor(currentTheme)} style={{ marginRight: 4 }} />
+              <Text style={[styles.licenseButtonText, { color: getBrowserDownloadTextColor(currentTheme) }]}>License</Text>
+            </TouchableOpacity>
+          )}
           
           {downloadProgress && downloadProgress.status !== 'completed' && downloadProgress.status !== 'failed' && (
             <View style={styles.downloadProgress}>

@@ -1133,7 +1133,6 @@ const ModelSettingsSection = ({
                     onSettingsChange({ logitBias });
                     setShowLogitBiasDialog(false);
                   } catch (error) {
-                    // Handle parsing error - could add error state here
                     onSettingsChange({ logitBias: [] });
                     setShowLogitBiasDialog(false);
                   }

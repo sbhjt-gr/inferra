@@ -10,13 +10,15 @@ interface DownloadableModelListProps {
   storedModels: any[];
   downloadProgress: any;
   setDownloadProgress: React.Dispatch<React.SetStateAction<any>>;
+  onDownload?: (model: DownloadableModel) => void;
 }
 
 const DownloadableModelList: React.FC<DownloadableModelListProps> = ({ 
   models,
   storedModels,
   downloadProgress, 
-  setDownloadProgress
+  setDownloadProgress,
+  onDownload
 }) => {
   const navigation = useNavigation();
   const [initializingDownloads, setInitializingDownloads] = useState<{ [key: string]: boolean }>({});
@@ -119,7 +121,7 @@ const DownloadableModelList: React.FC<DownloadableModelListProps> = ({
           isDownloading={Boolean(downloadProgress[model.name])}
           isInitializing={Boolean(initializingDownloads[model.name])}
           downloadProgress={downloadProgress[model.name]}
-          onDownload={handleDownload}
+          onDownload={onDownload || handleDownload}
         />
       ))}
 
