@@ -111,6 +111,7 @@ export default {
       typedRoutes: true
     },
     plugins: [
+      "react-native-edge-to-edge",
       [
         
         "expo-splash-screen",

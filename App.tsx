@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, Fragment } from 'react';
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
-import { AppState, AppStateStatus, Text, TextInput, LogBox } from 'react-native';
+import { AppState, AppStateStatus, Text, TextInput, LogBox, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
@@ -85,6 +85,7 @@ async function registerBackgroundFetchAsync() {
 function Navigation() {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as ThemeColors];
+  const insets = useSafeAreaInsets();
   const appState = useRef(AppState.currentState);
 
   const customDefaultTheme = {
@@ -212,7 +213,19 @@ function Navigation() {
       <NavigationContainer 
         theme={currentTheme === 'dark' ? customDarkTheme : customDefaultTheme}
       >
-        <StatusBar style="light" backgroundColor="transparent" translucent />
+        {/* Status Bar Background View for edge-to-edge display */}
+        <View 
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: insets.top,
+            backgroundColor: themeColors.statusBarBg,
+            zIndex: 999,
+          }}
+        />
+        <StatusBar style="light" translucent />
         <RootNavigator />
         <ShowDialog />
       </NavigationContainer>

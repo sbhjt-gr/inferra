@@ -92,6 +92,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
   const buttonScale = useRef(new Animated.Value(1)).current;
   const [isLoading, setIsLoading] = useState(false);
   const [importingModelName, setImportingModelName] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
   const [isLoadingApiKeys, setIsLoadingApiKeys] = useState(false);
   const [geminiApiKey, setGeminiApiKey] = useState('');
   const [openAIApiKey, setOpenAIApiKey] = useState('');
@@ -598,7 +599,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
               } catch (error) {
                 console.error(`[ModelScreen] Error deleting model ${model.name}:`, error);
                 showDialog('Error', 'Failed to delete model', [
-                  <Button key="ok" onPress={hideDialog}>OK</Button>
                 ]);
               }
             }}
@@ -606,6 +606,28 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
             Delete
           </Button>
         ]
+      );
+    }
+  };
+
+  const handleExport = async (modelPath: string, modelName: string) => {
+    try {
+      console.log(`[ModelScreen] Starting export for model: ${modelName}`);
+      setIsLoading(true);
+      setIsExporting(true);
+      
+      await modelDownloader.exportModel(modelPath, modelName);
+      
+      setIsLoading(false);
+      setIsExporting(false);
+    } catch (error) {
+      setIsLoading(false);
+      setIsExporting(false);
+      console.error(`[ModelScreen] Error exporting model ${modelName}:`, error);
+      showDialog(
+        'Share Failed',
+        `Failed to share ${modelName}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        [<Button key="ok" onPress={hideDialog}>OK</Button>]
       );
     }
   };
@@ -742,6 +764,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         size={item.size}
         isExternal={Boolean(item.isExternal)}
         onDelete={() => handleDelete(item)}
+        onExport={handleExport}
       />
     );
   };
@@ -793,6 +816,13 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       error?: string;
     }) => {
       console.log('[ModelScreen] Import progress:', progress);
+      
+      // Don't show import dialog if we're currently exporting
+      if (isExporting) {
+        console.log('[ModelScreen] Ignoring import progress during export');
+        return;
+      }
+      
       if (progress.status === 'importing') {
         setImportingModelName(progress.modelName);
       } else {
@@ -807,12 +837,24 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       }
     };
 
+    const handleModelExported = (data: { modelName: string; tempFilePath: string }) => {
+      console.log('[ModelScreen] Model exported:', data);
+      // Show success message - the actual save location depends on user choice
+      showDialog(
+        'Share Successful',
+        `${data.modelName} has been successfully prepared for sharing. You can now save it to your desired location.`,
+        [<Button key="ok" onPress={hideDialog}>OK</Button>]
+      );
+    };
+
     modelDownloader.on('importProgress', handleImportProgress);
+    modelDownloader.on('modelExported', handleModelExported);
 
     return () => {
       modelDownloader.off('importProgress', handleImportProgress);
+      modelDownloader.off('modelExported', handleModelExported);
     };
-  }, []);
+  }, [isExporting, showDialog, hideDialog]);
 
   useEffect(() => {
     loadApiKeys();
@@ -1020,10 +1062,10 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
           <View style={[styles.loadingContainer, { backgroundColor: themeColors.borderColor }]}>
             <ActivityIndicator size="large" color={themeColors.primary} />
             <RNText style={[styles.loadingText, { color: themeColors.text, textAlign: 'center' }]}>
-              {importingModelName ? `Importing ${importingModelName}...` : 'Importing model...'}
+              {isExporting ? 'Exporting model...' : (importingModelName ? `Importing ${importingModelName}...` : 'Importing model...')}
             </RNText>
             <RNText style={[styles.loadingSubtext, { color: themeColors.secondaryText, textAlign: 'center' }]}>
-              {importingModelName ? 'Moving model to app storage' : 'This may take a while for large models'}
+              {isExporting ? 'Preparing model for sharing' : (importingModelName ? 'Moving model to app storage' : 'This may take a while for large models')}
             </RNText>
           </View>
         </View>
