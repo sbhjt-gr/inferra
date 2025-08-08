@@ -96,7 +96,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   const [onlineModelProvider, setOnlineModelProvider] = useState<string | null>(null);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [streamingThinking, setStreamingThinking] = useState<string>('');
-  const [streamingStats, setStreamingStats] = useState<{ tokens: number; duration: number } | null>(null);
+  const [streamingStats, setStreamingStats] = useState<{ tokens: number; duration: number; firstTokenTime?: number; avgTokenTime?: number } | null>(null);
   const appStateRef = useRef(AppState.currentState);
   const [appState, setAppState] = useState(appStateRef.current);
   const isFirstLaunchRef = useRef(true);
@@ -135,7 +135,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     messageId: string, 
     content: string, 
     thinking: string, 
-    stats: { duration: number; tokens: number }
+    stats: { duration: number; tokens: number; firstTokenTime?: number; avgTokenTime?: number }
   ) => {
     chatManager.updateMessageContent(
       messageId,
@@ -565,6 +565,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       let fullResponse = '';
       let thinking = '';
       let isThinking = false;
+      let firstTokenTime: number | null = null;
       cancelGenerationRef.current = false;
       
       let updateCounter = 0;
@@ -575,13 +576,34 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             return false;
           }
           
-          tokenCount = partialResponse.split(/\s+/).length;
+          const currentTime = Date.now();
+          
+          // Track first token time when we get the first actual content
+          if (firstTokenTime === null && partialResponse.trim().length > 0) {
+            firstTokenTime = currentTime - startTime;
+          }
+          
+          // Estimate token count (rough approximation: 1 token ≈ 0.75 words)
+          const wordCount = partialResponse.trim().split(/\s+/).filter(word => word.length > 0).length;
+          tokenCount = Math.max(1, Math.ceil(wordCount * 1.33)); // Convert words to approximate tokens
           fullResponse = partialResponse;
+          
+          // Calculate average token time (only if we have tokens and first token has arrived)
+          const duration = (currentTime - startTime) / 1000;
+          let avgTokenTime = undefined;
+          
+          if (firstTokenTime !== null && tokenCount > 0) {
+            // Time from first token to now, divided by tokens generated since first token
+            const timeAfterFirstToken = currentTime - (startTime + firstTokenTime);
+            avgTokenTime = timeAfterFirstToken / tokenCount;
+          }
           
           setStreamingMessage(partialResponse);
           setStreamingStats({
             tokens: tokenCount,
-            duration: (Date.now() - startTime) / 1000
+            duration: duration,
+            firstTokenTime: firstTokenTime || undefined,
+            avgTokenTime: avgTokenTime && avgTokenTime > 0 ? avgTokenTime : undefined
           });
           
           updateCounter++;
@@ -589,6 +611,13 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
               partialResponse.endsWith('.') || 
               partialResponse.endsWith('!') || 
               partialResponse.endsWith('?')) {
+            // Calculate debounced avgTokenTime
+            let debouncedAvgTokenTime = undefined;
+            if (firstTokenTime !== null && tokenCount > 0) {
+              const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
+              debouncedAvgTokenTime = timeAfterFirstToken / tokenCount;
+            }
+            
             updateMessageContentDebounced(
               messageId,
               partialResponse,
@@ -596,6 +625,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
               {
                 duration: (Date.now() - startTime) / 1000,
                 tokens: tokenCount,
+                firstTokenTime: firstTokenTime || undefined,
+                avgTokenTime: debouncedAvgTokenTime && debouncedAvgTokenTime > 0 ? debouncedAvgTokenTime : undefined
               }
             );
           }
@@ -624,6 +655,13 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             );
             
             if (!cancelGenerationRef.current) {
+              // Calculate final avgTokenTime if we have the data
+              let finalAvgTokenTime = undefined;
+              if (firstTokenTime !== null && tokenCount > 0) {
+                const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
+                finalAvgTokenTime = timeAfterFirstToken / tokenCount;
+              }
+              
               await chatManager.updateMessageContent(
                 messageId,
                 fullResponse,
@@ -631,6 +669,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                 {
                   duration: (Date.now() - startTime) / 1000,
                   tokens: tokenCount,
+                  firstTokenTime: firstTokenTime || undefined,
+                  avgTokenTime: finalAvgTokenTime && finalAvgTokenTime > 0 ? finalAvgTokenTime : undefined
                 }
               );
             }
@@ -668,6 +708,13 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             );
             
             if (!cancelGenerationRef.current) {
+              // Calculate final avgTokenTime if we have the data
+              let finalAvgTokenTime = undefined;
+              if (firstTokenTime !== null && tokenCount > 0) {
+                const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
+                finalAvgTokenTime = timeAfterFirstToken / tokenCount;
+              }
+              
               await chatManager.updateMessageContent(
                 messageId,
                 fullResponse,
@@ -675,6 +722,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                 {
                   duration: (Date.now() - startTime) / 1000,
                   tokens: tokenCount,
+                  firstTokenTime: firstTokenTime || undefined,
+                  avgTokenTime: finalAvgTokenTime && finalAvgTokenTime > 0 ? finalAvgTokenTime : undefined
                 }
               );
             }
@@ -712,6 +761,13 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             );
             
             if (!cancelGenerationRef.current) {
+              // Calculate final avgTokenTime if we have the data
+              let finalAvgTokenTime = undefined;
+              if (firstTokenTime !== null && tokenCount > 0) {
+                const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
+                finalAvgTokenTime = timeAfterFirstToken / tokenCount;
+              }
+              
               await chatManager.updateMessageContent(
                 messageId,
                 fullResponse,
@@ -719,6 +775,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                 {
                   duration: (Date.now() - startTime) / 1000,
                   tokens: tokenCount,
+                  firstTokenTime: firstTokenTime || undefined,
+                  avgTokenTime: finalAvgTokenTime && finalAvgTokenTime > 0 ? finalAvgTokenTime : undefined
                 }
               );
             }
@@ -756,6 +814,13 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             );
             
             if (!cancelGenerationRef.current) {
+              // Calculate final avgTokenTime if we have the data
+              let finalAvgTokenTime = undefined;
+              if (firstTokenTime !== null && tokenCount > 0) {
+                const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
+                finalAvgTokenTime = timeAfterFirstToken / tokenCount;
+              }
+              
               await chatManager.updateMessageContent(
                 messageId,
                 fullResponse,
@@ -763,6 +828,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                 {
                   duration: (Date.now() - startTime) / 1000,
                   tokens: tokenCount,
+                  firstTokenTime: firstTokenTime || undefined,
+                  avgTokenTime: finalAvgTokenTime && finalAvgTokenTime > 0 ? finalAvgTokenTime : undefined
                 }
               );
             }
@@ -798,6 +865,11 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
               return false;
             }
             
+            // Track first token time when we get the first actual content
+            if (firstTokenTime === null && !isThinking && token.trim().length > 0 && !token.includes('<think>') && !token.includes('</think>')) {
+              firstTokenTime = Date.now() - startTime;
+            }
+            
             if (token.includes('<think>')) {
               isThinking = true;
               return true;
@@ -816,13 +888,32 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
               setStreamingMessage(fullResponse);
             }
             
+            // Calculate average token time if we have the data
+            const duration = (Date.now() - startTime) / 1000;
+            let avgTokenTime = undefined;
+            
+            if (firstTokenTime !== null && tokenCount > 0) {
+              // Time from first token to now, divided by tokens generated since first token
+              const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
+              avgTokenTime = timeAfterFirstToken / tokenCount;
+            }
+            
             setStreamingStats({
               tokens: tokenCount,
-              duration: (Date.now() - startTime) / 1000
+              duration: duration,
+              firstTokenTime: firstTokenTime || undefined,
+              avgTokenTime: avgTokenTime && avgTokenTime > 0 ? avgTokenTime : undefined
             });
             
             updateCounter++;
             if (updateCounter % 20 === 0) {
+              // Calculate debounced avgTokenTime
+              let debouncedAvgTokenTime = undefined;
+              if (firstTokenTime !== null && tokenCount > 0) {
+                const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
+                debouncedAvgTokenTime = timeAfterFirstToken / tokenCount;
+              }
+              
               updateMessageContentDebounced(
                 messageId,
                 fullResponse,
@@ -830,6 +921,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                 {
                   duration: (Date.now() - startTime) / 1000,
                   tokens: tokenCount,
+                  firstTokenTime: firstTokenTime || undefined,
+                  avgTokenTime: debouncedAvgTokenTime && debouncedAvgTokenTime > 0 ? debouncedAvgTokenTime : undefined
                 }
               );
             }
@@ -840,6 +933,13 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       }
       
       if (!cancelGenerationRef.current) {
+        // Calculate final avgTokenTime if we have the data
+        let finalAvgTokenTime = undefined;
+        if (firstTokenTime !== null && tokenCount > 0) {
+          const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
+          finalAvgTokenTime = timeAfterFirstToken / tokenCount;
+        }
+        
         await chatManager.updateMessageContent(
           messageId,
           fullResponse,
@@ -847,6 +947,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
           {
             duration: (Date.now() - startTime) / 1000,
             tokens: tokenCount,
+            firstTokenTime: firstTokenTime || undefined,
+            avgTokenTime: finalAvgTokenTime && finalAvgTokenTime > 0 ? finalAvgTokenTime : undefined
           }
         );
       }
@@ -933,6 +1035,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     let fullResponse = '';
     let thinking = '';
     let isThinking = false;
+    let firstTokenTime: number | null = null;
     
     try {
       const isOnlineModel = activeProvider && activeProvider !== 'local';

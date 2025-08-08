@@ -33,6 +33,8 @@ export type Message = {
   stats?: {
     duration: number;
     tokens: number;
+    firstTokenTime?: number;
+    avgTokenTime?: number;
   };
   isLoading?: boolean;
 };
@@ -43,7 +45,7 @@ type ChatViewProps = {
   streamingMessageId: string | null;
   streamingMessage: string;
   streamingThinking: string;
-  streamingStats: { tokens: number; duration: number } | null;
+  streamingStats: { tokens: number; duration: number; firstTokenTime?: number; avgTokenTime?: number } | null;
   onCopyText: (text: string) => void;
   onRegenerateResponse: () => void;
   isRegenerating: boolean;
@@ -163,6 +165,16 @@ export default function ChatView({
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   }, []);
 
+  const formatTime = useCallback((milliseconds: number): string => {
+    if (milliseconds < 1000) {
+      return `${Math.round(milliseconds)}ms`;
+    } else {
+      const seconds = Math.floor(milliseconds / 1000);
+      const remainingMs = Math.round(milliseconds % 1000);
+      return `${seconds}.${remainingMs.toString().padStart(3, '0')}s`;
+    }
+  }, []);
+
   const renderMessage = useCallback(({ item }: { item: Message }) => {
     const isCurrentlyStreaming = (isStreaming || justCancelled) && item.id === streamingMessageId;
     const showLoadingIndicator = isCurrentlyStreaming && !streamingMessage && !justCancelled;
@@ -195,8 +207,6 @@ export default function ChatView({
         if (parsedMessage && 
             parsedMessage.type === 'file_upload' && 
             parsedMessage.internalInstruction) {
-          
-
           
           const match = parsedMessage.internalInstruction.match(/You're reading a file named: (.+?)\n/);
           if (match && match[1]) {
@@ -597,55 +607,70 @@ export default function ChatView({
 
           {item.role === 'assistant' && stats && (
             <View style={styles.statsContainer}>
-              <Text style={[styles.statsText, { color: themeColors.secondaryText }]}>
-                {`${(stats?.tokens ?? 0).toLocaleString()} tokens`}
-              </Text>
-              {stats?.duration && stats.duration > 0 && (
-                <Text style={[styles.statsText, { color: themeColors.secondaryText, marginLeft: 6 }]}> 
-                  {`${((stats?.tokens ?? 0) / stats.duration).toFixed(1)} tok/s`}
+              <View style={styles.statsRow}>
+                <Text style={[styles.statsText, { color: themeColors.secondaryText }]}>
+                  {`${(stats?.tokens ?? 0).toLocaleString()} tokens`}
                 </Text>
-              )}
-              {stats?.duration && stats.duration > 0 && (
-                <Text style={[styles.statsText, { color: themeColors.secondaryText, marginLeft: 6 }]}> 
-                  {formatDuration(stats.duration)}
-                </Text>
-              )}
+                {stats?.duration && stats.duration > 0 && (
+                  <Text style={[styles.statsText, { color: themeColors.secondaryText, marginLeft: 8 }]}> 
+                    {`${((stats?.tokens ?? 0) / stats.duration).toFixed(1)} tok/s`}
+                  </Text>
+                )}
+                {stats?.duration && stats.duration > 0 && (
+                  <Text style={[styles.statsText, { color: themeColors.secondaryText, marginLeft: 8 }]}> 
+                    {formatDuration(stats.duration)}
+                  </Text>
+                )}
+              </View>
               
-              {item === messages[messages.length - 1] && (
-                <TouchableOpacity 
-                  style={[
-                    styles.regenerateButton,
-                    isRegenerating && styles.regenerateButtonDisabled
-                  ]}
-                  onPress={() => {
-                    if (!isRegenerating) {
-                      onRegenerateResponse();
-                    }
-                  }}
-                  disabled={isRegenerating}
-                >
-                  {isRegenerating ? (
-                    <ActivityIndicator size="small" color={themeColors.secondaryText} />
-                  ) : (
-                    <>
-                      <MaterialCommunityIcons 
-                        name="refresh" 
-                        size={14} 
-                        color={themeColors.secondaryText}
-                      />
-                      <Text style={[styles.regenerateButtonText, { color: themeColors.secondaryText }]}>
-                        Regenerate
-                      </Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              )}
+              <View style={styles.statsRow}>
+                {stats?.firstTokenTime && stats.firstTokenTime > 0 && (
+                  <Text style={[styles.statsText, { color: themeColors.secondaryText }]}> 
+                    TTFT: {formatTime(stats.firstTokenTime)}
+                  </Text>
+                )}
+                {stats?.avgTokenTime && stats.avgTokenTime > 0 && (
+                  <Text style={[styles.statsText, { color: themeColors.secondaryText, marginLeft: 8 }]}> 
+                    Avg: {formatTime(stats.avgTokenTime)}
+                  </Text>
+                )}
+                
+                {item === messages[messages.length - 1] && (
+                  <TouchableOpacity 
+                    style={[
+                      styles.regenerateButton,
+                      isRegenerating && styles.regenerateButtonDisabled
+                    ]}
+                    onPress={() => {
+                      if (!isRegenerating) {
+                        onRegenerateResponse();
+                      }
+                    }}
+                    disabled={isRegenerating}
+                  >
+                    {isRegenerating ? (
+                      <ActivityIndicator size="small" color={themeColors.secondaryText} />
+                    ) : (
+                      <>
+                        <MaterialCommunityIcons 
+                          name="refresh" 
+                          size={14} 
+                          color={themeColors.secondaryText}
+                        />
+                        <Text style={[styles.regenerateButtonText, { color: themeColors.secondaryText }]}>
+                          Regenerate
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
           )}
         </View>
       </View>
     );
-  }, [themeColors, messages, isStreaming, streamingMessageId, streamingMessage, streamingThinking, streamingStats, onCopyText, isRegenerating, onRegenerateResponse, justCancelled, openImageViewer, openEditDialog]);
+  }, [themeColors, messages, isStreaming, streamingMessageId, streamingMessage, streamingThinking, streamingStats, onCopyText, isRegenerating, onRegenerateResponse, justCancelled, openImageViewer, openEditDialog, formatTime, formatDuration]);
 
   const renderContent = () => {
     if (messages.length === 0) {
@@ -852,15 +877,20 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   statsContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
+    flexDirection: 'column',
     paddingHorizontal: 12,
     paddingBottom: 8,
     paddingTop: 4,
     borderTopWidth: 0.5,
     borderTopColor: 'rgba(0, 0, 0, 0.1)',
     overflow: 'visible',
+  },
+  statsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    marginBottom: 4,
+    flexWrap: 'wrap',
   },
   statsText: {
     fontSize: 11,
