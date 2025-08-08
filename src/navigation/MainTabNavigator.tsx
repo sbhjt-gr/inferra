@@ -155,7 +155,6 @@ export default function MainTabNavigator() {
 const styles = StyleSheet.create({
   tabBar: {
     flexDirection: 'row',
-    paddingTop: 10,
     borderTopWidth: 0,
   },
   tabItem: {

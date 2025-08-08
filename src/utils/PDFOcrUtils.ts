@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system';
 import PdfPageImage from 'react-native-pdf-page-image';
-import TextRecognition from '@react-native-ml-kit/text-recognition';
+import TextRecognition from '@subhajit-gorai/react-native-ml-kit-text-recognition';
 
 export type PageImage = {
   uri: string;

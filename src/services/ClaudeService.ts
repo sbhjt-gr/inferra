@@ -97,7 +97,7 @@ export class ClaudeService {
         };
       }
     } catch (error) {
-      // Not a JSON message, treat as regular text
+      // treat as regular text
     }
     
     return {

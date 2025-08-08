@@ -31,16 +31,16 @@ import * as DocumentPicker from 'expo-document-picker';
 import { downloadNotificationService } from '../services/DownloadNotificationService';
 import { getThemeAwareColor } from '../utils/ColorUtils';
 import { onlineModelService } from '../services/OnlineModelService';
-import DownloadableModelList from '../components/model/DownloadableModelList';
 import ApiKeySection from '../components/model/ApiKeySection';
-import ModelFilter, { FilterOptions } from '../components/ModelFilter';
+import { FilterOptions } from '../components/ModelFilter';
+import UnifiedModelList from '../components/model/UnifiedModelList';
 import { DownloadableModel } from '../components/model/DownloadableModelItem';
 import ModelDownloadsDialog from '../components/model/ModelDownloadsDialog';
 import StoredModelItem from '../components/model/StoredModelItem';
 import { getActiveDownloadsCount } from '../utils/ModelUtils';
 import { StoredModel } from '../services/ModelDownloaderTypes';
 import { DOWNLOADABLE_MODELS } from '../constants/DownloadableModels';
-import { Dialog, Portal, PaperProvider, Button, Text as PaperText } from 'react-native-paper';
+import { Dialog, Portal, Button, Text as PaperText } from 'react-native-paper';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { logoutUser, getUserFromSecureStorage } from '../services/FirebaseService';
 
@@ -92,6 +92,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
   const buttonScale = useRef(new Animated.Value(1)).current;
   const [isLoading, setIsLoading] = useState(false);
   const [importingModelName, setImportingModelName] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
   const [isLoadingApiKeys, setIsLoadingApiKeys] = useState(false);
   const [geminiApiKey, setGeminiApiKey] = useState('');
   const [openAIApiKey, setOpenAIApiKey] = useState('');
@@ -598,7 +599,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
               } catch (error) {
                 console.error(`[ModelScreen] Error deleting model ${model.name}:`, error);
                 showDialog('Error', 'Failed to delete model', [
-                  <Button key="ok" onPress={hideDialog}>OK</Button>
                 ]);
               }
             }}
@@ -610,124 +610,107 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     }
   };
 
+  const handleExport = async (modelPath: string, modelName: string) => {
+    try {
+      console.log(`[ModelScreen] Starting export for model: ${modelName}`);
+      setIsLoading(true);
+      setIsExporting(true);
+      
+      await modelDownloader.exportModel(modelPath, modelName);
+      
+      setIsLoading(false);
+      setIsExporting(false);
+    } catch (error) {
+      setIsLoading(false);
+      setIsExporting(false);
+      console.error(`[ModelScreen] Error exporting model ${modelName}:`, error);
+      showDialog(
+        'Share Failed',
+        `Failed to share ${modelName}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        [<Button key="ok" onPress={hideDialog}>OK</Button>]
+      );
+    }
+  };
+
   const renderDownloadableList = () => (
     <View style={styles.downloadableContainer}>
-      <ScrollView 
-        style={{ flex: 1 }}
-        contentContainerStyle={{ padding: 16, paddingTop: 8 }}
-        showsVerticalScrollIndicator={false}
-      >
-        <TouchableOpacity
-          style={[styles.customUrlButton, { backgroundColor: themeColors.borderColor }, { marginBottom: 25 }]}
-          onPress={() => setCustomUrlDialogVisible(true)}
-        >
-          <View style={styles.customUrlButtonContent}>
-            <View style={styles.customUrlIconContainer}>
-              <MaterialCommunityIcons name="plus-circle-outline" size={24} color={getThemeAwareColor('#4a0660', currentTheme)} />
-            </View>
-            <View style={styles.customUrlTextContainer}>
-              <RNText style={[styles.customUrlButtonTitle, { color: themeColors.text }]}>
-                Download from URL
-              </RNText>
-              <RNText style={[styles.customUrlButtonSubtitle, { color: themeColors.secondaryText }]}>
-                Download a custom GGUF model from a URL
-              </RNText>
-            </View>
-          </View>
-        </TouchableOpacity>
-        
-        <ModelFilter
-          onFiltersChange={applyFilters}
-          availableTags={getAvailableFilterOptions().tags}
-          availableModelFamilies={getAvailableFilterOptions().modelFamilies}
-          availableQuantizations={getAvailableFilterOptions().quantizations}
-        />
-        
-        <TouchableOpacity
-          style={[styles.guidanceButton, { backgroundColor: themeColors.borderColor }]}
-          onPress={() => setGuidanceDialogVisible(true)}
-        >
-          <View style={styles.guidanceButtonContent}>
-            <MaterialCommunityIcons name="help-circle-outline" size={24} color={getThemeAwareColor('#4a0660', currentTheme)} />
-            <RNText style={[styles.guidanceButtonText, { color: themeColors.text }]}>
-              I don't know what to download
-            </RNText>
-          </View>
-        </TouchableOpacity>
-        
-        <DownloadableModelList 
-          models={filteredModels}
-          storedModels={storedModels}
-          downloadProgress={downloadProgress}
-          setDownloadProgress={setDownloadProgress}
-        />
+      <UnifiedModelList
+        curatedModels={filteredModels}
+        storedModels={storedModels}
+        downloadProgress={downloadProgress}
+        setDownloadProgress={setDownloadProgress}
+        filters={filters}
+        onFiltersChange={applyFilters}
+        getAvailableFilterOptions={getAvailableFilterOptions}
+        onCustomUrlPress={() => setCustomUrlDialogVisible(true)}
+        onGuidancePress={() => setGuidanceDialogVisible(true)}
+      />
 
-        <CustomUrlDialog
-          visible={customUrlDialogVisible}
-          onClose={() => setCustomUrlDialogVisible(false)}
-          onDownloadStart={handleCustomDownload}
-          navigation={navigation}
-        />
+      <CustomUrlDialog
+        visible={customUrlDialogVisible}
+        onClose={() => setCustomUrlDialogVisible(false)}
+        onDownloadStart={handleCustomDownload}
+        navigation={navigation}
+      />
 
-        <Portal>
-          <Dialog visible={guidanceDialogVisible} onDismiss={() => setGuidanceDialogVisible(false)}>
-            <Dialog.Title>Model Download Guidance</Dialog.Title>
-            <Dialog.Content>
-              <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={false}>
-                <PaperText style={{ fontSize: 16, fontWeight: '600', marginBottom: 8 }}>
-                  Unsure what to download?
-                </PaperText>
-                <PaperText style={{ marginBottom: 16, lineHeight: 20 }}>
-                  If you don't know what to download first, start with Gemma 3 Instruct - 1B.
-                </PaperText>
+      <Portal>
+        <Dialog visible={guidanceDialogVisible} onDismiss={() => setGuidanceDialogVisible(false)}>
+          <Dialog.Title>Model Download Guidance</Dialog.Title>
+          <Dialog.Content>
+            <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={false}>
+              <PaperText style={{ fontSize: 16, fontWeight: '600', marginBottom: 8 }}>
+                Unsure what to download?
+              </PaperText>
+              <PaperText style={{ marginBottom: 16, lineHeight: 20 }}>
+                If you don't know what to download first, start with Gemma 3 Instruct - 1B.
+              </PaperText>
 
-                <PaperText style={{ fontSize: 16, fontWeight: '600', marginBottom: 8 }}>
-                  Understanding Model Sizes
-                </PaperText>
-                <PaperText style={{ marginBottom: 16, lineHeight: 20 }}>
-                  • <PaperText style={{ fontWeight: '600' }}>1B-3B models:</PaperText> Fast and lightweight, great for simple tasks{'\n'}
-                  • <PaperText style={{ fontWeight: '600' }}>7B-9B models:</PaperText> Good balance of speed and capability{'\n'}
-                  • <PaperText style={{ fontWeight: '600' }}>13B+ models:</PaperText> More capable but slower, need more memory
-                </PaperText>
+              <PaperText style={{ fontSize: 16, fontWeight: '600', marginBottom: 8 }}>
+                Understanding Model Sizes
+              </PaperText>
+              <PaperText style={{ marginBottom: 16, lineHeight: 20 }}>
+                • <PaperText style={{ fontWeight: '600' }}>1B-3B models:</PaperText> Fast and lightweight, great for simple tasks{'\n'}
+                • <PaperText style={{ fontWeight: '600' }}>7B-9B models:</PaperText> Good balance of speed and capability{'\n'}
+                • <PaperText style={{ fontWeight: '600' }}>13B+ models:</PaperText> More capable but slower, need more memory
+              </PaperText>
 
-                <PaperText style={{ fontSize: 16, fontWeight: '600', marginBottom: 8 }}>
-                  Quantization Explained
-                </PaperText>
-                <PaperText style={{ marginBottom: 12, lineHeight: 20 }}>
-                  Quantization reduces model size while trying to preserve quality:
-                </PaperText>
+              <PaperText style={{ fontSize: 16, fontWeight: '600', marginBottom: 8 }}>
+                Quantization Explained
+              </PaperText>
+              <PaperText style={{ marginBottom: 12, lineHeight: 20 }}>
+                Quantization reduces model size while trying to preserve quality:
+              </PaperText>
 
-                <PaperText style={{ fontWeight: '600', marginBottom: 4 }}>Quality Levels (Best to Fastest):</PaperText>
-                <PaperText style={{ marginBottom: 12, lineHeight: 18 }}>
-                  • <PaperText style={{ fontWeight: '600' }}>Q8_0:</PaperText> Highest quality, largest size{'\n'}
-                  • <PaperText style={{ fontWeight: '600' }}>Q6_K:</PaperText> Very good quality{'\n'}
-                  • <PaperText style={{ fontWeight: '600' }}>Q5_K_M:</PaperText> Good balance{'\n'}
-                  • <PaperText style={{ fontWeight: '600' }}>Q4_K_M:</PaperText> Decent quality, smaller size{'\n'}
-                  • <PaperText style={{ fontWeight: '600' }}>Q3_K_M:</PaperText> Lower quality but very fast
-                </PaperText>
+              <PaperText style={{ fontWeight: '600', marginBottom: 4 }}>Quality Levels (Best to Fastest):</PaperText>
+              <PaperText style={{ marginBottom: 12, lineHeight: 18 }}>
+                • <PaperText style={{ fontWeight: '600' }}>Q8_0:</PaperText> Highest quality, largest size{'\n'}
+                • <PaperText style={{ fontWeight: '600' }}>Q6_K:</PaperText> Very good quality{'\n'}
+                • <PaperText style={{ fontWeight: '600' }}>Q5_K_M:</PaperText> Good balance{'\n'}
+                • <PaperText style={{ fontWeight: '600' }}>Q4_K_M:</PaperText> Decent quality, smaller size{'\n'}
+                • <PaperText style={{ fontWeight: '600' }}>Q3_K_M:</PaperText> Lower quality but very fast
+              </PaperText>
 
-                <PaperText style={{ fontWeight: '600', marginBottom: 4 }}>Advanced Types:</PaperText>
-                <PaperText style={{ marginBottom: 12, lineHeight: 18 }}>
-                  • <PaperText style={{ fontWeight: '600' }}>IQ types:</PaperText> More precise but slower than Q types{'\n'}
-                  • <PaperText style={{ fontWeight: '600' }}>_XS:</PaperText> Extra small, more compressed{'\n'}
-                  • <PaperText style={{ fontWeight: '600' }}>_NL:</PaperText> Non-linear, better results with more compute{'\n'}
-                  • <PaperText style={{ fontWeight: '600' }}>_K types:</PaperText> Mixed precision for better quality
-                </PaperText>
+              <PaperText style={{ fontWeight: '600', marginBottom: 4 }}>Advanced Types:</PaperText>
+              <PaperText style={{ marginBottom: 12, lineHeight: 18 }}>
+                • <PaperText style={{ fontWeight: '600' }}>IQ types:</PaperText> More precise but slower than Q types{'\n'}
+                • <PaperText style={{ fontWeight: '600' }}>_XS:</PaperText> Extra small, more compressed{'\n'}
+                • <PaperText style={{ fontWeight: '600' }}>_NL:</PaperText> Non-linear, better results with more compute{'\n'}
+                • <PaperText style={{ fontWeight: '600' }}>_K types:</PaperText> Mixed precision for better quality
+              </PaperText>
 
-                <PaperText style={{ lineHeight: 20 }}>
-                  • <PaperText style={{ fontWeight: '600' }}>Just starting?</PaperText> Gemma 3 - 1B{'\n'}
-                  • <PaperText style={{ fontWeight: '600' }}>Want vision support?</PaperText> SmolVLM2 Instruct{'\n'}
-                  • <PaperText style={{ fontWeight: '600' }}>Coding help?</PaperText> Qwen 2.5 Coder Instruct{'\n'}
-                  • <PaperText style={{ fontWeight: '600' }}>More power?</PaperText> Try a 7B model like LLaMA 3.1
-                </PaperText>
-              </ScrollView>
-            </Dialog.Content>
-            <Dialog.Actions>
-              <Button onPress={() => setGuidanceDialogVisible(false)}>Got it!</Button>
-            </Dialog.Actions>
-          </Dialog>
-        </Portal>
-      </ScrollView>
+              <PaperText style={{ lineHeight: 20 }}>
+                • <PaperText style={{ fontWeight: '600' }}>Just starting?</PaperText> Gemma 3 - 1B{'\n'}
+                • <PaperText style={{ fontWeight: '600' }}>Want vision support?</PaperText> SmolVLM2 Instruct{'\n'}
+                • <PaperText style={{ fontWeight: '600' }}>Coding help?</PaperText> Qwen 2.5 Coder Instruct{'\n'}
+                • <PaperText style={{ fontWeight: '600' }}>More power?</PaperText> Try a 7B model like LLaMA 3.1
+              </PaperText>
+            </ScrollView>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setGuidanceDialogVisible(false)}>Got it!</Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
     </View>
   );
 
@@ -781,6 +764,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         size={item.size}
         isExternal={Boolean(item.isExternal)}
         onDelete={() => handleDelete(item)}
+        onExport={handleExport}
       />
     );
   };
@@ -832,6 +816,12 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       error?: string;
     }) => {
       console.log('[ModelScreen] Import progress:', progress);
+      
+      if (isExporting) {
+        console.log('[ModelScreen] Ignoring import progress during export');
+        return;
+      }
+      
       if (progress.status === 'importing') {
         setImportingModelName(progress.modelName);
       } else {
@@ -846,12 +836,23 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       }
     };
 
+    const handleModelExported = (data: { modelName: string; tempFilePath: string }) => {
+      console.log('[ModelScreen] Model exported:', data);
+      showDialog(
+        'Share Successful',
+        `${data.modelName} has been successfully prepared for sharing. You can now save it to your desired location.`,
+        [<Button key="ok" onPress={hideDialog}>OK</Button>]
+      );
+    };
+
     modelDownloader.on('importProgress', handleImportProgress);
+    modelDownloader.on('modelExported', handleModelExported);
 
     return () => {
       modelDownloader.off('importProgress', handleImportProgress);
+      modelDownloader.off('modelExported', handleModelExported);
     };
-  }, []);
+  }, [isExporting, showDialog, hideDialog]);
 
   useEffect(() => {
     loadApiKeys();
@@ -1059,10 +1060,10 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
           <View style={[styles.loadingContainer, { backgroundColor: themeColors.borderColor }]}>
             <ActivityIndicator size="large" color={themeColors.primary} />
             <RNText style={[styles.loadingText, { color: themeColors.text, textAlign: 'center' }]}>
-              {importingModelName ? `Importing ${importingModelName}...` : 'Importing model...'}
+              {isExporting ? 'Exporting model...' : (importingModelName ? `Importing ${importingModelName}...` : 'Importing model...')}
             </RNText>
             <RNText style={[styles.loadingSubtext, { color: themeColors.secondaryText, textAlign: 'center' }]}>
-              {importingModelName ? 'Moving model to app storage' : 'This may take a while for large models'}
+              {isExporting ? 'Preparing model for sharing' : (importingModelName ? 'Moving model to app storage' : 'This may take a while for large models')}
             </RNText>
           </View>
         </View>

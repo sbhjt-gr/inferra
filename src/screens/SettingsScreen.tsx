@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, View, Platform, ScrollView, Linking, TouchableOpacity } from 'react-native';
+import { StyleSheet, View, Platform, ScrollView, Linking, TouchableOpacity, Text } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { CompositeNavigationProp } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
@@ -38,7 +38,7 @@ type SettingsScreenProps = {
 };
 
 type ThemeOption = 'system' | 'light' | 'dark';
-type InferenceEngine = 'llama.cpp' | 'mlc-llm' | 'mnn' | 'mlx';
+type InferenceEngine = 'llama.cpp' | 'mediapipe' | 'mlc-llm' | 'mlx';
 
 const DEFAULT_SETTINGS = {
   maxTokens: 1200,
@@ -47,7 +47,7 @@ const DEFAULT_SETTINGS = {
   topP: 0.9,
   minP: 0.05,
   stopWords: ['<|end|>', '<end_of_turn>', '<|im_end|>', '<|endoftext|>','<end_of_utterance>'],
-  systemPrompt: 'You are an AI assistant.',
+  systemPrompt: 'You are a helpful, honest, and safe AI assistant. Do not produce harmful, misleading, or offensive content. If asked for actions or information that may be illegal, unethical, dangerous, or violate privacy, refuse clearly. Maintain a neutral and professional tone, avoid personal opinions unless explicitly requested.',
   inferenceEngine: 'llama.cpp' as InferenceEngine
 };
 
@@ -67,6 +67,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
   const [modelSettings, setModelSettings] = useState(llamaManager.getSettings());
   const [error, setError] = useState<string | null>(null);
   const [selectedInferenceEngine, setSelectedInferenceEngine] = useState<InferenceEngine>('llama.cpp');
+  
   const [dialogConfig, setDialogConfig] = useState<{
     visible: boolean;
     setting?: {
@@ -509,7 +510,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           onResetSystemPrompt={() => handleSettingsChange({ systemPrompt: DEFAULT_SETTINGS.systemPrompt })}
         />
 
-
         <ModelSettingsSection
           modelSettings={modelSettings}
           defaultSettings={DEFAULT_SETTINGS}
@@ -520,7 +520,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           onDialogOpen={handleOpenDialog}
         />
 
-
         <StorageSection
           storageInfo={storageInfo}
           isClearing={isClearing}
@@ -529,7 +528,10 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           onClearAllModels={clearAllModels}
         />
 
-        <SupportSection onOpenLink={openLink} />  
+        <SupportSection 
+          onOpenLink={openLink} 
+          onNavigateToLicenses={() => navigation.navigate('Licenses')}
+        />  
 
         <SystemInfoSection systemInfo={systemInfo} />
         
@@ -610,5 +612,28 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  section: {
+    marginHorizontal: 16,
+    marginBottom: 16,
+  },
+  debugButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: '#f5f5f5',
+  },
+  debugButtonContent: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  debugButtonTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  debugButtonSubtitle: {
+    fontSize: 14,
+    marginTop: 2,
   },
 }); 

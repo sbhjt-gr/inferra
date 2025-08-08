@@ -1,4 +1,4 @@
-import { initLlama, loadLlamaModelInfo, type LlamaContext } from 'inferra-llama';
+import { initLlama, loadLlamaModelInfo, type LlamaContext } from 'llama.rn';
 import { Platform, NativeModules } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import EventEmitter from 'eventemitter3';
@@ -7,6 +7,11 @@ import * as FileSystem from 'expo-file-system';
 interface ModelMemoryInfo {
   requiredMemory: number;
   availableMemory: number;
+}
+
+interface TokenQueueItem {
+  token: string;
+  timestamp: number;
 }
 
 interface LlamaManagerInterface {
@@ -21,6 +26,28 @@ interface ModelSettings {
   minP: number;
   stopWords: string[];
   systemPrompt: string;
+  jinja: boolean;
+  grammar: string;
+  nProbs: number;
+  penaltyLastN: number;
+  penaltyRepeat: number;
+  penaltyFreq: number;
+  penaltyPresent: number;
+  mirostat: number;
+  mirostatTau: number;
+  mirostatEta: number;
+  dryMultiplier: number;
+  dryBase: number;
+  dryAllowedLength: number;
+  dryPenaltyLastN: number;
+  drySequenceBreakers: string[];
+  ignoreEos: boolean;
+  logitBias: Array<Array<number>>;
+  seed: number;
+  xtcProbability: number;
+  xtcThreshold: number;
+  typicalP: number;
+  enableThinking: boolean;
 }
 
 interface LlamaManagerEvents {
@@ -63,7 +90,29 @@ const DEFAULT_SETTINGS: ModelSettings = {
   topP: 0.9,
   minP: 0.05,
   stopWords: ['<|end|>', '<end_of_turn>', '<|im_end|>', '<|endoftext|>', '<end_of_utterance>'],
-  systemPrompt: 'You are an AI assistant.'
+  systemPrompt: 'You are a helpful, honest, and safe AI assistant. Do not produce harmful, misleading, or offensive content. If asked for actions or information that may be illegal, unethical, dangerous, or violate privacy, refuse clearly. Maintain a neutral and professional tone, avoid personal opinions unless explicitly requested.',
+  jinja: true,
+  grammar: '',
+  nProbs: 0,
+  penaltyLastN: 64,
+  penaltyRepeat: 1.0,
+  penaltyFreq: 0.0,
+  penaltyPresent: 0.0,
+  mirostat: 2,
+  mirostatTau: 5.0,
+  mirostatEta: 0.1,
+  dryMultiplier: 0.0,
+  dryBase: 1.75,
+  dryAllowedLength: 2,
+  dryPenaltyLastN: -1,
+  drySequenceBreakers: ['\n', ':', '"', '*'],
+  ignoreEos: false,
+  logitBias: [],
+  seed: -1,
+  xtcProbability: 0.0,
+  xtcThreshold: 0.1,
+  typicalP: 1.0,
+  enableThinking: true,
 };
 
 const LlamaManagerModule = NativeModules.LlamaManager as LlamaManagerInterface;
@@ -77,6 +126,10 @@ class LlamaManager {
   private isMultimodalEnabled: boolean = false;
   private mmProjectorPath: string | null = null;
   private multimodalSupport: MultimodalSupport = { vision: false, audio: false };
+  
+  private tokenQueue: TokenQueueItem[] = [];
+  private isProcessingTokens: boolean = false;
+  private tokenProcessingPromise: Promise<void> | null = null;
 
   constructor() {
     this.loadSettings().catch(error => {
@@ -403,6 +456,150 @@ class LlamaManager {
     await this.updateSettings({ maxTokens: tokens });
   }
 
+  getTemperature(): number {
+    return this.settings.temperature;
+  }
+
+  async setTemperature(temperature: number) {
+    await this.updateSettings({ temperature });
+  }
+
+  getSeed(): number {
+    return this.settings.seed;
+  }
+
+  async setSeed(seed: number) {
+    await this.updateSettings({ seed });
+  }
+
+  getGrammar(): string {
+    return this.settings.grammar;
+  }
+
+  async setGrammar(grammar: string) {
+    await this.updateSettings({ grammar });
+  }
+
+  getJinja(): boolean {
+    return this.settings.jinja;
+  }
+
+  async setJinja(jinja: boolean) {
+    await this.updateSettings({ jinja });
+  }
+
+  getEnableThinking(): boolean {
+    return this.settings.enableThinking;
+  }
+
+  async setEnableThinking(enableThinking: boolean) {
+    await this.updateSettings({ enableThinking });
+  }
+
+  getDryMultiplier(): number {
+    return this.settings.dryMultiplier;
+  }
+
+  async setDryMultiplier(dryMultiplier: number) {
+    await this.updateSettings({ dryMultiplier });
+  }
+
+  getMirostat(): number {
+    return this.settings.mirostat;
+  }
+
+  async setMirostat(mirostat: number) {
+    await this.updateSettings({ mirostat });
+  }
+
+  async setMirostatParams(mirostat: number, tau: number, eta: number) {
+    await this.updateSettings({ 
+      mirostat, 
+      mirostatTau: tau, 
+      mirostatEta: eta 
+    });
+  }
+
+  async setPenaltyParams(repeat: number, freq: number, present: number, lastN: number) {
+    await this.updateSettings({
+      penaltyRepeat: repeat,
+      penaltyFreq: freq,
+      penaltyPresent: present,
+      penaltyLastN: lastN
+    });
+  }
+
+  async setDryParams(multiplier: number, base: number, allowedLength: number, penaltyLastN: number, sequenceBreakers: string[]) {
+    await this.updateSettings({
+      dryMultiplier: multiplier,
+      dryBase: base,
+      dryAllowedLength: allowedLength,
+      dryPenaltyLastN: penaltyLastN,
+      drySequenceBreakers: sequenceBreakers
+    });
+  }
+
+  async setLogitBias(logitBias: Array<Array<number>>) {
+    await this.updateSettings({ logitBias });
+  }
+
+  private queueToken(token: string): void {
+    this.tokenQueue.push({
+      token,
+      timestamp: Date.now()
+    });
+  }
+
+  private async processTokenQueue(onToken?: (token: string) => boolean | void): Promise<void> {
+    if (this.isProcessingTokens || this.tokenQueue.length === 0) {
+      return;
+    }
+
+    this.isProcessingTokens = true;
+
+    try {
+      const tokensToProcess = [...this.tokenQueue];
+      this.tokenQueue = [];
+
+      for (const item of tokensToProcess) {
+        if (this.isCancelled) {
+          break;
+        }
+
+        if (onToken) {
+          const shouldContinue = onToken(item.token);
+          if (shouldContinue === false) {
+            this.isCancelled = true;
+            break;
+          }
+        }
+      }
+    } finally {
+      this.isProcessingTokens = false;
+    }
+  }
+
+  private async waitForTokenQueueCompletion(): Promise<void> {
+    const maxWaitTime = 5000;
+    const checkInterval = 50; 
+    let elapsed = 0;
+
+    while ((this.tokenQueue.length > 0 || this.isProcessingTokens) && elapsed < maxWaitTime) {
+      await new Promise(resolve => setTimeout(resolve, checkInterval));
+      elapsed += checkInterval;
+    }
+
+    if (elapsed >= maxWaitTime) {
+      console.warn('[LlamaManager] Token queue completion timeout reached');
+    }
+  }
+
+  private clearTokenQueue(): void {
+    this.tokenQueue = [];
+    this.isProcessingTokens = false;
+    this.tokenProcessingPromise = null;
+  }
+
   async generateResponse(
     messages: Array<{ role: string; content: string }>,
     onToken?: (token: string) => boolean | void
@@ -462,9 +659,28 @@ class LlamaManager {
           top_k: this.settings.topK,
           top_p: this.settings.topP,
           min_p: this.settings.minP,
-          mirostat: 2,
-          mirostat_tau: 5.0,
-          mirostat_eta: 0.1,
+          jinja: this.settings.jinja,
+          grammar: this.settings.grammar || undefined,
+          n_probs: this.settings.nProbs,
+          penalty_last_n: this.settings.penaltyLastN,
+          penalty_repeat: this.settings.penaltyRepeat,
+          penalty_freq: this.settings.penaltyFreq,
+          penalty_present: this.settings.penaltyPresent,
+          mirostat: this.settings.mirostat,
+          mirostat_tau: this.settings.mirostatTau,
+          mirostat_eta: this.settings.mirostatEta,
+          dry_multiplier: this.settings.dryMultiplier,
+          dry_base: this.settings.dryBase,
+          dry_allowed_length: this.settings.dryAllowedLength,
+          dry_penalty_last_n: this.settings.dryPenaltyLastN,
+          dry_sequence_breakers: this.settings.drySequenceBreakers,
+          ignore_eos: this.settings.ignoreEos,
+          logit_bias: this.settings.logitBias.length > 0 ? this.settings.logitBias : undefined,
+          seed: this.settings.seed,
+          xtc_probability: this.settings.xtcProbability,
+          xtc_threshold: this.settings.xtcThreshold,
+          typical_p: this.settings.typicalP,
+          enable_thinking: this.settings.enableThinking,
         },
         (data) => {
           if (this.isCancelled) {
@@ -473,22 +689,29 @@ class LlamaManager {
           
           if (!this.settings.stopWords.includes(data.token)) {
             fullResponse += data.token;
-            const shouldContinue = onToken?.(data.token);
-            if (shouldContinue === false) {
-              this.isCancelled = true;
-              return false;
+            
+            this.queueToken(data.token);
+            
+            if (!this.tokenProcessingPromise) {
+              this.tokenProcessingPromise = this.processTokenQueue(onToken).finally(() => {
+                this.tokenProcessingPromise = null;
+              });
             }
-            return true;
+            
+            return !this.isCancelled;
           }
           return false;
         }
       );
+
+      await this.waitForTokenQueueCompletion();
 
       return fullResponse.trim();
     } catch (error) {
       console.error('[LlamaManager] Error in generateResponse:', error);
       throw error;
     } finally {
+      this.clearTokenQueue();
       this.isCancelled = false;
     }
   }
@@ -522,9 +745,28 @@ class LlamaManager {
           top_k: 30,
           top_p: 0.8,
           min_p: 0.05,
-          mirostat: 2,
-          mirostat_tau: 5.0,
-          mirostat_eta: 0.1,
+          jinja: this.settings.jinja,
+          grammar: this.settings.grammar || undefined,
+          n_probs: 0,
+          penalty_last_n: this.settings.penaltyLastN,
+          penalty_repeat: this.settings.penaltyRepeat,
+          penalty_freq: this.settings.penaltyFreq,
+          penalty_present: this.settings.penaltyPresent,
+          mirostat: this.settings.mirostat,
+          mirostat_tau: this.settings.mirostatTau,
+          mirostat_eta: this.settings.mirostatEta,
+          dry_multiplier: this.settings.dryMultiplier,
+          dry_base: this.settings.dryBase,
+          dry_allowed_length: this.settings.dryAllowedLength,
+          dry_penalty_last_n: this.settings.dryPenaltyLastN,
+          dry_sequence_breakers: this.settings.drySequenceBreakers,
+          ignore_eos: false,
+          logit_bias: this.settings.logitBias.length > 0 ? this.settings.logitBias : undefined,
+          seed: this.settings.seed,
+          xtc_probability: this.settings.xtcProbability,
+          xtc_threshold: this.settings.xtcThreshold,
+          typical_p: this.settings.typicalP,
+          enable_thinking: this.settings.enableThinking,
         },
         (data) => {
           if (this.isCancelled) {
@@ -558,8 +800,31 @@ class LlamaManager {
     }
   }
 
+  async stopCompletion() {
+    this.isCancelled = true;
+    
+    if (this.context) {
+      try {
+        if (typeof this.context.stopCompletion === 'function') {
+          await this.context.stopCompletion();
+          console.log('[LlamaManager] Completion stopped using native method');
+        } else {
+          console.log('[LlamaManager] Native stopCompletion not available, using fallback');
+        }
+      } catch (error) {
+        console.error('[LlamaManager] Error stopping completion:', error);
+      }
+    }
+
+    await this.waitForTokenQueueCompletion();
+  }
+
   async cancelGeneration() {
     this.isCancelled = true;
+    
+    await this.stopCompletion();
+    
+    this.clearTokenQueue();
     
     if (this.modelPath && this.context) {
       try {
@@ -599,6 +864,8 @@ class LlamaManager {
     try {
       this.isCancelled = true;
       
+      this.clearTokenQueue();
+      
       if (this.context) {
         await this.releaseMultimodal();
         await this.context.release();
@@ -610,6 +877,12 @@ class LlamaManager {
       console.error('Release error:', error);
       throw error;
     }
+  }
+
+  emergencyCleanup() {
+    this.isCancelled = true;
+    this.clearTokenQueue();
+    console.log('[LlamaManager] Emergency cleanup completed');
   }
 
   getModelPath() {
@@ -679,6 +952,14 @@ class LlamaManager {
 
   isInitialized(): boolean {
     return this.context !== null;
+  }
+
+  isGenerating(): boolean {
+    return !this.isCancelled && this.context !== null;
+  }
+
+  isCancelling(): boolean {
+    return this.isCancelled;
   }
 
   async loadModel(modelPath: string, mmProjectorPath?: string) {

@@ -96,7 +96,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   const [onlineModelProvider, setOnlineModelProvider] = useState<string | null>(null);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [streamingThinking, setStreamingThinking] = useState<string>('');
-  const [streamingStats, setStreamingStats] = useState<{ tokens: number; duration: number } | null>(null);
+  const [streamingStats, setStreamingStats] = useState<{ tokens: number; duration: number; firstTokenTime?: number; avgTokenTime?: number } | null>(null);
   const appStateRef = useRef(AppState.currentState);
   const [appState, setAppState] = useState(appStateRef.current);
   const isFirstLaunchRef = useRef(true);
@@ -135,7 +135,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     messageId: string, 
     content: string, 
     thinking: string, 
-    stats: { duration: number; tokens: number }
+    stats: { duration: number; tokens: number; firstTokenTime?: number; avgTokenTime?: number }
   ) => {
     chatManager.updateMessageContent(
       messageId,
@@ -343,6 +343,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     const currentMessageId = streamingMessageId;
     const currentContent = streamingMessage || '';
     const currentThinking = streamingThinking || '';
+    const currentStats = streamingStats || { tokens: 0, duration: 0 };
     
     setIsLoading(false);
     setIsRegenerating(false);
@@ -354,10 +355,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             ...msg,
             content: currentContent,
             thinking: currentThinking,
-            stats: {
-              duration: 0,
-              tokens: 0
-            }
+            stats: currentStats
           };
         }
         return msg;
@@ -368,24 +366,34 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     
     if (activeProvider === 'local') {
       try {
-        await llamaManager.cancelGeneration();
+        console.log('[HomeScreen] Stopping local model generation...');
+        await llamaManager.stopCompletion();
+        console.log('[HomeScreen] Local generation stopped successfully');
       } catch (error) {
-        console.error('Error cancelling generation:', error);
+        console.error('[HomeScreen] Error stopping generation:', error);
+        try {
+          await llamaManager.cancelGeneration();
+        } catch (fallbackError) {
+          console.error('[HomeScreen] Fallback cancellation also failed:', fallbackError);
+        }
       }
+    } else {
+      console.log('[HomeScreen] Cancelling online model generation via flag...');
     }
     
     if (currentMessageId && (currentContent || currentThinking)) {
       const currentChat = chatManager.getCurrentChat();
       if (currentChat) {
-        await chatManager.updateMessageContent(
-          currentMessageId,
-          currentContent,
-          currentThinking,
-          {
-            duration: 0,
-            tokens: 0,
-          }
-        );
+        try {
+          await chatManager.updateMessageContent(
+            currentMessageId,
+            currentContent,
+            currentThinking,
+            currentStats
+          );
+        } catch (error) {
+          console.error('[HomeScreen] Error updating message content:', error);
+        }
       }
     }
     
@@ -398,7 +406,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       setIsCooldown(false);
       setJustCancelled(false);
     }, 300);
-  }, [streamingMessage, streamingThinking, streamingMessageId, activeProvider, messages]);
+  }, [streamingMessage, streamingThinking, streamingMessageId, streamingStats, activeProvider, messages]);
 
   const handleApiError = (error: unknown, provider: 'Gemini' | 'OpenAI' | 'DeepSeek' | 'Claude') => {
     console.error(`Error with ${provider} API:`, error);
@@ -552,6 +560,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       let fullResponse = '';
       let thinking = '';
       let isThinking = false;
+      let firstTokenTime: number | null = null;
       cancelGenerationRef.current = false;
       
       let updateCounter = 0;
@@ -562,13 +571,30 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             return false;
           }
           
-          tokenCount = partialResponse.split(/\s+/).length;
+          const currentTime = Date.now();
+          
+          if (firstTokenTime === null && partialResponse.trim().length > 0) {
+            firstTokenTime = currentTime - startTime;
+          }
+          
+          const wordCount = partialResponse.trim().split(/\s+/).filter(word => word.length > 0).length;
+          tokenCount = Math.max(1, Math.ceil(wordCount * 1.33));
           fullResponse = partialResponse;
+          
+          const duration = (currentTime - startTime) / 1000;
+          let avgTokenTime = undefined;
+          
+          if (firstTokenTime !== null && tokenCount > 0) {
+            const timeAfterFirstToken = currentTime - (startTime + firstTokenTime);
+            avgTokenTime = timeAfterFirstToken / tokenCount;
+          }
           
           setStreamingMessage(partialResponse);
           setStreamingStats({
             tokens: tokenCount,
-            duration: (Date.now() - startTime) / 1000
+            duration: duration,
+            firstTokenTime: firstTokenTime || undefined,
+            avgTokenTime: avgTokenTime && avgTokenTime > 0 ? avgTokenTime : undefined
           });
           
           updateCounter++;
@@ -576,6 +602,12 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
               partialResponse.endsWith('.') || 
               partialResponse.endsWith('!') || 
               partialResponse.endsWith('?')) {
+            let debouncedAvgTokenTime = undefined;
+            if (firstTokenTime !== null && tokenCount > 0) {
+              const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
+              debouncedAvgTokenTime = timeAfterFirstToken / tokenCount;
+            }
+            
             updateMessageContentDebounced(
               messageId,
               partialResponse,
@@ -583,6 +615,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
               {
                 duration: (Date.now() - startTime) / 1000,
                 tokens: tokenCount,
+                firstTokenTime: firstTokenTime || undefined,
+                avgTokenTime: debouncedAvgTokenTime && debouncedAvgTokenTime > 0 ? debouncedAvgTokenTime : undefined
               }
             );
           }
@@ -611,6 +645,12 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             );
             
             if (!cancelGenerationRef.current) {
+              let finalAvgTokenTime = undefined;
+              if (firstTokenTime !== null && tokenCount > 0) {
+                const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
+                finalAvgTokenTime = timeAfterFirstToken / tokenCount;
+              }
+              
               await chatManager.updateMessageContent(
                 messageId,
                 fullResponse,
@@ -618,6 +658,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                 {
                   duration: (Date.now() - startTime) / 1000,
                   tokens: tokenCount,
+                  firstTokenTime: firstTokenTime || undefined,
+                  avgTokenTime: finalAvgTokenTime && finalAvgTokenTime > 0 ? finalAvgTokenTime : undefined
                 }
               );
             }
@@ -655,6 +697,12 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             );
             
             if (!cancelGenerationRef.current) {
+              let finalAvgTokenTime = undefined;
+              if (firstTokenTime !== null && tokenCount > 0) {
+                const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
+                finalAvgTokenTime = timeAfterFirstToken / tokenCount;
+              }
+              
               await chatManager.updateMessageContent(
                 messageId,
                 fullResponse,
@@ -662,6 +710,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                 {
                   duration: (Date.now() - startTime) / 1000,
                   tokens: tokenCount,
+                  firstTokenTime: firstTokenTime || undefined,
+                  avgTokenTime: finalAvgTokenTime && finalAvgTokenTime > 0 ? finalAvgTokenTime : undefined
                 }
               );
             }
@@ -699,6 +749,12 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             );
             
             if (!cancelGenerationRef.current) {
+              let finalAvgTokenTime = undefined;
+              if (firstTokenTime !== null && tokenCount > 0) {
+                const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
+                finalAvgTokenTime = timeAfterFirstToken / tokenCount;
+              }
+              
               await chatManager.updateMessageContent(
                 messageId,
                 fullResponse,
@@ -706,6 +762,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                 {
                   duration: (Date.now() - startTime) / 1000,
                   tokens: tokenCount,
+                  firstTokenTime: firstTokenTime || undefined,
+                  avgTokenTime: finalAvgTokenTime && finalAvgTokenTime > 0 ? finalAvgTokenTime : undefined
                 }
               );
             }
@@ -743,6 +801,12 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             );
             
             if (!cancelGenerationRef.current) {
+              let finalAvgTokenTime = undefined;
+              if (firstTokenTime !== null && tokenCount > 0) {
+                const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
+                finalAvgTokenTime = timeAfterFirstToken / tokenCount;
+              }
+              
               await chatManager.updateMessageContent(
                 messageId,
                 fullResponse,
@@ -750,6 +814,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                 {
                   duration: (Date.now() - startTime) / 1000,
                   tokens: tokenCount,
+                  firstTokenTime: firstTokenTime || undefined,
+                  avgTokenTime: finalAvgTokenTime && finalAvgTokenTime > 0 ? finalAvgTokenTime : undefined
                 }
               );
             }
@@ -785,6 +851,10 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
               return false;
             }
             
+            if (firstTokenTime === null && !isThinking && token.trim().length > 0 && !token.includes('<think>') && !token.includes('</think>')) {
+              firstTokenTime = Date.now() - startTime;
+            }
+            
             if (token.includes('<think>')) {
               isThinking = true;
               return true;
@@ -803,13 +873,29 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
               setStreamingMessage(fullResponse);
             }
             
+            const duration = (Date.now() - startTime) / 1000;
+            let avgTokenTime = undefined;
+            
+            if (firstTokenTime !== null && tokenCount > 0) {
+              const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
+              avgTokenTime = timeAfterFirstToken / tokenCount;
+            }
+            
             setStreamingStats({
               tokens: tokenCount,
-              duration: (Date.now() - startTime) / 1000
+              duration: duration,
+              firstTokenTime: firstTokenTime || undefined,
+              avgTokenTime: avgTokenTime && avgTokenTime > 0 ? avgTokenTime : undefined
             });
             
             updateCounter++;
             if (updateCounter % 20 === 0) {
+              let debouncedAvgTokenTime = undefined;
+              if (firstTokenTime !== null && tokenCount > 0) {
+                const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
+                debouncedAvgTokenTime = timeAfterFirstToken / tokenCount;
+              }
+              
               updateMessageContentDebounced(
                 messageId,
                 fullResponse,
@@ -817,6 +903,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                 {
                   duration: (Date.now() - startTime) / 1000,
                   tokens: tokenCount,
+                  firstTokenTime: firstTokenTime || undefined,
+                  avgTokenTime: debouncedAvgTokenTime && debouncedAvgTokenTime > 0 ? debouncedAvgTokenTime : undefined
                 }
               );
             }
@@ -827,6 +915,12 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       }
       
       if (!cancelGenerationRef.current) {
+        let finalAvgTokenTime = undefined;
+        if (firstTokenTime !== null && tokenCount > 0) {
+          const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
+          finalAvgTokenTime = timeAfterFirstToken / tokenCount;
+        }
+        
         await chatManager.updateMessageContent(
           messageId,
           fullResponse,
@@ -834,6 +928,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
           {
             duration: (Date.now() - startTime) / 1000,
             tokens: tokenCount,
+            firstTokenTime: firstTokenTime || undefined,
+            avgTokenTime: finalAvgTokenTime && finalAvgTokenTime > 0 ? finalAvgTokenTime : undefined
           }
         );
       }
@@ -920,6 +1016,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     let fullResponse = '';
     let thinking = '';
     let isThinking = false;
+    let firstTokenTime: number | null = null;
     
     try {
       const isOnlineModel = activeProvider && activeProvider !== 'local';
@@ -1342,6 +1439,15 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   };
 
   const handleModelSelect = async (model: 'local' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude', modelPath?: string, projectorPath?: string) => {
+    if (isLoading || isRegenerating || isStreaming) {
+      showDialog(
+        'Model In Use',
+        'Cannot change model while generating a response. Please wait for the current generation to complete or cancel it.',
+        [<Button key="ok" onPress={hideDialog}>OK</Button>]
+      );
+      return;
+    }
+
     if (model !== 'local' && (!enableRemoteModels || !isLoggedIn)) {
       showDialog(
         'Remote Models Disabled',
@@ -1544,7 +1650,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]} edges={['bottom', 'left', 'right']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]} edges={['left', 'right']}>
       <AppHeader 
         onNewChat={startNewChat}
         rightButtons={
@@ -1573,7 +1679,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       <KeyboardAvoidingView
         style={styles.chatContainer}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={50}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
       >
         <ChatView
            messages={messages}

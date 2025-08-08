@@ -153,6 +153,10 @@ class ModelDownloader extends EventEmitter {
     await this.storedModelsManager.linkExternalModel(uri, fileName);
   }
 
+  async exportModel(modelPath: string, modelName: string): Promise<void> {
+    await this.storedModelsManager.exportModel(modelPath, modelName);
+  }
+
   async processCompletedDownloads(): Promise<void> {
     try {
       await this.downloadTaskManager.processCompletedDownloads();

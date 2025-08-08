@@ -21,6 +21,9 @@ import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../constants/theme';
 import { Dialog, Portal, Button } from 'react-native-paper';
 import chatManager from '../../utils/ChatManager';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../../types/navigation';
 
 export type Message = {
   id: string;
@@ -30,6 +33,8 @@ export type Message = {
   stats?: {
     duration: number;
     tokens: number;
+    firstTokenTime?: number;
+    avgTokenTime?: number;
   };
   isLoading?: boolean;
 };
@@ -40,7 +45,7 @@ type ChatViewProps = {
   streamingMessageId: string | null;
   streamingMessage: string;
   streamingThinking: string;
-  streamingStats: { tokens: number; duration: number } | null;
+  streamingStats: { tokens: number; duration: number; firstTokenTime?: number; avgTokenTime?: number } | null;
   onCopyText: (text: string) => void;
   onRegenerateResponse: () => void;
   isRegenerating: boolean;
@@ -83,11 +88,19 @@ export default function ChatView({
 }: ChatViewProps) {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   
   const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
   const [isImageViewerVisible, setIsImageViewerVisible] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editedMessageContent, setEditedMessageContent] = useState('');
+
+  const openReportDialog = useCallback((messageContent: string, provider: string) => {
+    navigation.navigate('Report', {
+      messageContent,
+      provider
+    });
+  }, [navigation]);
 
   const openImageViewer = useCallback((imageUri: string) => {
     setFullScreenImage(imageUri);
@@ -148,9 +161,19 @@ export default function ChatView({
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   }, []);
 
+  const formatTime = useCallback((milliseconds: number): string => {
+    if (milliseconds < 1000) {
+      return `${Math.round(milliseconds)}ms`;
+    } else {
+      const seconds = Math.floor(milliseconds / 1000);
+      const remainingMs = Math.round(milliseconds % 1000);
+      return `${seconds}.${remainingMs.toString().padStart(3, '0')}s`;
+    }
+  }, []);
+
   const renderMessage = useCallback(({ item }: { item: Message }) => {
-    const isCurrentlyStreaming = (isStreaming || justCancelled) && item.id === streamingMessageId;
-    const showLoadingIndicator = isCurrentlyStreaming && !streamingMessage && !justCancelled;
+    const isCurrentlyStreaming = isStreaming && !justCancelled && item.id === streamingMessageId;
+    const showLoadingIndicator = isCurrentlyStreaming && !streamingMessage;
     
     let fileAttachment: { name: string; type?: string } | null = null;
     let multimodalContent: { type: string; uri?: string; text?: string }[] = [];
@@ -180,8 +203,6 @@ export default function ChatView({
         if (parsedMessage && 
             parsedMessage.type === 'file_upload' && 
             parsedMessage.internalInstruction) {
-          
-
           
           const match = parsedMessage.internalInstruction.match(/You're reading a file named: (.+?)\n/);
           if (match && match[1]) {
@@ -238,7 +259,7 @@ export default function ChatView({
         : 'FILE';
       
       return (
-        <View style={[styles.fileAttachmentWrapper, { alignSelf: 'flex-end' }]}>
+        <View style={[styles.fileAttachmentWrapper]}>
           <View style={[styles.fileAttachment, { backgroundColor: themeColors.borderColor }]}>
             <View style={[styles.fileTypeIcon, { backgroundColor: fileTypeBgColor }]}>
               <Text style={styles.fileTypeText}>{fileTypeDisplay}</Text>
@@ -263,7 +284,7 @@ export default function ChatView({
       if (!mediaItems.length) return null;
       
       return (
-        <View style={[styles.multimodalWrapper, { alignSelf: 'flex-end' }]}>
+        <View style={[styles.multimodalWrapper]}>
           {mediaItems.map((item, index) => {
             if (item.type === 'image' && item.uri) {
               return (
@@ -345,6 +366,7 @@ export default function ChatView({
             alignSelf: item.role === 'user' ? 'flex-end' : 'flex-start',
             borderTopRightRadius: item.role === 'user' ? 4 : 20,
             borderTopLeftRadius: item.role === 'user' ? 20 : 4,
+            width: item.role === 'assistant' ? '90%' : undefined,
           }
         ]}>
           <View style={styles.messageHeader}>
@@ -362,6 +384,19 @@ export default function ChatView({
                     name="pencil" 
                     size={16} 
                     color="#fff" 
+                  />
+                </TouchableOpacity>
+              )}
+              {item.role === 'assistant' && (
+                <TouchableOpacity 
+                  style={styles.copyButton} 
+                  onPress={() => openReportDialog(messageContent, chatManager.getCurrentProvider() || 'local')}
+                  hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+                >
+                  <MaterialCommunityIcons 
+                    name="flag-outline" 
+                    size={16} 
+                    color={themeColors.text} 
                   />
                 </TouchableOpacity>
               )}
@@ -568,55 +603,110 @@ export default function ChatView({
 
           {item.role === 'assistant' && stats && (
             <View style={styles.statsContainer}>
-              <Text style={[styles.statsText, { color: themeColors.secondaryText }]}>
-                {`${(stats?.tokens ?? 0).toLocaleString()} tokens`}
-              </Text>
-              {stats?.duration && stats.duration > 0 && (
-                <Text style={[styles.statsText, { color: themeColors.secondaryText, marginLeft: 6 }]}> 
-                  {`${((stats?.tokens ?? 0) / stats.duration).toFixed(1)} tok/s`}
-                </Text>
-              )}
-              {stats?.duration && stats.duration > 0 && (
-                <Text style={[styles.statsText, { color: themeColors.secondaryText, marginLeft: 6 }]}> 
-                  {formatDuration(stats.duration)}
-                </Text>
-              )}
+              <View style={styles.statsRow}>
+                <View style={styles.statItem}>
+                  <MaterialCommunityIcons 
+                    name="text-box-outline" 
+                    size={12} 
+                    color={themeColors.secondaryText}
+                    style={styles.statIcon}
+                  />
+                  <Text style={[styles.statsText, { color: themeColors.secondaryText }]}>
+                    {`${(stats?.tokens ?? 0).toLocaleString()} tokens`}
+                  </Text>
+                </View>
+                {stats?.duration && stats.duration > 0 && (
+                  <View style={[styles.statItem, { marginLeft: 8 }]}>
+                    <MaterialCommunityIcons 
+                      name="speedometer" 
+                      size={12} 
+                      color={themeColors.secondaryText}
+                      style={styles.statIcon}
+                    />
+                    <Text style={[styles.statsText, { color: themeColors.secondaryText }]}> 
+                      {`${((stats?.tokens ?? 0) / stats.duration).toFixed(1)} tokens/s`}
+                    </Text>
+                  </View>
+                )}
+                {stats?.duration && stats.duration > 0 && (
+                  <View style={[styles.statItem, { marginLeft: 8 }]}>
+                    <MaterialCommunityIcons 
+                      name="clock-outline" 
+                      size={12} 
+                      color={themeColors.secondaryText}
+                      style={styles.statIcon}
+                    />
+                    <Text style={[styles.statsText, { color: themeColors.secondaryText }]}> 
+                      {formatDuration(stats.duration)}
+                    </Text>
+                  </View>
+                )}
+              </View>
               
-              {item === messages[messages.length - 1] && (
-                <TouchableOpacity 
-                  style={[
-                    styles.regenerateButton,
-                    isRegenerating && styles.regenerateButtonDisabled
-                  ]}
-                  onPress={() => {
-                    if (!isRegenerating) {
-                      onRegenerateResponse();
-                    }
-                  }}
-                  disabled={isRegenerating}
-                >
-                  {isRegenerating ? (
-                    <ActivityIndicator size="small" color={themeColors.secondaryText} />
-                  ) : (
-                    <>
-                      <MaterialCommunityIcons 
-                        name="refresh" 
-                        size={14} 
-                        color={themeColors.secondaryText}
-                      />
-                      <Text style={[styles.regenerateButtonText, { color: themeColors.secondaryText }]}>
-                        Regenerate
-                      </Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              )}
+              <View style={styles.statsRow}>
+                {stats?.firstTokenTime && stats.firstTokenTime > 0 && (
+                  <View style={styles.statItem}>
+                    <MaterialCommunityIcons 
+                      name="flash" 
+                      size={12} 
+                      color={themeColors.secondaryText}
+                      style={styles.statIcon}
+                    />
+                    <Text style={[styles.statsText, { color: themeColors.secondaryText }]}> 
+                      TTFT: {formatTime(stats.firstTokenTime)}
+                    </Text>
+                  </View>
+                )}
+                {stats?.avgTokenTime && stats.avgTokenTime > 0 && (
+                  <View style={[styles.statItem, { marginLeft: 8 }]}>
+                    <MaterialCommunityIcons 
+                      name="timer-outline" 
+                      size={12} 
+                      color={themeColors.secondaryText}
+                      style={styles.statIcon}
+                    />
+                    <Text style={[styles.statsText, { color: themeColors.secondaryText }]}> 
+                      Avg/token: {formatTime(stats.avgTokenTime)}
+                    </Text>
+                  </View>
+                )}
+                
+                {item === messages[messages.length - 1] && (
+                  <TouchableOpacity 
+                    style={[
+                      styles.regenerateButton,
+                      isRegenerating && styles.regenerateButtonDisabled
+                    ]}
+                    onPress={() => {
+                      if (!isRegenerating) {
+                        onRegenerateResponse();
+                      }
+                    }}
+                    disabled={isRegenerating}
+                  >
+                    {isRegenerating ? (
+                      <ActivityIndicator size="small" color={themeColors.secondaryText} />
+                    ) : (
+                      <>
+                        <MaterialCommunityIcons 
+                          name="refresh" 
+                          size={14} 
+                          color={themeColors.secondaryText}
+                        />
+                        <Text style={[styles.regenerateButtonText, { color: themeColors.secondaryText }]}>
+                          Regenerate
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
           )}
         </View>
       </View>
     );
-  }, [themeColors, messages, isStreaming, streamingMessageId, streamingMessage, streamingThinking, streamingStats, onCopyText, isRegenerating, onRegenerateResponse, justCancelled, openImageViewer, openEditDialog]);
+  }, [themeColors, messages, isStreaming, streamingMessageId, streamingMessage, streamingThinking, streamingStats, onCopyText, isRegenerating, onRegenerateResponse, justCancelled, openImageViewer, openEditDialog, formatTime, formatDuration]);
 
   const renderContent = () => {
     if (messages.length === 0) {
@@ -764,9 +854,9 @@ const styles = StyleSheet.create({
   },
   messageList: {
     flexGrow: 1,
-    paddingVertical: 16,
+    paddingTop: 16,
     paddingHorizontal: 8,
-    paddingBottom: 80,
+    paddingBottom: 16,
   },
   messageContainer: {
     marginVertical: 4,
@@ -774,7 +864,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   messageCard: {
-    maxWidth: '85%',
     borderRadius: 20,
     marginVertical: 4,
     elevation: 1,
@@ -824,15 +913,20 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   statsContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
+    flexDirection: 'column',
     paddingHorizontal: 12,
     paddingBottom: 8,
     paddingTop: 4,
     borderTopWidth: 0.5,
     borderTopColor: 'rgba(0, 0, 0, 0.1)',
     overflow: 'visible',
+  },
+  statsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    marginBottom: 4,
+    flexWrap: 'wrap',
   },
   statsText: {
     fontSize: 11,
@@ -905,7 +999,7 @@ const styles = StyleSheet.create({
   },
   fileAttachmentWrapper: {
     marginBottom: 8,
-    width: '85%',
+    width: '100%',
   },
   fileAttachment: {
     flexDirection: 'row',
@@ -942,7 +1036,7 @@ const styles = StyleSheet.create({
   },
   multimodalWrapper: {
     marginBottom: 8,
-    width: '85%',
+    width: '100%',
   },
   imageContainer: {
     marginBottom: 8,
@@ -1018,5 +1112,12 @@ const styles = StyleSheet.create({
     padding: 12,
     fontSize: 16,
     textAlignVertical: 'top',
+  },
+  statItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statIcon: {
+    marginRight: 4,
   },
 }); 

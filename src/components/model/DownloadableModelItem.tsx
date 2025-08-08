@@ -17,6 +17,7 @@ export interface DownloadableModel {
   description?: string;
   size: string;
   huggingFaceLink: string;
+  licenseLink: string;
   modelFamily: string;
   quantization: string;
   tags?: string[];
@@ -200,6 +201,16 @@ const DownloadableModelItem: React.FC<DownloadableModelItemProps> = ({
             </Text>
           )}
           
+          {model.licenseLink && (
+            <TouchableOpacity
+              style={styles.licenseButtonBottomLeft}
+              onPress={() => handleBrowserDownload(model.licenseLink)}
+            >
+              <MaterialCommunityIcons name="file-document-outline" size={14} color={getBrowserDownloadTextColor(currentTheme)} style={{ marginRight: 4 }} />
+              <Text style={[styles.licenseButtonText, { color: getBrowserDownloadTextColor(currentTheme) }]}>License</Text>
+            </TouchableOpacity>
+          )}
+          
           {downloadProgress && downloadProgress.status !== 'completed' && downloadProgress.status !== 'failed' && (
             <View style={styles.downloadProgress}>
               <Text style={[styles.modelDetails, { color: themeColors.secondaryText }]}>
@@ -373,6 +384,18 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     fontSize: 14,
     lineHeight: 20,
+  },
+  licenseButtonBottomLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    alignSelf: 'flex-start',
+    marginTop: 8,
+  },
+  licenseButtonText: {
+    fontSize: 13,
+    fontWeight: '500',
   },
 });
 

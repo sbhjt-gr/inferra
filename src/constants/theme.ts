@@ -13,7 +13,10 @@ const lightTheme = {
   statusBarBg: '#4d0461',
   navigationBar: '#660880',
   secondaryText: '#666',
+  textSecondary: '#666',
   primary: '#4a0660',
+  cardBackground: '#f8f8f8',
+  success: '#28a745',
 };
 
 const darkTheme = {
@@ -29,7 +32,10 @@ const darkTheme = {
   statusBarBg: '#4D0F61',
   navigationBar: '#660880',
   secondaryText: '#BDB7C4',
+  textSecondary: '#BDB7C4',
   primary: '#9C38C0',
+  cardBackground: '#2A1F37',
+  success: '#28a745',
 };
 
 export const theme: Record<ThemeColors, typeof lightTheme> = {

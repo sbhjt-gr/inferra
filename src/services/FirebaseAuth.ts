@@ -1,6 +1,5 @@
 import { FirebaseAuthTypes } from '@react-native-firebase/auth';
 
-// Import from split files
 export { 
   initializeFirebase, 
   isFirebaseReady, 
@@ -36,5 +35,4 @@ export {
   forceRefreshUserData 
 } from './AuthState';
 
-// Export types
 export type { UserData } from './AuthStorage'; 

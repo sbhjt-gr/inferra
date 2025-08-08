@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system';
-import TextRecognition from '@react-native-ml-kit/text-recognition';
+import TextRecognition from '@subhajit-gorai/react-native-ml-kit-text-recognition';
 
 export type ImageProcessingMode = 'ocr' | 'multimodal' | null;
 

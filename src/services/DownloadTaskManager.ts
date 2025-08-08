@@ -7,6 +7,7 @@ import * as FileSystem from 'expo-file-system';
 import { DownloadTaskInfo, DownloadProgressEvent } from './ModelDownloaderTypes';
 import { downloadNotificationService } from './DownloadNotificationService';
 import { notificationService } from './NotificationService';
+import { HUGGINGFACE_TOKEN } from '@env';
 
 export class DownloadTaskManager extends EventEmitter {
   private activeDownloads: Map<string, DownloadTaskInfo> = new Map();
@@ -86,13 +87,22 @@ export class DownloadTaskManager extends EventEmitter {
       
       console.log(`[DownloadTaskManager] Starting download for ${modelName} from ${url}`);
       
+      const headers: Record<string, string> = {
+        'Accept-Ranges': 'bytes'
+      };
+
+      if (url.includes('huggingface.co')) {
+        const hfToken = HUGGINGFACE_TOKEN;
+        if (hfToken) {
+          headers['Authorization'] = `Bearer ${hfToken}`;
+        }
+      }
+
       const task = RNBackgroundDownloader.download({
         id: modelName,
         url,
         destination,
-        headers: {
-          'Accept-Ranges': 'bytes'
-        }
+        headers
       } as any);
       
       const downloadInfo = {

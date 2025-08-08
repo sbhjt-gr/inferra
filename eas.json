@@ -5,6 +5,7 @@
   "build": {
     "development": {
       "distribution": "internal",
+      "channel": "development",
       "android": {
         "gradleCommand": ":app:assembleDebug"
       },
@@ -14,12 +15,14 @@
     },
     "preview": {
       "distribution": "internal",
+      "channel": "preview",
       "android": {
         "buildType": "apk"
       }
     },
     "production": {
       "distribution": "store",
+      "channel": "production",
       "android": {
         "buildType": "app-bundle"
       }
