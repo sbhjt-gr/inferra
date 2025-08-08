@@ -13,7 +13,13 @@ If you want to support me and the development of this project, kindly donate thr
 <br>
 
 ## Screenshots
-<img src="https://github.com/user-attachments/assets/28e9720f-1e3c-460d-b189-7f31d5020a90" alt="play_download" />
+<img src="https://lh3.googleusercontent.com/jFJWO1yItb9Nr6xIp66vukWrI2XR1YO2aauREiBolk-D78hzsU_wlxQv7Ny1-9ZELF6FYFPdgLAWQve9g__S" />
+<img src="https://lh3.googleusercontent.com/kmyPf6GGEs5HHFZrUQtYWhsdMw4h0Izsvfdubn10mBFADopTthWJEZfJ7kAKtUWMpJM-QUhF9DQNOc_Hi2pBeg" />
+<img src="https://lh3.googleusercontent.com/GwF7L1kMENYt7TgAZHfzpV4ZCwoTieSc0H4SFPsHgrn9ZARC-nDgtzf2R2VxqaAyCni2efSvxVJIcWIb5HaScKA" />
+<img src="https://lh3.googleusercontent.com/E-VO33t0ZLwkQsZR97_PEWaA18ei4czXCA77nPRp4akBbpsX2pDL-Je9cOYHadQkc3WeDCdM_Q_UovaHoH-k" />
+<img src="https://lh3.googleusercontent.com/ujPaHQZK4Wvbo1pmugeQZepyI2iTP77IrTIbAJn85VLmdqfGrALUqITNZ71PJF0TuJU77DsSRkgeaxnPdop-xw" />
+<img src="https://lh3.googleusercontent.com/hsLQ0OyKlLBxPX_d_X52hLsEbpzRJvrPcU3Sj9N9mKxRbYkpk598wgZF6Yqr3y5vrk8VNPQKF5Hdp8DgoRPO" />
+<img src="https://lh3.googleusercontent.com/kIdj7hMfVmLS_6s_Yk1gtRxgsYLjWXz7evPIBBrGvnZ5-T4FosUqzOucKEMYNxJgpDyvViI8S2x3EjVJUsQe" />
 
 ## Features
 
