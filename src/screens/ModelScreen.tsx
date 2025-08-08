@@ -817,7 +817,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     }) => {
       console.log('[ModelScreen] Import progress:', progress);
       
-      // Don't show import dialog if we're currently exporting
       if (isExporting) {
         console.log('[ModelScreen] Ignoring import progress during export');
         return;
@@ -839,7 +838,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
 
     const handleModelExported = (data: { modelName: string; tempFilePath: string }) => {
       console.log('[ModelScreen] Model exported:', data);
-      // Show success message - the actual save location depends on user choice
       showDialog(
         'Share Successful',
         `${data.modelName} has been successfully prepared for sharing. You can now save it to your desired location.`,
