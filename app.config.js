@@ -5,7 +5,7 @@ export default {
     name: "Inferra",
     slug: "inferra",
     owner: "subhajitgorai",
-    version: "2.5.8",
+    version: "2.5.9",
     orientation: "portrait",
     icon: "./assets/icon.png",
     userInterfaceStyle: "automatic",
@@ -31,8 +31,8 @@ export default {
       supportsTablet: true,
       requireFullScreen: false,
       bundleIdentifier: "com.gorai.ragionare",
-      buildNumber: "258",
-      runtimeVersion: "2.5.8",
+      buildNumber: "259",
+      runtimeVersion: "2.5.9",
       updates: {
         enabled: false
       },
@@ -49,13 +49,13 @@ export default {
       scheme: "com.gorai.ragionare"
     },
     android: {
-      versionCode: 258,
+      versionCode: 259,
       adaptiveIcon: {
         foregroundImage: "./assets/icon.png",
         backgroundColor: "#660880"
       },
       package: "com.gorai.ragionare",
-      runtimeVersion: "2.5.8",
+      runtimeVersion: "2.5.9",
       edgeToEdgeEnabled: true,
       resizeableActivity: true,
       supportsFreeform: true,
