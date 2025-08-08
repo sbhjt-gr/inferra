@@ -102,10 +102,6 @@ export default function ChatView({
     });
   }, [navigation]);
 
-  const closeReportDialog = useCallback(() => {
-    // No longer needed since we're using navigation
-  }, []);
-
   const openImageViewer = useCallback((imageUri: string) => {
     setFullScreenImage(imageUri);
     setIsImageViewerVisible(true);
@@ -176,8 +172,8 @@ export default function ChatView({
   }, []);
 
   const renderMessage = useCallback(({ item }: { item: Message }) => {
-    const isCurrentlyStreaming = (isStreaming || justCancelled) && item.id === streamingMessageId;
-    const showLoadingIndicator = isCurrentlyStreaming && !streamingMessage && !justCancelled;
+    const isCurrentlyStreaming = isStreaming && !justCancelled && item.id === streamingMessageId;
+    const showLoadingIndicator = isCurrentlyStreaming && !streamingMessage;
     
     let fileAttachment: { name: string; type?: string } | null = null;
     let multimodalContent: { type: string; uri?: string; text?: string }[] = [];
@@ -608,31 +604,71 @@ export default function ChatView({
           {item.role === 'assistant' && stats && (
             <View style={styles.statsContainer}>
               <View style={styles.statsRow}>
-                <Text style={[styles.statsText, { color: themeColors.secondaryText }]}>
-                  {`${(stats?.tokens ?? 0).toLocaleString()} tokens`}
-                </Text>
-                {stats?.duration && stats.duration > 0 && (
-                  <Text style={[styles.statsText, { color: themeColors.secondaryText, marginLeft: 8 }]}> 
-                    {`${((stats?.tokens ?? 0) / stats.duration).toFixed(1)} tok/s`}
+                <View style={styles.statItem}>
+                  <MaterialCommunityIcons 
+                    name="text-box-outline" 
+                    size={12} 
+                    color={themeColors.secondaryText}
+                    style={styles.statIcon}
+                  />
+                  <Text style={[styles.statsText, { color: themeColors.secondaryText }]}>
+                    {`${(stats?.tokens ?? 0).toLocaleString()} tokens`}
                   </Text>
+                </View>
+                {stats?.duration && stats.duration > 0 && (
+                  <View style={[styles.statItem, { marginLeft: 8 }]}>
+                    <MaterialCommunityIcons 
+                      name="speedometer" 
+                      size={12} 
+                      color={themeColors.secondaryText}
+                      style={styles.statIcon}
+                    />
+                    <Text style={[styles.statsText, { color: themeColors.secondaryText }]}> 
+                      {`${((stats?.tokens ?? 0) / stats.duration).toFixed(1)} tokens/s`}
+                    </Text>
+                  </View>
                 )}
                 {stats?.duration && stats.duration > 0 && (
-                  <Text style={[styles.statsText, { color: themeColors.secondaryText, marginLeft: 8 }]}> 
-                    {formatDuration(stats.duration)}
-                  </Text>
+                  <View style={[styles.statItem, { marginLeft: 8 }]}>
+                    <MaterialCommunityIcons 
+                      name="clock-outline" 
+                      size={12} 
+                      color={themeColors.secondaryText}
+                      style={styles.statIcon}
+                    />
+                    <Text style={[styles.statsText, { color: themeColors.secondaryText }]}> 
+                      {formatDuration(stats.duration)}
+                    </Text>
+                  </View>
                 )}
               </View>
               
               <View style={styles.statsRow}>
                 {stats?.firstTokenTime && stats.firstTokenTime > 0 && (
-                  <Text style={[styles.statsText, { color: themeColors.secondaryText }]}> 
-                    TTFT: {formatTime(stats.firstTokenTime)}
-                  </Text>
+                  <View style={styles.statItem}>
+                    <MaterialCommunityIcons 
+                      name="flash" 
+                      size={12} 
+                      color={themeColors.secondaryText}
+                      style={styles.statIcon}
+                    />
+                    <Text style={[styles.statsText, { color: themeColors.secondaryText }]}> 
+                      TTFT: {formatTime(stats.firstTokenTime)}
+                    </Text>
+                  </View>
                 )}
                 {stats?.avgTokenTime && stats.avgTokenTime > 0 && (
-                  <Text style={[styles.statsText, { color: themeColors.secondaryText, marginLeft: 8 }]}> 
-                    Avg: {formatTime(stats.avgTokenTime)}
-                  </Text>
+                  <View style={[styles.statItem, { marginLeft: 8 }]}>
+                    <MaterialCommunityIcons 
+                      name="timer-outline" 
+                      size={12} 
+                      color={themeColors.secondaryText}
+                      style={styles.statIcon}
+                    />
+                    <Text style={[styles.statsText, { color: themeColors.secondaryText }]}> 
+                      Avg/token: {formatTime(stats.avgTokenTime)}
+                    </Text>
+                  </View>
                 )}
                 
                 {item === messages[messages.length - 1] && (
@@ -1076,5 +1112,12 @@ const styles = StyleSheet.create({
     padding: 12,
     fontSize: 16,
     textAlignVertical: 'top',
+  },
+  statItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statIcon: {
+    marginRight: 4,
   },
 }); 
