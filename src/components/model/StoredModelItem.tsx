@@ -12,6 +12,7 @@ interface StoredModelProps {
   size: number;
   isExternal: boolean;
   onDelete: (id: string, path: string) => void;
+  onExport?: (path: string, name: string) => void;
 }
 
 const formatBytes = (bytes?: number) => {
@@ -39,6 +40,7 @@ const StoredModelItem: React.FC<StoredModelProps> = ({
   size,
   isExternal,
   onDelete,
+  onExport,
 }) => {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
@@ -80,12 +82,22 @@ const StoredModelItem: React.FC<StoredModelProps> = ({
           </View>
         </View>
       </View>
-      <TouchableOpacity
-        style={[styles.deleteButton, { backgroundColor: 'transparent' }]}
-        onPress={() => onDelete(id, path)}
-      >
-        <MaterialCommunityIcons name="delete-outline" size={20} color={getThemeAwareColor('#ff4444', currentTheme)} />
-      </TouchableOpacity>
+      <View style={styles.buttonContainer}>
+                {!isExternal && onExport && (
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => onExport(path, name)}
+          >
+            <MaterialCommunityIcons name="share" size={20} color={getThemeAwareColor('#72026eff', currentTheme)} />
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity
+          style={[styles.actionButton, { backgroundColor: 'transparent' }]}
+          onPress={() => onDelete(id, path)}
+        >
+          <MaterialCommunityIcons name="delete-outline" size={20} color={getThemeAwareColor('#ff4444', currentTheme)} />
+        </TouchableOpacity>
+      </View>
     </View>
   );
 };
@@ -154,6 +166,14 @@ const styles = StyleSheet.create({
   metaText: {
     fontSize: 13,
     marginLeft: 4,
+  },
+  buttonContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  actionButton: {
+    padding: 8,
+    marginLeft: 8,
   },
   deleteButton: {
     padding: 8,

@@ -1,6 +1,8 @@
 import * as FileSystem from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
+import * as DocumentPicker from 'expo-document-picker';
+import * as Sharing from 'expo-sharing';
 import { EventEmitter } from './EventEmitter';
 import { FileManager } from './FileManager';
 import { StoredModel } from './ModelDownloaderTypes';
@@ -194,6 +196,60 @@ export class StoredModelsManager extends EventEmitter {
       console.log(`[StoredModelsManager] Successfully linked model: ${fileName} at path: ${finalPath}`);
     } catch (error) {
       console.error(`[StoredModelsManager] Error linking model: ${fileName}`, error);
+      throw error;
+    }
+  }
+
+  async exportModel(modelPath: string, modelName: string): Promise<void> {
+    try {
+      console.log(`[StoredModelsManager] Starting export for model: ${modelName} from ${modelPath}`);
+
+      // Check if the model file exists
+      const fileInfo = await FileSystem.getInfoAsync(modelPath);
+      if (!fileInfo.exists) {
+        throw new Error('Model file does not exist');
+      }
+
+      // Check if sharing is available on this platform
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (!isAvailable) {
+        throw new Error('Sharing is not available on this device');
+      }
+
+      // For better compatibility, copy the file to a temporary location in the cache directory
+      // This ensures the file is accessible for sharing
+      const tempDir = FileSystem.cacheDirectory + 'export/';
+      const tempDirInfo = await FileSystem.getInfoAsync(tempDir);
+      if (!tempDirInfo.exists) {
+        await FileSystem.makeDirectoryAsync(tempDir, { intermediates: true });
+      }
+
+      const tempFilePath = tempDir + modelName;
+      
+      // Copy the model to temp location
+      await FileSystem.copyAsync({
+        from: modelPath,
+        to: tempFilePath
+      });
+
+      console.log(`[StoredModelsManager] Copied model to temporary location: ${tempFilePath}`);
+
+      // Share the file - this will open Android's file manager/share dialog
+      await Sharing.shareAsync(tempFilePath, {
+        mimeType: 'application/octet-stream',
+        dialogTitle: `Export ${modelName}`,
+      });
+
+      console.log(`[StoredModelsManager] Successfully initiated export for model: ${modelName}`);
+      
+      // Note: We don't delete the temp file immediately as sharing might be async
+      // The temp directory will be cleaned up on app restart or manually later
+      
+      // Emit an event to notify the UI
+      this.emit('modelExported', { modelName, tempFilePath });
+
+    } catch (error) {
+      console.error(`[StoredModelsManager] Error exporting model: ${modelName}`, error);
       throw error;
     }
   }

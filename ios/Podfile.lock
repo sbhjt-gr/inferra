@@ -1216,7 +1216,7 @@ PODS:
     - ExpoModulesCore
   - EXNotifications (0.31.4):
     - ExpoModulesCore
-  - Expo (53.0.18):
+  - Expo (53.0.20):
     - DoubleConversion
     - ExpoModulesCore
     - glog
@@ -1491,7 +1491,7 @@ PODS:
     - ExpoModulesCore
   - ExpoBlur (14.1.5):
     - ExpoModulesCore
-  - ExpoCamera (16.1.10):
+  - ExpoCamera (16.1.11):
     - ExpoModulesCore
     - ZXingObjC/OneD
     - ZXingObjC/PDF417
@@ -1505,7 +1505,7 @@ PODS:
     - ExpoModulesCore
   - ExpoHaptics (14.1.4):
     - ExpoModulesCore
-  - ExpoHead (5.1.3):
+  - ExpoHead (5.1.4):
     - ExpoModulesCore
   - ExpoImageManipulator (13.1.7):
     - EXImageLoader
@@ -1522,7 +1522,7 @@ PODS:
   - ExpoMediaLibrary (17.1.7):
     - ExpoModulesCore
     - React-Core
-  - ExpoModulesCore (2.4.2):
+  - ExpoModulesCore (2.5.0):
     - DoubleConversion
     - glog
     - hermes-engine
@@ -1553,6 +1553,8 @@ PODS:
     - ExpoModulesCore
   - ExpoSecureStore (14.2.3):
     - ExpoModulesCore
+  - ExpoSharing (13.1.5):
+    - ExpoModulesCore
   - ExpoSplashScreen (0.30.10):
     - ExpoModulesCore
   - ExpoSQLite (15.2.14):
@@ -1563,13 +1565,13 @@ PODS:
     - ExpoModulesCore
   - ExpoVideo (2.2.2):
     - ExpoModulesCore
-  - ExpoWebBrowser (14.1.6):
+  - ExpoWebBrowser (14.2.0):
     - ExpoModulesCore
   - EXStructuredHeaders (4.1.0)
   - EXTaskManager (13.1.6):
     - ExpoModulesCore
     - UMAppLoader
-  - EXUpdates (0.28.16):
+  - EXUpdates (0.28.17):
     - DoubleConversion
     - EASClient
     - EXManifests
@@ -3892,6 +3894,7 @@ DEPENDENCIES:
   - ExpoNetwork (from `../node_modules/expo-network/ios`)
   - ExpoRandom (from `../node_modules/expo-random/ios`)
   - ExpoSecureStore (from `../node_modules/expo-secure-store/ios`)
+  - ExpoSharing (from `../node_modules/expo-sharing/ios`)
   - ExpoSplashScreen (from `../node_modules/expo-splash-screen/ios`)
   - ExpoSQLite (from `../node_modules/expo-sqlite/ios`)
   - ExpoSymbols (from `../node_modules/expo-symbols/ios`)
@@ -4110,6 +4113,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-random/ios"
   ExpoSecureStore:
     :path: "../node_modules/expo-secure-store/ios"
+  ExpoSharing:
+    :path: "../node_modules/expo-sharing/ios"
   ExpoSplashScreen:
     :path: "../node_modules/expo-splash-screen/ios"
   ExpoSQLite:
@@ -4315,7 +4320,7 @@ SPEC CHECKSUMS:
   EXJSONUtils: 1d3e4590438c3ee593684186007028a14b3686cd
   EXManifests: 691a779b04e4f2c96da46fb9bef4f86174fefcb5
   EXNotifications: be5e949edf1d60b70e77178b81aa505298fadd07
-  Expo: 24d960dfc25c782818ac170cd6f840b020017d62
+  Expo: 43d9e0c3108cc3a1c2739743e9b51086144ee4b0
   expo-dev-client: 9b1e78baf0dd87b005f035d180bbb07c05917fad
   expo-dev-launcher: 3bdbeb6102a0ebc885ef0cc1e93b8045fb46cf7c
   expo-dev-menu: 9a65836a93397539ec700e6ec99de8199ad8c4ca
@@ -4325,32 +4330,33 @@ SPEC CHECKSUMS:
   ExpoAudio: a910693605f0285e08a776ce847f50114010ee9e
   ExpoBackgroundTask: 6c1990438e45b5c4bbbc7d75aa6b688d53602fe8
   ExpoBlur: 3c8885b9bf9eef4309041ec87adec48b5f1986a9
-  ExpoCamera: 7edf99216d92e40b991d4e7ed69eba9527c94cda
+  ExpoCamera: e1879906d41184e84b57d7643119f8509414e318
   ExpoDevice: 7082f03af1c588333ef1417d5aa8287081d94b24
   ExpoDocumentPicker: b263a279685b6640b8c8bc70d71c83067aeaae55
   ExpoFileSystem: 7f92f7be2f5c5ed40a7c9efc8fa30821181d9d63
   ExpoFont: cf508bc2e6b70871e05386d71cab927c8524cc8e
   ExpoHaptics: 0ff6e0d83cd891178a306e548da1450249d54500
-  ExpoHead: 9efbc31e85b2a6b3df1fcbd7595659873bb06c81
+  ExpoHead: a7b66cbaeeb51f4a85338d335a0f5467e29a2c90
   ExpoImageManipulator: 1e06e7a1e56f454e75d01b7032c1e44963bfc865
   ExpoImagePicker: 0963da31800c906e01c03e25d7c849f16ebf02a2
   ExpoKeepAwake: bf0811570c8da182bfb879169437d4de298376e7
   ExpoLinearGradient: 7734c8059972fcf691fb4330bcdf3390960a152d
   ExpoLinking: d5c183998ca6ada66ff45e407e0f965b398a8902
   ExpoMediaLibrary: 0daf5e811e00daa47690f5da2989e71ff7de56e0
-  ExpoModulesCore: b0282ef361d46ddf759228430382226293060051
+  ExpoModulesCore: 471ae18809dc8a5c9a623193a317eef6048a4f8a
   ExpoNetwork: 92cac43c13a2d9e9c1470ec8804836574ff34068
   ExpoRandom: d1444df65007bdd4070009efd5dab18e20bf0f00
   ExpoSecureStore: b367d9f62c9102d808afbeb1561636d4276e439d
+  ExpoSharing: b0377be82430d07398c6a4cd60b5a15696accbd3
   ExpoSplashScreen: 0ad5acac1b5d2953c6e00d4319f16d616f70d4dd
   ExpoSQLite: 14c1c8aa6cf5b30b33759f14307b4eb84e806277
   ExpoSymbols: c5612a90fb9179cdaebcd19bea9d8c69e5d3b859
   ExpoSystemUI: c2724f9d5af6b1bb74e013efadf9c6a8fae547a2
   ExpoVideo: ada534976cfd4a6bf082cc61aa1b17920a251e32
-  ExpoWebBrowser: 06fb5f767f53ad53944b068cdd207984cb998712
+  ExpoWebBrowser: dc39a88485f007e61a3dff05d6a75f22ab4a2e92
   EXStructuredHeaders: 32bec6771c2db18c4cd47cecae530d1d06cdf972
   EXTaskManager: 280143f6d8e596f28739d74bf34910300dcbd4ea
-  EXUpdates: 72067ce7223cc781ae82e8d0212081ea6c583c86
+  EXUpdates: 004cca5223d04b5a0702b5712fbd5d9318024d47
   EXUpdatesInterface: 7ff005b7af94ee63fa452ea7bb95d7a8ff40277a
   fast_float: 06eeec4fe712a76acc9376682e4808b05ce978b6
   FBLazyVector: d2a9cd223302b6c9aa4aa34c1a775e9db609eb52
