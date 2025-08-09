@@ -150,3 +150,13 @@ If you're interested to work on any one of these (or any other idea you have), y
 - [llama.cpp](https://github.com/ggerganov/llama.cpp) - This the default underlying engine for running local LLMs and it's the only one that's been implemented yet.
 - [inferra-llama.rn](https://github.com/sbhjt-gr/inferra-llama.rn) - This is the customized React Native adapter which provides the bridge for llama.cpp. Originally forked and self-hosted from [llama.rn](https://github.com/mybigday/llama.rn) for updating llama.cpp more frequently.
 - If someone thinks they also need to be mentioned here, please let me know.
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=sbhjt-gr/inferra&type=Date)](https://star-history.com/#sbhjt-gr/inferra&Date)
+
+---
+
+<p align="center">
+  <sub>Star this repository if you find it useful!</sub>
+</p>
