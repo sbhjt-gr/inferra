@@ -122,7 +122,7 @@ If you want to contribute or just try to run it locally, follow the guide below.
 
 ## License
 
-This project is distributed under the Apache License 2.0 License. Please read it [here](https://github.com/sbhjt-gr/inferra/blob/main/LICENSE). Any modifications must adhere to the rules of this LICENSE.
+This project is distributed under the AGPL-3.0 License. Please read it [here](https://github.com/sbhjt-gr/inferra/blob/main/LICENSE). Any modifications must adhere to the rules of this LICENSE.
 
 ## Contributing
 
