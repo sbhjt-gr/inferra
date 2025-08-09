@@ -10,13 +10,15 @@ If you want to support me and the development of this project, kindly donate thr
 
 ## Screenshots
 
-![Screenshot 1](https://lh3.googleusercontent.com/jFJWO1yItb9Nr6xIp66vukWrI2XR1YO2aauREiBolk-D78hzsU_wlxQv7Ny1-9ZELF6FYFPdgLAWQve9g__S)
-![Screenshot 2](https://lh3.googleusercontent.com/kmyPf6GGEs5HHFZrUQtYWhsdMw4h0Izsvfdubn10mBFADopTthWJEZfJ7kAKtUWMpJM-QUhF9DQNOc_Hi2pBeg)
-![Screenshot 3](https://lh3.googleusercontent.com/GwF7L1kMENYt7TgAZHfzpV4ZCwoTieSc0H4SFPsHgrn9ZARC-nDgtzf2R2VxqaAyCni2efSvxVJIcWIb5HaScKA)
-![Screenshot 4](https://lh3.googleusercontent.com/E-VO33t0ZLwkQsZR97_PEWaA18ei4czXCA77nPRp4akBbpsX2pDL-Je9cOYHadQkc3WeDCdM_Q_UovaHoH-k)
-![Screenshot 5](https://lh3.googleusercontent.com/ujPaHQZK4Wvbo1pmugeQZepyI2iTP77IrTIbAJn85VLmdqfGrALUqITNZ71PJF0TuJU77DsSRkgeaxnPdop-xw)
-![Screenshot 6](https://lh3.googleusercontent.com/hsLQ0OyKlLBxPX_d_X52hLsEbpzRJvrPcU3Sj9N9mKxRbYkpk598wgZF6Yqr3y5vrk8VNPQKF5Hdp8DgoRPO)
-![Screenshot 7](https://lh3.googleusercontent.com/kIdj7hMfVmLS_6s_Yk1gtRxgsYLjWXz7evPIBBrGvnZ5-T4FosUqzOucKEMYNxJgpDyvViI8S2x3EjVJUsQe)
+<p align="center">
+   <img src="https://lh3.googleusercontent.com/jFJWO1yItb9Nr6xIp66vukWrI2XR1YO2aauREiBolk-D78hzsU_wlxQv7Ny1-9ZELF6FYFPdgLAWQve9g__S" alt="Screenshot 1" height="300px">
+   <img src="https://lh3.googleusercontent.com/kmyPf6GGEs5HHFZrUQtYWhsdMw4h0Izsvfdubn10mBFADopTthWJEZfJ7kAKtUWMpJM-QUhF9DQNOc_Hi2pBeg" alt="Screenshot 2" height="300px">
+   <img src="https://lh3.googleusercontent.com/GwF7L1kMENYt7TgAZHfzpV4ZCwoTieSc0H4SFPsHgrn9ZARC-nDgtzf2R2VxqaAyCni2efSvxVJIcWIb5HaScKA" alt="Screenshot 3" height="300px">
+   <img src="https://lh3.googleusercontent.com/E-VO33t0ZLwkQsZR97_PEWaA18ei4czXCA77nPRp4akBbpsX2pDL-Je9cOYHadQkc3WeDCdM_Q_UovaHoH-k" alt="Screenshot 4" height="300px">
+   <img src="https://lh3.googleusercontent.com/ujPaHQZK4Wvbo1pmugeQZepyI2iTP77IrTIbAJn85VLmdqfGrALUqITNZ71PJF0TuJU77DsSRkgeaxnPdop-xw" alt="Screenshot 5" height="300px">
+   <img src="https://lh3.googleusercontent.com/hsLQ0OyKlLBxPX_d_X52hLsEbpzRJvrPcU3Sj9N9mKxRbYkpk598wgZF6Yqr3y5vrk8VNPQKF5Hdp8DgoRPO" alt="Screenshot 6" height="300px">
+   <img src="https://lh3.googleusercontent.com/kIdj7hMfVmLS_6s_Yk1gtRxgsYLjWXz7evPIBBrGvnZ5-T4FosUqzOucKEMYNxJgpDyvViI8S2x3EjVJUsQe" alt="Screenshot 7" height="300px">
+</p>
 
 ## Features
 
