@@ -110,10 +110,19 @@
       }
     }
   },
+  "resolutions": {
+    "form-data": "^4.0.4",
+    "@eslint/plugin-kit": "^0.3.4", 
+    "on-headers": "^1.1.0",
+    "markdown-it": "^14.0.0"
+  },
   "overrides": {
     "markdown-it": "^14.0.0",
     "image-size": "^1.2.1",
     "undici": "^6.21.2",
+    "form-data": "^4.0.4",
+    "@eslint/plugin-kit": "^0.3.4",
+    "on-headers": "^1.1.0",
     "react": "19.0.0"
   },
   "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
