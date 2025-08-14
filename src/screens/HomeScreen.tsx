@@ -39,8 +39,8 @@ import { Dialog, Portal, PaperProvider, Button, Text as PaperText } from 'react-
 import { useDownloads } from '../context/DownloadContext';
 import { modelDownloader } from '../services/ModelDownloader';
 import { useRemoteModel } from '../context/RemoteModelContext';
-
-const windowWidth = Dimensions.get('window').width;
+import { useResponsive } from '../hooks/useResponsive';
+import TabletSidebar from '../components/TabletSidebar';
 
 function debounce<T extends (...args: any[]) => any>(func: T, wait: number) {
   let timeout: NodeJS.Timeout | null = null;
@@ -77,6 +77,7 @@ const generateRandomId = () => {
 export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   const { theme: currentTheme, selectedTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
+  const responsive = useResponsive();
   const [chat, setChat] = useState<Chat | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -1627,7 +1628,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     }
     
     return (
-      <View style={styles.modelSelectorWrapper}>
+      <View style={[styles.modelSelectorWrapper, { marginHorizontal: responsive.paddingHorizontal }]}>
         <ModelSelector 
           ref={modelSelectorRef}
           isOpen={shouldOpenModelSelector}
@@ -1651,36 +1652,65 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]} edges={['left', 'right']}>
-      <AppHeader 
-        onNewChat={startNewChat}
-        rightButtons={
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            <TouchableOpacity
-              style={styles.headerButton}
-              onPress={startNewChat}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <MaterialCommunityIcons name="plus" size={22} color={themeColors.headerText} />
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={styles.headerButton}
-              onPress={() => navigation.navigate('ChatHistory')}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <MaterialCommunityIcons name="clock-outline" size={22} color={themeColors.headerText} />
-            </TouchableOpacity>
-          </View>
-        } 
-      />
-      <View style={[styles.modelSelectorContainer, { borderBottomColor: themeColors.borderColor }]}>
-         {renderModelSelectorComponent()}
-      </View>
-      <KeyboardAvoidingView
-        style={styles.chatContainer}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
-      >
+      {!responsive.isTablet && (
+        <AppHeader 
+          onNewChat={startNewChat}
+          rightButtons={
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity
+                style={styles.headerButton}
+                onPress={startNewChat}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <MaterialCommunityIcons name="plus" size={22} color={themeColors.headerText} />
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.headerButton}
+                onPress={() => navigation.navigate('ChatHistory')}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <MaterialCommunityIcons name="clock-outline" size={22} color={themeColors.headerText} />
+              </TouchableOpacity>
+            </View>
+          } 
+        />
+      )}
+      
+      <View style={responsive.isTablet ? styles.tabletLayout : styles.phoneLayout}>
+        {responsive.isTablet && (
+          <TabletSidebar
+            modelSelectorRef={modelSelectorRef}
+            shouldOpenModelSelector={shouldOpenModelSelector}
+            onCloseModelSelector={() => setShouldOpenModelSelector(false)}
+            preselectedModelPath={activeProvider === 'local' ? llamaManager.getModelPath() : activeProvider}
+            isGenerating={isLoading || isRegenerating}
+            onModelSelect={handleModelSelect}
+            onNewChat={startNewChat}
+            onChatHistory={() => navigation.navigate('ChatHistory')}
+            activeProvider={activeProvider}
+          />
+        )}
+
+        <View style={responsive.isTablet ? styles.tabletChatArea : styles.phoneChatArea}>
+          {responsive.isTablet && (
+            <AppHeader 
+              onNewChat={startNewChat}
+              rightButtons={null}
+            />
+          )}
+          
+          {!responsive.isTablet && (
+            <View style={[styles.modelSelectorContainer, { borderBottomColor: themeColors.borderColor }]}>
+               {renderModelSelectorComponent()}
+            </View>
+          )}
+          
+          <KeyboardAvoidingView
+            style={styles.chatContainer}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+          >
         <ChatView
            messages={messages}
            isStreaming={isStreaming}
@@ -1696,16 +1726,18 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
            onEditMessageAndRegenerate={processMessage}
         />
 
-        <ChatInput
-          onSend={handleSend}
-          disabled={isLoading || isModelLoading || isCooldown}
-          isLoading={isLoading}
-          isRegenerating={isRegenerating}
-          onCancel={handleCancelGeneration}
-          style={{ backgroundColor: themeColors.background, borderTopColor: themeColors.borderColor }}
-          placeholderColor={themeColors.secondaryText}
-        />
-      </KeyboardAvoidingView>
+            <ChatInput
+              onSend={handleSend}
+              disabled={isLoading || isModelLoading || isCooldown}
+              isLoading={isLoading}
+              isRegenerating={isRegenerating}
+              onCancel={handleCancelGeneration}
+              style={{ backgroundColor: themeColors.background, borderTopColor: themeColors.borderColor }}
+              placeholderColor={themeColors.secondaryText}
+            />
+          </KeyboardAvoidingView>
+        </View>
+      </View>
 
       <Portal>
         <Dialog visible={dialogVisible} onDismiss={hideDialog}>
@@ -1739,12 +1771,24 @@ const styles = StyleSheet.create({
   chatContainer: {
     flex: 1,
   },
+  phoneLayout: {
+    flex: 1,
+  },
+  phoneChatArea: {
+    flex: 1,
+  },
+  tabletLayout: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+  tabletChatArea: {
+    flex: 1,
+  },
   modelSelectorWrapper: {
     marginBottom: 2,
     borderRadius: 12,
     overflow: 'hidden',
     marginTop: 15,
-    marginHorizontal: 16,
   },
   inputContainer: {
     width: '100%',
@@ -1771,8 +1815,6 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   modalContent: {
-    width: '100%',
-    maxWidth: 400,
     borderRadius: 16,
     padding: 24,
     elevation: 5,
