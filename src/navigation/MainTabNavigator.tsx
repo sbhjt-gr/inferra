@@ -124,10 +124,17 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
 
 function TabletTabBar({ state, navigation }: BottomTabBarProps) {
   return (
-    <TabletLayout state={state} navigation={navigation}>
-      {null}
-    </TabletLayout>
+    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+      <TabletLayout state={state} navigation={navigation}>
+        {null}
+      </TabletLayout>
+    </View>
   );
+}
+
+// Empty component for tablet screens since TabletLayout handles rendering
+function EmptyScreen() {
+  return null;
 }
 
 export default function MainTabNavigator() {
@@ -142,21 +149,21 @@ export default function MainTabNavigator() {
     >
       <Tab.Screen 
         name="HomeTab" 
-        component={HomeScreen} 
+        component={isTablet ? EmptyScreen : HomeScreen} 
         options={{ 
           tabBarLabel: 'Chat'
         }}
       />
       <Tab.Screen 
         name="ModelTab" 
-        component={ModelScreen}
+        component={isTablet ? EmptyScreen : ModelScreen}
         options={{ 
           tabBarLabel: 'Models'
         }}
       />
       <Tab.Screen 
         name="SettingsTab" 
-        component={SettingsScreen}
+        component={isTablet ? EmptyScreen : SettingsScreen}
         options={{ 
           tabBarLabel: 'Settings'
         }}
