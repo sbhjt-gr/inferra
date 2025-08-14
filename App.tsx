@@ -27,6 +27,7 @@ import { initClaudeService } from './src/services/ClaudeInitializer';
 import { PaperProvider } from 'react-native-paper';
 import { DialogProvider } from './src/context/DialogContext';
 import { ShowDialog } from './src/components/ShowDialog';
+import { useResponsive } from './src/hooks/useResponsive';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -87,6 +88,7 @@ function Navigation() {
   const themeColors = theme[currentTheme as ThemeColors];
   const insets = useSafeAreaInsets();
   const appState = useRef(AppState.currentState);
+  const { isTablet } = useResponsive();
 
   const customDefaultTheme = {
     ...DefaultTheme,
@@ -214,17 +216,19 @@ function Navigation() {
         theme={currentTheme === 'dark' ? customDarkTheme : customDefaultTheme}
       >
         {/* Status Bar Background View for edge-to-edge display */}
-        <View 
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            height: insets.top,
-            backgroundColor: themeColors.statusBarBg,
-            zIndex: 999,
-          }}
-        />
+        {!isTablet && (
+          <View 
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: insets.top,
+              backgroundColor: themeColors.statusBarBg,
+              zIndex: 999,
+            }}
+          />
+        )}
         <StatusBar style="light" translucent />
         <RootNavigator />
         <ShowDialog />

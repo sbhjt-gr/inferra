@@ -143,21 +143,6 @@ export default function TabletSideNavigation({
           })}
         </View>
 
-        <View style={styles.footer}>
-          <View style={[
-            styles.divider,
-            { backgroundColor: themeColors.tabBarInactiveText + '30' }
-          ]} />
-          <Text style={[
-            styles.footerText,
-            {
-              color: themeColors.tabBarInactiveText,
-              fontSize: fontSize.small,
-            }
-          ]}>
-            Tablet Mode
-          </Text>
-        </View>
       </ScrollView>
     </View>
   );

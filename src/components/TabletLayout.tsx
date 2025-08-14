@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, StatusBar, Dimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import TabletSideNavigation from './TabletSideNavigation';
@@ -26,12 +27,21 @@ export default function TabletLayout({
 }: TabletLayoutProps) {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
+  const insets = useSafeAreaInsets();
+  const screenHeight = Dimensions.get('window').height;
   
   const currentRoute = state.routes[state.index];
   const CurrentScreen = screenComponents[currentRoute.name as keyof typeof screenComponents];
 
   return (
-    <View style={[styles.container, { backgroundColor: themeColors.background }]}>
+    <View style={[
+      styles.container, 
+      { 
+        backgroundColor: themeColors.background,
+        height: screenHeight,
+        paddingTop: insets.top,
+      }
+    ]}>
       <TabletSideNavigation state={state} navigation={navigation} />
       <View style={styles.content}>
         {CurrentScreen && <CurrentScreen navigation={navigation} route={currentRoute} />}

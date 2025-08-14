@@ -1651,7 +1651,10 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]} edges={['left', 'right']}>
+    <SafeAreaView 
+      style={[styles.container, { backgroundColor: themeColors.background }]} 
+      edges={responsive.isTablet ? [] : ['left', 'right']}
+    >
       {!responsive.isTablet && (
         <AppHeader 
           onNewChat={startNewChat}
@@ -1699,7 +1702,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
               rightButtons={null}
             />
           )}
-          
           {!responsive.isTablet && (
             <View style={[styles.modelSelectorContainer, { borderBottomColor: themeColors.borderColor }]}>
                {renderModelSelectorComponent()}
