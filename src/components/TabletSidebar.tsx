@@ -70,7 +70,7 @@ export default function TabletSidebar({
 
   return (
     <View style={[styles.sidebar, { backgroundColor: themeColors.cardBackground }]}>
-      <ScrollView style={styles.sidebarContent} showsVerticalScrollIndicator={false}>
+      <View style={styles.sidebarContent}>
         <View style={[styles.sidebarSection, { paddingHorizontal: paddingHorizontal / 2 }]}>
           <Text style={[styles.sectionTitle, { color: themeColors.text, fontSize: fontSize.medium }]}>
             Quick Actions
@@ -135,7 +135,7 @@ export default function TabletSidebar({
             />
           </View>
         </View>
-      </ScrollView>
+      </View>
     </View>
   );
 }

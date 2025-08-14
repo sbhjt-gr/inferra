@@ -65,7 +65,6 @@ export default function ChatInput({
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
   
   const inputRef = useRef<TextInput>(null);
-  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const attachmentMenuAnim = useRef(new Animated.Value(0)).current;
   
@@ -82,6 +81,15 @@ export default function ChatInput({
 
   const isGenerating = isLoading || isRegenerating;
   const hasText = text.trim().length > 0;
+
+  let audioRecorder: ReturnType<typeof useAudioRecorder> | null = null;
+  
+  try {
+    audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  } catch (error) {
+    console.warn('Audio recorder initialization failed:', error);
+    audioRecorder = null;
+  }
 
   React.useEffect(() => {
     loadTermsAcceptance();
@@ -413,6 +421,14 @@ export default function ChatInput({
         playsInSilentMode: true,
       });
 
+      if (!audioRecorder) {
+        showDialog(
+          'Audio Recording Unavailable',
+          'Audio recording is not available at this time. Please try restarting the app.'
+        );
+        return;
+      }
+
       await audioRecorder.prepareToRecordAsync();
       audioRecorder.record();
       setIsRecording(true);
@@ -429,7 +445,7 @@ export default function ChatInput({
 
   const stopRecording = async () => {
     try {
-      if (!audioRecorder.isRecording) return;
+      if (!audioRecorder || !audioRecorder.isRecording) return;
 
       console.log('Stopping audio recording...');
       await audioRecorder.stop();
@@ -563,11 +579,15 @@ export default function ChatInput({
 
   React.useEffect(() => {
     return () => {
-      if (audioRecorder.isRecording) {
-        audioRecorder.stop().catch(() => {});
+      try {
+        if (audioRecorder && audioRecorder.isRecording) {
+          audioRecorder.stop().catch(() => {});
+        }
+      } catch (error) {
+        console.warn('Error stopping audio recorder on cleanup:', error);
       }
     };
-  }, []);
+  }, [audioRecorder]);
 
   const inputContainerStyle = useMemo(() => [
     styles.inputContainer,
