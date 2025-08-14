@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet, FlatList, View } from 'react-native';
+import { ScrollView, StyleSheet, FlatList, View, Dimensions } from 'react-native';
+import { useResponsive } from '../../hooks/useResponsive';
 import { useNavigation } from '@react-navigation/native';
 import DownloadableModelItem, { DownloadableModel } from './DownloadableModelItem';
 import { modelDownloader } from '../../services/ModelDownloader';
@@ -12,6 +13,7 @@ interface DownloadableModelListProps {
   setDownloadProgress: React.Dispatch<React.SetStateAction<any>>;
   onDownload?: (model: DownloadableModel) => void;
   gridColumns?: number;
+  needsHorizontalScroll?: boolean;
 }
 
 const DownloadableModelList: React.FC<DownloadableModelListProps> = ({ 
@@ -20,10 +22,25 @@ const DownloadableModelList: React.FC<DownloadableModelListProps> = ({
   downloadProgress, 
   setDownloadProgress,
   onDownload,
-  gridColumns = 1
+  gridColumns = 1,
+  needsHorizontalScroll: propNeedsHorizontalScroll
 }) => {
   const navigation = useNavigation();
   const [initializingDownloads, setInitializingDownloads] = useState<{ [key: string]: boolean }>({});
+  const { isTablet, orientation, paddingHorizontal } = useResponsive();
+  const screenWidth = Dimensions.get('window').width;
+  const availableWidth = screenWidth - (paddingHorizontal * 2);
+  const localNeedsHorizontalScroll = isTablet;
+  const needsHorizontalScroll = isTablet;
+  
+  console.log('[DownloadableModelList] Debug:', {
+    isTablet,
+    orientation, 
+    screenWidth,
+    availableWidth,
+    localNeedsHorizontalScroll,
+    needsHorizontalScroll
+  });
 
   const [dialogVisible, setDialogVisible] = useState(false);
   const [dialogTitle, setDialogTitle] = useState('');
@@ -120,6 +137,43 @@ const DownloadableModelList: React.FC<DownloadableModelListProps> = ({
     />
   );
 
+  if (needsHorizontalScroll) {
+    return (
+      <View style={styles.container}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={[styles.horizontalScrollContainer, { minWidth: 700 }]}
+        >
+          <FlatList 
+            data={models}
+            renderItem={renderItem}
+            keyExtractor={item => item.name}
+            numColumns={gridColumns}
+            key={gridColumns}
+            contentContainerStyle={styles.contentContainer}
+            columnWrapperStyle={gridColumns > 1 ? styles.gridRow : undefined}
+            showsVerticalScrollIndicator={false}
+            scrollEnabled={false}
+            style={{ width: 700 }}
+          />
+        </ScrollView>
+
+        <Portal>
+          <Dialog visible={dialogVisible} onDismiss={hideDialog}>
+            <Dialog.Title>{dialogTitle}</Dialog.Title>
+            <Dialog.Content>
+              <Text>{dialogMessage}</Text>
+            </Dialog.Content>
+            <Dialog.Actions>
+              <Button onPress={hideDialog}>OK</Button>
+            </Dialog.Actions>
+          </Dialog>
+        </Portal>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <FlatList 
@@ -133,7 +187,6 @@ const DownloadableModelList: React.FC<DownloadableModelListProps> = ({
         showsVerticalScrollIndicator={false}
       />
 
-      {/* Dialog Portal */}
       <Portal>
         <Dialog visible={dialogVisible} onDismiss={hideDialog}>
           <Dialog.Title>{dialogTitle}</Dialog.Title>
@@ -160,6 +213,9 @@ const styles = StyleSheet.create({
   gridRow: {
     justifyContent: 'space-between',
     paddingHorizontal: 6,
+  },
+  horizontalScrollContainer: {
+    paddingHorizontal: 16,
   },
 });
 
