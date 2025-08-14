@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, TextInput, Dimensions } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import ResponsiveModal from './ResponsiveModal';
+import ResponsiveInput from './ResponsiveInput';
+import ResponsiveButton from './ResponsiveButton';
 
 interface StopWordsDialogProps {
   visible: boolean;
@@ -50,72 +53,58 @@ export default function StopWordsDialog({
   if (!visible) return null;
 
   return (
-    <Modal
+    <ResponsiveModal
       visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
+      onClose={onClose}
     >
-      <View style={styles.modalOverlay}>
-        <View style={[styles.modalContent, { backgroundColor: themeColors.background }]}>
-          <View style={styles.header}>
-            <Text style={[styles.title, { color: themeColors.text }]}>Stop Words</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <MaterialCommunityIcons name="close" size={24} color={themeColors.text} />
-            </TouchableOpacity>
-          </View>
-          
-          <Text style={[styles.description, { color: themeColors.secondaryText }]}>
-            {description}
-          </Text>
-
-          <TextInput
-            style={[
-              styles.input,
-              {
-                color: themeColors.text,
-                backgroundColor: themeColors.borderColor + '40',
-                borderColor: themeColors.borderColor,
-              },
-            ]}
-            value={currentValue}
-            onChangeText={setCurrentValue}
-            placeholder="Enter stop words (one per line)"
-            placeholderTextColor={themeColors.secondaryText}
-            multiline
-            numberOfLines={6}
-            textAlignVertical="top"
-          />
-
-          <View style={styles.footer}>
-            {showResetButton && (
-              <TouchableOpacity
-                style={[styles.resetButton, { backgroundColor: themeColors.primary + '20' }]}
-                onPress={handleReset}
-              >
-                <MaterialCommunityIcons name="refresh" size={20} color={themeColors.primary} />
-                <Text style={[styles.resetText, { color: themeColors.primary }]}>Reset to Default</Text>
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity
-              style={[styles.saveButton, { backgroundColor: themeColors.primary }]}
-              onPress={handleSave}
-            >
-              <Text style={styles.saveButtonText}>Save Changes</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.defaultValueContainer}>
-            <Text style={[styles.defaultValueLabel, { color: themeColors.secondaryText }]}>
-              Default Values:
-            </Text>
-            <Text style={[styles.defaultValueText, { color: themeColors.text }]}>
-              {defaultValue.join('\n')}
-            </Text>
-          </View>
-        </View>
+      <View style={styles.header}>
+        <Text style={[styles.title, { color: themeColors.text }]}>Stop Words</Text>
+        <ResponsiveButton
+          title="✕"
+          variant="outline"
+          size="small"
+          onPress={onClose}
+          buttonStyle={styles.closeButton}
+        />
       </View>
-    </Modal>
+      
+      <Text style={[styles.description, { color: themeColors.secondaryText }]}>
+        {description}
+      </Text>
+
+      <ResponsiveInput
+        variant="multiline"
+        value={currentValue}
+        onChangeText={setCurrentValue}
+        placeholder="Enter stop words (one per line)"
+        style={styles.input}
+      />
+
+      <View style={styles.footer}>
+        {showResetButton && (
+          <ResponsiveButton
+            title="Reset to Default"
+            variant="secondary"
+            onPress={handleReset}
+            buttonStyle={{ flexDirection: 'row', gap: 8 }}
+          />
+        )}
+        <ResponsiveButton
+          title="Save Changes"
+          variant="primary"
+          onPress={handleSave}
+        />
+      </View>
+
+      <View style={styles.defaultValueContainer}>
+        <Text style={[styles.defaultValueLabel, { color: themeColors.secondaryText }]}>
+          Default Values:
+        </Text>
+        <Text style={[styles.defaultValueText, { color: themeColors.text }]}>
+          {defaultValue.join('\n')}
+        </Text>
+      </View>
+    </ResponsiveModal>
   );
 }
 

@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Modal, TouchableOpacity, TextInput, Dimensions 
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useResponsive } from '../hooks/useResponsive';
 
 interface ModelSettingDialogProps {
   visible: boolean;
@@ -31,6 +32,7 @@ export default function ModelSettingDialog({
 }: ModelSettingDialogProps) {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme];
+  const { dialog } = useResponsive();
   const [currentValue, setCurrentValue] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -81,7 +83,16 @@ export default function ModelSettingDialog({
       onRequestClose={onClose}
     >
       <View style={styles.modalOverlay}>
-        <View style={[styles.modalContent, { backgroundColor: themeColors.background }]}>
+        <View style={[
+          styles.modalContent, 
+          { 
+            backgroundColor: themeColors.background,
+            width: dialog.width,
+            maxWidth: dialog.maxWidth,
+            padding: dialog.padding,
+            borderRadius: dialog.borderRadius,
+          }
+        ]}>
           <View style={styles.header}>
             <Text style={[styles.title, { color: themeColors.text }]}>{label}</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>

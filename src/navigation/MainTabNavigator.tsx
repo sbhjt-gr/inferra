@@ -11,6 +11,7 @@ import { TabParamList } from '../types/navigation';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import { OpenSansFont } from '../hooks/OpenSansFont';
+import { useResponsive } from '../hooks/useResponsive';
 
 const Tab = createBottomTabNavigator<TabParamList>();
 
@@ -22,6 +23,7 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
   const { fonts } = OpenSansFont();
+  const { tabBarHeight } = useResponsive();
 
   useEffect(() => {
     const keyboardWillShowListener = Keyboard.addListener(
@@ -52,7 +54,7 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
       styles.tabBar,
       {
         backgroundColor: themeColors.tabBarBackground,
-        height: 70 + insets.bottom,
+        height: tabBarHeight + insets.bottom,
         paddingBottom: insets.bottom,
       }
     ]}>

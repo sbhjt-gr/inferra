@@ -17,6 +17,7 @@ const lightTheme = {
   primary: '#4a0660',
   cardBackground: '#f8f8f8',
   success: '#28a745',
+  error: '#dc3545',
 };
 
 const darkTheme = {
@@ -36,6 +37,7 @@ const darkTheme = {
   primary: '#9C38C0',
   cardBackground: '#2A1F37',
   success: '#28a745',
+  error: '#dc3545',
 };
 
 export const theme: Record<ThemeColors, typeof lightTheme> = {
