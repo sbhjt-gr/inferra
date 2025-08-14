@@ -115,25 +115,27 @@ export default function AppHeader({
           {rightButtons ? (
             rightButtons
           ) : (
-            <>
-              {isHomeScreen && (
+            !isTablet && (
+              <>
+                {(isHomeScreen || onNewChat) && (
+                  <TouchableOpacity
+                    style={styles.headerButton}
+                    onPress={handleNewChat}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <MaterialCommunityIcons name="plus" size={22} color={themeColors.headerText} />
+                  </TouchableOpacity>
+                )}
+                
                 <TouchableOpacity
                   style={styles.headerButton}
-                  onPress={handleNewChat}
+                  onPress={handleOpenChatHistory}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
-                  <MaterialCommunityIcons name="plus" size={22} color={themeColors.headerText} />
+                  <MaterialCommunityIcons name="clock-outline" size={22} color={themeColors.headerText} />
                 </TouchableOpacity>
-              )}
-              
-              <TouchableOpacity
-                style={styles.headerButton}
-                onPress={handleOpenChatHistory}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <MaterialCommunityIcons name="clock-outline" size={22} color={themeColors.headerText} />
-              </TouchableOpacity>
-            </>
+              </>
+            )
           )}
         </View>
       </View>

@@ -467,7 +467,6 @@ export default function TabletHomeScreen({ route, navigation }: TabletHomeScreen
       <View style={styles.chatArea}>
         <AppHeader 
           onNewChat={startNewChat}
-          rightButtons={null}
         />
         
         <KeyboardAvoidingView
