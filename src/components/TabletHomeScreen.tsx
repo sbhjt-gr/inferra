@@ -460,7 +460,13 @@ export default function TabletHomeScreen({ route, navigation }: TabletHomeScreen
         isGenerating={isLoading || isRegenerating}
         onModelSelect={handleModelSelect}
         onNewChat={startNewChat}
-        onChatHistory={() => navigation.navigate('ChatHistory')}
+        onChatHistory={() => {}}
+        onChatSelect={async (chatId: string) => {
+          const chat = chatManager.getChatById(chatId);
+          if (chat) {
+            setMessages(chat.messages);
+          }
+        }}
         activeProvider={activeProvider}
       />
 
