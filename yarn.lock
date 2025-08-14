@@ -5279,6 +5279,13 @@ expo-audio@~0.4.8:
   resolved "https://registry.npmjs.org/expo-audio/-/expo-audio-0.4.8.tgz"
   integrity sha512-tiR4pMNlIBj/r8el8B71EYd61+1mK8sn3ssgMfbhzwKB177b5kgqOoDwjPfBcOFdbF852IGx0Akd1mduXDc6VQ==
 
+expo-background-fetch@~13.1.6:
+  version "13.1.6"
+  resolved "https://registry.yarnpkg.com/expo-background-fetch/-/expo-background-fetch-13.1.6.tgz#bc58673b08bdb67716ba3a02978f992f0b8eeec0"
+  integrity sha512-hl4kR32DaxoHFYqNsILLZG2mWssCkUb4wnEAHtDGmpxUP4SCnJILcAn99J6AGDFUw5lF6FXNZZCXNfcrFioO4Q==
+  dependencies:
+    expo-task-manager "~13.1.6"
+
 expo-background-task@^0.2.7:
   version "0.2.8"
   resolved "https://registry.npmjs.org/expo-background-task/-/expo-background-task-0.2.8.tgz"

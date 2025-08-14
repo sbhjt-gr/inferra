@@ -91,6 +91,14 @@ export default function ChatInput({
     audioRecorder = null;
   }
 
+  const isAudioRecorderValid = (recorder: any): boolean => {
+    try {
+      return recorder && typeof recorder.isRecording === 'boolean';
+    } catch {
+      return false;
+    }
+  };
+
   React.useEffect(() => {
     loadTermsAcceptance();
   }, []);
@@ -421,7 +429,7 @@ export default function ChatInput({
         playsInSilentMode: true,
       });
 
-      if (!audioRecorder) {
+      if (!audioRecorder || !isAudioRecorderValid(audioRecorder)) {
         showDialog(
           'Audio Recording Unavailable',
           'Audio recording is not available at this time. Please try restarting the app.'
@@ -430,10 +438,15 @@ export default function ChatInput({
       }
 
       await audioRecorder.prepareToRecordAsync();
-      audioRecorder.record();
-      setIsRecording(true);
-      setShowAttachmentMenu(false);
-      console.log('Recording started');
+      
+      if (isAudioRecorderValid(audioRecorder)) {
+        audioRecorder.record();
+        setIsRecording(true);
+        setShowAttachmentMenu(false);
+        console.log('Recording started');
+      } else {
+        throw new Error('Audio recorder became invalid after preparation');
+      }
     } catch (error) {
       console.error('Failed to start recording:', error);
       showDialog(
@@ -445,7 +458,7 @@ export default function ChatInput({
 
   const stopRecording = async () => {
     try {
-      if (!audioRecorder || !audioRecorder.isRecording) return;
+      if (!audioRecorder || !isAudioRecorderValid(audioRecorder) || !audioRecorder.isRecording) return;
 
       console.log('Stopping audio recording...');
       await audioRecorder.stop();
@@ -580,8 +593,10 @@ export default function ChatInput({
   React.useEffect(() => {
     return () => {
       try {
-        if (audioRecorder && audioRecorder.isRecording) {
-          audioRecorder.stop().catch(() => {});
+        if (isAudioRecorderValid(audioRecorder) && audioRecorder!.isRecording) {
+          audioRecorder!.stop().catch((error) => {
+            console.warn('Error stopping audio recorder on cleanup:', error);
+          });
         }
       } catch (error) {
         console.warn('Error stopping audio recorder on cleanup:', error);
