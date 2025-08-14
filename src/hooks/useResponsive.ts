@@ -7,21 +7,29 @@ export const useResponsive = () => {
   const [dimensions, setDimensions] = useState(getResponsiveDimensions());
 
   useEffect(() => {
-    const subscription = Dimensions.addEventListener('change', () => {
-      try {
-        const newDeviceInfo = getDeviceInfo();
-        const newDimensions = getResponsiveDimensions();
-        
-        setDeviceInfo(newDeviceInfo);
-        setDimensions(newDimensions);
-      } catch (error) {
-        console.warn('Error updating responsive dimensions:', error);
-      }
-    });
+    let subscription: any = null;
+    
+    try {
+      subscription = Dimensions.addEventListener('change', () => {
+        try {
+          const newDeviceInfo = getDeviceInfo();
+          const newDimensions = getResponsiveDimensions();
+          
+          setDeviceInfo(newDeviceInfo);
+          setDimensions(newDimensions);
+        } catch (error) {
+          console.warn('Error updating responsive dimensions:', error);
+        }
+      });
+    } catch (error) {
+      console.warn('Error setting up dimension listener:', error);
+    }
 
     return () => {
       try {
-        subscription?.remove();
+        if (subscription?.remove) {
+          subscription.remove();
+        }
       } catch (error) {
         console.warn('Error removing dimension listener:', error);
       }
@@ -43,12 +51,30 @@ export const useDeviceOrientation = () => {
   const [orientation, setOrientation] = useState(getDeviceInfo().orientation);
 
   useEffect(() => {
-    const subscription = Dimensions.addEventListener('change', () => {
-      const newOrientation = getDeviceInfo().orientation;
-      setOrientation(newOrientation);
-    });
+    let subscription: any = null;
+    
+    try {
+      subscription = Dimensions.addEventListener('change', () => {
+        try {
+          const newOrientation = getDeviceInfo().orientation;
+          setOrientation(newOrientation);
+        } catch (error) {
+          console.warn('Error updating device orientation:', error);
+        }
+      });
+    } catch (error) {
+      console.warn('Error setting up orientation listener:', error);
+    }
 
-    return () => subscription?.remove();
+    return () => {
+      try {
+        if (subscription?.remove) {
+          subscription.remove();
+        }
+      } catch (error) {
+        console.warn('Error removing orientation listener:', error);
+      }
+    };
   }, []);
 
   return orientation;
