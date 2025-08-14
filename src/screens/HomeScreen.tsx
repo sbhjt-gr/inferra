@@ -1659,7 +1659,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         <AppHeader 
           onNewChat={startNewChat}
           rightButtons={
-            <View style={{ flexDirection: 'row', gap: 8 }}>
+            <View style={{ flexDirection: 'row' }}>
               <TouchableOpacity
                 style={styles.headerButton}
                 onPress={startNewChat}

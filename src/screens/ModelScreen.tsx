@@ -929,7 +929,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       <AppHeader 
         title="Models" 
         rightButtons={
-          <View style={{ flexDirection: 'row', gap: 8 }}>
+          <View style={{ flexDirection: 'row' }}>
             <ProfileButton />
           </View>
         }
@@ -1091,7 +1091,7 @@ const styles = StyleSheet.create({
   },
   gridRow: {
     justifyContent: 'space-between',
-    gap: 12,
+    paddingHorizontal: 6,
   },
   segmentedControl: {
     flexDirection: 'row',

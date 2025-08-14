@@ -553,7 +553,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
       <AppHeader 
         title="Settings"
         rightButtons={
-          <View style={{ flexDirection: 'row', gap: 8 }}>
+          <View style={{ flexDirection: 'row' }}>
             <ProfileButton />
           </View>
         } 
@@ -636,11 +636,13 @@ const styles = StyleSheet.create({
   },
   tabletLayout: {
     flexDirection: 'row',
-    gap: 24,
     alignItems: 'flex-start',
+    paddingHorizontal: 12,
+    marginHorizontal: -12,
   },
   tabletColumn: {
     flex: 1,
+    paddingHorizontal: 12,
   },
   headerButton: {
     width: 36,

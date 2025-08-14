@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Dimensions } from 'react-native';
+import { Dimensions, Platform } from 'react-native';
 import { getDeviceInfo, getResponsiveDimensions, DeviceInfo } from '../utils/ResponsiveUtils';
 
 export const useResponsive = () => {
@@ -8,14 +8,26 @@ export const useResponsive = () => {
 
   useEffect(() => {
     const subscription = Dimensions.addEventListener('change', () => {
-      const newDeviceInfo = getDeviceInfo();
-      const newDimensions = getResponsiveDimensions();
-      
-      setDeviceInfo(newDeviceInfo);
-      setDimensions(newDimensions);
+      try {
+        const newDeviceInfo = getDeviceInfo();
+        const newDimensions = getResponsiveDimensions();
+        
+        setDeviceInfo(newDeviceInfo);
+        setDimensions(newDimensions);
+      } catch (error) {
+        // Fallback for older Android versions
+        console.warn('Error updating responsive dimensions:', error);
+      }
     });
 
-    return () => subscription?.remove();
+    return () => {
+      try {
+        subscription?.remove();
+      } catch (error) {
+        // Graceful cleanup for older Android versions
+        console.warn('Error removing dimension listener:', error);
+      }
+    };
   }, []);
 
   return {

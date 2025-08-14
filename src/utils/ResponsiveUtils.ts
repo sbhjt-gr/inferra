@@ -12,14 +12,19 @@ export interface DeviceInfo {
 }
 
 export const getDeviceInfo = (): DeviceInfo => {
-  const { width, height } = Dimensions.get('window');
-  
-  const minTabletSize = 768;
-  const minLargePhoneSize = 480;
-  
-  const isTablet = Math.min(width, height) >= minTabletSize;
-  const isLargePhone = width >= minLargePhoneSize && !isTablet;
-  const isPhone = width < minLargePhoneSize;
+  try {
+    const { width, height } = Dimensions.get('window');
+    
+    const safeWidth = width || 360;
+    const safeHeight = height || 640;
+    
+    const minTabletSize = 768;
+    const minLargePhoneSize = 480;
+    
+    const smallerDimension = Math.min(safeWidth, safeHeight);
+    const isTablet = smallerDimension >= minTabletSize;
+    const isLargePhone = safeWidth >= minLargePhoneSize && !isTablet;
+    const isPhone = safeWidth < minLargePhoneSize;
   
   let deviceType: 'phone' | 'large-phone' | 'tablet';
   if (isTablet) deviceType = 'tablet';
@@ -27,14 +32,25 @@ export const getDeviceInfo = (): DeviceInfo => {
   else deviceType = 'phone';
   
   return {
-    width,
-    height,
+    width: safeWidth,
+    height: safeHeight,
     isTablet,
     isPhone,
     isLargePhone,
     deviceType,
-    orientation: width > height ? 'landscape' : 'portrait'
+    orientation: safeWidth > safeHeight ? 'landscape' : 'portrait'
   };
+  } catch (error) {
+    return {
+      width: 360,
+      height: 640,
+      isTablet: false,
+      isPhone: true,
+      isLargePhone: false,
+      deviceType: 'phone',
+      orientation: 'portrait'
+    };
+  }
 };
 
 export const getResponsiveValue = <T>(
