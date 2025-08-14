@@ -9,6 +9,7 @@ import { RootStackParamList } from '../types/navigation';
 import chatManager from '../utils/ChatManager';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { OpenSansFont } from '../hooks/OpenSansFont';
+import { useResponsive } from '../hooks/useResponsive';
 
 type AppHeaderProps = {
   title?: string;
@@ -39,6 +40,7 @@ export default function AppHeader({
   const route = useRoute();
   const insets = useSafeAreaInsets();
   const { fonts } = OpenSansFont();
+  const { fontSize, paddingHorizontal } = useResponsive();
 
   const isHomeScreen = route.name === 'HomeTab';
 
@@ -71,7 +73,7 @@ export default function AppHeader({
         height: 52 + insets.top,
       }
     ]}>
-      <View style={styles.headerContent}>
+      <View style={[styles.headerContent, { paddingHorizontal }]}>
         {leftComponent ? (
           leftComponent
         ) : customLeftComponent ? (
@@ -95,14 +97,14 @@ export default function AppHeader({
                   style={styles.icon} 
                   resizeMode="cover"
                 />
-                <Text style={[styles.title, { color: themeColors.headerText }, fonts.bold]}>
+                <Text style={[styles.title, { color: themeColors.headerText, fontSize: fontSize.large }, fonts.bold]}>
                   {title}
                 </Text>
               </>
             )}
             
             {!showLogo && (
-              <Text style={[styles.title, { color: themeColors.headerText }, fonts.bold]}>
+              <Text style={[styles.title, { color: themeColors.headerText, fontSize: fontSize.large }, fonts.bold]}>
                 {title}
               </Text>
             )}
@@ -154,7 +156,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
   },
   leftSection: {
     flexDirection: 'row',
@@ -167,7 +168,6 @@ const styles = StyleSheet.create({
     borderRadius: 15,
   },
   title: {
-    fontSize: 18,
     letterSpacing: 0.2,
   },
   rightButtons: {

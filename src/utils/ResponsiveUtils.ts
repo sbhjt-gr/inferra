@@ -80,6 +80,17 @@ export const getResponsiveDimensions = () => {
       medium: getResponsiveValue(14, 16, 15),
       large: getResponsiveValue(16, 18, 17),
       xlarge: getResponsiveValue(18, 20, 19)
+    },
+    margins: {
+      small: getResponsiveValue(8, 12, 10),
+      medium: getResponsiveValue(16, 24, 20),
+      large: getResponsiveValue(24, 32, 28),
+      section: getResponsiveValue(16, 32, 24)
+    },
+    iconSizes: {
+      small: getResponsiveValue(16, 18, 17),
+      medium: getResponsiveValue(20, 24, 22),
+      large: getResponsiveValue(24, 28, 26)
     }
   };
 };

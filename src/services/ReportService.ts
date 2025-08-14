@@ -18,12 +18,12 @@ interface ReportData {
   timestamp: string;
   appVersion: string;
   platform: string;
-  attachments?: Array<{
+  attachments?: {
     uri: string;
     type: 'image';
     fileName: string;
     fileSize: number;
-  }>;
+  }[];
 }
 
 interface FirebaseAttachment {
