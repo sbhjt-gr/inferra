@@ -7,7 +7,9 @@ import {
   ScrollView,
   Animated,
   FlatList,
+  PanResponder,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
@@ -48,19 +50,126 @@ export default function TabletSidebar({
   const [showChatHistory, setShowChatHistory] = useState(false);
   const [chats, setChats] = useState<Chat[]>([]);
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
+  const [sidebarWidth, setSidebarWidth] = useState(300);
+  const [isResizing, setIsResizing] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
   const widthAnimation = useRef(new Animated.Value(300)).current;
+  const dragX = useRef(new Animated.Value(0)).current;
+  const startWidth = useRef(300);
+
+  useEffect(() => {
+    const loadSidebarState = async () => {
+      try {
+        const savedWidth = await AsyncStorage.getItem('tabletSidebarWidth');
+        const savedMinimized = await AsyncStorage.getItem('tabletSidebarMinimized');
+        
+        let finalWidth = 300;
+        let finalMinimized = false;
+        
+        if (savedWidth) {
+          const width = parseInt(savedWidth, 10);
+          if (width >= 200 && width <= 500) {
+            finalWidth = width;
+            setSidebarWidth(width);
+            startWidth.current = width;
+          }
+        }
+        
+        if (savedMinimized !== null) {
+          finalMinimized = savedMinimized === 'true';
+          setIsMinimized(finalMinimized);
+        }
+        
+        widthAnimation.setValue(finalMinimized ? 0 : finalWidth);
+        setIsInitialized(true);
+      } catch (error) {
+        console.error('Error loading sidebar state:', error);
+        setIsInitialized(true);
+      }
+    };
+    
+    loadSidebarState();
+  }, []);
 
   useEffect(() => {
     Animated.timing(widthAnimation, {
-      toValue: isMinimized ? 0 : 300,
+      toValue: isMinimized ? 0 : sidebarWidth,
       duration: 300,
       useNativeDriver: false,
     }).start();
-  }, [isMinimized, widthAnimation]);
+  }, [isMinimized, sidebarWidth, widthAnimation]);
+
+  useEffect(() => {
+    if (!isInitialized) return;
+    
+    const saveSidebarWidth = async () => {
+      try {
+        await AsyncStorage.setItem('tabletSidebarWidth', sidebarWidth.toString());
+      } catch (error) {
+        console.error('Error saving sidebar width:', error);
+      }
+    };
+    
+    saveSidebarWidth();
+  }, [sidebarWidth, isInitialized]);
+
+  useEffect(() => {
+    if (!isInitialized) return;
+    
+    const saveSidebarMinimized = async () => {
+      try {
+        await AsyncStorage.setItem('tabletSidebarMinimized', isMinimized.toString());
+      } catch (error) {
+        console.error('Error saving sidebar minimized state:', error);
+      }
+    };
+    
+    saveSidebarMinimized();
+  }, [isMinimized, isInitialized]);
 
   const handleToggleMinimize = () => {
     setIsMinimized(!isMinimized);
   };
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: (evt, gestureState) => true,
+      onMoveShouldSetPanResponder: (evt, gestureState) => {
+        return Math.abs(gestureState.dx) > 2;
+      },
+      onPanResponderGrant: (evt, gestureState) => {
+        startWidth.current = sidebarWidth;
+        dragX.setValue(0);
+        setIsResizing(true);
+      },
+      onPanResponderMove: (evt, gestureState) => {
+        const newWidth = Math.max(200, Math.min(500, startWidth.current + gestureState.dx));
+        widthAnimation.setValue(newWidth);
+      },
+      onPanResponderRelease: (evt, gestureState) => {
+        const newWidth = Math.max(200, Math.min(500, startWidth.current + gestureState.dx));
+        setSidebarWidth(newWidth);
+        setIsResizing(false);
+        
+        Animated.timing(widthAnimation, {
+          toValue: newWidth,
+          duration: 100,
+          useNativeDriver: false,
+        }).start();
+      },
+      onPanResponderTerminate: (evt, gestureState) => {
+        const newWidth = Math.max(200, Math.min(500, startWidth.current + gestureState.dx));
+        setSidebarWidth(newWidth);
+        setIsResizing(false);
+        
+        Animated.timing(widthAnimation, {
+          toValue: newWidth,
+          duration: 100,
+          useNativeDriver: false,
+        }).start();
+      },
+    })
+  ).current;
 
   const loadChats = useCallback(async () => {
     try {
@@ -291,6 +400,18 @@ export default function TabletSidebar({
             </View>
           </>
         )}
+        
+        {!isMinimized && (
+          <View
+            style={styles.resizeEdge}
+            {...panResponder.panHandlers}
+          >
+            <View style={[styles.resizeIndicator, { backgroundColor: themeColors.borderColor }]} />
+            {isResizing && (
+              <View style={[styles.resizeHighlight, { backgroundColor: themeColors.primary }]} />
+            )}
+          </View>
+        )}
       </Animated.View>
       
       {isMinimized && (
@@ -412,5 +533,38 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontStyle: 'italic',
     marginTop: 20,
+  },
+  resizeEdge: {
+    position: 'absolute',
+    top: 0,
+    right: -15,
+    bottom: 0,
+    width: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+    zIndex: 1000,
+  },
+  resizeIndicator: {
+    width: 2,
+    height: 30,
+    borderRadius: 1,
+    opacity: 0.4,
+  },
+  resizeHighlight: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    right: 15,
+    width: 3,
+    opacity: 0.8,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 0,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 2,
   },
 });

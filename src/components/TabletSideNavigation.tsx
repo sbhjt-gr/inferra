@@ -1,11 +1,14 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
+  Animated,
+  PanResponder,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
@@ -53,6 +56,90 @@ export default function TabletSideNavigation({
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
   const { paddingHorizontal, fontSize } = useResponsive();
+  const [navigationWidth, setNavigationWidth] = useState(240);
+  const [isResizing, setIsResizing] = useState(false);
+  const widthAnimation = useRef(new Animated.Value(240)).current;
+  const startWidth = useRef(240);
+
+  useEffect(() => {
+    const loadNavigationState = async () => {
+      try {
+        const savedWidth = await AsyncStorage.getItem('tabletNavigationWidth');
+        
+        if (savedWidth) {
+          const width = parseInt(savedWidth, 10);
+          if (width >= 180 && width <= 400) {
+            setNavigationWidth(width);
+            widthAnimation.setValue(width);
+            startWidth.current = width;
+          }
+        }
+      } catch (error) {
+        console.error('Error loading navigation state:', error);
+      }
+    };
+    
+    loadNavigationState();
+  }, []);
+
+  useEffect(() => {
+    Animated.timing(widthAnimation, {
+      toValue: navigationWidth,
+      duration: 100,
+      useNativeDriver: false,
+    }).start();
+  }, [navigationWidth, widthAnimation]);
+
+  useEffect(() => {
+    const saveNavigationWidth = async () => {
+      try {
+        await AsyncStorage.setItem('tabletNavigationWidth', navigationWidth.toString());
+      } catch (error) {
+        console.error('Error saving navigation width:', error);
+      }
+    };
+    
+    saveNavigationWidth();
+  }, [navigationWidth]);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: (evt, gestureState) => true,
+      onMoveShouldSetPanResponder: (evt, gestureState) => {
+        return Math.abs(gestureState.dx) > 2;
+      },
+      onPanResponderGrant: (evt, gestureState) => {
+        startWidth.current = navigationWidth;
+        setIsResizing(true);
+      },
+      onPanResponderMove: (evt, gestureState) => {
+        const newWidth = Math.max(180, Math.min(400, startWidth.current + gestureState.dx));
+        widthAnimation.setValue(newWidth);
+      },
+      onPanResponderRelease: (evt, gestureState) => {
+        const newWidth = Math.max(180, Math.min(400, startWidth.current + gestureState.dx));
+        setNavigationWidth(newWidth);
+        setIsResizing(false);
+        
+        Animated.timing(widthAnimation, {
+          toValue: newWidth,
+          duration: 100,
+          useNativeDriver: false,
+        }).start();
+      },
+      onPanResponderTerminate: (evt, gestureState) => {
+        const newWidth = Math.max(180, Math.min(400, startWidth.current + gestureState.dx));
+        setNavigationWidth(newWidth);
+        setIsResizing(false);
+        
+        Animated.timing(widthAnimation, {
+          toValue: newWidth,
+          duration: 100,
+          useNativeDriver: false,
+        }).start();
+      },
+    })
+  ).current;
 
   const handleTabPress = (routeName: string, index: number) => {
     const event = navigation.emit({
@@ -67,93 +154,111 @@ export default function TabletSideNavigation({
   };
 
   return (
-    <View style={[
-      styles.container,
-      {
-        backgroundColor: themeColors.tabBarBackground,
-        paddingHorizontal: paddingHorizontal / 2,
-      }
-    ]}>
-      <ScrollView 
-        style={styles.scrollContainer}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.contentContainer}
-      >
-        <View style={styles.header}>
-          <MaterialCommunityIcons
-            name="cube"
-            size={32}
-            color={themeColors.tabBarActiveText}
-          />
-          <Text style={[
-            styles.appTitle,
-            {
-              color: themeColors.tabBarActiveText,
-              fontSize: fontSize.large,
-            }
-          ]}>
-            Inferra
-          </Text>
-        </View>
+    <View style={styles.navigationContainer}>
+      <Animated.View style={[
+        styles.container,
+        {
+          backgroundColor: themeColors.tabBarBackground,
+          paddingHorizontal: paddingHorizontal / 2,
+          width: widthAnimation
+        }
+      ]}>
+        <ScrollView 
+          style={styles.scrollContainer}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.contentContainer}
+        >
+          <View style={styles.header}>
+            <MaterialCommunityIcons
+              name="cube"
+              size={32}
+              color={themeColors.tabBarActiveText}
+            />
+            <Text style={[
+              styles.appTitle,
+              {
+                color: themeColors.tabBarActiveText,
+                fontSize: fontSize.large,
+              }
+            ]}>
+              Inferra
+            </Text>
+          </View>
 
-        <View style={styles.navigationItems}>
-          {navigationItems.map((item, index) => {
-            const isFocused = state.index === index;
-            const route = state.routes[index];
+          <View style={styles.navigationItems}>
+            {navigationItems.map((item, index) => {
+              const isFocused = state.index === index;
+              const route = state.routes[index];
 
-            return (
-              <TouchableOpacity
-                key={item.name}
-                style={[
-                  styles.navigationItem,
-                  {
-                    backgroundColor: isFocused 
-                      ? themeColors.tabBarActiveText + '15' 
-                      : 'transparent',
-                  }
-                ]}
-                onPress={() => handleTabPress(route.name, index)}
-                activeOpacity={0.7}
-              >
-                <MaterialCommunityIcons
-                  name={isFocused ? item.activeIcon : item.icon}
-                  size={24}
-                  color={
-                    isFocused 
-                      ? themeColors.tabBarActiveText 
-                      : themeColors.tabBarInactiveText
-                  }
-                />
-                <Text
+              return (
+                <TouchableOpacity
+                  key={item.name}
                   style={[
-                    styles.navigationLabel,
+                    styles.navigationItem,
                     {
-                      color: isFocused 
-                        ? themeColors.tabBarActiveText 
-                        : themeColors.tabBarInactiveText,
-                      fontSize: fontSize.medium,
-                      fontWeight: isFocused ? '600' : '400',
+                      backgroundColor: isFocused 
+                        ? themeColors.tabBarActiveText + '15' 
+                        : 'transparent',
                     }
                   ]}
+                  onPress={() => handleTabPress(route.name, index)}
+                  activeOpacity={0.7}
                 >
-                  {item.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+                  <MaterialCommunityIcons
+                    name={isFocused ? item.activeIcon as any : item.icon as any}
+                    size={24}
+                    color={
+                      isFocused 
+                        ? themeColors.tabBarActiveText 
+                        : themeColors.tabBarInactiveText
+                    }
+                  />
+                  <Text
+                    style={[
+                      styles.navigationLabel,
+                      {
+                        color: isFocused 
+                          ? themeColors.tabBarActiveText 
+                          : themeColors.tabBarInactiveText,
+                        fontSize: fontSize.medium,
+                        fontWeight: isFocused ? '600' : '400',
+                      }
+                    ]}
+                  >
+                    {item.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
 
-      </ScrollView>
+        </ScrollView>
+        
+        <View
+          style={styles.resizeEdge}
+          {...panResponder.panHandlers}
+        >
+          <View style={[styles.resizeIndicator, { backgroundColor: themeColors.borderColor }]} />
+          {isResizing && (
+            <View style={[styles.resizeHighlight, { backgroundColor: themeColors.primary }]} />
+          )}
+        </View>
+      </Animated.View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  navigationContainer: {
+    position: 'relative',
+    height: '100%',
+    overflow: 'visible',
+  },
   container: {
-    width: 240,
     height: '100%',
     borderRightWidth: 1,
     borderRightColor: 'rgba(255, 255, 255, 0.1)',
+    overflow: 'hidden',
   },
   scrollContainer: {
     flex: 1,
@@ -200,5 +305,38 @@ const styles = StyleSheet.create({
   footerText: {
     fontWeight: '500',
     opacity: 0.7,
+  },
+  resizeEdge: {
+    position: 'absolute',
+    top: 0,
+    right: -15,
+    bottom: 0,
+    width: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+    zIndex: 1000,
+  },
+  resizeIndicator: {
+    width: 2,
+    height: 30,
+    borderRadius: 1,
+    opacity: 0.4,
+  },
+  resizeHighlight: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    right: 15,
+    width: 3,
+    opacity: 0.8,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 0,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 2,
   },
 });
