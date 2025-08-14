@@ -39,12 +39,24 @@ export default function TabletLayout({
       { 
         backgroundColor: themeColors.background,
         height: screenHeight,
-        paddingTop: insets.top,
       }
     ]}>
-      <TabletSideNavigation state={state} navigation={navigation} />
-      <View style={styles.content}>
-        {CurrentScreen && <CurrentScreen navigation={navigation} route={currentRoute} />}
+      <View 
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: insets.top,
+          backgroundColor: '#660880',
+          zIndex: 999,
+        }}
+      />
+      <View style={[styles.content, { paddingTop: insets.top }]}>
+        <TabletSideNavigation state={state} navigation={navigation} />
+        <View style={styles.mainContent}>
+          {CurrentScreen && <CurrentScreen navigation={navigation} route={currentRoute} />}
+        </View>
       </View>
     </View>
   );
@@ -53,9 +65,13 @@ export default function TabletLayout({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    flexDirection: 'row',
+    flexDirection: 'column',
   },
   content: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+  mainContent: {
     flex: 1,
   },
 });
