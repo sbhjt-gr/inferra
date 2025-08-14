@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet } from 'react-native';
+import { ScrollView, StyleSheet, FlatList, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import DownloadableModelItem, { DownloadableModel } from './DownloadableModelItem';
 import { modelDownloader } from '../../services/ModelDownloader';
@@ -11,6 +11,7 @@ interface DownloadableModelListProps {
   downloadProgress: any;
   setDownloadProgress: React.Dispatch<React.SetStateAction<any>>;
   onDownload?: (model: DownloadableModel) => void;
+  gridColumns?: number;
 }
 
 const DownloadableModelList: React.FC<DownloadableModelListProps> = ({ 
@@ -18,7 +19,8 @@ const DownloadableModelList: React.FC<DownloadableModelListProps> = ({
   storedModels,
   downloadProgress, 
   setDownloadProgress,
-  onDownload
+  onDownload,
+  gridColumns = 1
 }) => {
   const navigation = useNavigation();
   const [initializingDownloads, setInitializingDownloads] = useState<{ [key: string]: boolean }>({});
@@ -107,23 +109,29 @@ const DownloadableModelList: React.FC<DownloadableModelListProps> = ({
     }
   };
 
+  const renderItem = ({ item }: { item: DownloadableModel }) => (
+    <DownloadableModelItem
+      model={item}
+      isDownloaded={isModelDownloaded(item.name)}
+      isDownloading={Boolean(downloadProgress[item.name])}
+      isInitializing={Boolean(initializingDownloads[item.name])}
+      downloadProgress={downloadProgress[item.name]}
+      onDownload={onDownload || handleDownload}
+    />
+  );
+
   return (
-    <ScrollView 
-      style={styles.container}
-      contentContainerStyle={styles.contentContainer}
-      showsVerticalScrollIndicator={false}
-    >
-      {models.map(model => (
-        <DownloadableModelItem
-          key={model.name}
-          model={model}
-          isDownloaded={isModelDownloaded(model.name)}
-          isDownloading={Boolean(downloadProgress[model.name])}
-          isInitializing={Boolean(initializingDownloads[model.name])}
-          downloadProgress={downloadProgress[model.name]}
-          onDownload={onDownload || handleDownload}
-        />
-      ))}
+    <View style={styles.container}>
+      <FlatList 
+        data={models}
+        renderItem={renderItem}
+        keyExtractor={item => item.name}
+        numColumns={gridColumns}
+        key={gridColumns}
+        contentContainerStyle={styles.contentContainer}
+        columnWrapperStyle={gridColumns > 1 ? styles.gridRow : undefined}
+        showsVerticalScrollIndicator={false}
+      />
 
       {/* Dialog Portal */}
       <Portal>
@@ -137,7 +145,7 @@ const DownloadableModelList: React.FC<DownloadableModelListProps> = ({
           </Dialog.Actions>
         </Dialog>
       </Portal>
-    </ScrollView>
+    </View>
   );
 };
 
@@ -148,6 +156,10 @@ const styles = StyleSheet.create({
   contentContainer: {
     padding: 16,
     paddingTop: 0,
+  },
+  gridRow: {
+    justifyContent: 'space-between',
+    gap: 12,
   },
 });
 
