@@ -12,6 +12,7 @@ import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import { OpenSansFont } from '../hooks/OpenSansFont';
 import { useResponsive } from '../hooks/useResponsive';
+import TabletLayout from '../components/TabletLayout';
 
 const Tab = createBottomTabNavigator<TabParamList>();
 
@@ -23,7 +24,7 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
   const { fonts } = OpenSansFont();
-  const { tabBarHeight } = useResponsive();
+  const { tabBarHeight, fontSize, isTablet } = useResponsive();
 
   useEffect(() => {
     const keyboardWillShowListener = Keyboard.addListener(
@@ -99,15 +100,15 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
           >
             <MaterialCommunityIcons
               name={iconName as any}
-              size={24}
+              size={isTablet ? 28 : 24}
               color={isFocused ? themeColors.tabBarActiveText : themeColors.tabBarInactiveText}
             />
             <Text
               style={[
                 {
                   color: isFocused ? themeColors.tabBarActiveText : themeColors.tabBarInactiveText,
-                  fontSize: 12,
-                  marginTop: 4,
+                  fontSize: fontSize.small,
+                  marginTop: isTablet ? 6 : 4,
                 },
                 fonts.medium
               ]}
@@ -121,10 +122,20 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   );
 }
 
+function TabletTabBar({ state, navigation }: BottomTabBarProps) {
+  return (
+    <TabletLayout state={state} navigation={navigation}>
+      {null}
+    </TabletLayout>
+  );
+}
+
 export default function MainTabNavigator() {
+  const { isTablet } = useResponsive();
+
   return (
     <Tab.Navigator
-      tabBar={props => <CustomTabBar {...props} />}
+      tabBar={props => isTablet ? <TabletTabBar {...props} /> : <CustomTabBar {...props} />}
       screenOptions={{
         headerShown: false,
       }}

@@ -23,6 +23,7 @@ interface UnifiedModelListProps {
   getAvailableFilterOptions: () => { tags: string[], modelFamilies: string[], quantizations: string[] };
   onCustomUrlPress: () => void;
   onGuidancePress: () => void;
+  gridColumns?: number;
 }
 
 interface ModelWarningDialogProps {
@@ -82,7 +83,8 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
   onFiltersChange,
   getAvailableFilterOptions,
   onCustomUrlPress,
-  onGuidancePress
+  onGuidancePress,
+  gridColumns = 1
 }) => {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme];
@@ -597,6 +599,7 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
                 downloadProgress={downloadProgress}
                 setDownloadProgress={setDownloadProgress}
                 onDownload={handleCuratedModelDownload}
+                gridColumns={gridColumns}
               />
             </View>
           </>

@@ -12,6 +12,7 @@ import {
   Dimensions,
   Alert,
 } from 'react-native';
+import { useResponsive } from '../hooks/useResponsive';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 type PageImage = {
@@ -51,9 +52,10 @@ export default function PDFGridView({
   setPromptError,
   handleStartOCR,
 }: PDFGridViewProps) {
-  const screenWidth = Dimensions.get('window').width;
-  const numColumns = 3;
-  const itemWidth = (screenWidth - 40) / numColumns;
+  const { gridColumns, paddingHorizontal, screenWidth, isTablet } = useResponsive();
+  const numColumns = isTablet ? Math.max(gridColumns * 2, 4) : 3;
+  const totalPadding = paddingHorizontal * 2 + (numColumns - 1) * 8;
+  const itemWidth = (screenWidth - totalPadding) / numColumns;
 
   return (
     <Modal
@@ -63,7 +65,7 @@ export default function PDFGridView({
       onRequestClose={onClose}
     >
       <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#121212' : '#fff' }]}>
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingHorizontal }]}>
           <Text 
             style={[
               styles.fileNameText, 
@@ -83,7 +85,7 @@ export default function PDFGridView({
           </TouchableOpacity>
         </View>
 
-        <View style={[styles.gridHeader, { backgroundColor: isDark ? '#1a1a1a' : '#f9f9f9' }]}>
+        <View style={[styles.gridHeader, { backgroundColor: isDark ? '#1a1a1a' : '#f9f9f9', paddingHorizontal }]}>
           <Text style={[styles.selectionText, { color: isDark ? '#ffffff' : '#333333' }]}>
             Selected: <Text style={{ color: '#660880', fontWeight: 'bold' }}>{selectedPages.length}</Text> of {extractedPages.length} pages
           </Text>
@@ -100,6 +102,7 @@ export default function PDFGridView({
         <View style={[styles.gridContainer, { backgroundColor: isDark ? '#1e1e1e' : '#f5f5f5' }]}>
           <FlatList
             data={extractedPages}
+            contentContainerStyle={{ paddingHorizontal }}
             renderItem={({ item, index }) => {
               const isSelected = selectedPages.includes(index);
               return (
@@ -142,7 +145,7 @@ export default function PDFGridView({
           />
         </View>
 
-        <View style={[styles.gridFooter, { backgroundColor: isDark ? '#1a1a1a' : '#ffffff' }]}>
+        <View style={[styles.gridFooter, { backgroundColor: isDark ? '#1a1a1a' : '#ffffff', paddingHorizontal }]}>
           <View style={styles.promptContainer}>
             <Text style={[styles.promptLabel, { color: isDark ? '#ffffff' : '#333333' }]}>
               Add your prompt:
@@ -208,7 +211,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
   },
   fileNameText: {
     fontSize: 16,
@@ -228,7 +230,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 12,
-    paddingHorizontal: 16,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(0, 0, 0, 0.1)',
   },
@@ -296,7 +297,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   gridFooter: {
-    padding: 16,
+    paddingVertical: 16,
     borderTopWidth: 1,
     borderTopColor: '#e0e0e0',
   },

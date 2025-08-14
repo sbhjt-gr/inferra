@@ -13,6 +13,7 @@ import {
   AppState,
   AppStateStatus,
 } from 'react-native';
+import { useResponsive } from '../hooks/useResponsive';
 import { CompositeNavigationProp } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -84,6 +85,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
   const { theme: currentTheme } = useTheme();
   const { enableRemoteModels, isLoggedIn, checkLoginStatus } = useRemoteModel();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
+  const { gridColumns, paddingHorizontal } = useResponsive();
   const [activeTab, setActiveTab] = useState<'stored' | 'downloadable' | 'remote'>('stored');
   const [storedModels, setStoredModels] = useState<StoredModel[]>([]);
   const { downloadProgress, setDownloadProgress } = useDownloads();
@@ -644,6 +646,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         getAvailableFilterOptions={getAvailableFilterOptions}
         onCustomUrlPress={() => setCustomUrlDialogVisible(true)}
         onGuidancePress={() => setGuidanceDialogVisible(true)}
+        gridColumns={gridColumns}
       />
 
       <CustomUrlDialog
@@ -932,7 +935,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         }
       />
       <View style={styles.content}>
-        <View style={styles.tabContainer}>
+        <View style={[styles.tabContainer, { paddingHorizontal }]}>
           <View style={[styles.segmentedControl, { backgroundColor: themeColors.borderColor }]}>
             <TouchableOpacity
               style={[
@@ -1005,13 +1008,16 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
           </View>
         </View>
 
-        <View style={styles.contentContainer}>
+        <View style={[styles.contentContainer, { paddingHorizontal }]}>
           {activeTab === 'stored' ? (
             <FlatList
               data={storedModels}
               renderItem={renderItem}
               keyExtractor={item => item.path}
+              numColumns={gridColumns}
+              key={gridColumns}
               contentContainerStyle={styles.list}
+              columnWrapperStyle={gridColumns > 1 ? styles.gridRow : undefined}
               ListHeaderComponent={StoredModelsHeader}
               ListEmptyComponent={
                 <View style={styles.emptyContainer}>
@@ -1081,8 +1087,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   tabContainer: {
-    paddingHorizontal: 16,
     paddingBottom: 16,
+  },
+  gridRow: {
+    justifyContent: 'space-between',
+    gap: 12,
   },
   segmentedControl: {
     flexDirection: 'row',
@@ -1122,7 +1131,6 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
   list: {
-    padding: 16,
     paddingTop: 8,
   },
   emptyContainer: {

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, View, Platform, ScrollView, Linking, TouchableOpacity, Text } from 'react-native';
+import { useResponsive } from '../hooks/useResponsive';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { CompositeNavigationProp } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
@@ -476,6 +477,77 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     );
   };
 
+  const { isTablet, paddingHorizontal } = useResponsive();
+
+  const renderSettingsSections = () => {
+    const leftColumnSections = [
+      <AppearanceSection
+        key="appearance"
+        selectedTheme={selectedTheme}
+        onThemeChange={handleThemeChange}
+      />,
+      <InferenceEngineSection
+        key="inference"
+        selectedEngine={selectedInferenceEngine}
+        onEngineChange={handleInferenceEngineChange}
+      />,
+      <RemoteModelsSection
+        key="remote"
+        enableRemoteModels={enableRemoteModels}
+        onToggleRemoteModels={handleRemoteModelsToggle}
+      />,
+      <ChatSettingsSection
+        key="chat"
+        modelSettings={modelSettings}
+        defaultSettings={DEFAULT_SETTINGS}
+        onOpenSystemPromptDialog={() => setShowSystemPromptDialog(true)}
+        onResetSystemPrompt={() => handleSettingsChange({ systemPrompt: DEFAULT_SETTINGS.systemPrompt })}
+      />
+    ];
+
+    const rightColumnSections = [
+      <ModelSettingsSection
+        key="model"
+        modelSettings={modelSettings}
+        defaultSettings={DEFAULT_SETTINGS}
+        error={error}
+        onSettingsChange={handleSettingsChange}
+        onMaxTokensPress={handleMaxTokensPress}
+        onStopWordsPress={() => setShowStopWordsDialog(true)}
+        onDialogOpen={handleOpenDialog}
+      />,
+      <StorageSection
+        key="storage"
+        storageInfo={storageInfo}
+        isClearing={isClearing}
+        onClearCache={clearCache}
+        onClearTempFiles={clearTempFiles}
+        onClearAllModels={clearAllModels}
+      />,
+      <SupportSection 
+        key="support"
+        onOpenLink={openLink} 
+        onNavigateToLicenses={() => navigation.navigate('Licenses')}
+      />,
+      <SystemInfoSection key="system" systemInfo={systemInfo} />
+    ];
+
+    if (isTablet) {
+      return (
+        <View style={styles.tabletLayout}>
+          <View style={styles.tabletColumn}>
+            {leftColumnSections}
+          </View>
+          <View style={styles.tabletColumn}>
+            {rightColumnSections}
+          </View>
+        </View>
+      );
+    }
+
+    return [...leftColumnSections, ...rightColumnSections];
+  };
+
   return (
       <View style={[styles.container, { backgroundColor: theme[currentTheme].background }]}>
       <AppHeader 
@@ -486,54 +558,11 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           </View>
         } 
       />
-      <ScrollView contentContainerStyle={styles.contentContainer}>
-        
-       <AppearanceSection
-        selectedTheme={selectedTheme}
-        onThemeChange={handleThemeChange}
-        />
-
-        <InferenceEngineSection
-          selectedEngine={selectedInferenceEngine}
-          onEngineChange={handleInferenceEngineChange}
-        />
-        
-        <RemoteModelsSection
-          enableRemoteModels={enableRemoteModels}
-          onToggleRemoteModels={handleRemoteModelsToggle}
-        />
-        
-        <ChatSettingsSection
-          modelSettings={modelSettings}
-          defaultSettings={DEFAULT_SETTINGS}
-          onOpenSystemPromptDialog={() => setShowSystemPromptDialog(true)}
-          onResetSystemPrompt={() => handleSettingsChange({ systemPrompt: DEFAULT_SETTINGS.systemPrompt })}
-        />
-
-        <ModelSettingsSection
-          modelSettings={modelSettings}
-          defaultSettings={DEFAULT_SETTINGS}
-          error={error}
-          onSettingsChange={handleSettingsChange}
-          onMaxTokensPress={handleMaxTokensPress}
-          onStopWordsPress={() => setShowStopWordsDialog(true)}
-          onDialogOpen={handleOpenDialog}
-        />
-
-        <StorageSection
-          storageInfo={storageInfo}
-          isClearing={isClearing}
-          onClearCache={clearCache}
-          onClearTempFiles={clearTempFiles}
-          onClearAllModels={clearAllModels}
-        />
-
-        <SupportSection 
-          onOpenLink={openLink} 
-          onNavigateToLicenses={() => navigation.navigate('Licenses')}
-        />  
-
-        <SystemInfoSection systemInfo={systemInfo} />
+      <ScrollView contentContainerStyle={[
+        styles.contentContainer,
+        { paddingHorizontal }
+      ]}>
+        {renderSettingsSections()}
         
         {dialogConfig.setting && (
           <ModelSettingDialog
@@ -604,6 +633,14 @@ const styles = StyleSheet.create({
   contentContainer: {
     paddingBottom: 32,
     paddingTop: 22
+  },
+  tabletLayout: {
+    flexDirection: 'row',
+    gap: 24,
+    alignItems: 'flex-start',
+  },
+  tabletColumn: {
+    flex: 1,
   },
   headerButton: {
     width: 36,
