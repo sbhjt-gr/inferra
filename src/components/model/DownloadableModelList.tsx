@@ -159,7 +159,7 @@ const styles = StyleSheet.create({
   },
   gridRow: {
     justifyContent: 'space-between',
-    gap: 12,
+    paddingHorizontal: 6,
   },
 });
 

@@ -11,6 +11,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../constants/theme';
 import { getThemeAwareColor, getBrowserDownloadTextColor } from '../../utils/ColorUtils';
 import { Dialog, Portal, PaperProvider, Button } from 'react-native-paper';
+import { useResponsive } from '../../hooks/useResponsive';
 
 export interface DownloadableModel {
   name: string;
@@ -79,6 +80,7 @@ const DownloadableModelItem: React.FC<DownloadableModelItemProps> = ({
 }) => {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
+  const { isTablet, fontSize } = useResponsive();
 
   const [dialogVisible, setDialogVisible] = useState(false);
   const [dialogTitle, setDialogTitle] = useState('');
@@ -105,20 +107,28 @@ const DownloadableModelItem: React.FC<DownloadableModelItemProps> = ({
     <>
       <View 
         key={model.name} 
-        style={[styles.downloadableCard, { backgroundColor: themeColors.borderColor }]}
+        style={[
+          styles.downloadableCard, 
+          { 
+            backgroundColor: themeColors.borderColor,
+            flex: isTablet ? 1 : undefined,
+            marginHorizontal: isTablet ? 6 : 0,
+            minWidth: isTablet ? 280 : undefined
+          }
+        ]}
       >
         <View style={styles.downloadableInfo}>
           <View style={styles.modelHeader}>
             <View style={styles.modelTitleContainer}>
-              <Text style={[styles.downloadableName, { color: themeColors.text }]}>
+              <Text style={[styles.downloadableName, { color: themeColors.text, fontSize: fontSize.medium }]}>
                 {model.name.replace(/ \([^)]+\)$/, '')}
               </Text>
               <View style={styles.modelBadgesContainer}>
                 <View style={[styles.modelFamily, { backgroundColor: getThemeAwareColor('#4a0660', currentTheme) }]}>
-                  <Text style={styles.modelFamilyText}>{model.modelFamily}</Text>
+                  <Text style={[styles.modelFamilyText, { fontSize: fontSize.small }]}>{model.modelFamily}</Text>
                 </View>
                 <View style={[styles.modelQuantization, { backgroundColor: getThemeAwareColor('#2c7fb8', currentTheme) }]}>
-                  <Text style={styles.modelQuantizationText}>{model.quantization}</Text>
+                  <Text style={[styles.modelQuantizationText, { fontSize: fontSize.small }]}>{model.quantization}</Text>
                 </View>
                 {model.tags?.includes('fastest') && (
                   <View style={[styles.modelTag, { backgroundColor: getThemeAwareColor('#00a67e', currentTheme) }]}>

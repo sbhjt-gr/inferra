@@ -172,7 +172,9 @@ const styles = StyleSheet.create({
   },
   rightButtons: {
     flexDirection: 'row',
-    gap: 8,
+  },
+  rightButtonItem: {
+    marginLeft: 8,
   },
   headerButton: {
     width: 36,
