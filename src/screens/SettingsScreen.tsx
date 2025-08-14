@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, View, Platform, ScrollView, Linking, TouchableOpacity, Text } from 'react-native';
+import { StyleSheet, View, Platform, ScrollView, Linking, TouchableOpacity, Text, Dimensions } from 'react-native';
 import { useResponsive } from '../hooks/useResponsive';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { CompositeNavigationProp } from '@react-navigation/native';
@@ -477,7 +477,10 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     );
   };
 
-  const { isTablet, paddingHorizontal } = useResponsive();
+  const { isTablet, paddingHorizontal, orientation } = useResponsive();
+  const screenWidth = Dimensions.get('window').width;
+  const availableWidth = screenWidth - (paddingHorizontal * 2);
+  const needsHorizontalScroll = isTablet;
 
   const renderSettingsSections = () => {
     const leftColumnSections = [
@@ -533,6 +536,24 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     ];
 
     if (isTablet) {
+      if (needsHorizontalScroll) {
+        return (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={[styles.tabletLayoutScrollable, { minWidth: 900 }]}
+            style={styles.tabletLayoutScrollContainer}
+          >
+            <View style={styles.tabletColumnScrollable}>
+              {leftColumnSections}
+            </View>
+            <View style={styles.tabletColumnScrollable}>
+              {rightColumnSections}
+            </View>
+          </ScrollView>
+        );
+      }
+      
       return (
         <View style={styles.tabletLayout}>
           <View style={styles.tabletColumn}>
@@ -642,6 +663,18 @@ const styles = StyleSheet.create({
   },
   tabletColumn: {
     flex: 1,
+    paddingHorizontal: 12,
+  },
+  tabletLayoutScrollContainer: {
+    flex: 1,
+  },
+  tabletLayoutScrollable: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingHorizontal: 12,
+  },
+  tabletColumnScrollable: {
+    width: 450,
     paddingHorizontal: 12,
   },
   headerButton: {

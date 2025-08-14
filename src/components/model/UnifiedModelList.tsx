@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, ScrollView, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { useResponsive } from '../../hooks/useResponsive';
 import { Text, Button, ActivityIndicator, Searchbar, Portal, Dialog, Checkbox } from 'react-native-paper';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -89,6 +90,10 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme];
   const navigation = useNavigation();
+  const { isTablet, orientation, paddingHorizontal } = useResponsive();
+  const screenWidth = Dimensions.get('window').width;
+  const availableWidth = screenWidth - (paddingHorizontal * 2);
+  const needsHorizontalScroll = isTablet;
 
   const [searchQuery, setSearchQuery] = useState('');
   const [hfModels, setHfModels] = useState<HFModel[]>([]);
@@ -491,6 +496,7 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
         contentContainerStyle={{ padding: 16, paddingTop: 8 }}
         showsVerticalScrollIndicator={false}
       >
+        <View>
         <TouchableOpacity
           style={[styles.customUrlButton, { backgroundColor: themeColors.borderColor }, { marginBottom: 16 }]}
           onPress={onCustomUrlPress}
@@ -600,10 +606,12 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
                 setDownloadProgress={setDownloadProgress}
                 onDownload={handleCuratedModelDownload}
                 gridColumns={gridColumns}
+                needsHorizontalScroll={needsHorizontalScroll}
               />
             </View>
           </>
         )}
+        </View>
       </ScrollView>
 
       {modelDetailsLoading && (
