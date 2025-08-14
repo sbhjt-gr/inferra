@@ -760,10 +760,10 @@ export default function ChatInput({
         alignItems: 'center',
         justifyContent: 'center',
         paddingHorizontal: 10,
-        paddingVertical: 4,
+        paddingVertical: 20,
         flexWrap: 'wrap'
       }}>
-        <Text style={{
+        {/* <Text style={{
           fontSize: 12,
           color: isDark ? '#888' : '#666',
           textAlign: 'center'
@@ -780,7 +780,7 @@ export default function ChatInput({
           >
             Learn more
           </Text>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
       </View>
 
       <FileViewerModal
