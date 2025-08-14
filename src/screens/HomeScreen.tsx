@@ -1656,7 +1656,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       edges={responsive.isTablet ? [] : ['left', 'right']}
     >
       {!responsive.isTablet && (
-        <AppHeader 
+        <AppHeader
           onNewChat={startNewChat}
           rightButtons={
             <View style={{ flexDirection: 'row' }}>
@@ -1698,6 +1698,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         <View style={responsive.isTablet ? styles.tabletChatArea : styles.phoneChatArea}>
           {responsive.isTablet && (
             <AppHeader 
+              title='Chat'
               onNewChat={startNewChat}
               rightButtons={null}
             />

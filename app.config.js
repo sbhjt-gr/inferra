@@ -39,12 +39,26 @@ export default {
       infoPlist: {
         UIBackgroundModes: [
           "fetch",
-          "remote-notification"
+          "remote-notification",
+          "background-processing"
         ],
         UIStatusBarStyle: "UIStatusBarStyleDefault",
-        UIViewControllerBasedStatusBarAppearance: false,
+        UIViewControllerBasedStatusBarAppearance: true,
         UIGestureRecognizerShouldBegin: false,
-        UINavigationControllerHidesBarsOnSwipe: false
+        UINavigationControllerHidesBarsOnSwipe: false,
+        UISupportedInterfaceOrientations: [
+          'UIInterfaceOrientationPortrait',
+          'UIInterfaceOrientationLandscapeLeft',
+          'UIInterfaceOrientationLandscapeRight'
+        ],
+        UISupportedInterfaceOrientations_iPad: [
+          'UIInterfaceOrientationPortrait',
+          'UIInterfaceOrientationPortraitUpsideDown',
+          'UIInterfaceOrientationLandscapeLeft',
+          'UIInterfaceOrientationLandscapeRight'
+        ],
+        UIRequiresFullScreen: false,
+        UILaunchStoryboardName: "SplashScreen"
       },
       scheme: "com.gorai.ragionare"
     },

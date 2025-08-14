@@ -36,6 +36,7 @@
     "eventemitter3": "^5.0.1",
     "expo": "53.0.20",
     "expo-audio": "~0.4.8",
+    "expo-background-fetch": "~13.1.6",
     "expo-background-task": "^0.2.7",
     "expo-blur": "~14.1.4",
     "expo-camera": "~16.1.11",

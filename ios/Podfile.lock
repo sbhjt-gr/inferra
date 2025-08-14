@@ -1487,6 +1487,8 @@ PODS:
     - ExpoModulesCore
   - ExpoAudio (0.4.8):
     - ExpoModulesCore
+  - ExpoBackgroundFetch (13.1.6):
+    - ExpoModulesCore
   - ExpoBackgroundTask (0.2.8):
     - ExpoModulesCore
   - ExpoBlur (14.1.5):
@@ -3851,6 +3853,7 @@ DEPENDENCIES:
   - "ExpoAdapterGoogleSignIn (from `../node_modules/@react-native-google-signin/google-signin/expo/ios`)"
   - ExpoAsset (from `../node_modules/expo-asset/ios`)
   - ExpoAudio (from `../node_modules/expo-audio/ios`)
+  - ExpoBackgroundFetch (from `../node_modules/expo-background-fetch/ios`)
   - ExpoBackgroundTask (from `../node_modules/expo-background-task/ios`)
   - ExpoBlur (from `../node_modules/expo-blur/ios`)
   - ExpoCamera (from `../node_modules/expo-camera/ios`)
@@ -4050,6 +4053,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-asset/ios"
   ExpoAudio:
     :path: "../node_modules/expo-audio/ios"
+  ExpoBackgroundFetch:
+    :path: "../node_modules/expo-background-fetch/ios"
   ExpoBackgroundTask:
     :path: "../node_modules/expo-background-task/ios"
   ExpoBlur:
@@ -4301,6 +4306,7 @@ SPEC CHECKSUMS:
   ExpoAdapterGoogleSignIn: 96447b6e677a4102b93d4eb853615a18362854f6
   ExpoAsset: ef06e880126c375f580d4923fdd1cdf4ee6ee7d6
   ExpoAudio: a910693605f0285e08a776ce847f50114010ee9e
+  ExpoBackgroundFetch: 6dcade705c90ae5b7e2d0836b9145cae8f5f3070
   ExpoBackgroundTask: 6c1990438e45b5c4bbbc7d75aa6b688d53602fe8
   ExpoBlur: 3c8885b9bf9eef4309041ec87adec48b5f1986a9
   ExpoCamera: e1879906d41184e84b57d7643119f8509414e318

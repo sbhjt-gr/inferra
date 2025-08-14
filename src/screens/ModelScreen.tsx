@@ -26,8 +26,8 @@ import AppHeader from '../components/AppHeader';
 import CustomUrlDialog from '../components/CustomUrlDialog';
 import { modelDownloader } from '../services/ModelDownloader';
 import { useDownloads } from '../context/DownloadContext';
-import * as BackgroundTask from 'expo-background-task';
 import * as TaskManager from 'expo-task-manager';
+import * as BackgroundFetch from 'expo-background-fetch';
 import * as DocumentPicker from 'expo-document-picker';
 import { downloadNotificationService } from '../services/DownloadNotificationService';
 import { getThemeAwareColor } from '../utils/ColorUtils';
@@ -57,10 +57,10 @@ const BACKGROUND_DOWNLOAD_TASK = 'background-download-task';
 TaskManager.defineTask(BACKGROUND_DOWNLOAD_TASK, async ({ data, error }) => {
   if (error) {
     console.error('Background task error:', error);
-    return BackgroundTask.BackgroundTaskResult.Failed;
+    return BackgroundFetch.BackgroundFetchResult.Failed;
   }
   
-  return BackgroundTask.BackgroundTaskResult.Success;
+  return BackgroundFetch.BackgroundFetchResult.NewData;
 });
 
 const registerBackgroundTask = async () => {
@@ -72,8 +72,10 @@ const registerBackgroundTask = async () => {
       return;
     }
     
-    await BackgroundTask.registerTaskAsync(BACKGROUND_DOWNLOAD_TASK, {
-      minimumInterval: 15
+    await BackgroundFetch.registerTaskAsync(BACKGROUND_DOWNLOAD_TASK, {
+      minimumInterval: 15 * 1000, // 15 seconds in milliseconds
+      stopOnTerminate: false,
+      startOnBoot: true
     });
     console.log('Background download task registered in ModelScreen');
   } catch (err) {
