@@ -38,12 +38,38 @@ const configureGoogleSignIn = async (): Promise<void> => {
   }
   
   try {
-    await GoogleSignin.configure({
+    const googleSignInConfig: any = {
       webClientId: extra.GOOGLE_SIGN_IN_WEB_CLIENT_ID,
-    });
+    };
+
+    // Add iOS client ID to avoid GoogleService-Info.plist requirement
+    if (Platform.OS === 'ios') {
+      if (extra.FIREBASE_IOS_CLIENT_ID) {
+        googleSignInConfig.iosClientId = extra.FIREBASE_IOS_CLIENT_ID;
+        if (__DEV__) {
+          console.log('Adding iOS Client ID to avoid GoogleService-Info.plist requirement');
+          console.log('iOS Client ID (first 20 chars):', extra.FIREBASE_IOS_CLIENT_ID.substring(0, 20) + '...');
+        }
+      } else if (extra.GOOGLE_SIGN_IN_WEB_CLIENT_ID) {
+        // Fallback: use web client ID for iOS if specific iOS client ID is not available
+        googleSignInConfig.iosClientId = extra.GOOGLE_SIGN_IN_WEB_CLIENT_ID;
+        if (__DEV__) {
+          console.log('Using Web Client ID as fallback for iOS Client ID in GoogleAuth');
+          console.log('Web Client ID (first 20 chars):', extra.GOOGLE_SIGN_IN_WEB_CLIENT_ID.substring(0, 20) + '...');
+        }
+      } else {
+        if (__DEV__) {
+          console.warn('No iOS Client ID or Web Client ID found in GoogleAuth - may need GoogleService-Info.plist');
+          console.log('Available Firebase iOS keys:', Object.keys(extra).filter(key => key.includes('IOS')));
+        }
+      }
+    }
+
+    await GoogleSignin.configure(googleSignInConfig);
     
     if (__DEV__) {
       console.log('Google Sign-In configured successfully');
+      console.log('Configuration keys:', Object.keys(googleSignInConfig));
     }
   } catch (error) {
     if (__DEV__) {

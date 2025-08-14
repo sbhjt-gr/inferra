@@ -132,14 +132,39 @@ export const initializeFirebase = async (): Promise<void> => {
         if (__DEV__) {
           console.log('Configuring Google Sign-In with Web Client ID...');
           console.log('Web Client ID present:', !!extra.GOOGLE_SIGN_IN_WEB_CLIENT_ID);
+          if (Platform.OS === 'ios') {
+            console.log('iOS Client ID present:', !!extra.FIREBASE_IOS_CLIENT_ID);
+          }
         }
         
-        await GoogleSignin.configure({
+        const googleSignInConfig: any = {
           webClientId: extra.GOOGLE_SIGN_IN_WEB_CLIENT_ID,
-        });
+        };
+
+        if (Platform.OS === 'ios') {
+          if (extra.FIREBASE_IOS_CLIENT_ID) {
+            googleSignInConfig.iosClientId = extra.FIREBASE_IOS_CLIENT_ID;
+            if (__DEV__) {
+              console.log('iOS Client ID (first 20 chars):', extra.FIREBASE_IOS_CLIENT_ID.substring(0, 20) + '...');
+            }
+          } else if (extra.GOOGLE_SIGN_IN_WEB_CLIENT_ID) {
+            googleSignInConfig.iosClientId = extra.GOOGLE_SIGN_IN_WEB_CLIENT_ID;
+            if (__DEV__) {
+              console.log('Using Web Client ID as fallback for iOS Client ID');
+              console.log('Web Client ID (first 20 chars):', extra.GOOGLE_SIGN_IN_WEB_CLIENT_ID.substring(0, 20) + '...');
+            }
+          } else {
+            if (__DEV__) {
+              console.log('Available Firebase iOS keys:', Object.keys(extra).filter(key => key.includes('IOS')));
+            }
+          }
+        }
+        
+        await GoogleSignin.configure(googleSignInConfig);
         
         if (__DEV__) {
           console.log('Google Sign-In configured successfully');
+          console.log('Configuration:', googleSignInConfig);
           
           try {
             const isConfigured = await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: false });
@@ -217,7 +242,10 @@ export const debugGoogleOAuthConfig = () => {
   const extra = Constants.expoConfig?.extra;
   return {
     webClientId: extra?.GOOGLE_SIGN_IN_WEB_CLIENT_ID ? 'Configured' : 'Not configured',
+    iosClientId: extra?.FIREBASE_IOS_CLIENT_ID ? 'Configured' : 'Not configured',
+    iosClientIdFallback: Platform.OS === 'ios' && !extra?.FIREBASE_IOS_CLIENT_ID && extra?.GOOGLE_SIGN_IN_WEB_CLIENT_ID ? 'Using Web Client ID' : 'Not needed',
     hasConfig: !!extra?.GOOGLE_SIGN_IN_WEB_CLIENT_ID,
+    platform: Platform.OS,
   };
 };
 
