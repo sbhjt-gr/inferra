@@ -21,6 +21,7 @@ import { Dialog, Portal, Text, Button } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
+import { useResponsive } from '../hooks/useResponsive';
 
 interface StoredModel {
   name: string;
@@ -48,6 +49,7 @@ interface ModelSelectorProps {
   preselectedModelPath?: string | null;
   isGenerating?: boolean;
   onModelSelect?: (provider: 'local' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude', modelPath?: string, projectorPath?: string) => void;
+  isSidebarContext?: boolean;
   navigation?: NativeStackNavigationProp<RootStackParamList>;
 }
 
@@ -64,13 +66,15 @@ interface SectionData {
 }
 
 const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorProps>(
-  ({ isOpen, onClose, preselectedModelPath, isGenerating, onModelSelect, navigation: propNavigation }, ref) => {
+  ({ isOpen, onClose, preselectedModelPath, isGenerating, onModelSelect, isSidebarContext = false, navigation: propNavigation }, ref) => {
     const { theme: currentTheme } = useTheme();
     const themeColors = theme[currentTheme as ThemeColors];
     const { enableRemoteModels, isLoggedIn } = useRemoteModel();
     const defaultNavigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
     const navigation = propNavigation || defaultNavigation;
+    const { isTablet, fontSize } = useResponsive();
     const [modalVisible, setModalVisible] = useState(false);
+    const [expandedOnTablet, setExpandedOnTablet] = useState(isTablet);
     const [models, setModels] = useState<StoredModel[]>([]);
     const [sections, setSections] = useState<SectionData[]>([]);
     const { selectedModelPath, selectedProjectorPath, isModelLoading, loadModel, unloadModel, unloadProjector } = useModel();
@@ -705,6 +709,66 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
       };
     }, []);
 
+  useEffect(() => {
+    setExpandedOnTablet(isTablet);
+  }, [isTablet]);
+
+  const renderModelSelectorContent = () => (
+    <View style={[
+      isSidebarContext ? styles.sidebarModelContent : styles.modelSelectorContent, 
+      { backgroundColor: isSidebarContext ? themeColors.cardBackground : themeColors.background }
+    ]}>
+      {!isSidebarContext && (
+        <View style={[styles.modalHeader, { paddingVertical: isTablet ? 12 : 16 }]}>
+          <Text style={[styles.modalTitle, { color: currentTheme === 'dark' ? '#fff' : themeColors.text, fontSize: fontSize.large }]}>
+            Select Model
+          </Text>
+          {(!isTablet || !expandedOnTablet) && (
+            <TouchableOpacity 
+              onPress={isTablet ? () => setExpandedOnTablet(false) : handleModalClose}
+              style={styles.closeButton}
+            >
+              <MaterialCommunityIcons name="close" size={24} color={currentTheme === 'dark' ? '#fff' : themeColors.text} />
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
+      <SectionList
+        sections={sections}
+        keyExtractor={(item) => 'path' in item ? item.path : item.id}
+        renderItem={({ item, section }) => renderItem({ item, section })}
+        renderSectionHeader={renderSectionHeader}
+        contentContainerStyle={isSidebarContext ? styles.sidebarModelList : styles.modelList}
+        stickySectionHeadersEnabled={true}
+        style={{ 
+          maxHeight: isTablet && expandedOnTablet ? (isSidebarContext ? undefined : 400) : undefined,
+          flex: isSidebarContext ? 1 : undefined
+        }}
+        ListHeaderComponent={
+          models.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <MaterialCommunityIcons name="cube-outline" size={48} color={currentTheme === 'dark' ? '#fff' : themeColors.secondaryText} />
+              <Text style={[styles.emptyText, { color: currentTheme === 'dark' ? '#fff' : themeColors.text, fontSize: fontSize.medium }]}>
+                No local models found. Go to the Models → Download Models screen to download a Model.
+              </Text>
+            </View>
+          ) : null
+        }
+        ListEmptyComponent={
+          sections.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <MaterialCommunityIcons name="cube-outline" size={48} color={currentTheme === 'dark' ? '#fff' : themeColors.secondaryText} />
+              <Text style={[styles.emptyText, { color: currentTheme === 'dark' ? '#fff' : themeColors.text, fontSize: fontSize.medium }]}>
+                No models available. Please check your connection.
+              </Text>
+            </View>
+          ) : null
+        }
+      />
+    </View>
+  );
+
     return (
       <>
         <TouchableOpacity
@@ -722,7 +786,11 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
               );
               return;
             }
-            setModalVisible(true);
+            if (isTablet) {
+              setExpandedOnTablet(!expandedOnTablet);
+            } else {
+              setModalVisible(true);
+            }
           }}
           disabled={isModelLoading || isGenerating}
         >
@@ -851,58 +919,26 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                 />
               </TouchableOpacity>
             )}
-            <MaterialCommunityIcons name="chevron-right" size={20} color={currentTheme === 'dark' ? '#fff' : themeColors.secondaryText} />
+            <MaterialCommunityIcons 
+              name={isTablet && expandedOnTablet ? "chevron-up" : "chevron-right"} 
+              size={20} 
+              color={currentTheme === 'dark' ? '#fff' : themeColors.secondaryText} 
+            />
           </View>
         </TouchableOpacity>
 
+        {/* Expanded content for tablets */}
+        {isTablet && expandedOnTablet && renderModelSelectorContent()}
+
         <Modal
-          visible={modalVisible}
+          visible={modalVisible && !isTablet}
           transparent={true}
           animationType="slide"
           onRequestClose={handleModalClose}
         >
           <View style={styles.modalOverlay}>
             <View style={[styles.modalContent, { backgroundColor: themeColors.background }]}>
-              <View style={styles.modalHeader}>
-                <Text style={[styles.modalTitle, { color: currentTheme === 'dark' ? '#fff' : themeColors.text }]}>
-                  Select Model
-                </Text>
-                <TouchableOpacity 
-                  onPress={handleModalClose}
-                  style={styles.closeButton}
-                >
-                  <MaterialCommunityIcons name="close" size={24} color={currentTheme === 'dark' ? '#fff' : themeColors.text} />
-                </TouchableOpacity>
-              </View>
-
-              <SectionList
-                sections={sections}
-                keyExtractor={(item) => 'path' in item ? item.path : item.id}
-                renderItem={({ item, section }) => renderItem({ item, section })}
-                renderSectionHeader={renderSectionHeader}
-                contentContainerStyle={styles.modelList}
-                stickySectionHeadersEnabled={true}
-                ListHeaderComponent={
-                  models.length === 0 ? (
-                    <View style={styles.emptyContainer}>
-                      <MaterialCommunityIcons name="cube-outline" size={48} color={currentTheme === 'dark' ? '#fff' : themeColors.secondaryText} />
-                      <Text style={[styles.emptyText, { color: currentTheme === 'dark' ? '#fff' : themeColors.text }]}>
-                        No local models found. Go to the Models → Download Models screen to download a Model.
-                      </Text>
-                    </View>
-                  ) : null
-                }
-                ListEmptyComponent={
-                  sections.length === 0 ? (
-                    <View style={styles.emptyContainer}>
-                      <MaterialCommunityIcons name="cube-outline" size={48} color={currentTheme === 'dark' ? '#fff' : themeColors.secondaryText} />
-                      <Text style={[styles.emptyText, { color: currentTheme === 'dark' ? '#fff' : themeColors.text }]}>
-                        No models available. Please check your connection.
-                      </Text>
-                    </View>
-                  ) : null
-                }
-              />
+              {renderModelSelectorContent()}
             </View>
           </View>
         </Modal>
@@ -995,6 +1031,24 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     
+  },
+  modelSelectorContent: {
+    marginTop: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.1)',
+    overflow: 'hidden',
+  },
+  sidebarModelContent: {
+    marginTop: 8,
+    borderRadius: 8,
+    overflow: 'hidden',
+    width: '100%',
+    flex: 1,
+    minHeight: 200,
+  },
+  sidebarModelList: {
+    paddingVertical: 8,
   },
   selectorContent: {
     flex: 1,

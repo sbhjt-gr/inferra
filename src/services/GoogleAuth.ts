@@ -42,7 +42,6 @@ const configureGoogleSignIn = async (): Promise<void> => {
       webClientId: extra.GOOGLE_SIGN_IN_WEB_CLIENT_ID,
     };
 
-    // Add iOS client ID to avoid GoogleService-Info.plist requirement
     if (Platform.OS === 'ios') {
       if (extra.FIREBASE_IOS_CLIENT_ID) {
         googleSignInConfig.iosClientId = extra.FIREBASE_IOS_CLIENT_ID;
@@ -51,7 +50,6 @@ const configureGoogleSignIn = async (): Promise<void> => {
           console.log('iOS Client ID (first 20 chars):', extra.FIREBASE_IOS_CLIENT_ID.substring(0, 20) + '...');
         }
       } else if (extra.GOOGLE_SIGN_IN_WEB_CLIENT_ID) {
-        // Fallback: use web client ID for iOS if specific iOS client ID is not available
         googleSignInConfig.iosClientId = extra.GOOGLE_SIGN_IN_WEB_CLIENT_ID;
         if (__DEV__) {
           console.log('Using Web Client ID as fallback for iOS Client ID in GoogleAuth');

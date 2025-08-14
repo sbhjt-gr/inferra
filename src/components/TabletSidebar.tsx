@@ -37,7 +37,7 @@ export default function TabletSidebar({
 }: TabletSidebarProps) {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
-  const { paddingHorizontal } = useResponsive();
+  const { paddingHorizontal, fontSize } = useResponsive();
 
   const getModelDisplayName = () => {
     if (activeProvider === 'local') {
@@ -72,7 +72,7 @@ export default function TabletSidebar({
     <View style={[styles.sidebar, { backgroundColor: themeColors.cardBackground }]}>
       <ScrollView style={styles.sidebarContent} showsVerticalScrollIndicator={false}>
         <View style={[styles.sidebarSection, { paddingHorizontal: paddingHorizontal / 2 }]}>
-          <Text style={[styles.sectionTitle, { color: themeColors.text }]}>
+          <Text style={[styles.sectionTitle, { color: themeColors.text, fontSize: fontSize.medium }]}>
             Quick Actions
           </Text>
           
@@ -81,7 +81,7 @@ export default function TabletSidebar({
             onPress={onNewChat}
           >
             <MaterialCommunityIcons name="plus" size={20} color="#fff" />
-            <Text style={[styles.actionButtonText, { color: '#fff' }]}>
+            <Text style={[styles.actionButtonText, { color: '#fff', fontSize: fontSize.small }]}>
               New Chat
             </Text>
           </TouchableOpacity>
@@ -91,14 +91,14 @@ export default function TabletSidebar({
             onPress={onChatHistory}
           >
             <MaterialCommunityIcons name="clock-outline" size={20} color={themeColors.text} />
-            <Text style={[styles.actionButtonText, { color: themeColors.text }]}>
+            <Text style={[styles.actionButtonText, { color: themeColors.text, fontSize: fontSize.small }]}>
               Chat History
             </Text>
           </TouchableOpacity>
         </View>
 
         <View style={[styles.sidebarSection, { paddingHorizontal: paddingHorizontal / 2 }]}>
-          <Text style={[styles.sectionTitle, { color: themeColors.text }]}>
+          <Text style={[styles.sectionTitle, { color: themeColors.text, fontSize: fontSize.medium }]}>
             Current Model
           </Text>
           
@@ -109,25 +109,31 @@ export default function TabletSidebar({
               color={themeColors.primary}
             />
             <View style={styles.modelTextContainer}>
-              <Text style={[styles.modelName, { color: themeColors.text }]}>
+              <Text style={[styles.modelName, { color: themeColors.text, fontSize: fontSize.small }]}>
                 {getModelDisplayName()}
               </Text>
-              <Text style={[styles.modelType, { color: themeColors.secondaryText }]}>
+              <Text style={[styles.modelType, { color: themeColors.secondaryText, fontSize: fontSize.small }]}>
                 {activeProvider === 'local' ? 'Local' : 'Cloud'}
               </Text>
             </View>
           </View>
         </View>
 
-        <View style={[styles.modelSelectorWrapper, { paddingHorizontal: paddingHorizontal / 2 }]}>
-          <ModelSelector 
-            ref={modelSelectorRef}
-            isOpen={shouldOpenModelSelector}
-            onClose={onCloseModelSelector}
-            preselectedModelPath={preselectedModelPath}
-            isGenerating={isGenerating}
-            onModelSelect={onModelSelect}
-          />
+        <View style={[styles.sidebarSection, { flex: 1, minHeight: 0 }]}>
+          <Text style={[styles.sectionTitle, { color: themeColors.text, fontSize: fontSize.medium, paddingHorizontal: paddingHorizontal / 2 }]}>
+            Available Models
+          </Text>
+          <View style={{ paddingHorizontal: paddingHorizontal / 2, flex: 1 }}>
+            <ModelSelector 
+              ref={modelSelectorRef}
+              isOpen={shouldOpenModelSelector}
+              onClose={onCloseModelSelector}
+              preselectedModelPath={preselectedModelPath}
+              isGenerating={isGenerating}
+              onModelSelect={onModelSelect}
+              isSidebarContext={true}
+            />
+          </View>
         </View>
       </ScrollView>
     </View>
@@ -148,7 +154,6 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   sectionTitle: {
-    fontSize: 16,
     fontWeight: '600',
     marginBottom: 12,
   },
@@ -160,7 +165,6 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   actionButtonText: {
-    fontSize: 14,
     fontWeight: '500',
     marginLeft: 8,
   },
@@ -176,14 +180,9 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
   modelName: {
-    fontSize: 14,
     fontWeight: '500',
   },
   modelType: {
-    fontSize: 12,
     marginTop: 2,
-  },
-  modelSelectorWrapper: {
-    marginTop: 8,
   },
 });
