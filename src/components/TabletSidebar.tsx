@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
+  Animated,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
@@ -24,6 +25,7 @@ interface TabletSidebarProps {
   activeProvider: 'local' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude' | null;
 }
 
+
 export default function TabletSidebar({
   modelSelectorRef,
   shouldOpenModelSelector,
@@ -38,6 +40,20 @@ export default function TabletSidebar({
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
   const { paddingHorizontal, fontSize } = useResponsive();
+  const [isMinimized, setIsMinimized] = useState(false);
+  const widthAnimation = useRef(new Animated.Value(300)).current;
+
+  useEffect(() => {
+    Animated.timing(widthAnimation, {
+      toValue: isMinimized ? 0 : 300,
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
+  }, [isMinimized, widthAnimation]);
+
+  const handleToggleMinimize = () => {
+    setIsMinimized(!isMinimized);
+  };
 
   const getModelDisplayName = () => {
     if (activeProvider === 'local') {
@@ -69,86 +85,165 @@ export default function TabletSidebar({
   };
 
   return (
-    <View style={[styles.sidebar, { backgroundColor: themeColors.cardBackground }]}>
-      <View style={styles.sidebarContent}>
-        <View style={[styles.sidebarSection, { paddingHorizontal: paddingHorizontal / 2 }]}>
-          <Text style={[styles.sectionTitle, { color: themeColors.text, fontSize: fontSize.medium }]}>
-            Quick Actions
-          </Text>
-          
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: themeColors.primary }]}
-            onPress={onNewChat}
-          >
-            <MaterialCommunityIcons name="plus" size={20} color="#fff" />
-            <Text style={[styles.actionButtonText, { color: '#fff', fontSize: fontSize.small }]}>
-              New Chat
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: themeColors.borderColor }]}
-            onPress={onChatHistory}
-          >
-            <MaterialCommunityIcons name="clock-outline" size={20} color={themeColors.text} />
-            <Text style={[styles.actionButtonText, { color: themeColors.text, fontSize: fontSize.small }]}>
-              Chat History
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={[styles.sidebarSection, { paddingHorizontal: paddingHorizontal / 2 }]}>
-          <Text style={[styles.sectionTitle, { color: themeColors.text, fontSize: fontSize.medium }]}>
-            Current Model
-          </Text>
-          
-          <View style={[styles.modelInfo, { backgroundColor: themeColors.background, borderColor: themeColors.borderColor }]}>
-            <MaterialCommunityIcons
-              name={getModelIcon() as any}
-              size={24}
-              color={themeColors.primary}
-            />
-            <View style={styles.modelTextContainer}>
-              <Text style={[styles.modelName, { color: themeColors.text, fontSize: fontSize.small }]}>
-                {getModelDisplayName()}
-              </Text>
-              <Text style={[styles.modelType, { color: themeColors.secondaryText, fontSize: fontSize.small }]}>
-                {activeProvider === 'local' ? 'Local' : 'Cloud'}
-              </Text>
+    <View style={styles.sidebarContainer}>
+      <Animated.View style={[
+        styles.sidebar, 
+        { 
+          backgroundColor: themeColors.cardBackground,
+          width: widthAnimation
+        }
+      ]}>
+        {!isMinimized && (
+          <>
+            <View style={styles.sidebarHeader}>
+              <TouchableOpacity
+                style={[styles.minimizeButton, { backgroundColor: themeColors.borderColor }]}
+                onPress={handleToggleMinimize}
+              >
+                <MaterialCommunityIcons 
+                  name="chevron-left"
+                  size={20} 
+                  color={themeColors.text} 
+                />
+              </TouchableOpacity>
             </View>
-          </View>
-        </View>
+            
+            <View style={styles.sidebarContent}>
+              <View style={[styles.sidebarSection, { paddingHorizontal: paddingHorizontal / 2 }]}>
+                <Text style={[styles.sectionTitle, { color: themeColors.text, fontSize: fontSize.medium }]}>
+                  Quick Actions
+                </Text>
+                
+                <TouchableOpacity
+                  style={[styles.actionButton, { backgroundColor: themeColors.primary }]}
+                  onPress={onNewChat}
+                >
+                  <MaterialCommunityIcons name="plus" size={20} color="#fff" />
+                  <Text style={[styles.actionButtonText, { color: '#fff', fontSize: fontSize.small }]}>
+                    New Chat
+                  </Text>
+                </TouchableOpacity>
 
-        <View style={[styles.sidebarSection, { flex: 1, minHeight: 0 }]}>
-          <Text style={[styles.sectionTitle, { color: themeColors.text, fontSize: fontSize.medium, paddingHorizontal: paddingHorizontal / 2 }]}>
-            Available Models
-          </Text>
-          <View style={{ paddingHorizontal: paddingHorizontal / 2, flex: 1 }}>
-            <ModelSelector 
-              ref={modelSelectorRef}
-              isOpen={shouldOpenModelSelector}
-              onClose={onCloseModelSelector}
-              preselectedModelPath={preselectedModelPath}
-              isGenerating={isGenerating}
-              onModelSelect={onModelSelect}
-              isSidebarContext={true}
-            />
-          </View>
-        </View>
-      </View>
+                <TouchableOpacity
+                  style={[styles.actionButton, { backgroundColor: themeColors.borderColor }]}
+                  onPress={onChatHistory}
+                >
+                  <MaterialCommunityIcons name="clock-outline" size={20} color={themeColors.text} />
+                  <Text style={[styles.actionButtonText, { color: themeColors.text, fontSize: fontSize.small }]}>
+                    Chat History
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={[styles.sidebarSection, { paddingHorizontal: paddingHorizontal / 2 }]}>
+                <Text style={[styles.sectionTitle, { color: themeColors.text, fontSize: fontSize.medium }]}>
+                  Current Model
+                </Text>
+                
+                <View style={[styles.modelInfo, { backgroundColor: themeColors.background, borderColor: themeColors.borderColor }]}>
+                  <MaterialCommunityIcons
+                    name={getModelIcon() as any}
+                    size={24}
+                    color={themeColors.primary}
+                  />
+                  <View style={styles.modelTextContainer}>
+                    <Text style={[styles.modelName, { color: themeColors.text, fontSize: fontSize.small }]}>
+                      {getModelDisplayName()}
+                    </Text>
+                    <Text style={[styles.modelType, { color: themeColors.secondaryText, fontSize: fontSize.small }]}>
+                      {activeProvider === 'local' ? 'Local' : 'Cloud'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              <View style={[styles.sidebarSection, { flex: 1, minHeight: 0 }]}>
+                <Text style={[styles.sectionTitle, { color: themeColors.text, fontSize: fontSize.medium, paddingHorizontal: paddingHorizontal / 2 }]}>
+                  Available Models
+                </Text>
+                <View style={{ paddingHorizontal: paddingHorizontal / 2, flex: 1 }}>
+                  <ModelSelector 
+                    ref={modelSelectorRef}
+                    isOpen={shouldOpenModelSelector}
+                    onClose={onCloseModelSelector}
+                    preselectedModelPath={preselectedModelPath}
+                    isGenerating={isGenerating}
+                    onModelSelect={onModelSelect}
+                    isSidebarContext={true}
+                  />
+                </View>
+              </View>
+            </View>
+          </>
+        )}
+      </Animated.View>
+      
+      {isMinimized && (
+        <TouchableOpacity
+          style={[styles.floatingButton, { backgroundColor: themeColors.cardBackground, borderColor: themeColors.borderColor }]}
+          onPress={handleToggleMinimize}
+        >
+          <MaterialCommunityIcons 
+            name="chevron-right"
+            size={20} 
+            color={themeColors.text} 
+          />
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  sidebarContainer: {
+    position: 'relative',
+    height: '100%',
+    overflow: 'visible',
+  },
   sidebar: {
-    width: 300,
     borderRightWidth: 1,
     borderRightColor: 'rgba(0, 0, 0, 0.1)',
+    overflow: 'hidden',
+    height: '100%',
+  },
+  sidebarHeader: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    paddingTop: 12,
+    paddingRight: 6,
+    paddingBottom: 8,
+    minWidth: 48,
+  },
+  minimizeButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  floatingButton: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    zIndex: 1000,
   },
   sidebarContent: {
     flex: 1,
-    paddingTop: 20,
+    paddingTop: 12,
   },
   sidebarSection: {
     marginBottom: 24,

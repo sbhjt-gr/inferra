@@ -40,7 +40,7 @@ export default function AppHeader({
   const route = useRoute();
   const insets = useSafeAreaInsets();
   const { fonts } = OpenSansFont();
-  const { fontSize, paddingHorizontal } = useResponsive();
+  const { fontSize, paddingHorizontal, isTablet } = useResponsive();
 
   const isHomeScreen = route.name === 'HomeTab';
 
