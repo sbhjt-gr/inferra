@@ -69,8 +69,8 @@ export default function AppHeader({
       styles.container, 
       { 
         backgroundColor: transparent ? 'transparent' : themeColors.headerBackground,
-        paddingTop: insets.top,
-        height: 52 + insets.top,
+        paddingTop: isTablet ? 0 : insets.top,
+        height: 60 + (isTablet ? 0 : insets.top),
       }
     ]}>
       <View style={[styles.headerContent, { paddingHorizontal }]}>
