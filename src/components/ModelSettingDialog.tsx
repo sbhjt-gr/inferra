@@ -32,7 +32,7 @@ export default function ModelSettingDialog({
 }: ModelSettingDialogProps) {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme];
-  const { dialog } = useResponsive();
+  const { dialog, fontSize } = useResponsive();
   const [currentValue, setCurrentValue] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -94,13 +94,13 @@ export default function ModelSettingDialog({
           }
         ]}>
           <View style={styles.header}>
-            <Text style={[styles.title, { color: themeColors.text }]}>{label}</Text>
+            <Text style={[styles.title, { color: themeColors.text, fontSize: fontSize.large }]}>{label}</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
               <MaterialCommunityIcons name="close" size={24} color={themeColors.text} />
             </TouchableOpacity>
           </View>
           
-          <Text style={[styles.description, { color: themeColors.secondaryText }]}>
+          <Text style={[styles.description, { color: themeColors.secondaryText, fontSize: fontSize.small }]}>
             {description}
           </Text>
 
@@ -121,16 +121,16 @@ export default function ModelSettingDialog({
           />
 
           {error && (
-            <Text style={styles.errorText}>
+            <Text style={[styles.errorText, { fontSize: fontSize.small }]}>
               {error}
             </Text>
           )}
 
           <View style={styles.rangeContainer}>
-            <Text style={[styles.rangeText, { color: themeColors.secondaryText }]}>
+            <Text style={[styles.rangeText, { color: themeColors.secondaryText, fontSize: fontSize.small }]}>
               Range: {formatValue(minimumValue)} - {formatValue(maximumValue)}
             </Text>
-            <Text style={[styles.rangeText, { color: themeColors.secondaryText }]}>
+            <Text style={[styles.rangeText, { color: themeColors.secondaryText, fontSize: fontSize.small }]}>
               Default: {formatValue(defaultValue)}
             </Text>
           </View>
@@ -142,14 +142,14 @@ export default function ModelSettingDialog({
                 onPress={handleReset}
               >
                 <MaterialCommunityIcons name="refresh" size={20} color={themeColors.primary} />
-                <Text style={[styles.resetText, { color: themeColors.primary }]}>Reset to Default</Text>
+                <Text style={[styles.resetText, { color: themeColors.primary, fontSize: fontSize.medium }]}>Reset to Default</Text>
               </TouchableOpacity>
             )}
             <TouchableOpacity
               style={[styles.saveButton, { backgroundColor: themeColors.primary }]}
               onPress={handleSave}
             >
-              <Text style={styles.saveButtonText}>Save Changes</Text>
+              <Text style={[styles.saveButtonText, { fontSize: fontSize.medium }]}>Save Changes</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -177,14 +177,12 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   title: {
-    fontSize: 20,
     fontWeight: '600',
   },
   closeButton: {
     padding: 4,
   },
   description: {
-    fontSize: 14,
     marginBottom: 24,
   },
   input: {
@@ -193,12 +191,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 12,
     padding: 12,
-    fontSize: 16,
     marginBottom: 8,
     textAlign: 'center',
   },
   errorText: {
-    fontSize: 12,
     color: '#FF3B30',
     marginBottom: 8,
   },
@@ -208,7 +204,6 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   rangeText: {
-    fontSize: 14,
   },
   footer: {
     gap: 12,
@@ -222,7 +217,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   resetText: {
-    fontSize: 16,
     fontWeight: '500',
   },
   saveButton: {
@@ -232,7 +226,6 @@ const styles = StyleSheet.create({
   },
   saveButtonText: {
     color: '#FFFFFF',
-    fontSize: 16,
     fontWeight: '600',
   },
 }); 
