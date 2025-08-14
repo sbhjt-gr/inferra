@@ -56,7 +56,7 @@ const StoredModelItem: React.FC<StoredModelProps> = ({
       styles.modelItem, 
       { 
         backgroundColor: themeColors.borderColor,
-        marginHorizontal: isTablet ? 6 : 0,
+        marginHorizontal: isTablet ? marginHorizontal / 2 : 0,
         flex: isTablet ? 1 : undefined,
         minWidth: isTablet ? 150 : undefined
       }

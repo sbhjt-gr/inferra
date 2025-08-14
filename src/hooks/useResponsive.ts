@@ -15,7 +15,6 @@ export const useResponsive = () => {
         setDeviceInfo(newDeviceInfo);
         setDimensions(newDimensions);
       } catch (error) {
-        // Fallback for older Android versions
         console.warn('Error updating responsive dimensions:', error);
       }
     });
@@ -24,7 +23,6 @@ export const useResponsive = () => {
       try {
         subscription?.remove();
       } catch (error) {
-        // Graceful cleanup for older Android versions
         console.warn('Error removing dimension listener:', error);
       }
     };
