@@ -274,9 +274,9 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   appLogo: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 50,
+    height: 50,
+    borderRadius: 18,
   },
   appTitle: {
     fontWeight: '700',
