@@ -95,6 +95,9 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
   const availableWidth = screenWidth - (paddingHorizontal * 2);
   const needsHorizontalScroll = isTablet && orientation === 'portrait' && availableWidth < 700;
   const adjustedGridColumns = isTablet && availableWidth < 800 ? 1 : gridColumns;
+  
+  const safeAvailableWidth = Math.max(availableWidth, 300);
+  const shouldForceSimpleLayout = availableWidth < 400;
 
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -610,6 +613,77 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
               <Dialog.Content style={styles.loadingDialog}>
                 <ActivityIndicator size="large" />
                 <Text style={[styles.loadingDialogText, { color: themeColors.text }]}>Loading model details...</Text>
+              </Dialog.Content>
+            </Dialog>
+          </Portal>
+        )}
+
+        {renderModelDetails()}
+
+        <Portal>
+          <Dialog visible={dialogVisible} onDismiss={hideDialog}>
+            <Dialog.Title>{dialogTitle}</Dialog.Title>
+            <Dialog.Content>
+              <Text>{dialogMessage}</Text>
+            </Dialog.Content>
+            <Dialog.Actions>
+              <Button onPress={hideDialog}>OK</Button>
+            </Dialog.Actions>
+          </Dialog>
+        </Portal>
+
+        <ModelWarningDialog
+          visible={showWarningDialog}
+          onAccept={handleWarningAccept}
+          onCancel={handleWarningCancel}
+        />
+      </View>
+    );
+  }
+
+  if (shouldForceSimpleLayout) {
+    // Fallback for extremely narrow widths
+    return (
+      <View style={styles.container}>
+        <ScrollView 
+          style={{ flex: 1 }}
+          contentContainerStyle={{ padding: 8 }}
+          showsVerticalScrollIndicator={false}
+        >
+          <TouchableOpacity
+            style={[styles.customUrlButton, { backgroundColor: themeColors.borderColor, marginBottom: 12 }]}
+            onPress={onCustomUrlPress}
+          >
+            <Text style={[styles.customUrlButtonTitle, { color: themeColors.text, fontSize: 14 }]}>
+              Download from URL
+            </Text>
+          </TouchableOpacity>
+
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionHeaderTitle, { color: themeColors.text, fontSize: 16 }]}>
+              Models ({curatedModels.length})
+            </Text>
+          </View>
+
+          {curatedModels.map((model) => (
+            <DownloadableModelItem
+              key={model.name}
+              model={model}
+              isDownloaded={isModelDownloaded(model.name)}
+              isDownloading={Boolean(downloadProgress[model.name])}
+              isInitializing={false}
+              downloadProgress={downloadProgress[model.name]}
+              onDownload={handleCuratedModelDownload}
+            />
+          ))}
+        </ScrollView>
+
+        {modelDetailsLoading && (
+          <Portal>
+            <Dialog visible={true}>
+              <Dialog.Content style={styles.loadingDialog}>
+                <ActivityIndicator size="large" />
+                <Text style={[styles.loadingDialogText, { color: themeColors.text }]}>Loading...</Text>
               </Dialog.Content>
             </Dialog>
           </Portal>
