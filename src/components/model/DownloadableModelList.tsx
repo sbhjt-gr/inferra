@@ -14,6 +14,7 @@ interface DownloadableModelListProps {
   onDownload?: (model: DownloadableModel) => void;
   gridColumns?: number;
   needsHorizontalScroll?: boolean;
+  ListHeaderComponent?: () => React.JSX.Element;
 }
 
 const DownloadableModelList: React.FC<DownloadableModelListProps> = ({ 
@@ -23,24 +24,16 @@ const DownloadableModelList: React.FC<DownloadableModelListProps> = ({
   setDownloadProgress,
   onDownload,
   gridColumns = 1,
-  needsHorizontalScroll: propNeedsHorizontalScroll
+  needsHorizontalScroll: propNeedsHorizontalScroll,
+  ListHeaderComponent
 }) => {
   const navigation = useNavigation();
   const [initializingDownloads, setInitializingDownloads] = useState<{ [key: string]: boolean }>({});
   const { isTablet, orientation, paddingHorizontal } = useResponsive();
   const screenWidth = Dimensions.get('window').width;
   const availableWidth = screenWidth - (paddingHorizontal * 2);
-  const localNeedsHorizontalScroll = isTablet;
-  const needsHorizontalScroll = isTablet;
-  
-  console.log('[DownloadableModelList] Debug:', {
-    isTablet,
-    orientation, 
-    screenWidth,
-    availableWidth,
-    localNeedsHorizontalScroll,
-    needsHorizontalScroll
-  });
+  const localNeedsHorizontalScroll = isTablet && orientation === 'portrait' && availableWidth < 700;
+  const needsHorizontalScroll = propNeedsHorizontalScroll ?? localNeedsHorizontalScroll;
 
   const [dialogVisible, setDialogVisible] = useState(false);
   const [dialogTitle, setDialogTitle] = useState('');
@@ -142,21 +135,15 @@ const DownloadableModelList: React.FC<DownloadableModelListProps> = ({
       <View style={styles.container}>
         <ScrollView
           horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={[styles.horizontalScrollContainer, { minWidth: 700 }]}
+          showsHorizontalScrollIndicator={true}
+          contentContainerStyle={styles.horizontalScrollContainer}
+          style={styles.horizontalScrollView}
         >
-          <FlatList 
-            data={models}
-            renderItem={renderItem}
-            keyExtractor={item => item.name}
-            numColumns={gridColumns}
-            key={gridColumns}
-            contentContainerStyle={styles.contentContainer}
-            columnWrapperStyle={gridColumns > 1 ? styles.gridRow : undefined}
-            showsVerticalScrollIndicator={false}
-            scrollEnabled={false}
-            style={{ width: 700 }}
-          />
+          {models.map((item) => (
+            <View key={item.name} style={styles.horizontalItemWrapper}>
+              {renderItem({ item })}
+            </View>
+          ))}
         </ScrollView>
 
         <Portal>
@@ -185,6 +172,7 @@ const DownloadableModelList: React.FC<DownloadableModelListProps> = ({
         contentContainerStyle={styles.contentContainer}
         columnWrapperStyle={gridColumns > 1 ? styles.gridRow : undefined}
         showsVerticalScrollIndicator={false}
+        ListHeaderComponent={ListHeaderComponent}
       />
 
       <Portal>
@@ -205,10 +193,10 @@ const DownloadableModelList: React.FC<DownloadableModelListProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    minHeight: 200,
   },
   contentContainer: {
     padding: 16,
-    paddingTop: 0,
   },
   gridRow: {
     justifyContent: 'space-between',
@@ -216,6 +204,15 @@ const styles = StyleSheet.create({
   },
   horizontalScrollContainer: {
     paddingHorizontal: 16,
+    paddingVertical: 8,
+    flexDirection: 'row',
+  },
+  horizontalScrollView: {
+    flexGrow: 0,
+  },
+  horizontalItemWrapper: {
+    width: 320,
+    marginRight: 16,
   },
 });
 
