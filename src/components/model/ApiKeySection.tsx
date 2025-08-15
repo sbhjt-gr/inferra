@@ -424,7 +424,7 @@ const ApiKeySection: React.FC = () => {
   );
 };
 
-const getModelIcon = (id: string): string => {
+const getModelIcon = (): string => {
   return 'cube';
 };
 
