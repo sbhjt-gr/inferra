@@ -12,7 +12,7 @@ export default {
     description: "AI-powered mobile chat assistant supporting both local and cloud-based language models. Features include AI text generation, image analysis, document processing, and multimodal interactions. All AI-generated content is clearly labeled for transparency.",
     privacy: "public",
     keywords: ["AI", "chat", "assistant", "machine learning", "language model", "artificial intelligence"],
-    newArchEnabled: true,
+    newArchEnabled: false,
     splash: {
       image: "./assets/icon.png",
       resizeMode: "cover",
@@ -143,6 +143,7 @@ export default {
         "expo-build-properties",
         {
           android: {
+            minSdkVersion: 24,
             compileSdkVersion: 35,
             targetSdkVersion: 35,
             buildToolsVersion: '35.0.0',
@@ -154,8 +155,7 @@ export default {
             }
           },
           ios: {
-            deploymentTarget: "15.5",
-            useFrameworks: "static"
+            deploymentTarget: "15.5"
           }
         }
       ]
