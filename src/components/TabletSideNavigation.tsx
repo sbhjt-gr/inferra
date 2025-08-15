@@ -7,6 +7,7 @@ import {
   ScrollView,
   Animated,
   PanResponder,
+  Image,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -169,10 +170,10 @@ export default function TabletSideNavigation({
           contentContainerStyle={styles.contentContainer}
         >
           <View style={styles.header}>
-            <MaterialCommunityIcons
-              name="cube"
-              size={32}
-              color={themeColors.tabBarActiveText}
+            <Image
+              source={require('../../assets/icon.png')}
+              style={styles.appLogo}
+              resizeMode="contain"
             />
             <Text style={[
               styles.appTitle,
@@ -271,6 +272,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 20,
     marginBottom: 20,
+  },
+  appLogo: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
   },
   appTitle: {
     fontWeight: '700',
