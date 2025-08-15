@@ -7578,6 +7578,11 @@ linkify-it@^5.0.0:
   dependencies:
     uc.micro "^2.0.0"
 
+llama.rn@^0.6.7:
+  version "0.6.7"
+  resolved "https://registry.yarnpkg.com/llama.rn/-/llama.rn-0.6.7.tgz#b8c908173f1647920dac704d90d14a15336b77c3"
+  integrity sha512-V90tnL66mZxDvm+HpmQb2menc+vmrug39biuWZ+eP5/KIEpTIRjvePCvtax3DQniAce8AsWe3erGRRFE4hjymg==
+
 locate-path@^5.0.0:
   version "5.0.0"
   resolved "https://registry.npmjs.org/locate-path/-/locate-path-5.0.0.tgz"
