@@ -425,18 +425,7 @@ const ApiKeySection: React.FC = () => {
 };
 
 const getModelIcon = (id: string): string => {
-  switch (id) {
-    case 'gemini':
-      return 'google';
-    case 'chatgpt':
-      return 'robot';
-    case 'claude':
-      return 'alpha-c-circle';
-    case 'deepseek':
-      return 'database';
-    default:
-      return 'key';
-  }
+  return 'cube';
 };
 
 const styles = StyleSheet.create({
