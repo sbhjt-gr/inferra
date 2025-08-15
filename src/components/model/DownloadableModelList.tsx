@@ -34,6 +34,8 @@ const DownloadableModelList: React.FC<DownloadableModelListProps> = ({
   const availableWidth = screenWidth - (paddingHorizontal * 2);
   const localNeedsHorizontalScroll = isTablet && orientation === 'portrait' && availableWidth < 700;
   const needsHorizontalScroll = propNeedsHorizontalScroll ?? localNeedsHorizontalScroll;
+  
+  const safeNeedsHorizontalScroll = needsHorizontalScroll && availableWidth > 200;
 
   const [dialogVisible, setDialogVisible] = useState(false);
   const [dialogTitle, setDialogTitle] = useState('');
@@ -130,7 +132,7 @@ const DownloadableModelList: React.FC<DownloadableModelListProps> = ({
     />
   );
 
-  if (needsHorizontalScroll) {
+  if (safeNeedsHorizontalScroll) {
     return (
       <View style={styles.container}>
         <ScrollView
@@ -213,6 +215,7 @@ const styles = StyleSheet.create({
   horizontalItemWrapper: {
     width: 320,
     marginRight: 16,
+    minWidth: 280,
   },
 });
 
