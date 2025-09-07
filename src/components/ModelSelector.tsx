@@ -121,7 +121,10 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
               download.filename === model.name && 
               download.status !== 'completed'
           );
-          return !isDownloading;
+          const isProjectorModel = model.name.toLowerCase().includes('mmproj') ||
+                                   model.name.toLowerCase().includes('.proj');
+          
+          return !isDownloading && !isProjectorModel;
         });
         
         setModels(completedModels);
