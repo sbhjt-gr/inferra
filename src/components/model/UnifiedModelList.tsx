@@ -12,7 +12,7 @@ import { modelDownloader } from '../../services/ModelDownloader';
 import DownloadableModelList from './DownloadableModelList';
 import DownloadableModelItem, { DownloadableModel } from './DownloadableModelItem';
 import ModelFilter, { FilterOptions } from '../ModelFilter';
-import { VisionDownloadDialog } from '../VisionDownloadDialog';
+import VisionDownloadDialog from '../VisionDownloadDialog';
 
 interface UnifiedModelListProps {
   curatedModels: DownloadableModel[];
@@ -51,7 +51,7 @@ const ModelWarningDialog: React.FC<ModelWarningDialogProps> = ({
         
         <Dialog.Content style={styles.warningContent}>
           <Text style={[styles.warningText, { color: themeColors.text }]}>
-            <Text style={{ fontWeight: 'bold' }}>Important:</Text> We do not own these models. They may generate harmful, biased, or inappropriate content. Use responsibly and at your own discretion.
+            <Text style={{ fontWeight: 'bold' }}>Important:</Text> I do not own these models. They may generate harmful, biased, or inappropriate content. Use responsibly and at your own discretion.
           </Text>
           
           <View style={styles.checkboxContainer}>
@@ -108,6 +108,10 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
     modelId: string, 
     includeVision: boolean,
     modelDetails: HFModelDetails
+  } | null>(null);
+  const [pendingCuratedVisionDownload, setPendingCuratedVisionDownload] = useState<{
+    model: DownloadableModel,
+    includeVision: boolean
   } | null>(null);
 
   const showDialog = (title: string, message: string) => {
@@ -253,6 +257,13 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
   const handleVisionDownload = async (includeVision: boolean, projectionFile?: any) => {
     if (!selectedVisionModel) return;
 
+    // Check if it's a curated model with additionalFiles
+    if (selectedVisionModel.additionalFiles && selectedVisionModel.additionalFiles.length > 0) {
+      await startCuratedVisionDownload(selectedVisionModel, includeVision);
+      return;
+    }
+
+    // Handle HuggingFace models
     const hfModel = hfModels.find(hf => 
       hf.id.includes(selectedVisionModel.name) || 
       selectedVisionModel.name.includes(hf.id.split('/').pop() || '')
@@ -350,6 +361,75 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
       await startDownload();
     } else {
       setPendingVisionDownload({ filename, downloadUrl, modelId, includeVision, modelDetails });
+      setShowWarningDialog(true);
+    }
+  };
+
+  const startCuratedVisionDownload = async (model: DownloadableModel, includeVision: boolean) => {
+    const hideWarning = await AsyncStorage.getItem('hideModelWarning');
+    
+    const downloadFiles = [{ 
+      filename: model.name, 
+      downloadUrl: model.huggingFaceLink 
+    }];
+    
+    if (includeVision && model.additionalFiles) {
+      const mmprojFile = model.additionalFiles.find(f => 
+        f.name.toLowerCase().includes('mmproj') && f.name.endsWith('.gguf')
+      );
+      
+      if (mmprojFile) {
+        downloadFiles.push({ 
+          filename: mmprojFile.name, 
+          downloadUrl: mmprojFile.url 
+        });
+      }
+    }
+
+    const startDownload = async () => {
+      navigation.navigate('Downloads' as never);
+
+      for (const file of downloadFiles) {
+        const fullFilename = file.filename;
+        
+        try {
+          setDownloadProgress((prev: any) => ({
+            ...prev,
+            [fullFilename]: {
+              progress: 0,
+              bytesDownloaded: 0,
+              totalBytes: 0,
+              status: 'starting',
+              downloadId: 0
+            }
+          }));
+
+          const { downloadId } = await modelDownloader.downloadModel(file.downloadUrl, fullFilename);
+          
+          setDownloadProgress((prev: any) => ({
+            ...prev,
+            [fullFilename]: {
+              ...prev[fullFilename],
+              downloadId
+            }
+          }));
+
+        } catch (error) {
+          setDownloadProgress((prev: any) => {
+            const newProgress = { ...prev };
+            delete newProgress[fullFilename];
+            return newProgress;
+          });
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          showDialog('Download Error', `Failed to start download for ${file.filename}: ${errorMessage}`);
+        }
+      }
+    };
+
+    if (hideWarning === 'true') {
+      await startDownload();
+    } else {
+      setPendingCuratedVisionDownload({ model, includeVision });
       setShowWarningDialog(true);
     }
   };
@@ -503,6 +583,65 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
       }
       
       setPendingVisionDownload(null);
+    } else if (pendingCuratedVisionDownload) {
+      const { model, includeVision } = pendingCuratedVisionDownload;
+      navigation.navigate('Downloads' as never);
+      
+      const downloadFiles = [{ 
+        filename: model.name, 
+        downloadUrl: model.huggingFaceLink 
+      }];
+      
+      if (includeVision && model.additionalFiles) {
+        const mmprojFile = model.additionalFiles.find(f => 
+          f.name.toLowerCase().includes('mmproj') && f.name.endsWith('.gguf')
+        );
+        
+        if (mmprojFile) {
+          downloadFiles.push({ 
+            filename: mmprojFile.name, 
+            downloadUrl: mmprojFile.url 
+          });
+        }
+      }
+
+      for (const file of downloadFiles) {
+        const fullFilename = file.filename;
+        
+        try {
+          setDownloadProgress((prev: any) => ({
+            ...prev,
+            [fullFilename]: {
+              progress: 0,
+              bytesDownloaded: 0,
+              totalBytes: 0,
+              status: 'starting',
+              downloadId: 0
+            }
+          }));
+
+          const { downloadId } = await modelDownloader.downloadModel(file.downloadUrl, fullFilename);
+          
+          setDownloadProgress((prev: any) => ({
+            ...prev,
+            [fullFilename]: {
+              ...prev[fullFilename],
+              downloadId
+            }
+          }));
+
+        } catch (error) {
+          setDownloadProgress((prev: any) => {
+            const newProgress = { ...prev };
+            delete newProgress[fullFilename];
+            return newProgress;
+          });
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          showDialog('Download Error', `Failed to start download for ${file.filename}: ${errorMessage}`);
+        }
+      }
+      
+      setPendingCuratedVisionDownload(null);
     } else if (pendingDownload) {
       const isHuggingFaceModel = pendingDownload.modelId.includes('/');
       
@@ -527,9 +666,17 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
     setShowWarningDialog(false);
     setPendingDownload(null);
     setPendingVisionDownload(null);
+    setPendingCuratedVisionDownload(null);
   };
 
   const handleCuratedModelDownload = async (model: DownloadableModel) => {
+    // Check if it's a vision model with additional files
+    if (model.supportsMultimodal && model.additionalFiles && model.additionalFiles.length > 0) {
+      setSelectedVisionModel(model);
+      setVisionDialogVisible(true);
+      return;
+    }
+
     try {
       const hideWarning = await AsyncStorage.getItem('hideModelWarning');
       const shouldShowWarning = hideWarning !== 'true';
