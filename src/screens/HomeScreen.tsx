@@ -302,6 +302,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     }
 
     try {
+      await stopGenerationIfRunning();
+      
       setIsLoading(true);
       Keyboard.dismiss();
       
@@ -407,6 +409,40 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       setJustCancelled(false);
     }, 300);
   }, [streamingMessage, streamingThinking, streamingMessageId, streamingStats, activeProvider, messages]);
+
+  const stopGenerationIfRunning = useCallback(async () => {
+    console.log('[HomeScreen] stopGenerationIfRunning called');
+    console.log('[HomeScreen] Current state - isLoading:', isLoading, 'isRegenerating:', isRegenerating, 'isStreaming:', isStreaming, 'cancelGenerationRef:', cancelGenerationRef.current);
+    
+    if (isLoading || isRegenerating || isStreaming) {
+      console.log('[HomeScreen] Generation detected, stopping...');
+      
+      cancelGenerationRef.current = true;
+      console.log('[HomeScreen] Set cancelGenerationRef.current = true');
+      
+      if (activeProvider === 'local') {
+        try {
+          console.log('[HomeScreen] Stopping local model generation...');
+          await llamaManager.stopCompletion();
+          console.log('[HomeScreen] Local generation stopped successfully');
+        } catch (error) {
+          console.error('[HomeScreen] Error stopping generation:', error);
+        }
+      } else {
+        console.log('[HomeScreen] Online model generation - set cancellation flag only');
+      }
+      
+      setIsLoading(false);
+      setIsRegenerating(false);
+      setIsStreaming(false);
+      
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
+      console.log('[HomeScreen] Generation stop process completed');
+    } else {
+      console.log('[HomeScreen] No generation running to stop');
+    }
+  }, [isLoading, isRegenerating, isStreaming, activeProvider]);
 
   const handleApiError = (error: unknown, provider: 'Gemini' | 'OpenAI' | 'DeepSeek' | 'Claude') => {
     console.error(`Error with ${provider} API:`, error);
@@ -525,6 +561,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     if (!currentChat) return;
 
     try {
+      await stopGenerationIfRunning();
+      
       const currentMessages = currentChat.messages;
       const settings = llamaManager.getSettings();
       
@@ -975,6 +1013,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   const handleRegenerate = async () => {
     if (messages.length < 2) return;
     
+    await stopGenerationIfRunning();
+    
     if (!llamaManager.getModelPath() && !activeProvider) {
       showDialog(
         'No Model Selected',
@@ -1381,6 +1421,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
 
   const startNewChat = async () => {
     try {
+      await stopGenerationIfRunning();
+      
       if (chat && messages.some(msg => msg.role === 'user' || msg.role === 'assistant')) {
         await saveMessages(messages);
       }
@@ -1694,6 +1736,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
            justCancelled={justCancelled}
            flatListRef={flatListRef}
            onEditMessageAndRegenerate={processMessage}
+           onStopGeneration={stopGenerationIfRunning}
         />
 
         <ChatInput
@@ -1702,6 +1745,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
           isLoading={isLoading}
           isRegenerating={isRegenerating}
           onCancel={handleCancelGeneration}
+          onStopGeneration={stopGenerationIfRunning}
           style={{ backgroundColor: themeColors.background, borderTopColor: themeColors.borderColor }}
           placeholderColor={themeColors.secondaryText}
         />

@@ -2,11 +2,10 @@ import React, { useState, useMemo } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Dialog, Portal, Button, Text, Switch, List, Divider } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useTheme } from '../context/ThemeContext';
-import { theme } from '../constants/theme';
-import { getMmprojFiles } from '../utils/multimodalHelpers';
-import { formatBytes } from '../utils/ModelUtils';
-import { DownloadableModel } from './model/DownloadableModelItem';
+import { useTheme } from '../../context/ThemeContext';
+import { theme } from '../../constants/theme';
+import { getMmprojFiles, formatBytes } from '../../utils/multimodalHelpers';
+import { DownloadableModel } from '../model/DownloadableModelItem';
 
 interface VisionDownloadDialogProps {
   visible: boolean;
@@ -29,9 +28,7 @@ const VisionDownloadDialog: React.FC<VisionDownloadDialogProps> = ({
 
   const projectionFiles = useMemo(() => {
     if (!model?.additionalFiles) return [];
-    return model.additionalFiles.filter(file => 
-      file.name.toLowerCase().includes('mmproj') && file.name.endsWith('.gguf')
-    );
+    return getMmprojFiles(model.additionalFiles);
   }, [model?.additionalFiles]);
 
   const handleDownload = () => {
@@ -93,7 +90,7 @@ const VisionDownloadDialog: React.FC<VisionDownloadDialogProps> = ({
                 <List.Item
                   key={index}
                   title={file.name}
-                  description={file.description || 'Projection model file'}
+                  description={file.description || `Size: ${formatBytes(file.size || 0)}`}
                   left={() => (
                     <MaterialCommunityIcons 
                       name="eye-settings" 
