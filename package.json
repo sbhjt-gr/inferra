@@ -9,7 +9,8 @@
     "ios": "expo run:ios",
     "test": "jest --watchAll",
     "lint": "expo lint",
-    "postinstall": "patch-package"
+    "postinstall": "patch-package",
+    "generate-icons": "node ./scripts/generate-icons.js"
   },
   "jest": {
     "preset": "jest-expo"
@@ -99,6 +100,7 @@
     "jest-expo": "~53.0.5",
     "patch-package": "^8.0.0",
     "react-test-renderer": "19.0.0",
+    "sharp": "^0.34.3",
     "typescript": "^5.8.3"
   },
   "private": true,
