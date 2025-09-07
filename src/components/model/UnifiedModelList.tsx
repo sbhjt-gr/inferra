@@ -145,6 +145,10 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
       return 'Mixed';
     };
 
+    const tags = [];
+    if (hfModel.hasVision) {
+      tags.push('vision');
+    }
 
     return {
       name: modelName,
@@ -154,7 +158,10 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
       licenseLink: '',
       modelFamily: getModelFamily(modelId),
       quantization: getQuantization(modelId),
-      tags: [],
+      tags: tags,
+      modelType: hfModel.hasVision ? 'vision' as any : undefined,
+      capabilities: hfModel.capabilities,
+      supportsMultimodal: hfModel.hasVision,
     };
   };
 
@@ -171,6 +178,7 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
         query: query.trim(),
         limit: 20
       });
+      
       setHfModels(results);
       setShowingHfResults(true);
     } catch (error) {

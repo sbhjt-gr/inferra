@@ -1,3 +1,5 @@
+import { ModelType } from '../types/models';
+
 export type Listener = (...args: any[]) => void;
 
 export interface ActiveDownload {
@@ -51,6 +53,11 @@ export interface StoredModel {
   size: number;
   modified: string;
   isExternal?: boolean;
+  modelType?: ModelType;
+  capabilities?: string[];
+  supportsMultimodal?: boolean;
+  compatibleProjectionModels?: string[];
+  defaultProjectionModel?: string;
 }
 
 export interface DownloadStatus {

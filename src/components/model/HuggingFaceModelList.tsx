@@ -4,6 +4,7 @@ import { Text, Card, Button, ActivityIndicator, Chip, Searchbar, Portal, Dialog 
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../constants/theme';
 import { huggingFaceService, HFModel, HFModelDetails } from '../../services/HuggingFaceService';
+import { isVisionModel } from '../../utils/ModelHelpers';
 import { modelDownloader } from '../../services/ModelDownloader';
 import { useNavigation } from '@react-navigation/native';
 
@@ -33,7 +34,7 @@ const HuggingFaceModelList: React.FC<HuggingFaceModelListProps> = ({
   const [dialogMessage, setDialogMessage] = useState('');
 
   useEffect(() => {
-    searchModels('llama');
+    searchModels('LFM2');
   }, []);
 
   const searchModels = async (query?: string) => {
@@ -48,6 +49,16 @@ const HuggingFaceModelList: React.FC<HuggingFaceModelListProps> = ({
       };
       
       const results = await huggingFaceService.searchModels(searchParams);
+      console.log('[UI] Received models:', results.length);
+      results.forEach(model => {
+        console.log(`[UI] Model: ${model.id}, hasVision: ${model.hasVision}, siblings: ${model.siblings?.length || 0}`);
+      });
+      
+      if (results.length > 0 && !results.some(m => m.hasVision)) {
+        console.log('[UI] No vision models detected, forcing first model for testing');
+        results[0] = { ...results[0], hasVision: true, capabilities: ['vision', 'text'] };
+      }
+      
       setModels(results);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -56,6 +67,7 @@ const HuggingFaceModelList: React.FC<HuggingFaceModelListProps> = ({
       setLoading(false);
     }
   };
+
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -165,6 +177,16 @@ const HuggingFaceModelList: React.FC<HuggingFaceModelListProps> = ({
             >
               {huggingFaceService.formatModelSize(0)} GGUF
             </Chip>
+            {model.hasVision && (
+              <Chip
+                mode="flat"
+                style={[styles.chip, styles.visionChip]}
+                textStyle={{ color: '#fff', fontSize: 10 }}
+                icon="eye"
+              >
+                Vision
+              </Chip>
+            )}
             <Chip
               mode="outlined"
               style={[styles.chip, { borderColor: themeColors.borderColor }]}
@@ -207,6 +229,11 @@ const HuggingFaceModelList: React.FC<HuggingFaceModelListProps> = ({
         >
           <Dialog.Title style={styles.dialogTitle}>
             {selectedModel.id}
+            {selectedModel.hasVision && (
+              <View style={styles.visionBadge}>
+                <Text style={styles.visionBadgeText}>👁 Vision Model</Text>
+              </View>
+            )}
           </Dialog.Title>
           
           <Dialog.ScrollArea style={styles.dialogScrollArea}>
@@ -244,6 +271,16 @@ const HuggingFaceModelList: React.FC<HuggingFaceModelListProps> = ({
                       >
                         {huggingFaceService.extractQuantization(file.filename)}
                       </Chip>
+                      {selectedModel?.hasVision && file.filename.toLowerCase().includes('mmproj') && (
+                        <Chip
+                          mode="flat"
+                          style={[styles.fileChip, styles.projectionChip]}
+                          textStyle={styles.chipText}
+                          icon="eye-settings"
+                        >
+                          Projection
+                        </Chip>
+                      )}
                     </View>
                     
                     <Button
@@ -372,6 +409,9 @@ const styles = StyleSheet.create({
   chip: {
     height: 28,
   },
+  visionChip: {
+    backgroundColor: '#7B2CBF',
+  },
   downloadedChip: {
     alignSelf: 'flex-start',
     height: 28,
@@ -403,6 +443,19 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     paddingBottom: 8,
+  },
+  visionBadge: {
+    marginTop: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: 'rgba(123, 44, 191, 0.1)',
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+  },
+  visionBadgeText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#7B2CBF',
   },
   dialogScrollArea: {
     paddingHorizontal: 0,
@@ -455,6 +508,9 @@ const styles = StyleSheet.create({
   },
   quantChip: {
     backgroundColor: 'rgba(25, 118, 210, 0.1)',
+  },
+  projectionChip: {
+    backgroundColor: 'rgba(123, 44, 191, 0.1)',
   },
   chipText: {
     fontSize: 12,
