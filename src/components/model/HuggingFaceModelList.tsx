@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, ScrollView, StyleSheet, RefreshControl } from 'react-native';
-import { Text, Card, Button, ActivityIndicator, Chip, Searchbar, Portal, Dialog, Checkbox } from 'react-native-paper';
+import { Text, Card, Button, ActivityIndicator, Chip, Searchbar, Portal, Dialog } from 'react-native-paper';
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../constants/theme';
 import { huggingFaceService, HFModel, HFModelDetails } from '../../services/HuggingFaceService';
@@ -32,7 +32,6 @@ const HuggingFaceModelList: React.FC<HuggingFaceModelListProps> = ({
   const [dialogVisible, setDialogVisible] = useState(false);
   const [dialogTitle, setDialogTitle] = useState('');
   const [dialogMessage, setDialogMessage] = useState('');
-  const [selectedFiles, setSelectedFiles] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     searchModels('LFM2');
@@ -99,7 +98,6 @@ const HuggingFaceModelList: React.FC<HuggingFaceModelListProps> = ({
   const handleModelPress = async (model: HFModel) => {
     setModelDetailsLoading(true);
     setSelectedModel(null);
-    setSelectedFiles(new Set());
     
     try {
       const details = await huggingFaceService.getModelDetails(model.id);
@@ -155,75 +153,6 @@ const HuggingFaceModelList: React.FC<HuggingFaceModelListProps> = ({
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       showDialog('Download Error', `Failed to start download: ${errorMessage}`);
     }
-  };
-
-  const toggleFileSelection = (index: number) => {
-    const newSelection = new Set(selectedFiles);
-    if (newSelection.has(index)) {
-      newSelection.delete(index);
-    } else {
-      newSelection.add(index);
-    }
-    setSelectedFiles(newSelection);
-  };
-
-  const handleDownloadSelected = async () => {
-    if (!selectedModel || selectedFiles.size === 0) return;
-
-    const modelName = selectedModel.id;
-    navigation.navigate('Downloads' as never);
-    setSelectedModel(null);
-
-    for (const fileIndex of selectedFiles) {
-      const file = selectedModel.files[fileIndex];
-      const fullFilename = `${modelName.replace('/', '_')}_${file.filename}`;
-      
-      if (isModelDownloaded(fullFilename)) {
-        continue;
-      }
-
-      try {
-        setDownloadProgress((prev: any) => ({
-          ...prev,
-          [fullFilename]: {
-            progress: 0,
-            bytesDownloaded: 0,
-            totalBytes: 0,
-            status: 'starting',
-            downloadId: 0
-          }
-        }));
-
-        const { downloadId } = await modelDownloader.downloadModel(file.downloadUrl, fullFilename);
-        
-        setDownloadProgress((prev: any) => ({
-          ...prev,
-          [fullFilename]: {
-            ...prev[fullFilename],
-            downloadId
-          }
-        }));
-
-      } catch (error) {
-        setDownloadProgress((prev: any) => {
-          const newProgress = { ...prev };
-          delete newProgress[fullFilename];
-          return newProgress;
-        });
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        showDialog('Download Error', `Failed to start download for ${file.filename}: ${errorMessage}`);
-      }
-    }
-  };
-
-  const selectAllFiles = () => {
-    if (!selectedModel) return;
-    const allIndices = new Set(selectedModel.files.map((_, index) => index));
-    setSelectedFiles(allIndices);
-  };
-
-  const deselectAllFiles = () => {
-    setSelectedFiles(new Set());
   };
 
   const renderModelCard = (model: HFModel) => {
@@ -314,114 +243,64 @@ const HuggingFaceModelList: React.FC<HuggingFaceModelListProps> = ({
                 <Text style={styles.sectionSubtitle}>
                   {selectedModel.files.length} file{selectedModel.files.length !== 1 ? 's' : ''} available for download
                 </Text>
-                
-                {selectedModel.files.length > 1 && (
-                  <View style={styles.selectionControls}>
-                    <Button
-                      mode="text"
-                      onPress={selectAllFiles}
-                      style={styles.selectionButton}
-                      labelStyle={styles.selectionButtonText}
-                    >
-                      Select All
-                    </Button>
-                    <Button
-                      mode="text"
-                      onPress={deselectAllFiles}
-                      style={styles.selectionButton}
-                      labelStyle={styles.selectionButtonText}
-                    >
-                      Deselect All
-                    </Button>
-                  </View>
-                )}
               </View>
               
-              {selectedModel.files.map((file, index) => {
-                const isFileDownloaded = isModelDownloaded(`${selectedModel.id.replace('/', '_')}_${file.filename}`);
-                const isSelected = selectedFiles.has(index);
-                
-                return (
-                  <View key={index} style={styles.fileItem}>
-                    <View style={styles.fileHeader}>
-                      <View style={styles.fileHeaderContent}>
-                        <Checkbox
-                          status={isSelected ? 'checked' : 'unchecked'}
-                          onPress={() => toggleFileSelection(index)}
-                          disabled={isFileDownloaded}
-                        />
-                        <View style={styles.fileNameContainer}>
-                          <Text style={[styles.fileName, isFileDownloaded && styles.downloadedFileName]} numberOfLines={2}>
-                            {file.filename}
-                          </Text>
-                          {isFileDownloaded && (
-                            <Text style={styles.alreadyDownloadedText}>Already downloaded</Text>
-                          )}
-                        </View>
-                      </View>
-                    </View>
-                    
-                    <View style={styles.fileInfo}>
-                      <View style={styles.fileDetails}>
-                        <Chip
-                          mode="flat"
-                          style={[styles.fileChip, styles.sizeChip]}
-                          textStyle={styles.chipText}
-                          icon="download"
-                        >
-                          {huggingFaceService.formatModelSize(file.size)}
-                        </Chip>
-                        <Chip
-                          mode="flat"
-                          style={[styles.fileChip, styles.quantChip]}
-                          textStyle={styles.chipText}
-                          icon="cog"
-                        >
-                          {huggingFaceService.extractQuantization(file.filename)}
-                        </Chip>
-                        {selectedModel?.hasVision && file.filename.toLowerCase().includes('mmproj') && (
-                          <Chip
-                            mode="flat"
-                            style={[styles.fileChip, styles.projectionChip]}
-                            textStyle={styles.chipText}
-                            icon="eye-settings"
-                          >
-                            Projection
-                          </Chip>
-                        )}
-                      </View>
-                      
-                      <Button
-                        mode="contained"
-                        style={[styles.downloadButton, isFileDownloaded && styles.disabledButton]}
-                        contentStyle={styles.downloadButtonContent}
-                        onPress={() => handleDownloadFile(file.filename, file.downloadUrl)}
-                        icon="download"
-                        disabled={isFileDownloaded}
-                      >
-                        {isFileDownloaded ? 'Downloaded' : 'Download'}
-                      </Button>
-                    </View>
-                    
-                    {index < selectedModel.files.length - 1 && <View style={styles.fileDivider} />}
+              {selectedModel.files.map((file, index) => (
+                <View key={index} style={styles.fileItem}>
+                  <View style={styles.fileHeader}>
+                    <Text style={styles.fileName} numberOfLines={2}>
+                      {file.filename}
+                    </Text>
                   </View>
-                );
-              })}
+                  
+                  <View style={styles.fileInfo}>
+                    <View style={styles.fileDetails}>
+                      <Chip
+                        mode="flat"
+                        style={[styles.fileChip, styles.sizeChip]}
+                        textStyle={styles.chipText}
+                        icon="download"
+                      >
+                        {huggingFaceService.formatModelSize(file.size)}
+                      </Chip>
+                      <Chip
+                        mode="flat"
+                        style={[styles.fileChip, styles.quantChip]}
+                        textStyle={styles.chipText}
+                        icon="cog"
+                      >
+                        {huggingFaceService.extractQuantization(file.filename)}
+                      </Chip>
+                      {selectedModel?.hasVision && file.filename.toLowerCase().includes('mmproj') && (
+                        <Chip
+                          mode="flat"
+                          style={[styles.fileChip, styles.projectionChip]}
+                          textStyle={styles.chipText}
+                          icon="eye-settings"
+                        >
+                          Projection
+                        </Chip>
+                      )}
+                    </View>
+                    
+                    <Button
+                      mode="contained"
+                      style={styles.downloadButton}
+                      contentStyle={styles.downloadButtonContent}
+                      onPress={() => handleDownloadFile(file.filename, file.downloadUrl)}
+                      icon="download"
+                    >
+                      Download
+                    </Button>
+                  </View>
+                  
+                  {index < selectedModel.files.length - 1 && <View style={styles.fileDivider} />}
+                </View>
+              ))}
             </ScrollView>
           </Dialog.ScrollArea>
           
           <Dialog.Actions style={styles.dialogActions}>
-            {selectedFiles.size > 0 && (
-              <Button 
-                mode="contained"
-                onPress={handleDownloadSelected}
-                style={styles.bulkDownloadButton}
-                labelStyle={styles.bulkDownloadButtonText}
-                icon="download-multiple"
-              >
-                Download Selected ({selectedFiles.size})
-              </Button>
-            )}
             <Button 
               onPress={() => setSelectedModel(null)}
               style={styles.closeButton}
@@ -598,18 +477,6 @@ const styles = StyleSheet.create({
     opacity: 0.7,
     marginBottom: 4,
   },
-  selectionControls: {
-    flexDirection: 'row',
-    marginTop: 12,
-    gap: 8,
-  },
-  selectionButton: {
-    minWidth: 80,
-  },
-  selectionButtonText: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
   fileItem: {
     paddingVertical: 16,
     paddingHorizontal: 4,
@@ -617,28 +484,10 @@ const styles = StyleSheet.create({
   fileHeader: {
     marginBottom: 12,
   },
-  fileHeaderContent: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-  },
-  fileNameContainer: {
-    flex: 1,
-  },
   fileName: {
     fontSize: 16,
     fontWeight: '500',
     lineHeight: 22,
-  },
-  downloadedFileName: {
-    opacity: 0.6,
-    textDecorationLine: 'line-through',
-  },
-  alreadyDownloadedText: {
-    fontSize: 12,
-    opacity: 0.6,
-    marginTop: 2,
-    fontStyle: 'italic',
   },
   fileInfo: {
     flexDirection: 'row',
@@ -673,9 +522,6 @@ const styles = StyleSheet.create({
   downloadButtonContent: {
     height: 36,
   },
-  disabledButton: {
-    opacity: 0.5,
-  },
   fileDivider: {
     height: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.08)',
@@ -683,15 +529,6 @@ const styles = StyleSheet.create({
   },
   dialogActions: {
     paddingTop: 16,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  bulkDownloadButton: {
-    marginRight: 8,
-  },
-  bulkDownloadButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
   },
   closeButton: {
     paddingHorizontal: 16,

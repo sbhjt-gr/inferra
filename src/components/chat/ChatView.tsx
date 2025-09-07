@@ -117,16 +117,8 @@ export default function ChatView({
     
     try {
       const parsedMessage = JSON.parse(currentContent);
-      
-      if (parsedMessage && parsedMessage.type === 'multimodal' && parsedMessage.content) {
-        const textContent = parsedMessage.content.find((item: any) => item.type === 'text');
-        contentToEdit = textContent ? textContent.text : '';
-      }
-      else if (parsedMessage && parsedMessage.type === 'file_upload' && parsedMessage.userContent) {
+      if (parsedMessage && parsedMessage.type === 'file_upload' && parsedMessage.userContent) {
         contentToEdit = parsedMessage.userContent;
-      }
-      else if (parsedMessage && parsedMessage.type === 'ocr_result' && parsedMessage.userPrompt) {
-        contentToEdit = parsedMessage.userPrompt;
       }
     } catch (e) {
       // Not JSON, use as is
