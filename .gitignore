@@ -77,6 +77,8 @@ node_modules/
 npm-debug.*
 yarn-debug.*
 yarn-error.*
+yarn.lock
+package-lock.json
 
 # Environment variables
 .env.development

@@ -1,18 +1,25 @@
 import Constants from 'expo-constants';
 import { HUGGINGFACE_TOKEN } from '@env';
+import { isVisionRepo, detectVisionCapabilities } from '../utils/multimodalHelpers';
+import { ModelFile } from '../types/models';
 
 interface HFModel {
+  _id?: string;
   id: string;
-  modelId: string;
-  author: string;
-  downloads: number;
-  likes: number;
-  updatedAt: string;
-  tags: string[];
-  disabled: boolean;
-  gated: boolean;
+  modelId?: string;
+  author?: string;
+  downloads?: number;
+  likes?: number;
+  lastModified?: string;
+  updatedAt?: string;
+  tags?: string[];
+  disabled?: boolean;
+  gated?: boolean | string;
   pipeline_tag?: string;
   library_name?: string;
+  siblings?: ModelFile[];
+  hasVision?: boolean;
+  capabilities?: string[];
 }
 
 interface HFFile {
@@ -72,6 +79,12 @@ class HuggingFaceService {
       } else {
         searchParams.append('limit', '20');
       }
+      
+      searchParams.append('full', 'true');
+      searchParams.append('config', 'true');
+      searchParams.append('sort', 'downloads');
+      searchParams.append('direction', '-1');
+      searchParams.append('filter', 'gguf');
 
       const url = `${this.apiUrl}/models?${searchParams.toString()}`;
       const headers = this.getHeaders();
@@ -109,7 +122,9 @@ class HuggingFaceService {
         return downloadsB - downloadsA;
       });
       
-      return sortedModels;
+      const modelsWithVisionDetection = this.processSearchResults(sortedModels);
+      
+      return modelsWithVisionDetection;
     } catch (error) {
       if (error instanceof TypeError && error.message.includes('Network request failed')) {
         throw new Error('Network connection failed. Please check your internet connection.');
@@ -168,9 +183,20 @@ class HuggingFaceService {
 
       const model = await modelResponse.json();
       
+      const modelFiles: ModelFile[] = files.map(f => ({
+        rfilename: f.filename,
+        size: f.size,
+        url: f.downloadUrl
+      }));
+      
+      const hasVision = isVisionRepo(modelFiles);
+      const capabilities = hasVision ? ['vision', 'text'] : ['text'];
+      
       return {
         ...model,
         files,
+        hasVision,
+        capabilities,
       };
     } catch (error) {
       throw error;
@@ -205,6 +231,41 @@ class HuggingFaceService {
     
     return 'Unknown';
   }
+
+  private processSearchResults(models: HFModel[]): HFModel[] {
+    return models.map(model => {
+      const allSiblings = model.siblings || [];
+      const siblingsWithUrl = this.addDownloadUrls(model.id, allSiblings);
+      const hasVision = isVisionRepo(siblingsWithUrl);
+      const filteredGGUFSiblings = this.filterGGUFFiles(allSiblings);
+      const ggufSiblingsWithUrl = this.addDownloadUrls(model.id, filteredGGUFSiblings);
+      const capabilities = hasVision ? ['vision', 'text'] : ['text'];
+      
+      return {
+        ...model,
+        siblings: ggufSiblingsWithUrl,
+        hasVision,
+        capabilities,
+      };
+    });
+  }
+
+  private filterGGUFFiles(siblings: ModelFile[]): ModelFile[] {
+    const RE_GGUF_SHARD_FILE = /^(?<prefix>.*?)-(?<shard>\d{5})-of-(?<total>\d{5})\.gguf$/;
+    
+    return siblings.filter(sibling => {
+      const filename = sibling.rfilename.toLowerCase();
+      return filename.endsWith('.gguf') && !RE_GGUF_SHARD_FILE.test(filename);
+    });
+  }
+
+  private addDownloadUrls(modelId: string, siblings: ModelFile[]): ModelFile[] {
+    return siblings.map(sibling => ({
+      ...sibling,
+      url: `${this.baseUrl}/${modelId}/resolve/main/${sibling.rfilename}`,
+    }));
+  }
+
 
   validateModelUrl(url: string): boolean {
     try {

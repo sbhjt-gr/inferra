@@ -1,4 +1,5 @@
 import { DownloadableModel } from "../components/model/DownloadableModelItem";
+import { ModelType } from "../types/models";
 
 export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
   {
@@ -30,6 +31,9 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "modelFamily": "500 Million",
     "quantization": "f16",
     "tags": ["vision", "video", "fastest"],
+    "modelType": ModelType.VISION,
+    "capabilities": ["vision", "text", "video"],
+    "supportsMultimodal": true,
     "additionalFiles": [
       {
         "name": "mmproj-SmolVLM2-500M-Video-Instruct-f16.gguf",
@@ -47,6 +51,9 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "modelFamily": "2.2 Billion",
     "quantization": "Q8_0",
     "tags": ["vision", "fastest"],
+    "modelType": ModelType.VISION,
+    "capabilities": ["vision", "text"],
+    "supportsMultimodal": true,
     "additionalFiles": [
       {
         "name": "mmproj-SmolVLM2-2.2B-Instruct-Q8_0.gguf",

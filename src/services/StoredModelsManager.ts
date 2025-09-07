@@ -6,6 +6,8 @@ import * as Sharing from 'expo-sharing';
 import { EventEmitter } from './EventEmitter';
 import { FileManager } from './FileManager';
 import { StoredModel } from './ModelDownloaderTypes';
+import { detectVisionCapabilities, isProjectionModel } from '../utils/multimodalHelpers';
+import { ModelType } from '../types/models';
 
 export class StoredModelsManager extends EventEmitter {
   private externalModels: StoredModel[] = [];
@@ -51,12 +53,24 @@ export class StoredModelsManager extends EventEmitter {
             
             const modified = new Date().toISOString();
             
+            const capabilities = detectVisionCapabilities(name);
+            const modelType = capabilities.isProjection 
+              ? ModelType.PROJECTION 
+              : capabilities.isVision 
+                ? ModelType.VISION 
+                : ModelType.LLM;
+
             return {
               name,
               path,
               size,
               modified,
-              isExternal: false
+              isExternal: false,
+              modelType,
+              capabilities: capabilities.capabilities,
+              supportsMultimodal: capabilities.isVision,
+              compatibleProjectionModels: capabilities.compatibleProjections,
+              defaultProjectionModel: capabilities.defaultProjection,
             };
           })
         );
@@ -179,12 +193,24 @@ export class StoredModelsManager extends EventEmitter {
       }
 
       if (isExternal) {
+        const capabilities = detectVisionCapabilities(fileName);
+        const modelType = capabilities.isProjection 
+          ? ModelType.PROJECTION 
+          : capabilities.isVision 
+            ? ModelType.VISION 
+            : ModelType.LLM;
+
         const newExternalModel: StoredModel = {
           name: fileName,
           path: finalPath,
           size: (fileInfo as any).size || 0,
           modified: new Date().toISOString(),
-          isExternal: true
+          isExternal: true,
+          modelType,
+          capabilities: capabilities.capabilities,
+          supportsMultimodal: capabilities.isVision,
+          compatibleProjectionModels: capabilities.compatibleProjections,
+          defaultProjectionModel: capabilities.defaultProjection,
         };
 
         this.externalModels.push(newExternalModel);

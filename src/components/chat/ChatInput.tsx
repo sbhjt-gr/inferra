@@ -769,9 +769,9 @@ export default function ChatInput({
           textAlign: 'center'
         }}
         >
-          AI-generated content may contain errors, verify important information.{''}
+          {/* AI-generated content may contain errors, verify important information.{''} */}
         </Text>
-        <TouchableOpacity onPress={() => setShowAITermsDialog(true)}>
+        {/* <TouchableOpacity onPress={() => setShowAITermsDialog(true)}>
           <Text style={{
             fontSize: 12,
             color: isDark ? '#BB86FC' : '#6200EA',
@@ -780,7 +780,7 @@ export default function ChatInput({
           >
             Learn more
           </Text>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
       </View>
 
       <FileViewerModal

@@ -12,6 +12,8 @@ import { theme } from '../../constants/theme';
 import { getThemeAwareColor, getBrowserDownloadTextColor } from '../../utils/ColorUtils';
 import { Dialog, Portal, PaperProvider, Button } from 'react-native-paper';
 
+import { ModelType } from '../../types/models';
+
 export interface DownloadableModel {
   name: string;
   description?: string;
@@ -21,6 +23,9 @@ export interface DownloadableModel {
   modelFamily: string;
   quantization: string;
   tags?: string[];
+  modelType?: ModelType;
+  capabilities?: string[];
+  supportsMultimodal?: boolean;
   additionalFiles?: {
     name: string;
     url: string;
