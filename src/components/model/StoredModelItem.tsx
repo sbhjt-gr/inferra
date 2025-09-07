@@ -11,6 +11,7 @@ interface StoredModelProps {
   path: string;
   size: number;
   isExternal: boolean;
+  isProjector?: boolean;
   onDelete: (id: string, path: string) => void;
   onExport?: (path: string, name: string) => void;
 }
@@ -39,6 +40,7 @@ const StoredModelItem: React.FC<StoredModelProps> = ({
   path,
   size,
   isExternal,
+  isProjector,
   onDelete,
   onExport,
 }) => {
@@ -64,13 +66,17 @@ const StoredModelItem: React.FC<StoredModelProps> = ({
           <Text style={[styles.modelName, { color: themeColors.text }]} numberOfLines={1}>
             {displayName}
           </Text>
-          {isExternal ? (
+          {isExternal && (
             <View style={styles.externalBadgeContainer}>
               <MaterialCommunityIcons name="link" size={12} color="white" style={{ marginRight: 4 }} />
               <Text style={styles.externalBadgeText}>External</Text>
             </View>
-          ) : ( 
-            <></>
+          )}
+          {isProjector && (
+            <View style={styles.projectorBadgeContainer}>
+              <MaterialCommunityIcons name="projector" size={12} color="white" style={{ marginRight: 4 }} />
+              <Text style={styles.projectorBadgeText}>Projector</Text>
+            </View>
           )}
         </View>
         <View style={styles.modelMetaInfo}>
@@ -150,6 +156,20 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   externalBadgeText: {
+    color: 'white',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  projectorBadgeContainer: {
+    backgroundColor: '#8e44ad',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginLeft: 4,
+  },
+  projectorBadgeText: {
     color: 'white',
     fontSize: 11,
     fontWeight: '600',

@@ -750,6 +750,9 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
   );
 
   const renderItem = ({ item }: { item: StoredModel }) => {
+    const isProjectorModel = item.name.toLowerCase().includes('mmproj') ||
+                            item.name.toLowerCase().includes('.proj');
+    
     return (
       <StoredModelItem
         id={item.path}
@@ -757,6 +760,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         path={item.path}
         size={item.size}
         isExternal={Boolean(item.isExternal)}
+        isProjector={isProjectorModel}
         onDelete={() => handleDelete(item)}
         onExport={handleExport}
       />
