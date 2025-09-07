@@ -11,6 +11,8 @@ import {
   StatusBar,
   TextInput,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  ScrollView,
 } from 'react-native';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -199,81 +201,91 @@ export default function CameraOverlay({ visible, onClose, onPhotoTaken }: Camera
         </View>
 
         {showPromptDialog && (
-          <View style={styles.promptOverlay}>
-            <View style={[styles.promptDialog, { backgroundColor: themeColors.background }]}>
-              <Text style={[styles.promptTitle, { color: themeColors.text }]}>
-                Configure Image Processing
-              </Text>
-              
-              <ImageProcessingSelector
-                selectedMode={processingMode}
-                onModeChange={setProcessingMode}
-                disabled={isProcessing}
-              />
-              
-              <Text style={[styles.promptSubtitle, { color: themeColors.text }]}>
-                {processingMode === 'ocr' 
-                  ? 'Instructions for text processing:' 
-                  : 'What would you like to ask about this image?'
-                }
-              </Text>
-              
-              <TextInput
-                style={[
-                  styles.promptInput,
-                  {
-                    color: themeColors.text,
-                    borderColor: isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)',
-                    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)',
+          <KeyboardAvoidingView
+            style={styles.promptOverlay}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 0}
+          >
+            <ScrollView 
+              contentContainerStyle={styles.scrollContainer}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={[styles.promptDialog, { backgroundColor: themeColors.background }]}>
+                <Text style={[styles.promptTitle, { color: themeColors.text }]}>
+                  Configure Image Processing
+                </Text>
+                
+                <ImageProcessingSelector
+                  selectedMode={processingMode}
+                  onModeChange={setProcessingMode}
+                  disabled={isProcessing}
+                />
+                
+                <Text style={[styles.promptSubtitle, { color: themeColors.text }]}>
+                  {processingMode === 'ocr' 
+                    ? 'Instructions for text processing:' 
+                    : 'What would you like to ask about this image?'
                   }
-                ]}
-                placeholder={processingMode === 'ocr' 
-                  ? 'Enter instructions for processing the extracted text...' 
-                  : 'What would you like to ask about this image?'
-                }
-                placeholderTextColor={isDark ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.5)'}
-                value={userPrompt}
-                onChangeText={setUserPrompt}
-                multiline
-                autoFocus
-                maxLength={500}
-                editable={!isProcessing}
-              />
+                </Text>
+                
+                <TextInput
+                  style={[
+                    styles.promptInput,
+                    {
+                      color: themeColors.text,
+                      borderColor: isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)',
+                      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)',
+                    }
+                  ]}
+                  placeholder={processingMode === 'ocr' 
+                    ? 'Enter instructions for processing the extracted text...' 
+                    : 'What would you like to ask about this image?'
+                  }
+                  placeholderTextColor={isDark ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.5)'}
+                  value={userPrompt}
+                  onChangeText={setUserPrompt}
+                  multiline
+                  autoFocus
+                  maxLength={500}
+                  editable={!isProcessing}
+                />
 
-              {isProcessing && (
-                <View style={styles.processingContainer}>
-                  <ActivityIndicator size="small" color={getThemeAwareColor('#4a0660', currentTheme)} />
-                  <Text style={[styles.processingText, { color: themeColors.text }]}>
-                    {processingProgress || 'Processing image...'}
-                  </Text>
+                {isProcessing && (
+                  <View style={styles.processingContainer}>
+                    <ActivityIndicator size="small" color={getThemeAwareColor('#4a0660', currentTheme)} />
+                    <Text style={[styles.processingText, { color: themeColors.text }]}>
+                      {processingProgress || 'Processing image...'}
+                    </Text>
+                  </View>
+                )}
+                <View style={styles.promptButtons}>
+                  <TouchableOpacity
+                    style={[styles.promptButton, styles.cancelPromptButton]}
+                    onPress={handleCancelPhoto}
+                  >
+                    <Text style={styles.cancelPromptButtonText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.promptButton, styles.sendPromptButton]}
+                    onPress={handleSendPhoto}
+                    disabled={!userPrompt.trim() || isProcessing || !processingMode}
+                  >
+                    {isProcessing ? (
+                      <ActivityIndicator size="small" color="#ffffff" />
+                    ) : (
+                    <Text style={[
+                      styles.sendPromptButtonText,
+                        { opacity: (userPrompt.trim() && !isProcessing && processingMode) ? 1 : 0.5 }
+                    ]}>
+                        {processingMode === 'ocr' ? 'Extract' : processingMode === 'multimodal' ? 'Analyze' : 'Select Mode'}
+                    </Text>
+                    )}
+                  </TouchableOpacity>
                 </View>
-              )}
-              <View style={styles.promptButtons}>
-                <TouchableOpacity
-                  style={[styles.promptButton, styles.cancelPromptButton]}
-                  onPress={handleCancelPhoto}
-                >
-                  <Text style={styles.cancelPromptButtonText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.promptButton, styles.sendPromptButton]}
-                  onPress={handleSendPhoto}
-                  disabled={!userPrompt.trim() || isProcessing || !processingMode}
-                >
-                  {isProcessing ? (
-                    <ActivityIndicator size="small" color="#ffffff" />
-                  ) : (
-                  <Text style={[
-                    styles.sendPromptButtonText,
-                      { opacity: (userPrompt.trim() && !isProcessing && processingMode) ? 1 : 0.5 }
-                  ]}>
-                      {processingMode === 'ocr' ? 'Extract' : processingMode === 'multimodal' ? 'Analyze' : 'Select Mode'}
-                  </Text>
-                  )}
-                </TouchableOpacity>
               </View>
-            </View>
-          </View>
+            </ScrollView>
+          </KeyboardAvoidingView>
         )}
       </View>
     </Modal>
@@ -466,5 +478,12 @@ const styles = StyleSheet.create({
   processingText: {
     fontSize: 14,
     fontStyle: 'italic',
+  },
+  scrollContainer: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 20,
+    minWidth: '100%',
   },
 }); 
