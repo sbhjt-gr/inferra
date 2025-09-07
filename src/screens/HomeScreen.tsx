@@ -1745,7 +1745,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
           isLoading={isLoading}
           isRegenerating={isRegenerating}
           onCancel={handleCancelGeneration}
-          onStopGeneration={stopGenerationIfRunning}
+          onStop={handleCancelGeneration}
           style={{ backgroundColor: themeColors.background, borderTopColor: themeColors.borderColor }}
           placeholderColor={themeColors.secondaryText}
         />

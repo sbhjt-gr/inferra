@@ -2,10 +2,10 @@ import React, { useState, useMemo } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Dialog, Portal, Button, Text, Switch, List, Divider } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useTheme } from '../../context/ThemeContext';
-import { theme } from '../../constants/theme';
-import { getMmprojFiles, formatBytes } from '../../utils/multimodalHelpers';
-import { DownloadableModel } from '../model/DownloadableModelItem';
+import { useTheme } from '../context/ThemeContext';
+import { theme } from '../constants/theme';
+import { getMmprojFiles, formatBytes } from '../utils/multimodalHelpers';
+import { DownloadableModel } from './model/DownloadableModelItem';
 
 interface VisionDownloadDialogProps {
   visible: boolean;
