@@ -9,7 +9,6 @@ import { RootStackParamList } from '../types/navigation';
 import chatManager from '../utils/ChatManager';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { OpenSansFont } from '../hooks/OpenSansFont';
-import { useResponsive } from '../hooks/useResponsive';
 
 type AppHeaderProps = {
   title?: string;
@@ -40,7 +39,6 @@ export default function AppHeader({
   const route = useRoute();
   const insets = useSafeAreaInsets();
   const { fonts } = OpenSansFont();
-  const { fontSize, paddingHorizontal, isTablet } = useResponsive();
 
   const isHomeScreen = route.name === 'HomeTab';
 
@@ -69,11 +67,11 @@ export default function AppHeader({
       styles.container, 
       { 
         backgroundColor: transparent ? 'transparent' : themeColors.headerBackground,
-        paddingTop: isTablet ? 0 : insets.top,
-        height: 60 + (isTablet ? 0 : insets.top),
+        paddingTop: insets.top,
+        height: 52 + insets.top,
       }
     ]}>
-      <View style={[styles.headerContent, { paddingHorizontal }]}>
+      <View style={styles.headerContent}>
         {leftComponent ? (
           leftComponent
         ) : customLeftComponent ? (
@@ -97,14 +95,14 @@ export default function AppHeader({
                   style={styles.icon} 
                   resizeMode="cover"
                 />
-                <Text style={[styles.title, { color: themeColors.headerText, fontSize: fontSize.large }, fonts.bold]}>
+                <Text style={[styles.title, { color: themeColors.headerText }, fonts.bold]}>
                   {title}
                 </Text>
               </>
             )}
             
             {!showLogo && (
-              <Text style={[styles.title, { color: themeColors.headerText, fontSize: fontSize.large }, fonts.bold]}>
+              <Text style={[styles.title, { color: themeColors.headerText }, fonts.bold]}>
                 {title}
               </Text>
             )}
@@ -115,27 +113,25 @@ export default function AppHeader({
           {rightButtons ? (
             rightButtons
           ) : (
-            !isTablet && (
-              <>
-                {(isHomeScreen || onNewChat) && (
-                  <TouchableOpacity
-                    style={styles.headerButton}
-                    onPress={handleNewChat}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  >
-                    <MaterialCommunityIcons name="plus" size={22} color={themeColors.headerText} />
-                  </TouchableOpacity>
-                )}
-                
+            <>
+              {isHomeScreen && (
                 <TouchableOpacity
                   style={styles.headerButton}
-                  onPress={handleOpenChatHistory}
+                  onPress={handleNewChat}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
-                  <MaterialCommunityIcons name="clock-outline" size={22} color={themeColors.headerText} />
+                  <MaterialCommunityIcons name="plus" size={22} color={themeColors.headerText} />
                 </TouchableOpacity>
-              </>
-            )
+              )}
+              
+              <TouchableOpacity
+                style={styles.headerButton}
+                onPress={handleOpenChatHistory}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <MaterialCommunityIcons name="clock-outline" size={22} color={themeColors.headerText} />
+              </TouchableOpacity>
+            </>
           )}
         </View>
       </View>
@@ -158,6 +154,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingHorizontal: 16,
   },
   leftSection: {
     flexDirection: 'row',
@@ -170,13 +167,12 @@ const styles = StyleSheet.create({
     borderRadius: 15,
   },
   title: {
+    fontSize: 18,
     letterSpacing: 0.2,
   },
   rightButtons: {
     flexDirection: 'row',
-  },
-  rightButtonItem: {
-    marginLeft: 8,
+    gap: 8,
   },
   headerButton: {
     width: 36,

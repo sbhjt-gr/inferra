@@ -4,7 +4,6 @@
 node_modules/
 
 pr/
-scripts/
 
 # Expo
 .expo/
@@ -136,6 +135,3 @@ logs/
 *.log
 
 eas.json
-
-#others
-patches/

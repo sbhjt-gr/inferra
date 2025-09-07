@@ -24,7 +24,6 @@ import chatManager from '../../utils/ChatManager';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types/navigation';
-import { useResponsive } from '../../hooks/useResponsive';
 
 export type Message = {
   id: string;
@@ -90,7 +89,6 @@ export default function ChatView({
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { chatMessageMaxWidth, paddingHorizontal, isTablet } = useResponsive();
   
   const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
   const [isImageViewerVisible, setIsImageViewerVisible] = useState(false);
@@ -368,7 +366,7 @@ export default function ChatView({
             alignSelf: item.role === 'user' ? 'flex-end' : 'flex-start',
             borderTopRightRadius: item.role === 'user' ? 4 : 20,
             borderTopLeftRadius: item.role === 'user' ? 20 : 4,
-            maxWidth: chatMessageMaxWidth,
+            width: item.role === 'assistant' ? '90%' : undefined,
           }
         ]}>
           <View style={styles.messageHeader}>
@@ -734,7 +732,7 @@ export default function ChatView({
         data={[...messages].reverse()}
         renderItem={renderMessage}
         keyExtractor={(item: Message) => item.id}
-        contentContainerStyle={[styles.messageList, { paddingHorizontal }]}
+        contentContainerStyle={styles.messageList}
         inverted={true}
         maintainVisibleContentPosition={{
           minIndexForVisible: 0,
@@ -857,6 +855,7 @@ const styles = StyleSheet.create({
   messageList: {
     flexGrow: 1,
     paddingTop: 16,
+    paddingHorizontal: 8,
     paddingBottom: 16,
   },
   messageContainer: {

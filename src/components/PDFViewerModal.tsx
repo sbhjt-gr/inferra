@@ -11,7 +11,6 @@ import {
   TextInput,
   KeyboardAvoidingView,
 } from 'react-native';
-import { useResponsive } from '../hooks/useResponsive';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import PdfRendererView from 'react-native-pdf-renderer';
 import { useTheme } from '../context/ThemeContext';
@@ -46,7 +45,6 @@ export default function PDFViewerModal({
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
   const isDark = currentTheme === 'dark';
-  const { paddingHorizontal, isTablet } = useResponsive();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [userPrompt, setUserPrompt] = useState('');
@@ -380,7 +378,7 @@ export default function PDFViewerModal({
           keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
         >
           <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#121212' : '#fff' }]}>
-            <View style={[styles.header, { paddingHorizontal }]}>
+            <View style={styles.header}>
               <Text 
                 style={[
                   styles.fileNameText, 
@@ -403,14 +401,7 @@ export default function PDFViewerModal({
               </TouchableOpacity>
             </View>
             
-            <View style={[
-              styles.contentContainer, 
-              { 
-                backgroundColor: isDark ? '#1e1e1e' : '#f5f5f5',
-                paddingHorizontal: isTablet ? paddingHorizontal / 2 : 0,
-                paddingTop: isTablet ? 16 : 0
-              }
-            ]}>
+            <View style={[styles.contentContainer, { backgroundColor: isDark ? '#1e1e1e' : '#f5f5f5' }]}>
               {loading ? (
                 <View style={styles.loadingContainer}>
                   <ActivityIndicator size="large" color="#660880" />
@@ -442,9 +433,7 @@ export default function PDFViewerModal({
                   
                   <View style={[styles.uploadButtonContainer, { 
                     backgroundColor: isDark ? '#1a1a1a' : '#ffffff',
-                    borderTopColor: isDark ? '#333333' : '#e0e0e0',
-                    marginHorizontal: isTablet ? -paddingHorizontal / 2 : 0,
-                    paddingHorizontal: isTablet ? paddingHorizontal : 16
+                    borderTopColor: isDark ? '#333333' : '#e0e0e0'
                   }]}>
                     {isExtracting ? (
                       <View style={styles.processingContainer}>
@@ -529,6 +518,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    paddingHorizontal: 16,
   },
   fileNameText: {
     fontSize: 16,

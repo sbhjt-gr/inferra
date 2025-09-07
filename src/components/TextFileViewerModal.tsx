@@ -12,7 +12,6 @@ import {
   TextInput,
   KeyboardAvoidingView,
 } from 'react-native';
-import { useResponsive } from '../hooks/useResponsive';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system';
 import { useTheme } from '../context/ThemeContext';
@@ -36,7 +35,6 @@ export default function TextFileViewerModal({
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
   const isDark = currentTheme === 'dark';
-  const { paddingHorizontal, isTablet } = useResponsive();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState<string>('');
@@ -129,7 +127,7 @@ export default function TextFileViewerModal({
         keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
       >
         <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#121212' : '#fff' }]}>
-          <View style={[styles.header, { paddingHorizontal }]}>
+          <View style={styles.header}>
             <Text 
               style={[
                 styles.fileNameText, 
@@ -149,13 +147,7 @@ export default function TextFileViewerModal({
             </TouchableOpacity>
           </View>
           
-          <View style={[
-            styles.contentContainer, 
-            { 
-              backgroundColor: isDark ? '#1e1e1e' : '#f5f5f5',
-              paddingHorizontal: isTablet ? paddingHorizontal / 2 : 16
-            }
-          ]}>
+          <View style={[styles.contentContainer, { backgroundColor: isDark ? '#1e1e1e' : '#f5f5f5' }]}>
             {loading ? (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color="#660880" />

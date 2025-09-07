@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { View, ScrollView, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
-import { useResponsive } from '../../hooks/useResponsive';
+import { View, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { Text, Button, ActivityIndicator, Searchbar, Portal, Dialog, Checkbox } from 'react-native-paper';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -24,7 +23,6 @@ interface UnifiedModelListProps {
   getAvailableFilterOptions: () => { tags: string[], modelFamilies: string[], quantizations: string[] };
   onCustomUrlPress: () => void;
   onGuidancePress: () => void;
-  gridColumns?: number;
 }
 
 interface ModelWarningDialogProps {
@@ -84,21 +82,11 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
   onFiltersChange,
   getAvailableFilterOptions,
   onCustomUrlPress,
-  onGuidancePress,
-  gridColumns = 1
+  onGuidancePress
 }) => {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme];
   const navigation = useNavigation();
-  const { isTablet, orientation, paddingHorizontal } = useResponsive();
-  const screenWidth = Dimensions.get('window').width;
-  const availableWidth = screenWidth - (paddingHorizontal * 2);
-  const needsHorizontalScroll = isTablet && orientation === 'portrait' && availableWidth < 700;
-  const adjustedGridColumns = isTablet && availableWidth < 800 ? 1 : gridColumns;
-  
-  const safeAvailableWidth = Math.max(availableWidth, 300);
-  const shouldForceSimpleLayout = availableWidth < 400;
-
 
   const [searchQuery, setSearchQuery] = useState('');
   const [hfModels, setHfModels] = useState<HFModel[]>([]);
@@ -494,85 +482,55 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
     );
   };
 
-  const renderHeader = () => (
-    <>
-      <TouchableOpacity
-        style={[styles.customUrlButton, { backgroundColor: themeColors.borderColor }, { marginBottom: 16 }]}
-        onPress={onCustomUrlPress}
+  return (
+    <View style={styles.container}>
+      <ScrollView 
+        style={{ flex: 1 }}
+        contentContainerStyle={{ padding: 16, paddingTop: 8 }}
+        showsVerticalScrollIndicator={false}
       >
-        <View style={styles.customUrlButtonContent}>
-          <View style={styles.customUrlIconContainer}>
-            <MaterialCommunityIcons name="plus-circle-outline" size={24} color={getThemeAwareColor('#4a0660', currentTheme)} />
-          </View>
-          <View style={styles.customUrlTextContainer}>
-            <Text style={[styles.customUrlButtonTitle, { color: themeColors.text }]}>
-              Download from URL
-            </Text>
-            <Text style={[styles.customUrlButtonSubtitle, { color: themeColors.secondaryText }]}>
-              Download a custom GGUF model from a URL
-            </Text>
-          </View>
-        </View>
-      </TouchableOpacity>
-
-      <Searchbar
-        placeholder="Search HuggingFace models..."
-        onChangeText={handleSearch}
-        value={searchQuery}
-        style={[styles.searchBar, { backgroundColor: themeColors.cardBackground }]}
-        inputStyle={{ color: themeColors.text }}
-        iconColor={themeColors.text}
-      />
-
-      {searchQuery.length > 0 && (
-        <View style={styles.searchActions}>
-          <Button
-            mode="outlined"
-            onPress={clearSearch}
-            style={styles.clearButton}
-            icon="close"
-          >
-            Clear Search
-          </Button>
-        </View>
-      )}
-
-      <ModelFilter
-        onFiltersChange={onFiltersChange}
-        availableTags={getAvailableFilterOptions().tags}
-        availableModelFamilies={getAvailableFilterOptions().modelFamilies}
-        availableQuantizations={getAvailableFilterOptions().quantizations}
-      />
-      
-      <TouchableOpacity
-        style={[styles.guidanceButton, { backgroundColor: themeColors.borderColor }]}
-        onPress={onGuidancePress}
-      >
-        <View style={styles.guidanceButtonContent}>
-          <MaterialCommunityIcons name="help-circle-outline" size={24} color={getThemeAwareColor('#4a0660', currentTheme)} />
-          <Text style={[styles.guidanceButtonText, { color: themeColors.text }]}>
-            I don't know what to download
-          </Text>
-        </View>
-      </TouchableOpacity>
-      
-      <View style={styles.sectionHeader}>
-        <Text style={[styles.sectionHeaderTitle, { color: themeColors.text }]}>
-          Curated Models ({curatedModels.length})
-        </Text>
-      </View>
-    </>
-  );
-
-  if (showingHfResults) {
-    return (
-      <View style={styles.container}>
-        <ScrollView 
-          style={{ flex: 1 }}
-          contentContainerStyle={{ padding: 16, paddingTop: 8 }}
-          showsVerticalScrollIndicator={false}
+        <TouchableOpacity
+          style={[styles.customUrlButton, { backgroundColor: themeColors.borderColor }, { marginBottom: 16 }]}
+          onPress={onCustomUrlPress}
         >
-          {renderHeader()}
+          <View style={styles.customUrlButtonContent}>
+            <View style={styles.customUrlIconContainer}>
+              <MaterialCommunityIcons name="plus-circle-outline" size={24} color={getThemeAwareColor('#4a0660', currentTheme)} />
+            </View>
+            <View style={styles.customUrlTextContainer}>
+              <Text style={[styles.customUrlButtonTitle, { color: themeColors.text }]}>
+                Download from URL
+              </Text>
+              <Text style={[styles.customUrlButtonSubtitle, { color: themeColors.secondaryText }]}>
+                Download a custom GGUF model from a URL
+              </Text>
+            </View>
+          </View>
+        </TouchableOpacity>
+
+        <Searchbar
+          placeholder="Search HuggingFace models..."
+          onChangeText={handleSearch}
+          value={searchQuery}
+          style={[styles.searchBar, { backgroundColor: themeColors.cardBackground }]}
+          inputStyle={{ color: themeColors.text }}
+          iconColor={themeColors.text}
+        />
+
+        {searchQuery.length > 0 && (
+          <View style={styles.searchActions}>
+            <Button
+              mode="outlined"
+              onPress={clearSearch}
+              style={styles.clearButton}
+              icon="close"
+            >
+              Clear Search
+            </Button>
+          </View>
+        )}
+
+        {showingHfResults ? (
           <View style={styles.hfSection}>
             <View style={styles.sectionHeader}>
               <Text style={[styles.sectionHeaderTitle, { color: themeColors.text }]}>
@@ -605,125 +563,45 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
               )
             )}
           </View>
-        </ScrollView>
-
-        {modelDetailsLoading && (
-          <Portal>
-            <Dialog visible={true}>
-              <Dialog.Content style={styles.loadingDialog}>
-                <ActivityIndicator size="large" />
-                <Text style={[styles.loadingDialogText, { color: themeColors.text }]}>Loading model details...</Text>
-              </Dialog.Content>
-            </Dialog>
-          </Portal>
-        )}
-
-        {renderModelDetails()}
-
-        <Portal>
-          <Dialog visible={dialogVisible} onDismiss={hideDialog}>
-            <Dialog.Title>{dialogTitle}</Dialog.Title>
-            <Dialog.Content>
-              <Text>{dialogMessage}</Text>
-            </Dialog.Content>
-            <Dialog.Actions>
-              <Button onPress={hideDialog}>OK</Button>
-            </Dialog.Actions>
-          </Dialog>
-        </Portal>
-
-        <ModelWarningDialog
-          visible={showWarningDialog}
-          onAccept={handleWarningAccept}
-          onCancel={handleWarningCancel}
-        />
-      </View>
-    );
-  }
-
-  if (shouldForceSimpleLayout) {
-    // Fallback for extremely narrow widths
-    return (
-      <View style={styles.container}>
-        <ScrollView 
-          style={{ flex: 1 }}
-          contentContainerStyle={{ padding: 8 }}
-          showsVerticalScrollIndicator={false}
-        >
-          <TouchableOpacity
-            style={[styles.customUrlButton, { backgroundColor: themeColors.borderColor, marginBottom: 12 }]}
-            onPress={onCustomUrlPress}
-          >
-            <Text style={[styles.customUrlButtonTitle, { color: themeColors.text, fontSize: 14 }]}>
-              Download from URL
-            </Text>
-          </TouchableOpacity>
-
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionHeaderTitle, { color: themeColors.text, fontSize: 16 }]}>
-              Models ({curatedModels.length})
-            </Text>
-          </View>
-
-          {curatedModels.map((model) => (
-            <DownloadableModelItem
-              key={model.name}
-              model={model}
-              isDownloaded={isModelDownloaded(model.name)}
-              isDownloading={Boolean(downloadProgress[model.name])}
-              isInitializing={false}
-              downloadProgress={downloadProgress[model.name]}
-              onDownload={handleCuratedModelDownload}
+        ) : (
+          <>
+            <ModelFilter
+              onFiltersChange={onFiltersChange}
+              availableTags={getAvailableFilterOptions().tags}
+              availableModelFamilies={getAvailableFilterOptions().modelFamilies}
+              availableQuantizations={getAvailableFilterOptions().quantizations}
             />
-          ))}
-        </ScrollView>
-
-        {modelDetailsLoading && (
-          <Portal>
-            <Dialog visible={true}>
-              <Dialog.Content style={styles.loadingDialog}>
-                <ActivityIndicator size="large" />
-                <Text style={[styles.loadingDialogText, { color: themeColors.text }]}>Loading...</Text>
-              </Dialog.Content>
-            </Dialog>
-          </Portal>
+            
+            <TouchableOpacity
+              style={[styles.guidanceButton, { backgroundColor: themeColors.borderColor }]}
+              onPress={onGuidancePress}
+            >
+              <View style={styles.guidanceButtonContent}>
+                <MaterialCommunityIcons name="help-circle-outline" size={24} color={getThemeAwareColor('#4a0660', currentTheme)} />
+                <Text style={[styles.guidanceButtonText, { color: themeColors.text }]}>
+                  I don't know what to download
+                </Text>
+              </View>
+            </TouchableOpacity>
+            
+            <View style={styles.curatedSection}>
+              <View style={styles.sectionHeader}>
+                <Text style={[styles.sectionHeaderTitle, { color: themeColors.text }]}>
+                  Curated Models ({curatedModels.length})
+                </Text>
+              </View>
+              
+              <DownloadableModelList 
+                models={curatedModels}
+                storedModels={storedModels}
+                downloadProgress={downloadProgress}
+                setDownloadProgress={setDownloadProgress}
+                onDownload={handleCuratedModelDownload}
+              />
+            </View>
+          </>
         )}
-
-        {renderModelDetails()}
-
-        <Portal>
-          <Dialog visible={dialogVisible} onDismiss={hideDialog}>
-            <Dialog.Title>{dialogTitle}</Dialog.Title>
-            <Dialog.Content>
-              <Text>{dialogMessage}</Text>
-            </Dialog.Content>
-            <Dialog.Actions>
-              <Button onPress={hideDialog}>OK</Button>
-            </Dialog.Actions>
-          </Dialog>
-        </Portal>
-
-        <ModelWarningDialog
-          visible={showWarningDialog}
-          onAccept={handleWarningAccept}
-          onCancel={handleWarningCancel}
-        />
-      </View>
-    );
-  }
-
-  return (
-    <View style={styles.container}>
-      <DownloadableModelList 
-        models={curatedModels}
-        storedModels={storedModels}
-        downloadProgress={downloadProgress}
-        setDownloadProgress={setDownloadProgress}
-        onDownload={handleCuratedModelDownload}
-        gridColumns={adjustedGridColumns}
-        needsHorizontalScroll={needsHorizontalScroll}
-        ListHeaderComponent={renderHeader}
-      />
+      </ScrollView>
 
       {modelDetailsLoading && (
         <Portal>

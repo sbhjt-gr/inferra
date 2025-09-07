@@ -13,7 +13,6 @@ import {
   AppState,
   AppStateStatus,
 } from 'react-native';
-import { useResponsive } from '../hooks/useResponsive';
 import { CompositeNavigationProp } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -26,8 +25,8 @@ import AppHeader from '../components/AppHeader';
 import CustomUrlDialog from '../components/CustomUrlDialog';
 import { modelDownloader } from '../services/ModelDownloader';
 import { useDownloads } from '../context/DownloadContext';
+import * as BackgroundTask from 'expo-background-task';
 import * as TaskManager from 'expo-task-manager';
-import * as BackgroundFetch from 'expo-background-fetch';
 import * as DocumentPicker from 'expo-document-picker';
 import { downloadNotificationService } from '../services/DownloadNotificationService';
 import { getThemeAwareColor } from '../utils/ColorUtils';
@@ -57,10 +56,10 @@ const BACKGROUND_DOWNLOAD_TASK = 'background-download-task';
 TaskManager.defineTask(BACKGROUND_DOWNLOAD_TASK, async ({ data, error }) => {
   if (error) {
     console.error('Background task error:', error);
-    return BackgroundFetch.BackgroundFetchResult.Failed;
+    return BackgroundTask.BackgroundTaskResult.Failed;
   }
   
-  return BackgroundFetch.BackgroundFetchResult.NewData;
+  return BackgroundTask.BackgroundTaskResult.Success;
 });
 
 const registerBackgroundTask = async () => {
@@ -72,10 +71,8 @@ const registerBackgroundTask = async () => {
       return;
     }
     
-    await BackgroundFetch.registerTaskAsync(BACKGROUND_DOWNLOAD_TASK, {
-      minimumInterval: 15 * 1000, // 15 seconds in milliseconds
-      stopOnTerminate: false,
-      startOnBoot: true
+    await BackgroundTask.registerTaskAsync(BACKGROUND_DOWNLOAD_TASK, {
+      minimumInterval: 15
     });
     console.log('Background download task registered in ModelScreen');
   } catch (err) {
@@ -87,7 +84,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
   const { theme: currentTheme } = useTheme();
   const { enableRemoteModels, isLoggedIn, checkLoginStatus } = useRemoteModel();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
-  const { gridColumns, paddingHorizontal } = useResponsive();
   const [activeTab, setActiveTab] = useState<'stored' | 'downloadable' | 'remote'>('stored');
   const [storedModels, setStoredModels] = useState<StoredModel[]>([]);
   const { downloadProgress, setDownloadProgress } = useDownloads();
@@ -648,7 +644,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         getAvailableFilterOptions={getAvailableFilterOptions}
         onCustomUrlPress={() => setCustomUrlDialogVisible(true)}
         onGuidancePress={() => setGuidanceDialogVisible(true)}
-        gridColumns={gridColumns}
       />
 
       <CustomUrlDialog
@@ -931,13 +926,13 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       <AppHeader 
         title="Models" 
         rightButtons={
-          <View style={{ flexDirection: 'row' }}>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
             <ProfileButton />
           </View>
         }
       />
       <View style={styles.content}>
-        <View style={[styles.tabContainer, { paddingHorizontal }]}>
+        <View style={styles.tabContainer}>
           <View style={[styles.segmentedControl, { backgroundColor: themeColors.borderColor }]}>
             <TouchableOpacity
               style={[
@@ -1010,16 +1005,13 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
           </View>
         </View>
 
-        <View style={[styles.contentContainer, { paddingHorizontal }]}>
+        <View style={styles.contentContainer}>
           {activeTab === 'stored' ? (
             <FlatList
               data={storedModels}
               renderItem={renderItem}
               keyExtractor={item => item.path}
-              numColumns={gridColumns}
-              key={gridColumns}
               contentContainerStyle={styles.list}
-              columnWrapperStyle={gridColumns > 1 ? styles.gridRow : undefined}
               ListHeaderComponent={StoredModelsHeader}
               ListEmptyComponent={
                 <View style={styles.emptyContainer}>
@@ -1089,11 +1081,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   tabContainer: {
+    paddingHorizontal: 16,
     paddingBottom: 16,
-  },
-  gridRow: {
-    justifyContent: 'space-between',
-    paddingHorizontal: 6,
   },
   segmentedControl: {
     flexDirection: 'row',
@@ -1133,6 +1122,7 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
   list: {
+    padding: 16,
     paddingTop: 8,
   },
   emptyContainer: {

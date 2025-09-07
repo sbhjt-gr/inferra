@@ -29,7 +29,7 @@ type ModelSettings = {
   dryPenaltyLastN: number;
   drySequenceBreakers: string[];
   ignoreEos: boolean;
-  logitBias: number[][];
+  logitBias: Array<Array<number>>;
   seed: number;
   xtcProbability: number;
   xtcThreshold: number;
