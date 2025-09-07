@@ -52,12 +52,12 @@ export default function ReportScreen({ navigation, route }: ReportScreenProps) {
   const [modelName, setModelName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
-  const [attachedMedia, setAttachedMedia] = useState<{
+  const [attachedMedia, setAttachedMedia] = useState<Array<{
     uri: string;
     type: 'image';
     fileName: string;
     fileSize: number;
-  }[]>([]);
+  }>>([]);
 
   const MAX_FILE_SIZE = 40 * 1024 * 1024;
   const MAX_ATTACHMENTS = 3;

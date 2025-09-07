@@ -11,8 +11,6 @@ import { TabParamList } from '../types/navigation';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import { OpenSansFont } from '../hooks/OpenSansFont';
-import { useResponsive } from '../hooks/useResponsive';
-import TabletLayout from '../components/TabletLayout';
 
 const Tab = createBottomTabNavigator<TabParamList>();
 
@@ -24,7 +22,6 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
   const { fonts } = OpenSansFont();
-  const { tabBarHeight, fontSize, isTablet } = useResponsive();
 
   useEffect(() => {
     const keyboardWillShowListener = Keyboard.addListener(
@@ -55,7 +52,7 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
       styles.tabBar,
       {
         backgroundColor: themeColors.tabBarBackground,
-        height: tabBarHeight + insets.bottom,
+        height: 70 + insets.bottom,
         paddingBottom: insets.bottom,
       }
     ]}>
@@ -100,15 +97,15 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
           >
             <MaterialCommunityIcons
               name={iconName as any}
-              size={isTablet ? 28 : 24}
+              size={24}
               color={isFocused ? themeColors.tabBarActiveText : themeColors.tabBarInactiveText}
             />
             <Text
               style={[
                 {
                   color: isFocused ? themeColors.tabBarActiveText : themeColors.tabBarInactiveText,
-                  fontSize: fontSize.small,
-                  marginTop: isTablet ? 6 : 4,
+                  fontSize: 12,
+                  marginTop: 4,
                 },
                 fonts.medium
               ]}
@@ -122,48 +119,31 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   );
 }
 
-function TabletTabBar({ state, navigation }: BottomTabBarProps) {
-  return (
-    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
-      <TabletLayout state={state} navigation={navigation}>
-        {null}
-      </TabletLayout>
-    </View>
-  );
-}
-
-// Empty component for tablet screens since TabletLayout handles rendering
-function EmptyScreen() {
-  return null;
-}
-
 export default function MainTabNavigator() {
-  const { isTablet } = useResponsive();
-
   return (
     <Tab.Navigator
-      tabBar={props => isTablet ? <TabletTabBar {...props} /> : <CustomTabBar {...props} />}
+      tabBar={props => <CustomTabBar {...props} />}
       screenOptions={{
         headerShown: false,
       }}
     >
       <Tab.Screen 
         name="HomeTab" 
-        component={isTablet ? EmptyScreen : HomeScreen} 
+        component={HomeScreen} 
         options={{ 
           tabBarLabel: 'Chat'
         }}
       />
       <Tab.Screen 
         name="ModelTab" 
-        component={isTablet ? EmptyScreen : ModelScreen}
+        component={ModelScreen}
         options={{ 
           tabBarLabel: 'Models'
         }}
       />
       <Tab.Screen 
         name="SettingsTab" 
-        component={isTablet ? EmptyScreen : SettingsScreen}
+        component={SettingsScreen}
         options={{ 
           tabBarLabel: 'Settings'
         }}

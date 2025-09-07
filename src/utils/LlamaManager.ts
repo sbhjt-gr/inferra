@@ -42,7 +42,7 @@ interface ModelSettings {
   dryPenaltyLastN: number;
   drySequenceBreakers: string[];
   ignoreEos: boolean;
-  logitBias: number[][];
+  logitBias: Array<Array<number>>;
   seed: number;
   xtcProbability: number;
   xtcThreshold: number;
@@ -539,7 +539,7 @@ class LlamaManager {
     });
   }
 
-  async setLogitBias(logitBias: number[][]) {
+  async setLogitBias(logitBias: Array<Array<number>>) {
     await this.updateSettings({ logitBias });
   }
 
@@ -601,7 +601,7 @@ class LlamaManager {
   }
 
   async generateResponse(
-    messages: { role: string; content: string }[],
+    messages: Array<{ role: string; content: string }>,
     onToken?: (token: string) => boolean | void
   ) {
     if (!this.context) {

@@ -3,7 +3,6 @@ import { View, Text, StyleSheet, Modal, TouchableOpacity, TextInput, Dimensions,
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useResponsive } from '../hooks/useResponsive';
 
 interface SystemPromptDialogProps {
   visible: boolean;
@@ -24,7 +23,6 @@ export default function SystemPromptDialog({
 }: SystemPromptDialogProps) {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme];
-  const { dialog } = useResponsive();
   const [currentValue, setCurrentValue] = useState('');
 
   useEffect(() => {
@@ -54,16 +52,7 @@ export default function SystemPromptDialog({
       onRequestClose={onClose}
     >
       <View style={styles.modalOverlay}>
-        <View style={[
-          styles.modalContent, 
-          { 
-            backgroundColor: themeColors.background,
-            width: dialog.width,
-            maxWidth: dialog.maxWidth,
-            padding: dialog.padding,
-            borderRadius: dialog.borderRadius,
-          }
-        ]}>
+        <View style={[styles.modalContent, { backgroundColor: themeColors.background }]}>
           <View style={styles.header}>
             <Text style={[styles.title, { color: themeColors.text }]}>System Prompt</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
@@ -82,11 +71,6 @@ export default function SystemPromptDialog({
                 color: themeColors.text,
                 backgroundColor: themeColors.borderColor + '40',
                 borderColor: themeColors.borderColor,
-                paddingHorizontal: dialog.inputPadding,
-                paddingVertical: dialog.inputPadding,
-                borderRadius: dialog.borderRadius / 2,
-                fontSize: 16,
-                minHeight: dialog.inputHeight * 4,
               },
             ]}
             value={currentValue}
@@ -101,14 +85,7 @@ export default function SystemPromptDialog({
           <View style={styles.footer}>
             {showResetButton && (
               <TouchableOpacity
-                style={[
-                  styles.resetButton, 
-                  { 
-                    backgroundColor: themeColors.primary + '20',
-                    height: dialog.buttonHeight,
-                    borderRadius: dialog.borderRadius / 2,
-                  }
-                ]}
+                style={[styles.resetButton, { backgroundColor: themeColors.primary + '20' }]}
                 onPress={handleReset}
               >
                 <MaterialCommunityIcons name="refresh" size={20} color={themeColors.primary} />
@@ -116,14 +93,7 @@ export default function SystemPromptDialog({
               </TouchableOpacity>
             )}
             <TouchableOpacity
-              style={[
-                styles.saveButton, 
-                { 
-                  backgroundColor: themeColors.primary,
-                  height: dialog.buttonHeight,
-                  borderRadius: dialog.borderRadius / 2,
-                }
-              ]}
+              style={[styles.saveButton, { backgroundColor: themeColors.primary }]}
               onPress={handleSave}
             >
               <Text style={styles.saveButtonText}>Save Changes</Text>
@@ -144,6 +114,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContent: {
+    width: Dimensions.get('window').width - 48,
+    borderRadius: 16,
+    padding: 24,
     maxHeight: Dimensions.get('window').height - 100,
   },
   header: {
@@ -165,7 +138,11 @@ const styles = StyleSheet.create({
   },
   input: {
     width: '100%',
+    height: 200,
     borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 16,
     marginBottom: 24,
   },
   footer: {
@@ -177,14 +154,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
+    padding: 12,
+    borderRadius: 12,
   },
   resetText: {
     fontSize: 16,
     fontWeight: '500',
   },
   saveButton: {
+    padding: 16,
+    borderRadius: 12,
     alignItems: 'center',
-    justifyContent: 'center',
   },
   saveButtonText: {
     color: '#FFFFFF',

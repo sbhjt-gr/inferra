@@ -12,7 +12,7 @@ export default {
     description: "AI-powered mobile chat assistant supporting both local and cloud-based language models. Features include AI text generation, image analysis, document processing, and multimodal interactions. All AI-generated content is clearly labeled for transparency.",
     privacy: "public",
     keywords: ["AI", "chat", "assistant", "machine learning", "language model", "artificial intelligence"],
-    newArchEnabled: false,
+    newArchEnabled: true,
     splash: {
       image: "./assets/icon.png",
       resizeMode: "cover",
@@ -39,33 +39,19 @@ export default {
       infoPlist: {
         UIBackgroundModes: [
           "fetch",
-          "remote-notification",
-          "background-processing"
+          "remote-notification"
         ],
         UIStatusBarStyle: "UIStatusBarStyleDefault",
-        UIViewControllerBasedStatusBarAppearance: true,
+        UIViewControllerBasedStatusBarAppearance: false,
         UIGestureRecognizerShouldBegin: false,
-        UINavigationControllerHidesBarsOnSwipe: false,
-        UISupportedInterfaceOrientations: [
-          'UIInterfaceOrientationPortrait',
-          'UIInterfaceOrientationLandscapeLeft',
-          'UIInterfaceOrientationLandscapeRight'
-        ],
-        UISupportedInterfaceOrientations_iPad: [
-          'UIInterfaceOrientationPortrait',
-          'UIInterfaceOrientationPortraitUpsideDown',
-          'UIInterfaceOrientationLandscapeLeft',
-          'UIInterfaceOrientationLandscapeRight'
-        ],
-        UIRequiresFullScreen: false,
-        UILaunchStoryboardName: "SplashScreen"
+        UINavigationControllerHidesBarsOnSwipe: false
       },
       scheme: "com.gorai.ragionare"
     },
     android: {
       versionCode: 260,
       adaptiveIcon: {
-        foregroundImage: "./assets/adaptive-icon.png",
+        foregroundImage: "./assets/icon.png",
         backgroundColor: "#660880"
       },
       package: "com.gorai.ragionare",
@@ -143,7 +129,6 @@ export default {
         "expo-build-properties",
         {
           android: {
-            minSdkVersion: 24,
             compileSdkVersion: 35,
             targetSdkVersion: 35,
             buildToolsVersion: '35.0.0',
@@ -155,7 +140,8 @@ export default {
             }
           },
           ios: {
-            deploymentTarget: "15.5"
+            deploymentTarget: "15.5",
+            useFrameworks: "static"
           }
         }
       ]

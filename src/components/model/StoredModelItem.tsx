@@ -4,8 +4,6 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../constants/theme';
 import { getThemeAwareColor, getDocumentIconColor } from '../../utils/ColorUtils';
-import { useResponsive } from '../../hooks/useResponsive';
-import { getResponsiveValue } from '../../utils/ResponsiveUtils';
 
 interface StoredModelProps {
   id: string;
@@ -46,21 +44,11 @@ const StoredModelItem: React.FC<StoredModelProps> = ({
 }) => {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
-  const { fontSize, isTablet } = useResponsive();
-  const marginHorizontal = getResponsiveValue(8, 16);
   const displayName = getDisplayName(name);
   const formattedSize = formatBytes(size);
 
   return (
-    <View style={[
-      styles.modelItem, 
-      { 
-        backgroundColor: themeColors.borderColor,
-        marginHorizontal: isTablet ? marginHorizontal / 2 : 0,
-        flex: isTablet ? 1 : undefined,
-        minWidth: isTablet ? 150 : undefined
-      }
-    ]}>
+    <View style={[styles.modelItem, { backgroundColor: themeColors.borderColor }]}>
       <View style={styles.modelIconContainer}>
         <MaterialCommunityIcons 
           name={isExternal ? "link" : "file-document-outline"} 
@@ -73,13 +61,13 @@ const StoredModelItem: React.FC<StoredModelProps> = ({
       </View>
       <View style={styles.modelInfo}>
         <View style={styles.modelHeader}>
-          <Text style={[styles.modelName, { color: themeColors.text, fontSize: fontSize.medium }]} numberOfLines={1}>
+          <Text style={[styles.modelName, { color: themeColors.text }]} numberOfLines={1}>
             {displayName}
           </Text>
           {isExternal ? (
             <View style={styles.externalBadgeContainer}>
               <MaterialCommunityIcons name="link" size={12} color="white" style={{ marginRight: 4 }} />
-              <Text style={[styles.externalBadgeText, { fontSize: fontSize.small }]}>External</Text>
+              <Text style={styles.externalBadgeText}>External</Text>
             </View>
           ) : ( 
             <></>
@@ -88,7 +76,7 @@ const StoredModelItem: React.FC<StoredModelProps> = ({
         <View style={styles.modelMetaInfo}>
           <View style={styles.metaItem}>
             <MaterialCommunityIcons name="disc" size={14} color={themeColors.secondaryText} />
-            <Text style={[styles.metaText, { color: themeColors.secondaryText, fontSize: fontSize.small }]}>
+            <Text style={[styles.metaText, { color: themeColors.secondaryText }]}>
               {formattedSize}
             </Text>
           </View>

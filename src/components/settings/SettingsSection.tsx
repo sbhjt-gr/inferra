@@ -2,8 +2,6 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../constants/theme';
-import { useResponsive } from '../../hooks/useResponsive';
-import { getResponsiveValue } from '../../utils/ResponsiveUtils';
 
 type SettingsSectionProps = {
   title: string;
@@ -13,12 +11,10 @@ type SettingsSectionProps = {
 const SettingsSection = ({ title, children }: SettingsSectionProps) => {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme];
-  const { fontSize } = useResponsive();
-  const marginHorizontal = getResponsiveValue(16, 32);
 
   return (
-    <View style={[styles.section, { marginHorizontal }]}>
-      <Text style={[styles.sectionTitle, { color: themeColors.secondaryText, fontSize: fontSize.small }]}>
+    <View style={styles.section}>
+      <Text style={[styles.sectionTitle, { color: themeColors.secondaryText }]}>
         {title}
       </Text>
       <View style={[styles.sectionContent, { backgroundColor: themeColors.borderColor }]}>
@@ -31,8 +27,10 @@ const SettingsSection = ({ title, children }: SettingsSectionProps) => {
 const styles = StyleSheet.create({
   section: {
     marginBottom: 24,
+    paddingHorizontal: 16,
   },
   sectionTitle: {
+    fontSize: 13,
     fontWeight: '600',
     marginBottom: 8,
     marginLeft: 12,

@@ -11,7 +11,6 @@ import {
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
-import { useResponsive } from '../hooks/useResponsive';
 
 interface MaxTokensDialogProps {
   visible: boolean;
@@ -28,7 +27,6 @@ export default function MaxTokensDialog({
 }: MaxTokensDialogProps) {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme];
-  const { dialog } = useResponsive();
   const [tokens, setTokens] = useState(currentValue.toString());
   const [error, setError] = useState<string | null>(null);
 
@@ -58,16 +56,7 @@ export default function MaxTokensDialog({
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.container}
       >
-        <View style={[
-          styles.dialog, 
-          { 
-            backgroundColor: themeColors.background,
-            width: dialog.width,
-            maxWidth: dialog.maxWidth,
-            padding: dialog.padding,
-            borderRadius: dialog.borderRadius,
-          }
-        ]}>
+        <View style={[styles.dialog, { backgroundColor: themeColors.background }]}>
           <Text style={[styles.title, { color: themeColors.text }]}>
             Max Response Tokens
           </Text>
@@ -81,11 +70,8 @@ export default function MaxTokensDialog({
               styles.input,
               { 
                 color: themeColors.text,
-                borderColor: error ? themeColors.error : themeColors.borderColor,
+                borderColor: error ? theme.light.error : themeColors.borderColor,
                 backgroundColor: themeColors.cardBackground,
-                height: dialog.inputHeight,
-                paddingHorizontal: dialog.inputPadding,
-                fontSize: 16,
               },
             ]}
             value={tokens}
@@ -97,7 +83,7 @@ export default function MaxTokensDialog({
           />
 
           {error && (
-            <Text style={[styles.error, { color: themeColors.error }]}>
+            <Text style={[styles.error, { color: theme.light.error }]}>
               {error}
             </Text>
           )}
@@ -108,14 +94,7 @@ export default function MaxTokensDialog({
 
           <View style={styles.buttonContainer}>
             <TouchableOpacity
-              style={[
-                styles.button, 
-                { 
-                  backgroundColor: themeColors.cardBackground,
-                  height: dialog.buttonHeight,
-                  borderRadius: dialog.borderRadius / 2,
-                }
-              ]}
+              style={[styles.button, { backgroundColor: themeColors.cardBackground }]}
               onPress={onClose}
             >
               <Text style={[styles.buttonText, { color: themeColors.text }]}>
@@ -123,14 +102,7 @@ export default function MaxTokensDialog({
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[
-                styles.button, 
-                { 
-                  backgroundColor: themeColors.primary,
-                  height: dialog.buttonHeight,
-                  borderRadius: dialog.borderRadius / 2,
-                }
-              ]}
+              style={[styles.button, { backgroundColor: themeColors.primary }]}
               onPress={handleSave}
             >
               <Text style={[styles.buttonText, { color: '#fff' }]}>
@@ -152,6 +124,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   dialog: {
+    width: '90%',
+    maxWidth: 400,
+    borderRadius: 16,
+    padding: 24,
     elevation: 5,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -169,7 +145,11 @@ const styles = StyleSheet.create({
   },
   input: {
     width: '100%',
+    height: 48,
     borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    fontSize: 16,
     marginBottom: 8,
   },
   error: {
@@ -187,9 +167,11 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   button: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
     minWidth: 100,
     alignItems: 'center',
-    justifyContent: 'center',
   },
   buttonText: {
     fontSize: 16,
