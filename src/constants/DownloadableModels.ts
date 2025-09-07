@@ -12,36 +12,36 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "quantization": "Q4_K_M",
     "tags": ["fastest", "edge"]
   },
-  {
-    "name": "LFM2-1.2B",
-    "description": "Liquid AI's hybrid model designed for edge AI and on-device deployment with exceptional efficiency.",
-    "size": "731 MB",
-    "huggingFaceLink": "https://huggingface.co/LiquidAI/LFM2-1.2B-GGUF/resolve/main/LFM2-1.2B-Q4_K_M.gguf",
-    "licenseLink": "https://huggingface.co/LiquidAI/LFM2-1.2B-GGUF/raw/main/LICENSE",
-    "modelFamily": "1.2 Billion",
-    "quantization": "Q4_K_M",
-    "tags": ["fastest", "edge"]
-  },
-  {
-    "name": "LFM2-VL-450M",
-    "description": "Liquid AI's compact vision-language model optimized for edge deployment with efficient multimodal capabilities.",
-    "size": "379 MB",
-    "huggingFaceLink": "https://huggingface.co/LiquidAI/LFM2-VL-450M-GGUF/resolve/main/LFM2-VL-450M-Q8_0.gguf",
-    "licenseLink": "https://huggingface.co/LiquidAI/LFM2-VL-450M-GGUF/raw/main/LICENSE",
-    "modelFamily": "450 Million",
-    "quantization": "Q8_0",
-    "tags": ["vision", "fastest", "edge"],
-    "modelType": ModelType.VISION,
-    "capabilities": ["vision", "text"],
-    "supportsMultimodal": true,
-    "additionalFiles": [
-      {
-        "name": "mmproj-LFM2-VL-450M-Q8_0.gguf",
-        "url": "https://huggingface.co/LiquidAI/LFM2-VL-450M-GGUF/resolve/main/mmproj-LFM2-VL-450M-Q8_0.gguf",
-        "description": "Multimodal projector for LFM2-VL-450M"
-      }
-    ]
-  },
+  // {
+  //   "name": "LFM2-1.2B",
+  //   "description": "Liquid AI's hybrid model designed for edge AI and on-device deployment with exceptional efficiency.",
+  //   "size": "731 MB",
+  //   "huggingFaceLink": "https://huggingface.co/LiquidAI/LFM2-1.2B-GGUF/resolve/main/LFM2-1.2B-Q4_K_M.gguf",
+  //   "licenseLink": "https://huggingface.co/LiquidAI/LFM2-1.2B-GGUF/raw/main/LICENSE",
+  //   "modelFamily": "1.2 Billion",
+  //   "quantization": "Q4_K_M",
+  //   "tags": ["fastest", "edge"]
+  // },
+  // {
+  //   "name": "LFM2-VL-450M",
+  //   "description": "Liquid AI's compact vision-language model optimized for edge deployment with efficient multimodal capabilities.",
+  //   "size": "379 MB",
+  //   "huggingFaceLink": "https://huggingface.co/LiquidAI/LFM2-VL-450M-GGUF/resolve/main/LFM2-VL-450M-Q8_0.gguf",
+  //   "licenseLink": "https://huggingface.co/LiquidAI/LFM2-VL-450M-GGUF/raw/main/LICENSE",
+  //   "modelFamily": "450 Million",
+  //   "quantization": "Q8_0",
+  //   "tags": ["vision", "fastest", "edge"],
+  //   "modelType": ModelType.VISION,
+  //   "capabilities": ["vision", "text"],
+  //   "supportsMultimodal": true,
+  //   "additionalFiles": [
+  //     {
+  //       "name": "mmproj-LFM2-VL-450M-Q8_0.gguf",
+  //       "url": "https://huggingface.co/LiquidAI/LFM2-VL-450M-GGUF/resolve/main/mmproj-LFM2-VL-450M-Q8_0.gguf",
+  //       "description": "Multimodal projector for LFM2-VL-450M"
+  //     }
+  //   ]
+  // },
   {
     "name": "MiniCPM4.1-8B",
     "description": "OpenBMB's ultra-efficient edge-optimized model with fusion thinking capabilities.",
