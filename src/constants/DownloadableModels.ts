@@ -3,6 +3,56 @@ import { ModelType } from "../types/models";
 
 export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
   {
+    "name": "Gemma 3 270M Instruct",
+    "description": "Google's ultra-compact instruction-tuned model with 270M parameters, perfect for edge devices.",
+    "size": "253 MB",
+    "huggingFaceLink": "https://huggingface.co/unsloth/gemma-3-270m-it-GGUF/resolve/main/gemma-3-270m-it-Q4_K_M.gguf",
+    "licenseLink": "https://ai.google.dev/gemma/terms",
+    "modelFamily": "270 Million",
+    "quantization": "Q4_K_M",
+    "tags": ["fastest", "edge"]
+  },
+  {
+    "name": "LFM2-1.2B",
+    "description": "Liquid AI's hybrid model designed for edge AI and on-device deployment with exceptional efficiency.",
+    "size": "731 MB",
+    "huggingFaceLink": "https://huggingface.co/LiquidAI/LFM2-1.2B-GGUF/resolve/main/LFM2-1.2B-Q4_K_M.gguf",
+    "licenseLink": "https://huggingface.co/LiquidAI/LFM2-1.2B-GGUF/raw/main/LICENSE",
+    "modelFamily": "1.2 Billion",
+    "quantization": "Q4_K_M",
+    "tags": ["fastest", "edge"]
+  },
+  {
+    "name": "LFM2-VL-450M",
+    "description": "Liquid AI's compact vision-language model optimized for edge deployment with efficient multimodal capabilities.",
+    "size": "379 MB",
+    "huggingFaceLink": "https://huggingface.co/LiquidAI/LFM2-VL-450M-GGUF/resolve/main/LFM2-VL-450M-Q8_0.gguf",
+    "licenseLink": "https://huggingface.co/LiquidAI/LFM2-VL-450M-GGUF/raw/main/LICENSE",
+    "modelFamily": "450 Million",
+    "quantization": "Q8_0",
+    "tags": ["vision", "fastest", "edge"],
+    "modelType": ModelType.VISION,
+    "capabilities": ["vision", "text"],
+    "supportsMultimodal": true,
+    "additionalFiles": [
+      {
+        "name": "mmproj-LFM2-VL-450M-Q8_0.gguf",
+        "url": "https://huggingface.co/LiquidAI/LFM2-VL-450M-GGUF/resolve/main/mmproj-LFM2-VL-450M-Q8_0.gguf",
+        "description": "Multimodal projector for LFM2-VL-450M"
+      }
+    ]
+  },
+  {
+    "name": "MiniCPM4.1-8B",
+    "description": "OpenBMB's ultra-efficient edge-optimized model with fusion thinking capabilities.",
+    "size": "4.97 GB",
+    "huggingFaceLink": "https://huggingface.co/openbmb/MiniCPM4.1-8B-GGUF/resolve/main/MiniCPM4.1-8B-Q4_K_M.gguf",
+    "licenseLink": "https://www.apache.org/licenses/LICENSE-2.0",
+    "modelFamily": "8 Billion",
+    "quantization": "Q4_K_M",
+    "tags": ["reasoning"]
+  },
+  {
     "name": "Gemma 3n-E4B Instruct (Q2_K)",
     "description": "Google's enhanced Gemma 3 variant with optimized efficiency and fast inference capabilities.",
     "size": "2.76 GB",

@@ -242,7 +242,7 @@ export default function ReportScreen({ navigation, route }: ReportScreenProps) {
               ]}
               value={description}
               onChangeText={setDescription}
-              placeholder="Please provide as many details as possible about your issue so that we can assist you quickly."
+              placeholder="Please provide as many details as possible about your issue so that I can assist you quickly."
               placeholderTextColor={themeColors.secondaryText}
               multiline
               numberOfLines={6}
@@ -383,7 +383,7 @@ export default function ReportScreen({ navigation, route }: ReportScreenProps) {
         >
           <Dialog.Title>Report Submitted</Dialog.Title>
           <Dialog.Content>
-            <Text>Thank you for your report. We will review it and take appropriate action.</Text>
+            <Text>Thank you for your report. I will review it and take appropriate action.</Text>
           </Dialog.Content>
           <Dialog.Actions>
             <Button onPress={() => {

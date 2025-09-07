@@ -698,12 +698,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
                 • <PaperText style={{ fontWeight: '600' }}>_K types:</PaperText> Mixed precision for better quality
               </PaperText>
 
-              <PaperText style={{ lineHeight: 20 }}>
-                • <PaperText style={{ fontWeight: '600' }}>Just starting?</PaperText> Gemma 3 - 1B{'\n'}
-                • <PaperText style={{ fontWeight: '600' }}>Want vision support?</PaperText> SmolVLM2 Instruct{'\n'}
-                • <PaperText style={{ fontWeight: '600' }}>Coding help?</PaperText> Qwen 2.5 Coder Instruct{'\n'}
-                • <PaperText style={{ fontWeight: '600' }}>More power?</PaperText> Try a 7B model like LLaMA 3.1
-              </PaperText>
             </ScrollView>
           </Dialog.Content>
           <Dialog.Actions>
