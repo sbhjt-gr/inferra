@@ -45,6 +45,7 @@ interface DownloadableModelItemProps {
     status: string;
   };
   onDownload: (model: DownloadableModel) => void;
+  onPress?: (model: DownloadableModel) => void;
 }
 
 const getProgressText = (data: any) => {
@@ -81,6 +82,7 @@ const DownloadableModelItem: React.FC<DownloadableModelItemProps> = ({
   isInitializing,
   downloadProgress,
   onDownload,
+  onPress,
 }) => {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
@@ -108,9 +110,11 @@ const DownloadableModelItem: React.FC<DownloadableModelItemProps> = ({
 
   return (
     <>
-      <View 
+      <TouchableOpacity 
         key={model.name} 
         style={[styles.downloadableCard, { backgroundColor: themeColors.borderColor }]}
+        onPress={() => onPress?.(model)}
+        activeOpacity={onPress ? 0.7 : 1}
       >
         <View style={styles.downloadableInfo}>
           <View style={styles.modelHeader}>
@@ -235,7 +239,7 @@ const DownloadableModelItem: React.FC<DownloadableModelItemProps> = ({
             </View>
           )}
         </View>
-      </View>
+      </TouchableOpacity>
 
       <Portal>
         <Dialog visible={dialogVisible} onDismiss={hideDialog}>
