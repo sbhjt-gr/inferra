@@ -12,6 +12,7 @@ import { modelDownloader } from '../../services/ModelDownloader';
 import DownloadableModelList from './DownloadableModelList';
 import DownloadableModelItem, { DownloadableModel } from './DownloadableModelItem';
 import ModelFilter, { FilterOptions } from '../ModelFilter';
+import { VisionDownloadDialog } from '../VisionDownloadDialog';
 
 interface UnifiedModelListProps {
   curatedModels: DownloadableModel[];
@@ -96,9 +97,18 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
   const [dialogVisible, setDialogVisible] = useState(false);
   const [dialogTitle, setDialogTitle] = useState('');
   const [dialogMessage, setDialogMessage] = useState('');
+  const [visionDialogVisible, setVisionDialogVisible] = useState(false);
+  const [selectedVisionModel, setSelectedVisionModel] = useState<DownloadableModel | null>(null);
   const [showingHfResults, setShowingHfResults] = useState(false);
   const [showWarningDialog, setShowWarningDialog] = useState(false);
   const [pendingDownload, setPendingDownload] = useState<{filename: string, downloadUrl: string, modelId: string} | null>(null);
+  const [pendingVisionDownload, setPendingVisionDownload] = useState<{
+    filename: string, 
+    downloadUrl: string, 
+    modelId: string, 
+    includeVision: boolean,
+    modelDetails: HFModelDetails
+  } | null>(null);
 
   const showDialog = (title: string, message: string) => {
     setDialogTitle(title);
@@ -240,8 +250,126 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
     await handleModelPress(hfModel);
   };
 
+  const handleVisionDownload = async (includeVision: boolean, projectionFile?: any) => {
+    if (!selectedVisionModel) return;
+
+    const hfModel = hfModels.find(hf => 
+      hf.id.includes(selectedVisionModel.name) || 
+      selectedVisionModel.name.includes(hf.id.split('/').pop() || '')
+    );
+    
+    if (!hfModel) {
+      showDialog('Error', 'Could not find model details');
+      return;
+    }
+
+    try {
+      const details = await huggingFaceService.getModelDetails(hfModel.id);
+      
+      const mainFile = details.files.find(f => 
+        f.filename.endsWith('.gguf') && !f.filename.toLowerCase().includes('mmproj')
+      );
+      
+      if (!mainFile) {
+        showDialog('Error', 'Could not find main model file');
+        return;
+      }
+
+      await startDownloadWithVisionSupport(mainFile.filename, mainFile.downloadUrl, details.id, includeVision, details);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      showDialog('Error', `Failed to load model details: ${errorMessage}`);
+    }
+  };
+
+  const startDownloadWithVisionSupport = async (
+    filename: string, 
+    downloadUrl: string, 
+    modelId: string, 
+    includeVision: boolean,
+    modelDetails: HFModelDetails
+  ) => {
+    const hideWarning = await AsyncStorage.getItem('hideModelWarning');
+    
+    const downloadFiles = [{ filename, downloadUrl }];
+    
+    if (includeVision) {
+      const mmprojFile = modelDetails.files.find(f => 
+        f.filename.toLowerCase().includes('mmproj') && f.filename.endsWith('.gguf')
+      );
+      
+      if (mmprojFile) {
+        downloadFiles.push({ 
+          filename: mmprojFile.filename, 
+          downloadUrl: mmprojFile.downloadUrl 
+        });
+      }
+    }
+
+    const startDownload = async () => {
+      navigation.navigate('Downloads' as never);
+
+      for (const file of downloadFiles) {
+        const fullFilename = `${modelId.replace('/', '_')}_${file.filename}`;
+        
+        try {
+          setDownloadProgress((prev: any) => ({
+            ...prev,
+            [fullFilename]: {
+              progress: 0,
+              bytesDownloaded: 0,
+              totalBytes: 0,
+              status: 'starting',
+              downloadId: 0
+            }
+          }));
+
+          const { downloadId } = await modelDownloader.downloadModel(file.downloadUrl, fullFilename);
+          
+          setDownloadProgress((prev: any) => ({
+            ...prev,
+            [fullFilename]: {
+              ...prev[fullFilename],
+              downloadId
+            }
+          }));
+
+        } catch (error) {
+          setDownloadProgress((prev: any) => {
+            const newProgress = { ...prev };
+            delete newProgress[fullFilename];
+            return newProgress;
+          });
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          showDialog('Download Error', `Failed to start download for ${file.filename}: ${errorMessage}`);
+        }
+      }
+    };
+
+    if (hideWarning === 'true') {
+      await startDownload();
+    } else {
+      setPendingVisionDownload({ filename, downloadUrl, modelId, includeVision, modelDetails });
+      setShowWarningDialog(true);
+    }
+  };
+
   const handleDownloadFile = async (filename: string, downloadUrl: string) => {
     const modelId = selectedModel?.id || '';
+    
+    const isVisionModel = selectedModel?.hasVision;
+    const isMainModelFile = filename.endsWith('.gguf') && !filename.toLowerCase().includes('mmproj');
+    
+    if (isVisionModel && isMainModelFile) {
+      const hfModel = hfModels.find(hf => hf.id === modelId);
+      if (hfModel) {
+        const convertedModel = convertHfModelToDownloadable(hfModel);
+        setSelectedModel(null);
+        setSelectedVisionModel(convertedModel);
+        setVisionDialogVisible(true);
+        return;
+      }
+    }
     
     setSelectedModel(null);
     
@@ -317,7 +445,65 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
     
     setShowWarningDialog(false);
     
-    if (pendingDownload) {
+    if (pendingVisionDownload) {
+      navigation.navigate('Downloads' as never);
+      
+      const downloadFiles = [{ 
+        filename: pendingVisionDownload.filename, 
+        downloadUrl: pendingVisionDownload.downloadUrl 
+      }];
+      
+      if (pendingVisionDownload.includeVision) {
+        const mmprojFile = pendingVisionDownload.modelDetails.files.find(f => 
+          f.filename.toLowerCase().includes('mmproj') && f.filename.endsWith('.gguf')
+        );
+        
+        if (mmprojFile) {
+          downloadFiles.push({ 
+            filename: mmprojFile.filename, 
+            downloadUrl: mmprojFile.downloadUrl 
+          });
+        }
+      }
+
+      for (const file of downloadFiles) {
+        const fullFilename = `${pendingVisionDownload.modelId.replace('/', '_')}_${file.filename}`;
+        
+        try {
+          setDownloadProgress((prev: any) => ({
+            ...prev,
+            [fullFilename]: {
+              progress: 0,
+              bytesDownloaded: 0,
+              totalBytes: 0,
+              status: 'starting',
+              downloadId: 0
+            }
+          }));
+
+          const { downloadId } = await modelDownloader.downloadModel(file.downloadUrl, fullFilename);
+          
+          setDownloadProgress((prev: any) => ({
+            ...prev,
+            [fullFilename]: {
+              ...prev[fullFilename],
+              downloadId
+            }
+          }));
+
+        } catch (error) {
+          setDownloadProgress((prev: any) => {
+            const newProgress = { ...prev };
+            delete newProgress[fullFilename];
+            return newProgress;
+          });
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          showDialog('Download Error', `Failed to start download for ${file.filename}: ${errorMessage}`);
+        }
+      }
+      
+      setPendingVisionDownload(null);
+    } else if (pendingDownload) {
       const isHuggingFaceModel = pendingDownload.modelId.includes('/');
       
       if (isHuggingFaceModel) {
@@ -340,6 +526,7 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
   const handleWarningCancel = () => {
     setShowWarningDialog(false);
     setPendingDownload(null);
+    setPendingVisionDownload(null);
   };
 
   const handleCuratedModelDownload = async (model: DownloadableModel) => {
@@ -453,6 +640,14 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
                             {huggingFaceService.extractQuantization(file.filename)}
                           </Text>
                         </View>
+                        {file.filename.toLowerCase().includes('mmproj') && (
+                          <View style={styles.fileMetaItem}>
+                            <MaterialCommunityIcons name="eye-settings" size={14} color="#9C27B0" />
+                            <Text style={[styles.fileMetaText, { color: '#9C27B0' }]}>
+                              Vision
+                            </Text>
+                          </View>
+                        )}
                       </View>
                     </View>
                     
@@ -560,6 +755,7 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
                     isDownloading={false}
                     isInitializing={false}
                     onDownload={handleHfModelDownload}
+                    onPress={() => handleModelPress(hfModel)}
                   />
                 );
               })
@@ -641,6 +837,18 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
         onAccept={handleWarningAccept}
         onCancel={handleWarningCancel}
       />
+
+      {selectedVisionModel && (
+        <VisionDownloadDialog
+          visible={visionDialogVisible}
+          onDismiss={() => {
+            setVisionDialogVisible(false);
+            setSelectedVisionModel(null);
+          }}
+          model={selectedVisionModel}
+          onDownload={handleVisionDownload}
+        />
+      )}
     </View>
   );
 };
