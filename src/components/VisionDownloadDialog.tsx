@@ -29,7 +29,6 @@ const VisionDownloadDialog: React.FC<VisionDownloadDialogProps> = ({
 
   const projectionFiles = useMemo(() => {
     if (!model?.additionalFiles) return [];
-    // Filter for mmproj files based on filename pattern
     return model.additionalFiles.filter(file => 
       file.name.toLowerCase().includes('mmproj') && file.name.endsWith('.gguf')
     );

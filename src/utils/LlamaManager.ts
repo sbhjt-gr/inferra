@@ -152,31 +152,24 @@ class LlamaManager {
         }
       }
 
-      const modelInfo = await loadLlamaModelInfo(finalModelPath);
-
-      // Ensure proper cleanup with delay to prevent concurrent modification
       if (this.context) {
         console.log('[LlamaManager] Releasing existing context...');
         this.isCancelled = true;
         this.clearTokenQueue();
         
-        // Release multimodal first
         try {
           if (this.isMultimodalEnabled) {
             console.log('[LlamaManager] Releasing multimodal context...');
             await this.releaseMultimodal();
-            // Small delay to ensure cleanup is complete
             await new Promise(resolve => setTimeout(resolve, 100));
           }
         } catch (releaseError) {
           console.warn('[LlamaManager] Warning during multimodal release:', releaseError);
         }
         
-        // Release main context
         try {
           console.log('[LlamaManager] Releasing main context...');
           await this.context.release();
-          // Small delay to ensure cleanup is complete
           await new Promise(resolve => setTimeout(resolve, 200));
         } catch (releaseError) {
           console.warn('[LlamaManager] Warning during context release:', releaseError);
@@ -205,11 +198,9 @@ class LlamaManager {
         ctx_shift: false,
       });
 
-      // Initialize multimodal with proper error handling
       if (mmProjectorPath && this.context) {
         console.log('[LlamaManager] Initializing multimodal capabilities with projector:', mmProjectorPath);
         
-        // Add delay to ensure main context is fully initialized
         await new Promise(resolve => setTimeout(resolve, 300));
         
         try {
@@ -230,7 +221,6 @@ class LlamaManager {
           }
         } catch (multimodalError) {
           console.error('[LlamaManager] Error during multimodal initialization:', multimodalError);
-          // Continue without multimodal support rather than failing completely
           this.isMultimodalEnabled = false;
           this.multimodalSupport = { vision: false, audio: false };
         }
@@ -238,7 +228,6 @@ class LlamaManager {
 
       return this.context;
     } catch (error) {
-      // Clean up on error
       if (this.context) {
         try {
           await this.releaseMultimodal();
@@ -267,7 +256,6 @@ class LlamaManager {
 
       console.log('[LlamaManager] Attempting to initialize multimodal with path:', finalProjectorPath);
 
-      // Add retry logic for concurrent modification issues
       let retryCount = 0;
       const maxRetries = 3;
       
@@ -279,7 +267,6 @@ class LlamaManager {
           });
 
           if (success) {
-            // Add delay before checking status to prevent concurrent access
             await new Promise(resolve => setTimeout(resolve, 200));
             
             try {
@@ -294,7 +281,6 @@ class LlamaManager {
               return true;
             } catch (statusError) {
               console.error('[LlamaManager] Error checking multimodal status:', statusError);
-              // If status check fails but init succeeded, assume it worked
               this.isMultimodalEnabled = true;
               this.multimodalSupport = { vision: true, audio: false };
               this.mmProjectorPath = finalProjectorPath;
@@ -302,7 +288,7 @@ class LlamaManager {
             }
           } else {
             console.error('[LlamaManager] Multimodal initialization returned false');
-            break; // Don't retry if the method explicitly returns false
+            break;
           }
         } catch (error) {
           retryCount++;
@@ -314,12 +300,11 @@ class LlamaManager {
             await new Promise(resolve => setTimeout(resolve, 500));
             continue;
           } else {
-            throw error; // Re-throw if not a concurrent modification or max retries reached
+            throw error;
           }
         }
       }
 
-      // If we get here, all retries failed
       this.isMultimodalEnabled = false;
       this.multimodalSupport = { vision: false, audio: false };
       return false;
@@ -337,14 +322,13 @@ class LlamaManager {
       if (this.context && this.isMultimodalEnabled) {
         console.log('[LlamaManager] Releasing multimodal context...');
         
-        // Add retry logic for concurrent modification issues
         let retryCount = 0;
         const maxRetries = 3;
         
         while (retryCount < maxRetries) {
           try {
             await this.context.releaseMultimodal();
-            break; // Success, exit retry loop
+            break;
           } catch (error) {
             retryCount++;
             const errorMessage = error instanceof Error ? error.message : String(error);
@@ -354,7 +338,7 @@ class LlamaManager {
               continue;
             } else {
               console.error('[LlamaManager] Error releasing multimodal context:', error);
-              break; // Don't continue retrying for other types of errors
+              break;
             }
           }
         }
@@ -366,7 +350,6 @@ class LlamaManager {
       }
     } catch (error) {
       console.error('[LlamaManager] Error releasing multimodal context:', error);
-      // Force reset state even if release failed
       this.isMultimodalEnabled = false;
       this.multimodalSupport = { vision: false, audio: false };
       this.mmProjectorPath = null;
