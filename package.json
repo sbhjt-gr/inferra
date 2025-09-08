@@ -74,6 +74,7 @@
     "react-native-edge-to-edge": "1.6.0",
     "react-native-gesture-handler": "~2.24.0",
     "react-native-get-random-values": "^1.11.0",
+    "react-native-in-app-review": "^4.4.2",
     "react-native-markdown-display": "^7.0.2",
     "react-native-paper": "^5.13.1",
     "react-native-pdf-page-image": "^0.2.1",

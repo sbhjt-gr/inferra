@@ -40,6 +40,8 @@ import { useDownloads } from '../context/DownloadContext';
 import { modelDownloader } from '../services/ModelDownloader';
 import { useRemoteModel } from '../context/RemoteModelContext';
 import { modelSettingsService } from '../services/ModelSettingsService';
+import { usageTrackingService } from '../services/UsageTrackingService';
+import { inAppReviewService } from '../services/InAppReviewService';
 
 const windowWidth = Dimensions.get('window').width;
 
@@ -169,6 +171,20 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   useFocusEffect(
     useCallback(() => {
       modelSelectorRef.current?.refreshModels();
+      
+      const initializeSessionAndReview = async () => {
+        await usageTrackingService.startSession();
+        
+        setTimeout(async () => {
+          try {
+            await inAppReviewService.checkAndRequestReview();
+          } catch (error) {
+            console.error('Error checking in-app review:', error);
+          }
+        }, 2000);
+      };
+      
+      initializeSessionAndReview();
     }, [])
   );
 
@@ -290,6 +306,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
           nextAppState === 'active'
         ) {
           loadCurrentChat();
+          usageTrackingService.startSession();
+          inAppReviewService.resetSessionCheck();
         } else if (
           appStateRef.current === 'active' &&
           nextAppState.match(/inactive|background/)
@@ -297,6 +315,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
           if (chat && messages.some(msg => msg.role === 'user' || msg.role === 'assistant')) {
             saveMessages(messages);
           }
+          usageTrackingService.endSession();
         }
         
         appStateRef.current = nextAppState;
