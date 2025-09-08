@@ -33,6 +33,7 @@ export default {
       bundleIdentifier: "com.gorai.ragionare",
       buildNumber: "260",
       runtimeVersion: "2.6.0",
+      googleServicesFile: "./ios/GoogleService-Info.plist",
       updates: {
         enabled: false
       },
@@ -56,6 +57,7 @@ export default {
       },
       package: "com.gorai.ragionare",
       runtimeVersion: "2.6.0",
+      googleServicesFile: "./android/app/google-services.json",
       edgeToEdgeEnabled: true,
       resizeableActivity: true,
       supportsFreeform: true,
@@ -98,23 +100,13 @@ export default {
       eas: {
         projectId: process.env.EAS_PROJECT_ID
       },
-      FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID,
-      FIREBASE_STORAGE_BUCKET: process.env.FIREBASE_STORAGE_BUCKET,
-      FIREBASE_MESSAGING_SENDER_ID: process.env.FIREBASE_MESSAGING_SENDER_ID,
-      FIREBASE_AUTH_DOMAIN: process.env.FIREBASE_AUTH_DOMAIN,
-      FIREBASE_ANDROID_API_KEY: process.env.FIREBASE_ANDROID_API_KEY,
-      FIREBASE_ANDROID_APP_ID: process.env.FIREBASE_ANDROID_APP_ID,
-      FIREBASE_IOS_API_KEY: process.env.FIREBASE_IOS_API_KEY,
-      FIREBASE_IOS_APP_ID: process.env.FIREBASE_IOS_APP_ID,
-      FIREBASE_IOS_CLIENT_ID: process.env.FIREBASE_IOS_CLIENT_ID,
-      FIREBASE_IOS_REVERSED_CLIENT_ID: process.env.FIREBASE_IOS_REVERSED_CLIENT_ID,
-      FIREBASE_IOS_BUNDLE_ID: process.env.FIREBASE_IOS_BUNDLE_ID,
     },
     experiments: {
       typedRoutes: true
     },
     plugins: [
       "react-native-edge-to-edge",
+      "@react-native-firebase/app",
       [
         
         "expo-splash-screen",

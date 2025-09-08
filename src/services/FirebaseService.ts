@@ -1,4 +1,5 @@
 export {
+  initializeFirebase,
   isFirebaseReady,
   testFirebaseConnection,
   registerWithEmail,
