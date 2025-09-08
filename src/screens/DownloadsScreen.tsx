@@ -320,6 +320,7 @@ export default function DownloadsScreen() {
         title="Active Downloads"
         showBackButton
         showLogo={false}
+        rightButtons={[]}
       />
       
       <View style={[styles.container, { backgroundColor: themeColors.background }]}>

@@ -12,7 +12,7 @@ import { modelDownloader } from '../../services/ModelDownloader';
 import DownloadableModelList from './DownloadableModelList';
 import DownloadableModelItem, { DownloadableModel } from './DownloadableModelItem';
 import ModelFilter, { FilterOptions } from '../ModelFilter';
-import { VisionDownloadDialog } from '../VisionDownloadDialog';
+import VisionDownloadDialog from '../VisionDownloadDialog';
 
 interface UnifiedModelListProps {
   curatedModels: DownloadableModel[];
@@ -51,7 +51,7 @@ const ModelWarningDialog: React.FC<ModelWarningDialogProps> = ({
         
         <Dialog.Content style={styles.warningContent}>
           <Text style={[styles.warningText, { color: themeColors.text }]}>
-            <Text style={{ fontWeight: 'bold' }}>Important:</Text> We do not own these models. They may generate harmful, biased, or inappropriate content. Use responsibly and at your own discretion.
+            <Text style={{ fontWeight: 'bold' }}>Important:</Text> I do not own these models. They may generate harmful, biased, or inappropriate content. Use responsibly and at your own discretion.
           </Text>
           
           <View style={styles.checkboxContainer}>
@@ -109,6 +109,7 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
     includeVision: boolean,
     modelDetails: HFModelDetails
   } | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
 
   const showDialog = (title: string, message: string) => {
     setDialogTitle(title);
@@ -228,6 +229,7 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
   const handleModelPress = async (model: HFModel) => {
     setModelDetailsLoading(true);
     setSelectedModel(null);
+    setSelectedFiles(new Set());
     
     try {
       const details = await huggingFaceService.getModelDetails(model.id);
@@ -372,6 +374,7 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
     }
     
     setSelectedModel(null);
+    setSelectedFiles(new Set());
     
     try {
       const hideWarning = await AsyncStorage.getItem('hideModelWarning');
@@ -388,6 +391,105 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
       setPendingDownload({ filename, downloadUrl, modelId });
       setShowWarningDialog(true);
     }
+  };
+
+  const handleDownloadSelected = async () => {
+    if (!selectedModel || selectedFiles.size === 0) return;
+
+    const modelId = selectedModel.id;
+    const filesToDownload = selectedModel.files.filter(file => selectedFiles.has(file.filename));
+    
+    setSelectedModel(null);
+    setSelectedFiles(new Set());
+
+    try {
+      const hideWarning = await AsyncStorage.getItem('hideModelWarning');
+      const shouldShowWarning = hideWarning !== 'true';
+      
+      if (shouldShowWarning) {
+        setPendingDownload({ 
+          filename: `${filesToDownload.length} files`, 
+          downloadUrl: '', 
+          modelId: JSON.stringify(filesToDownload.map(f => ({ filename: f.filename, downloadUrl: f.downloadUrl })))
+        });
+        setShowWarningDialog(true);
+        return;
+      }
+      
+      await proceedWithMultipleDownloads(filesToDownload, modelId);
+    } catch (error) {
+      setPendingDownload({ 
+        filename: `${filesToDownload.length} files`, 
+        downloadUrl: '', 
+        modelId: JSON.stringify(filesToDownload.map(f => ({ filename: f.filename, downloadUrl: f.downloadUrl })))
+      });
+      setShowWarningDialog(true);
+    }
+  };
+
+  const proceedWithMultipleDownloads = async (files: any[], modelId: string) => {
+    navigation.navigate('Downloads' as never);
+
+    for (const file of files) {
+      const fullFilename = `${modelId.replace('/', '_')}_${file.filename}`;
+      
+      if (isModelDownloaded(fullFilename)) {
+        continue;
+      }
+
+      try {
+        setDownloadProgress((prev: any) => ({
+          ...prev,
+          [fullFilename]: {
+            progress: 0,
+            bytesDownloaded: 0,
+            totalBytes: 0,
+            status: 'starting',
+            downloadId: 0
+          }
+        }));
+
+        const { downloadId } = await modelDownloader.downloadModel(file.downloadUrl, fullFilename);
+        
+        setDownloadProgress((prev: any) => ({
+          ...prev,
+          [fullFilename]: {
+            ...prev[fullFilename],
+            downloadId
+          }
+        }));
+
+      } catch (error) {
+        setDownloadProgress((prev: any) => {
+          const newProgress = { ...prev };
+          delete newProgress[fullFilename];
+          return newProgress;
+        });
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        showDialog('Download Error', `Failed to start download for ${file.filename}: ${errorMessage}`);
+      }
+    }
+  };
+
+  const toggleFileSelection = (filename: string) => {
+    setSelectedFiles(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(filename)) {
+        newSet.delete(filename);
+      } else {
+        newSet.add(filename);
+      }
+      return newSet;
+    });
+  };
+
+  const selectAllFiles = () => {
+    if (!selectedModel) return;
+    setSelectedFiles(new Set(selectedModel.files.map(f => f.filename)));
+  };
+
+  const deselectAllFiles = () => {
+    setSelectedFiles(new Set());
   };
 
   const proceedWithDownload = async (filename: string, downloadUrl: string, modelId?: string) => {
@@ -505,8 +607,16 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
       setPendingVisionDownload(null);
     } else if (pendingDownload) {
       const isHuggingFaceModel = pendingDownload.modelId.includes('/');
+      const isMultipleFiles = pendingDownload.modelId.startsWith('[');
       
-      if (isHuggingFaceModel) {
+      if (isMultipleFiles) {
+        try {
+          const filesToDownload = JSON.parse(pendingDownload.modelId);
+          await proceedWithMultipleDownloads(filesToDownload, selectedModel?.id || '');
+        } catch (error) {
+          showDialog('Download Error', 'Failed to parse selected files for download');
+        }
+      } else if (isHuggingFaceModel) {
         await proceedWithDownload(pendingDownload.filename, pendingDownload.downloadUrl, pendingDownload.modelId);
       } else {
         const curatedModel: DownloadableModel = {
@@ -600,82 +710,127 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
   const renderModelDetails = () => {
     if (!selectedModel) return null;
 
+    const allSelected = selectedFiles.size === selectedModel.files.length;
+    const someSelected = selectedFiles.size > 0;
+
     return (
       <Portal>
         <Dialog
           visible={!!selectedModel}
-          onDismiss={() => setSelectedModel(null)}
+          onDismiss={() => {
+            setSelectedModel(null);
+            setSelectedFiles(new Set());
+          }}
           style={styles.detailDialog}
         >
-          <Dialog.Title style={styles.dialogTitle}>
+          <Dialog.Title style={[styles.dialogTitle, { color: themeColors.text }]}>
             {selectedModel.id}
           </Dialog.Title>
           
-          <Dialog.ScrollArea style={styles.dialogScrollArea}>
+          <Dialog.ScrollArea style={[styles.dialogScrollArea, { paddingTop: 16 }]}>
             <ScrollView style={styles.detailContent} showsVerticalScrollIndicator={false} contentContainerStyle={styles.dialogContentContainer}>
               <View style={styles.filesHeader}>
-                <Text style={styles.sectionTitle}>Available Model Files</Text>
-                <Text style={[styles.sectionSubtitle, { color: themeColors.textSecondary }]}>
-                  {selectedModel.files.length} file{selectedModel.files.length !== 1 ? 's' : ''} available for download
-                </Text>
+                <View style={styles.filesHeaderTop}>
+                  <View>
+                    <Text style={[styles.sectionTitle, { color: themeColors.text }]}>Available Model Files</Text>
+                    <Text style={[styles.sectionSubtitle, { color: themeColors.textSecondary }]}>
+                      {selectedModel.files.length} file{selectedModel.files.length !== 1 ? 's' : ''} available for download
+                    </Text>
+                  </View>
+                  <View style={styles.selectionControls}>
+                    <Button
+                      mode="text"
+                      compact
+                      onPress={allSelected ? deselectAllFiles : selectAllFiles}
+                      style={styles.selectionButton}
+                      textColor={themeColors.primary}
+                    >
+                      {allSelected ? 'Deselect All' : 'Select All'}
+                    </Button>
+                  </View>
+                </View>
               </View>
               
-              {selectedModel.files.map((file, index) => (
-                <View key={index} style={[styles.fileItem, { backgroundColor: themeColors.cardBackground }]}>
-                  <View style={styles.fileContent}>
-                    <View style={styles.fileMainInfo}>
-                      <Text style={[styles.fileName, { color: themeColors.text }]} numberOfLines={1}>
-                        {file.filename}
-                      </Text>
-                      <View style={styles.fileMetaContainer}>
-                        <View style={styles.fileMetaItem}>
-                          <MaterialCommunityIcons name="download" size={14} color={themeColors.textSecondary} />
-                          <Text style={[styles.fileMetaText, { color: themeColors.textSecondary }]}>
-                            {huggingFaceService.formatModelSize(file.size)}
-                          </Text>
-                        </View>
-                        <View style={styles.fileMetaItem}>
-                          <MaterialCommunityIcons name="cog" size={14} color={themeColors.textSecondary} />
-                          <Text style={[styles.fileMetaText, { color: themeColors.textSecondary }]}>
-                            {huggingFaceService.extractQuantization(file.filename)}
-                          </Text>
-                        </View>
-                        {file.filename.toLowerCase().includes('mmproj') && (
+              {selectedModel.files.map((file, index) => {
+                const isSelected = selectedFiles.has(file.filename);
+                return (
+                  <View key={index} style={[styles.fileItem, { backgroundColor: themeColors.cardBackground }]}>
+                    <View style={styles.fileContent}>
+                      <View style={styles.fileCheckbox}>
+                        <Checkbox
+                          status={isSelected ? 'checked' : 'unchecked'}
+                          onPress={() => toggleFileSelection(file.filename)}
+                          color={themeColors.primary}
+                        />
+                      </View>
+                      <View style={styles.fileMainInfo}>
+                        <Text style={[styles.fileName, { color: themeColors.text }]} numberOfLines={1}>
+                          {file.filename}
+                        </Text>
+                        <View style={styles.fileMetaContainer}>
                           <View style={styles.fileMetaItem}>
-                            <MaterialCommunityIcons name="eye-settings" size={14} color="#9C27B0" />
-                            <Text style={[styles.fileMetaText, { color: '#9C27B0' }]}>
-                              Vision
+                            <MaterialCommunityIcons name="download" size={14} color={themeColors.textSecondary} />
+                            <Text style={[styles.fileMetaText, { color: themeColors.textSecondary }]}>
+                              {huggingFaceService.formatModelSize(file.size)}
                             </Text>
                           </View>
-                        )}
+                          <View style={styles.fileMetaItem}>
+                            <MaterialCommunityIcons name="cog" size={14} color={themeColors.textSecondary} />
+                            <Text style={[styles.fileMetaText, { color: themeColors.textSecondary }]}>
+                              {huggingFaceService.extractQuantization(file.filename)}
+                            </Text>
+                          </View>
+                          {file.filename.toLowerCase().includes('mmproj') && (
+                            <View style={styles.fileMetaItem}>
+                              <MaterialCommunityIcons name="eye-settings" size={14} color="#9C27B0" />
+                              <Text style={[styles.fileMetaText, { color: '#9C27B0' }]}>
+                                Vision
+                              </Text>
+                            </View>
+                          )}
+                        </View>
                       </View>
                     </View>
                     
                     <Button
                       mode="contained"
-                      style={[styles.downloadButton, { backgroundColor: themeColors.primary }]}
-                      contentStyle={styles.downloadButtonContent}
+                      style={[styles.fileDownloadButton, { backgroundColor: themeColors.primary }]}
+                      contentStyle={styles.fileDownloadButtonContent}
                       onPress={() => handleDownloadFile(file.filename, file.downloadUrl)}
                       icon="download"
-                      compact
+                      textColor="white"
                     >
                       Download
                     </Button>
+                    
+                    {index < selectedModel.files.length - 1 && (
+                      <View style={[styles.fileDivider, { backgroundColor: themeColors.borderColor + '40' }]} />
+                    )}
                   </View>
-                  
-                  {index < selectedModel.files.length - 1 && (
-                    <View style={[styles.fileDivider, { backgroundColor: themeColors.borderColor + '40' }]} />
-                  )}
-                </View>
-              ))}
+                );
+              })}
             </ScrollView>
           </Dialog.ScrollArea>
           
           <Dialog.Actions style={styles.dialogActions}>
+            {someSelected && (
+              <Button 
+                mode="contained"
+                onPress={handleDownloadSelected}
+                style={[styles.batchDownloadButton, { backgroundColor: themeColors.primary }]}
+                icon="download-multiple"
+                textColor="white"
+              >
+                Download Selected ({selectedFiles.size})
+              </Button>
+            )}
             <Button 
-              onPress={() => setSelectedModel(null)}
+              onPress={() => {
+                setSelectedModel(null);
+                setSelectedFiles(new Set());
+              }}
               style={styles.closeButton}
-              labelStyle={styles.closeButtonText}
+              labelStyle={[styles.closeButtonText, { color: themeColors.text }]}
             >
               Close
             </Button>
@@ -956,6 +1111,18 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     paddingHorizontal: 4,
   },
+  filesHeaderTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  selectionControls: {
+    alignItems: 'flex-end',
+  },
+  selectionButton: {
+    minWidth: 80,
+  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
@@ -977,6 +1144,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  fileCheckbox: {
+    marginRight: 8,
   },
   fileMainInfo: {
     flex: 1,
@@ -1006,12 +1176,27 @@ const styles = StyleSheet.create({
   downloadButtonContent: {
     height: 36,
   },
+  fileDownloadButton: {
+    marginTop: 12,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    width: '100%',
+  },
+  fileDownloadButtonContent: {
+    height: 44,
+  },
   fileDivider: {
     height: 1,
     marginTop: 16,
   },
   dialogActions: {
     paddingTop: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  batchDownloadButton: {
+    marginRight: 'auto',
   },
   closeButton: {
     paddingHorizontal: 16,
