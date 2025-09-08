@@ -6,7 +6,7 @@
 
 Inferra is a mobile application built on React Native and Expo that brings large language models (LLMs) & small language models (SLMs) directly to your Android & iOS device. Cloud-based models (remote models) like Claude, DeepSeek, Gemini and ChatGPT are also supported. File attachments are also well-supported for both local & remote models.
 
-[<img src="https://github-production-user-asset-6210df.s3.amazonaws.com/47049949/411488168-bdc18fc5-5a99-410c-b383-eaf9c737176e.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAVCODYLSA53PQK4ZA%2F20250809%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20250809T061012Z&X-Amz-Expires=300&X-Amz-Signature=fbdc9b79edd8d74d94ab6a31f38a935cb13515d09d04fb73ae1796024e32bc01&X-Amz-SignedHeaders=host" alt="Get it on Google Play" width="150">](https://play.google.com/store/apps/details?id=com.gorai.ragionare)
+[<img src="https://github.com/user-attachments/assets/bdc18fc5-5a99-410c-b383-eaf9c737176e" alt="Get it on Google Play" width="150">](https://play.google.com/store/apps/details?id=com.gorai.ragionare)
 
 *iOS version is ready and scheduled to be released soon.*
 
