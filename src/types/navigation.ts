@@ -25,6 +25,10 @@ export type RootStackParamList = {
     messageContent: string;
     provider: string;
   };
+  ModelSettings: {
+    modelName: string;
+    modelPath: string;
+  };
 };
 
 export type TabParamList = {

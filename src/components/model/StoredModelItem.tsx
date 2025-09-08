@@ -14,6 +14,7 @@ interface StoredModelProps {
   isProjector?: boolean;
   onDelete: (id: string, path: string) => void;
   onExport?: (path: string, name: string) => void;
+  onSettings?: (path: string, name: string) => void;
 }
 
 const formatBytes = (bytes?: number) => {
@@ -43,6 +44,7 @@ const StoredModelItem: React.FC<StoredModelProps> = ({
   isProjector,
   onDelete,
   onExport,
+  onSettings,
 }) => {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
@@ -89,12 +91,20 @@ const StoredModelItem: React.FC<StoredModelProps> = ({
         </View>
       </View>
       <View style={styles.buttonContainer}>
-                {!isExternal && onExport && (
+        {!isProjector && onSettings && (
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => onSettings(path, name)}
+          >
+            <MaterialCommunityIcons name="cog-outline" size={20} color={getThemeAwareColor('#4a0660', currentTheme)} />
+          </TouchableOpacity>
+        )}
+        {!isExternal && onExport && (
           <TouchableOpacity
             style={styles.actionButton}
             onPress={() => onExport(path, name)}
           >
-            <MaterialCommunityIcons name="share" size={20} color={getThemeAwareColor('#72026eff', currentTheme)} />
+            <MaterialCommunityIcons name="share" size={20} color={getThemeAwareColor('#4a0660', currentTheme)} />
           </TouchableOpacity>
         )}
         <TouchableOpacity

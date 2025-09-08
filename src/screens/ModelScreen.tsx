@@ -43,6 +43,7 @@ import { DOWNLOADABLE_MODELS } from '../constants/DownloadableModels';
 import { Dialog, Portal, Button, Text as PaperText } from 'react-native-paper';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { logoutUser, getUserFromSecureStorage } from '../services/FirebaseService';
+import { modelSettingsService } from '../services/ModelSettingsService';
 
 type ModelScreenProps = {
   navigation: CompositeNavigationProp<
@@ -571,16 +572,20 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     console.log(`[ModelScreen] Attempting to delete model: ${model.name}, path: ${model.path}`);
     
     if (model.isExternal) {
-      try {
-        console.log(`[ModelScreen] Removing linkage for external model: ${model.name}`);
-        modelDownloader.deleteModel(model.path);
-        loadStoredModels();
-      } catch (error) {
-        console.error(`[ModelScreen] Error removing linkage for model ${model.name}:`, error);
-        showDialog('Error', 'Failed to remove model linkage', [
-          <Button key="ok" onPress={hideDialog}>OK</Button>
-        ]);
-      }
+      (async () => {
+        try {
+          console.log(`[ModelScreen] Removing linkage for external model: ${model.name}`);
+          modelDownloader.deleteModel(model.path);
+          await modelSettingsService.deleteModelSettings(model.path);
+          console.log(`[ModelScreen] Model settings cleaned up for: ${model.path}`);
+          loadStoredModels();
+        } catch (error) {
+          console.error(`[ModelScreen] Error removing linkage for model ${model.name}:`, error);
+          showDialog('Error', 'Failed to remove model linkage', [
+            <Button key="ok" onPress={hideDialog}>OK</Button>
+          ]);
+        }
+      })();
     } else {
       showDialog(
         'Delete Model',
@@ -594,7 +599,8 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
               try {
                 console.log(`[ModelScreen] User confirmed deletion of model: ${model.name}`);
                 await modelDownloader.deleteModel(model.path);
-                console.log(`[ModelScreen] Model deleted, refreshing stored models list`);
+                await modelSettingsService.deleteModelSettings(model.path);
+                console.log(`[ModelScreen] Model and settings deleted, refreshing stored models list`);
                 await loadStoredModels();
               } catch (error) {
                 console.error(`[ModelScreen] Error deleting model ${model.name}:`, error);
@@ -630,6 +636,14 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         [<Button key="ok" onPress={hideDialog}>OK</Button>]
       );
     }
+  };
+
+  const handleModelSettings = (modelPath: string, modelName: string) => {
+    console.log('[ModelScreen] Navigating to settings for model:', modelName, modelPath);
+    navigation.navigate('ModelSettings', {
+      modelName,
+      modelPath
+    });
   };
 
   const renderDownloadableList = () => (
@@ -763,6 +777,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         isProjector={isProjectorModel}
         onDelete={() => handleDelete(item)}
         onExport={handleExport}
+        onSettings={handleModelSettings}
       />
     );
   };
@@ -1066,6 +1081,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
           </View>
         </View>
       )}
+
       {renderDownloadsButton()}
     </View>
   );

@@ -50,6 +50,7 @@ type ModelSettingsSectionProps = {
   onLogitBiasPress: () => void;
   onDrySequenceBreakersPress: () => void;
   onDialogOpen: (config: any) => void;
+  defaultExpanded?: boolean;
 };
 
 const ModelSettingsSection = ({
@@ -64,12 +65,13 @@ const ModelSettingsSection = ({
   onNProbsPress,
   onLogitBiasPress,
   onDrySequenceBreakersPress,
-  onDialogOpen
+  onDialogOpen,
+  defaultExpanded = false
 }: ModelSettingsSectionProps) => {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme];
   const iconColor = currentTheme === 'dark' ? '#FFFFFF' : themeColors.primary;
-  const [showModelSettings, setShowModelSettings] = useState(false);
+  const [showModelSettings, setShowModelSettings] = useState(defaultExpanded);
   
   const [showGrammarDialog, setShowGrammarDialog] = useState(false);
   const [showSeedDialog, setShowSeedDialog] = useState(false);
@@ -82,10 +84,6 @@ const ModelSettingsSection = ({
   const [tempNProbs, setTempNProbs] = useState('');
   const [tempLogitBias, setTempLogitBias] = useState('');
   const [tempDrySequenceBreakers, setTempDrySequenceBreakers] = useState('');
-
-  const isNumberDifferent = (current: number, defaultValue: number): boolean => {
-    return Math.abs(current - defaultValue) > 0.001;
-  };
 
   const isStringDifferent = (current: string, defaultValue: string): boolean => {
     return (current || '') !== (defaultValue || '');

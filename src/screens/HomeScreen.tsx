@@ -39,6 +39,7 @@ import { Dialog, Portal, PaperProvider, Button, Text as PaperText } from 'react-
 import { useDownloads } from '../context/DownloadContext';
 import { modelDownloader } from '../services/ModelDownloader';
 import { useRemoteModel } from '../context/RemoteModelContext';
+import { modelSettingsService } from '../services/ModelSettingsService';
 
 const windowWidth = Dimensions.get('window').width;
 
@@ -117,6 +118,26 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   const { enableRemoteModels, isLoggedIn } = useRemoteModel();
 
   const hideDialog = () => setDialogVisible(false);
+
+  const getEffectiveSettings = useCallback(async () => {
+    const rawModelPath = activeProvider === 'local' ? llamaManager.getModelPath() : null;
+    const currentModelPath = rawModelPath && !rawModelPath.startsWith('file://') 
+      ? `file://${rawModelPath}` 
+      : rawModelPath;
+    
+    if (currentModelPath && activeProvider === 'local') {
+      try {
+        const modelConfig = await modelSettingsService.getModelSettings(currentModelPath);
+        if (!modelConfig.useGlobalSettings && modelConfig.customSettings) {
+          return modelConfig.customSettings;
+        }
+      } catch (error) {
+        console.error('Error getting model settings:', error);
+      }
+    }
+    
+    return llamaManager.getSettings();
+  }, [activeProvider]);
 
   const showDialog = (title: string, message: string, actions: React.ReactNode[]) => {
     setDialogTitle(title);
@@ -564,7 +585,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       await stopGenerationIfRunning();
       
       const currentMessages = currentChat.messages;
-      const settings = llamaManager.getSettings();
+      const settings = await getEffectiveSettings();
       
       const isOnlineModel = activeProvider && activeProvider !== 'local';
       
@@ -673,9 +694,9 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                   content: msg.content 
                 })),
               {
-                temperature: llamaManager.getSettings().temperature,
-                maxTokens: llamaManager.getSettings().maxTokens,
-                topP: llamaManager.getSettings().topP,
+                temperature: settings.temperature,
+                maxTokens: settings.maxTokens,
+                topP: settings.topP,
                 stream: true,
                 streamTokens: true
               },
@@ -725,9 +746,9 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                   content: msg.content 
                 })),
               {
-                temperature: llamaManager.getSettings().temperature,
-                maxTokens: llamaManager.getSettings().maxTokens,
-                topP: llamaManager.getSettings().topP,
+                temperature: settings.temperature,
+                maxTokens: settings.maxTokens,
+                topP: settings.topP,
                 stream: true,
                 streamTokens: true
               },
@@ -777,9 +798,9 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                   content: msg.content 
                 })),
               {
-                temperature: llamaManager.getSettings().temperature,
-                maxTokens: llamaManager.getSettings().maxTokens,
-                topP: llamaManager.getSettings().topP,
+                temperature: settings.temperature,
+                maxTokens: settings.maxTokens,
+                topP: settings.topP,
                 stream: true,
                 streamTokens: true
               },
@@ -829,9 +850,9 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                   content: msg.content 
                 })),
               {
-                temperature: llamaManager.getSettings().temperature,
-                maxTokens: llamaManager.getSettings().maxTokens,
-                topP: llamaManager.getSettings().topP,
+                temperature: settings.temperature,
+                maxTokens: settings.maxTokens,
+                topP: settings.topP,
                 stream: true,
                 streamTokens: true
               },
@@ -948,7 +969,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             }
             
             return !cancelGenerationRef.current;
-          }
+          },
+          settings
         );
       }
       
@@ -1015,6 +1037,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     
     await stopGenerationIfRunning();
     
+    const settings = await getEffectiveSettings();
+    
     if (!llamaManager.getModelPath() && !activeProvider) {
       showDialog(
         'No Model Selected',
@@ -1073,9 +1097,9 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                   content: msg.content 
                 })),
               {
-                temperature: llamaManager.getSettings().temperature,
-                maxTokens: llamaManager.getSettings().maxTokens,
-                topP: llamaManager.getSettings().topP,
+                temperature: settings.temperature,
+                maxTokens: settings.maxTokens,
+                topP: settings.topP,
                 stream: true,
                 streamTokens: true
               },
@@ -1142,9 +1166,9 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                   content: msg.content 
                 })),
               {
-                temperature: llamaManager.getSettings().temperature,
-                maxTokens: llamaManager.getSettings().maxTokens,
-                topP: llamaManager.getSettings().topP,
+                temperature: settings.temperature,
+                maxTokens: settings.maxTokens,
+                topP: settings.topP,
                 stream: true,
                 streamTokens: true
               },
@@ -1211,9 +1235,9 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                   content: msg.content 
                 })),
               {
-                temperature: llamaManager.getSettings().temperature,
-                maxTokens: llamaManager.getSettings().maxTokens,
-                topP: llamaManager.getSettings().topP,
+                temperature: settings.temperature,
+                maxTokens: settings.maxTokens,
+                topP: settings.topP,
                 stream: true,
                 streamTokens: true
               },
@@ -1280,9 +1304,9 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                   content: msg.content 
                 })),
               {
-                temperature: llamaManager.getSettings().temperature,
-                maxTokens: llamaManager.getSettings().maxTokens,
-                topP: llamaManager.getSettings().topP,
+                temperature: settings.temperature,
+                maxTokens: settings.maxTokens,
+                topP: settings.topP,
                 stream: true,
                 streamTokens: true
               },
@@ -1399,7 +1423,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             }
             
             return !cancelGenerationRef.current;
-          }
+          },
+          settings
         );
       }
       
