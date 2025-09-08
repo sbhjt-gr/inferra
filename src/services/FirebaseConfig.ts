@@ -3,37 +3,12 @@ import { getApp, initializeApp } from '@react-native-firebase/app';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import Constants from 'expo-constants';
 
-interface FirebaseConfig {
-  apiKey: string;
-  authDomain: string;
-  projectId: string;
-  storageBucket: string;
-  messagingSenderId: string;
-  appId: string;
-  [key: string]: string;
-}
-
 let isInitialized = false;
 
 export const initializeFirebase = async (): Promise<void> => {
   try {
     if (__DEV__) {
       console.log('Starting Firebase initialization...');
-    }
-    
-    const extra = Constants.expoConfig?.extra;
-    
-    if (__DEV__) {
-      console.log('Environment config loaded:', !!extra);
-      console.log('Firebase Project ID present:', !!extra?.FIREBASE_PROJECT_ID);
-    }
-    
-    if (!extra?.FIREBASE_PROJECT_ID) {
-      if (__DEV__) {
-        console.error('Firebase configuration missing. Check your .env file and app.config.js');
-        console.error('Available extra config:', extra);
-      }
-      throw new Error('System configuration error');
     }
 
     let app;
@@ -50,70 +25,27 @@ export const initializeFirebase = async (): Promise<void> => {
         console.log('Error code:', error.code);
       }
       
-      if (error.code === 'app/no-app' || error.message?.includes('No Firebase App') || error.message?.includes('has been created')) {
+      if (error.code === 'app/no-app' || error.message?.includes('No Firebase App')) {
         if (__DEV__) {
-          console.log('No existing Firebase app found, creating new one...');
+          console.log('Firebase app will be automatically initialized from google-services.json');
           console.log('Platform:', Platform.OS);
         }
         
-        const requiredKeys = Platform.OS === 'ios' 
-          ? ['FIREBASE_PROJECT_ID', 'FIREBASE_STORAGE_BUCKET', 'FIREBASE_MESSAGING_SENDER_ID', 'FIREBASE_AUTH_DOMAIN', 'FIREBASE_IOS_API_KEY', 'FIREBASE_IOS_APP_ID']
-          : ['FIREBASE_PROJECT_ID', 'FIREBASE_STORAGE_BUCKET', 'FIREBASE_MESSAGING_SENDER_ID', 'FIREBASE_AUTH_DOMAIN', 'FIREBASE_ANDROID_API_KEY', 'FIREBASE_ANDROID_APP_ID'];
-        
-        const missingKeys = requiredKeys.filter(key => !extra[key]);
-        
-        if (missingKeys.length > 0) {
-          if (__DEV__) {
-            console.error('Missing Firebase configuration keys:', missingKeys);
-            console.error('Platform:', Platform.OS);
-            console.error('Available Firebase keys:', Object.keys(extra).filter(key => key.startsWith('FIREBASE')));
-          }
-          throw new Error('System configuration error');
-        }
-
-        if (__DEV__) {
-          console.log('All required configuration keys present');
-        }
-
-        const firebaseConfig: FirebaseConfig = {
-          projectId: extra.FIREBASE_PROJECT_ID,
-          storageBucket: extra.FIREBASE_STORAGE_BUCKET,
-          messagingSenderId: extra.FIREBASE_MESSAGING_SENDER_ID,
-          authDomain: extra.FIREBASE_AUTH_DOMAIN,
-          databaseURL: `https://${extra.FIREBASE_PROJECT_ID}-default-rtdb.firebaseio.com/`,
-          apiKey: Platform.OS === 'ios' ? extra.FIREBASE_IOS_API_KEY : extra.FIREBASE_ANDROID_API_KEY,
-          appId: Platform.OS === 'ios' ? extra.FIREBASE_IOS_APP_ID : extra.FIREBASE_ANDROID_APP_ID,
-        };
-
-        if (Platform.OS === 'ios') {
-          firebaseConfig.clientId = extra.FIREBASE_IOS_CLIENT_ID;
-          firebaseConfig.reversedClientId = extra.FIREBASE_IOS_REVERSED_CLIENT_ID;
-          firebaseConfig.bundleId = extra.FIREBASE_IOS_BUNDLE_ID;
-        }
-
-        if (__DEV__) {
-          console.log('Firebase config prepared for platform:', Platform.OS);
-          console.log('Config keys:', Object.keys(firebaseConfig));
-          console.log('Project ID:', firebaseConfig.projectId);
-          console.log('API Key present:', !!firebaseConfig.apiKey);
-          console.log('App ID present:', !!firebaseConfig.appId);
-        }
-
         try {
-          app = await initializeApp(firebaseConfig);
+          app = getApp('[DEFAULT]');
           isInitialized = true;
           
           if (__DEV__) {
-            console.log('Firebase app initialized successfully');
+            console.log('Firebase app accessed successfully');
             console.log('App name:', app.name);
             console.log('Project ID from app:', app.options.projectId);
           }
-        } catch (initError: any) {
+        } catch (secondError: any) {
           if (__DEV__) {
-            console.error('Firebase initializeApp failed:', initError);
-            console.error('Config used:', firebaseConfig);
+            console.error('Firebase app access failed:', secondError);
+            console.error('Make sure google-services.json and GoogleService-Info.plist are properly configured');
           }
-          throw initError;
+          throw secondError;
         }
       } else {
         if (__DEV__) {
@@ -123,7 +55,8 @@ export const initializeFirebase = async (): Promise<void> => {
       }
     }
 
-    if (!extra.GOOGLE_SIGN_IN_WEB_CLIENT_ID) {
+    const extra = Constants.expoConfig?.extra;
+    if (!extra?.GOOGLE_SIGN_IN_WEB_CLIENT_ID) {
       if (__DEV__) {
         console.warn('Google Sign-In Web Client ID not found - Google auth will not work');
       }
