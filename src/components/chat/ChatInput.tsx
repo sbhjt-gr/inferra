@@ -24,6 +24,7 @@ import { Dialog, Portal, Text, Button } from 'react-native-paper';
 import { modelDownloader } from '../../services/ModelDownloader';
 import AITermsDialog from './AITermsDialog';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import StopButton from '../StopButton';
 
 type ChatInputProps = {
   onSend: (text: string) => void;
@@ -31,6 +32,7 @@ type ChatInputProps = {
   isLoading?: boolean;
   isRegenerating?: boolean;
   onCancel?: () => void | Promise<void>;
+  onStop?: () => void | Promise<void>;
   style?: any;
   placeholderColor?: string;
 };
@@ -48,6 +50,7 @@ export default function ChatInput({
   isLoading = false,
   isRegenerating = false,
   onCancel = () => {},
+  onStop = () => {},
   style = {},
   placeholderColor
 }: ChatInputProps) {
@@ -561,6 +564,12 @@ export default function ChatInput({
     }
   };
 
+  const handleStop = () => {
+    if (onStop) {
+      onStop();
+    }
+  };
+
   React.useEffect(() => {
     return () => {
       if (audioRecorder.isRecording) {
@@ -734,9 +743,14 @@ export default function ChatInput({
             )}
 
             {isGenerating ? (
-              <TouchableOpacity style={styles.cancelButton} onPress={handleCancel}>
-                <MaterialCommunityIcons name="stop-circle-outline" size={24} color="#ff4444" />
-              </TouchableOpacity>
+              <StopButton 
+                onPress={handleStop}
+                color="#ff4444"
+                size={24}
+                touchableOpacityProps={{
+                  style: styles.stopButton
+                }}
+              />
             ) : (
               <TouchableOpacity 
                 style={sendButtonStyle} 
@@ -769,9 +783,9 @@ export default function ChatInput({
           textAlign: 'center'
         }}
         >
-          AI-generated content may contain errors, verify important information.{''}
+          {/* AI-generated content may contain errors, verify important information.{''} */}
         </Text>
-        <TouchableOpacity onPress={() => setShowAITermsDialog(true)}>
+        {/* <TouchableOpacity onPress={() => setShowAITermsDialog(true)}>
           <Text style={{
             fontSize: 12,
             color: isDark ? '#BB86FC' : '#6200EA',
@@ -780,7 +794,7 @@ export default function ChatInput({
           >
             Learn more
           </Text>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
       </View>
 
       <FileViewerModal
@@ -945,7 +959,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  cancelButton: {
+  stopButton: {
     width: 40,
     height: 40,
     borderRadius: 20,

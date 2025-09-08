@@ -1,6 +1,27 @@
 import { DownloadableModel } from "../components/model/DownloadableModelItem";
+import { ModelType } from "../types/models";
 
 export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
+  {
+    "name": "Gemma 3 Instruct - 270M",
+    "description": "Ultra-compact instruction-tuned model with 270M parameters designed for extreme efficiency on resource-constrained devices.",
+    "size": "253 MB",
+    "huggingFaceLink": "https://huggingface.co/unsloth/gemma-3-270m-it-GGUF/resolve/main/gemma-3-270m-it-Q4_K_M.gguf",
+    "licenseLink": "https://ai.google.dev/gemma/terms",
+    "modelFamily": "270 Million",
+    "quantization": "Q4_K_M",
+    "tags": ["fastest"]
+  },
+  {
+    "name": "MiniCPM4.1 Instruct",
+    "description": "OpenBMB's ultra-efficient large language model with hybrid reasoning capabilities and optimized end-side deployment.",
+    "size": "4.97 GB",
+    "huggingFaceLink": "https://huggingface.co/openbmb/MiniCPM4.1-8B-GGUF/resolve/main/MiniCPM4.1-8B-Q4_K_M.gguf",
+    "licenseLink": "https://www.apache.org/licenses/LICENSE-2.0",
+    "modelFamily": "8 Billion",
+    "quantization": "Q4_K_M",
+    "tags": ["reasoning"]
+  },
   {
     "name": "Gemma 3n-E4B Instruct (Q2_K)",
     "description": "Google's enhanced Gemma 3 variant with optimized efficiency and fast inference capabilities.",
@@ -30,6 +51,9 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "modelFamily": "500 Million",
     "quantization": "f16",
     "tags": ["vision", "video", "fastest"],
+    "modelType": ModelType.VISION,
+    "capabilities": ["vision", "text", "video"],
+    "supportsMultimodal": true,
     "additionalFiles": [
       {
         "name": "mmproj-SmolVLM2-500M-Video-Instruct-f16.gguf",
@@ -47,6 +71,9 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "modelFamily": "2.2 Billion",
     "quantization": "Q8_0",
     "tags": ["vision", "fastest"],
+    "modelType": ModelType.VISION,
+    "capabilities": ["vision", "text"],
+    "supportsMultimodal": true,
     "additionalFiles": [
       {
         "name": "mmproj-SmolVLM2-2.2B-Instruct-Q8_0.gguf",

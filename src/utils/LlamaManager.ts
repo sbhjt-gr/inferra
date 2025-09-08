@@ -3,6 +3,7 @@ import { Platform, NativeModules } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import EventEmitter from 'eventemitter3';
 import * as FileSystem from 'expo-file-system';
+import { ModelSettings } from '../services/ModelSettingsService';
 
 interface ModelMemoryInfo {
   requiredMemory: number;
@@ -18,37 +19,6 @@ interface LlamaManagerInterface {
   getMemoryInfo(): Promise<ModelMemoryInfo>;
 }
 
-interface ModelSettings {
-  maxTokens: number;
-  temperature: number;
-  topK: number;
-  topP: number;
-  minP: number;
-  stopWords: string[];
-  systemPrompt: string;
-  jinja: boolean;
-  grammar: string;
-  nProbs: number;
-  penaltyLastN: number;
-  penaltyRepeat: number;
-  penaltyFreq: number;
-  penaltyPresent: number;
-  mirostat: number;
-  mirostatTau: number;
-  mirostatEta: number;
-  dryMultiplier: number;
-  dryBase: number;
-  dryAllowedLength: number;
-  dryPenaltyLastN: number;
-  drySequenceBreakers: string[];
-  ignoreEos: boolean;
-  logitBias: Array<Array<number>>;
-  seed: number;
-  xtcProbability: number;
-  xtcThreshold: number;
-  typicalP: number;
-  enableThinking: boolean;
-}
 
 interface LlamaManagerEvents {
   'model-loaded': (modelPath: string | null) => void;
@@ -409,7 +379,7 @@ class LlamaManager {
 
   async loadSettings() {
     try {
-      const savedSettings = await AsyncStorage.getItem('@model_settings');
+      const savedSettings = await AsyncStorage.getItem('@global_model_settings');
       if (savedSettings) {
         const parsedSettings = JSON.parse(savedSettings);
         
@@ -428,7 +398,7 @@ class LlamaManager {
 
   async saveSettings() {
     try {
-      await AsyncStorage.setItem('@model_settings', JSON.stringify(this.settings));
+      await AsyncStorage.setItem('@global_model_settings', JSON.stringify(this.settings));
     } catch (error) {
       throw error;
     }
@@ -602,7 +572,8 @@ class LlamaManager {
 
   async generateResponse(
     messages: Array<{ role: string; content: string }>,
-    onToken?: (token: string) => boolean | void
+    onToken?: (token: string) => boolean | void,
+    customSettings?: ModelSettings
   ) {
     if (!this.context) {
       throw new Error('Model not initialized');
@@ -610,6 +581,8 @@ class LlamaManager {
 
     let fullResponse = '';
     this.isCancelled = false;
+    
+    const settings = customSettings || this.settings;
 
     try {
       const processedMessages = await Promise.all(
@@ -653,41 +626,41 @@ class LlamaManager {
       const result = await this.context.completion(
         {
           messages: processedMessages,
-          n_predict: this.settings.maxTokens,
-          stop: this.settings.stopWords,
-          temperature: this.settings.temperature,
-          top_k: this.settings.topK,
-          top_p: this.settings.topP,
-          min_p: this.settings.minP,
-          jinja: this.settings.jinja,
-          grammar: this.settings.grammar || undefined,
-          n_probs: this.settings.nProbs,
-          penalty_last_n: this.settings.penaltyLastN,
-          penalty_repeat: this.settings.penaltyRepeat,
-          penalty_freq: this.settings.penaltyFreq,
-          penalty_present: this.settings.penaltyPresent,
-          mirostat: this.settings.mirostat,
-          mirostat_tau: this.settings.mirostatTau,
-          mirostat_eta: this.settings.mirostatEta,
-          dry_multiplier: this.settings.dryMultiplier,
-          dry_base: this.settings.dryBase,
-          dry_allowed_length: this.settings.dryAllowedLength,
-          dry_penalty_last_n: this.settings.dryPenaltyLastN,
-          dry_sequence_breakers: this.settings.drySequenceBreakers,
-          ignore_eos: this.settings.ignoreEos,
-          logit_bias: this.settings.logitBias.length > 0 ? this.settings.logitBias : undefined,
-          seed: this.settings.seed,
-          xtc_probability: this.settings.xtcProbability,
-          xtc_threshold: this.settings.xtcThreshold,
-          typical_p: this.settings.typicalP,
-          enable_thinking: this.settings.enableThinking,
+          n_predict: settings.maxTokens,
+          stop: settings.stopWords,
+          temperature: settings.temperature,
+          top_k: settings.topK,
+          top_p: settings.topP,
+          min_p: settings.minP,
+          jinja: settings.jinja,
+          grammar: settings.grammar || undefined,
+          n_probs: settings.nProbs,
+          penalty_last_n: settings.penaltyLastN,
+          penalty_repeat: settings.penaltyRepeat,
+          penalty_freq: settings.penaltyFreq,
+          penalty_present: settings.penaltyPresent,
+          mirostat: settings.mirostat,
+          mirostat_tau: settings.mirostatTau,
+          mirostat_eta: settings.mirostatEta,
+          dry_multiplier: settings.dryMultiplier,
+          dry_base: settings.dryBase,
+          dry_allowed_length: settings.dryAllowedLength,
+          dry_penalty_last_n: settings.dryPenaltyLastN,
+          dry_sequence_breakers: settings.drySequenceBreakers,
+          ignore_eos: settings.ignoreEos,
+          logit_bias: settings.logitBias.length > 0 ? settings.logitBias : undefined,
+          seed: settings.seed,
+          xtc_probability: settings.xtcProbability,
+          xtc_threshold: settings.xtcThreshold,
+          typical_p: settings.typicalP,
+          enable_thinking: settings.enableThinking,
         },
         (data) => {
           if (this.isCancelled) {
             return false;
           }
           
-          if (!this.settings.stopWords.includes(data.token)) {
+          if (!settings.stopWords.includes(data.token)) {
             fullResponse += data.token;
             
             this.queueToken(data.token);

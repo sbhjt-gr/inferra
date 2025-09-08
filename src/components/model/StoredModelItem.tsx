@@ -11,8 +11,10 @@ interface StoredModelProps {
   path: string;
   size: number;
   isExternal: boolean;
+  isProjector?: boolean;
   onDelete: (id: string, path: string) => void;
   onExport?: (path: string, name: string) => void;
+  onSettings?: (path: string, name: string) => void;
 }
 
 const formatBytes = (bytes?: number) => {
@@ -39,8 +41,10 @@ const StoredModelItem: React.FC<StoredModelProps> = ({
   path,
   size,
   isExternal,
+  isProjector,
   onDelete,
   onExport,
+  onSettings,
 }) => {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
@@ -64,13 +68,17 @@ const StoredModelItem: React.FC<StoredModelProps> = ({
           <Text style={[styles.modelName, { color: themeColors.text }]} numberOfLines={1}>
             {displayName}
           </Text>
-          {isExternal ? (
+          {isExternal && (
             <View style={styles.externalBadgeContainer}>
               <MaterialCommunityIcons name="link" size={12} color="white" style={{ marginRight: 4 }} />
               <Text style={styles.externalBadgeText}>External</Text>
             </View>
-          ) : ( 
-            <></>
+          )}
+          {isProjector && (
+            <View style={styles.projectorBadgeContainer}>
+              <MaterialCommunityIcons name="projector" size={12} color="white" style={{ marginRight: 4 }} />
+              <Text style={styles.projectorBadgeText}>Projector</Text>
+            </View>
           )}
         </View>
         <View style={styles.modelMetaInfo}>
@@ -83,12 +91,20 @@ const StoredModelItem: React.FC<StoredModelProps> = ({
         </View>
       </View>
       <View style={styles.buttonContainer}>
-                {!isExternal && onExport && (
+        {!isProjector && onSettings && (
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => onSettings(path, name)}
+          >
+            <MaterialCommunityIcons name="cog-outline" size={20} color={getThemeAwareColor('#4a0660', currentTheme)} />
+          </TouchableOpacity>
+        )}
+        {!isExternal && onExport && (
           <TouchableOpacity
             style={styles.actionButton}
             onPress={() => onExport(path, name)}
           >
-            <MaterialCommunityIcons name="share" size={20} color={getThemeAwareColor('#72026eff', currentTheme)} />
+            <MaterialCommunityIcons name="share" size={20} color={getThemeAwareColor('#4a0660', currentTheme)} />
           </TouchableOpacity>
         )}
         <TouchableOpacity
@@ -150,6 +166,20 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   externalBadgeText: {
+    color: 'white',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  projectorBadgeContainer: {
+    backgroundColor: '#8e44ad',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginLeft: 4,
+  },
+  projectorBadgeText: {
     color: 'white',
     fontSize: 11,
     fontWeight: '600',
