@@ -18,6 +18,7 @@ import ChatSettingsSection from '../components/settings/ChatSettingsSection';
 import SystemPromptDialog from '../components/SystemPromptDialog';
 import MaxTokensDialog from '../components/MaxTokensDialog';
 import StopWordsDialog from '../components/StopWordsDialog';
+import ModelSettingDialog from '../components/ModelSettingDialog';
 import AppHeader from '../components/AppHeader';
 import { useRoute, RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../types/navigation';
@@ -41,6 +42,7 @@ export default function ModelSettingsScreen() {
   const [systemPromptDialogVisible, setSystemPromptDialogVisible] = useState(false);
   const [maxTokensDialogVisible, setMaxTokensDialogVisible] = useState(false);
   const [stopWordsDialogVisible, setStopWordsDialogVisible] = useState(false);
+  const [dialogConfig, setDialogConfig] = useState<any>(null);
 
   useEffect(() => {
     loadSettings();
@@ -116,6 +118,17 @@ export default function ModelSettingsScreen() {
   const handleStopWordsSave = (stopWords: string[]) => {
     handleCustomSettingsChange({ stopWords });
     setStopWordsDialogVisible(false);
+  };
+
+  const handleDialogOpen = (config: any) => {
+    setDialogConfig(config);
+  };
+
+  const handleDialogSave = (value: number) => {
+    if (dialogConfig) {
+      handleCustomSettingsChange({ [dialogConfig.key]: value });
+    }
+    setDialogConfig(null);
   };
 
   if (isLoading || !globalSettings) {
@@ -207,7 +220,7 @@ export default function ModelSettingsScreen() {
                 onNProbsPress={() => {}}
                 onLogitBiasPress={() => {}}
                 onDrySequenceBreakersPress={() => {}}
-                onDialogOpen={() => {}}
+                onDialogOpen={handleDialogOpen}
                 defaultExpanded={false}
               />
             </View>
@@ -271,6 +284,21 @@ export default function ModelSettingsScreen() {
         defaultValue={globalSettings.stopWords}
         description="Custom stop words for this model"
       />
+
+      {dialogConfig && (
+        <ModelSettingDialog
+          visible={!!dialogConfig}
+          onClose={() => setDialogConfig(null)}
+          onSave={handleDialogSave}
+          label={dialogConfig.label}
+          value={dialogConfig.value}
+          defaultValue={displaySettings[dialogConfig.key]}
+          minimumValue={dialogConfig.minimumValue}
+          maximumValue={dialogConfig.maximumValue}
+          step={dialogConfig.step}
+          description={dialogConfig.description}
+        />
+      )}
     </View>
   );
 }
