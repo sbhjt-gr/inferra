@@ -1,114 +1,60 @@
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
-# dependencies
+# Dependencies
 node_modules/
+.pnp
+.pnp.js
 
+# Production builds
 pr/
 scripts/
 test/
+build/
+dist/
+web-build/
 
 # Expo
 .expo/
-dist/
-web-build/
 expo-env.d.ts
 
-# Native
-*.orig.*
-*.jks
+# Environment variables - CRITICAL SECURITY
+.env
+.env.*
+.env.local
+.env.development
+.env.test
+.env.production
+.env.staging
+*.env.js
+*.env.ts
+
+# Firebase & Google Services - CRITICAL SECURITY
+google-services.json
+GoogleService-Info.plist
+ios/LICENSE.plist
+firebase-debug.log
+firebase-debug.*.log
+.firebase/
+firebaserc
+
+# iOS Certificates & Keys - CRITICAL SECURITY
+*.ipa
+*.dSYM.zip
+*.dSYM
 *.p8
 *.p12
 *.key
-*.mobileprovision
-
-# Metro
-.metro-health-check*
-
-# debug
-npm-debug.*
-yarn-debug.*
-yarn-error.*
-
-# macOS
-.DS_Store
 *.pem
-
-
-# typescript
-*.tsbuildinfo
-
-app-example
-
-# iOS
+*.mobileprovision
+*.certSigningRequest
+*.cer
+*.cert
+*.crt
 ios/build/
 ios/Pods/
 ios/DerivedData/
 ios/*.xcuserdatad/
-*.ipa
-*.dSYM.zip
-*.dSYM
-
-# Android
-android/app/build/
-android/build/
-android/.gradle/
-android/local.properties
-android/app/release/
-*.apk
-*.aab
-
-google-services.json
-config/
-
-# OSX
-.DS_Store
-
-# Expo
-.expo/
-dist/
-web-build/
-*.jks
-*.p8
-*.p12
-*.key
-*.mobileprovision
-*.orig.*
-
-# Node
-node_modules/
-npm-debug.*
-yarn-debug.*
-yarn-error.*
-yarn.lock
-package-lock.json
-
-# Environment variables
-.env.development
-.env.test
-.env.production
-*.env.js
-.env*.local
-.env
-
-# Firebase
-google-services.json
-GoogleService-Info.plist
-firebase-debug.log
-firebase-debug.*.log
-.firebase/
-
-# Android/IntelliJ
-build/
-.idea
-.gradle
-local.properties
-*.iml
-*.hprof
-android/app/release/
-
-# iOS
-pods/
-Pods/
+ios/*.xcarchive
 *.xcworkspace
 *.xcuserstate
 *.pbxuser
@@ -120,22 +66,109 @@ Pods/
 *.perspectivev3
 !default.perspectivev3
 
+# Android Certificates & Keys - CRITICAL SECURITY
+*.apk
+*.aab
+*.jks
+*.keystore
+!debug.keystore
+android/app/build/
+android/build/
+android/.gradle/
+android/local.properties
+android/app/release/
+android/app/src/main/assets/appcenter-config.json
+
+# API Keys & Secrets - CRITICAL SECURITY
+**/secrets.json
+**/config.json
+**/credentials.json
+**/*secret*
+**/*credential*
+**/*api-key*
+**/*apikey*
+**/*private*
+**/*confidential*
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Metro
+.metro-health-check*
+
+# Debug logs
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+*.log
+logs/
+
+# TypeScript
+*.tsbuildinfo
+
+# Testing
+coverage/
+.nyc_output/
+*.lcov
+
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
+*.sublime-project
+*.sublime-workspace
 
-# Testing
-coverage/
-.nyc_output/
+# Temporary files
+*.tmp
+*.temp
+*.orig.*
+*.pid
+*.seed
+*.pid.lock
 
-# Keystores
-*.keystore
-!debug.keystore
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
 
-# Logs
-logs/
-*.log
+# Dependency directories
+jspm_packages/
 
+# Optional npm cache directory
+.npm
+
+# ESLint cache
+.eslintcache
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# parcel-bundler cache (https://parceljs.org/)
+.cache
+.parcel-cache
+
+# eas
 eas.json
+
+# App specific
+app-example
+config/
