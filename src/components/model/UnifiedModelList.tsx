@@ -867,7 +867,7 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
         </TouchableOpacity>
 
         <Searchbar
-          placeholder="Search HuggingFace models..."
+          placeholder="Search on HuggingFace..."
           onChangeText={handleSearch}
           value={searchQuery}
           style={[styles.searchBar, { backgroundColor: themeColors.cardBackground }]}

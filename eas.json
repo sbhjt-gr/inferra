@@ -1,6 +1,6 @@
 {
   "cli": {
-    "version": ">= 12.0.0"
+    "version": ">= 16.18.0"
   },
   "build": {
     "development": {
@@ -24,7 +24,7 @@
       "distribution": "store",
       "channel": "production",
       "android": {
-        "buildType": "apk"
+        "buildType": "app-bundle"
       }
     }
   },

@@ -92,8 +92,8 @@ android {
         applicationId 'com.gorai.ragionare'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 260
-        versionName "2.6.0"
+        versionCode 261
+        versionName "2.6.1"
     }
     signingConfigs {
         debug {

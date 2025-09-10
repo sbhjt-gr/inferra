@@ -14,6 +14,8 @@ import {
   Dimensions,
   Alert,
   TextInput,
+  KeyboardAvoidingView,
+  ScrollView,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Markdown from 'react-native-markdown-display';
@@ -119,6 +121,11 @@ export default function ChatView({
       const parsedMessage = JSON.parse(currentContent);
       if (parsedMessage && parsedMessage.type === 'file_upload' && parsedMessage.userContent) {
         contentToEdit = parsedMessage.userContent;
+      } else if (parsedMessage && parsedMessage.type === 'multimodal' && parsedMessage.content) {
+        const textContent = parsedMessage.content.find((item: any) => item.type === 'text');
+        contentToEdit = textContent ? textContent.text : '';
+      } else if (parsedMessage && parsedMessage.type === 'ocr_result' && parsedMessage.userPrompt) {
+        contentToEdit = parsedMessage.userPrompt;
       }
     } catch (e) {
       // Not JSON, use as is
@@ -140,7 +147,50 @@ export default function ChatView({
     }
 
     try {
-      const success = await chatManager.editMessage(editingMessageId, editedMessageContent.trim());
+      // Find the original message to get its structure
+      const originalMessage = messages.find(msg => msg.id === editingMessageId);
+      if (!originalMessage) {
+        Alert.alert('Error', 'Original message not found');
+        return;
+      }
+
+      let finalContent = editedMessageContent.trim();
+
+      // Check if the original message was structured JSON and reconstruct it
+      try {
+        const parsedOriginal = JSON.parse(originalMessage.content);
+        
+        if (parsedOriginal && parsedOriginal.type === 'file_upload') {
+          // Reconstruct file upload message
+          finalContent = JSON.stringify({
+            ...parsedOriginal,
+            userContent: editedMessageContent.trim()
+          });
+        } else if (parsedOriginal && parsedOriginal.type === 'multimodal' && parsedOriginal.content) {
+          // Reconstruct multimodal message
+          const updatedContent = parsedOriginal.content.map((item: any) => {
+            if (item.type === 'text') {
+              return { ...item, text: editedMessageContent.trim() };
+            }
+            return item;
+          });
+          finalContent = JSON.stringify({
+            ...parsedOriginal,
+            content: updatedContent
+          });
+        } else if (parsedOriginal && parsedOriginal.type === 'ocr_result') {
+          // Reconstruct OCR result message
+          finalContent = JSON.stringify({
+            ...parsedOriginal,
+            userPrompt: editedMessageContent.trim()
+          });
+        }
+      } catch (e) {
+        // Original wasn't JSON, use plain text
+        finalContent = editedMessageContent.trim();
+      }
+
+      const success = await chatManager.editMessage(editingMessageId, finalContent);
       
       if (success) {
         closeEditDialog();
@@ -153,7 +203,7 @@ export default function ChatView({
     } catch (error) {
       Alert.alert('Error', 'Failed to edit message');
     }
-  }, [editingMessageId, editedMessageContent, closeEditDialog, onEditMessageAndRegenerate]);
+  }, [editingMessageId, editedMessageContent, messages, closeEditDialog, onEditMessageAndRegenerate]);
 
   const formatDuration = useCallback((seconds: number): string => {
     const minutes = Math.floor(seconds / 60);
@@ -801,48 +851,66 @@ export default function ChatView({
       </Modal>
 
       <Portal>
-        <Dialog 
-          visible={editingMessageId !== null} 
-          onDismiss={closeEditDialog}
-          style={{ backgroundColor: themeColors.background }}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 0}
+          style={{ flex: 1 }}
         >
-          <Dialog.Title style={{ color: themeColors.text }}>
-            Edit Message
-          </Dialog.Title>
-          <Dialog.Content>
-            <Text style={[{ color: themeColors.secondaryText, marginBottom: 12, fontSize: 14 }]}>
-              All messages after this one will be deleted.
-            </Text>
-            <TextInput
-              style={[
-                styles.editInput,
-                { 
-                  backgroundColor: themeColors.borderColor,
-                  color: themeColors.text,
-                  borderColor: themeColors.headerBackground 
-                }
-              ]}
-              value={editedMessageContent}
-              onChangeText={setEditedMessageContent}
-              multiline
-              placeholder="Enter your message..."
-              placeholderTextColor={themeColors.secondaryText}
-              autoFocus
-            />
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={closeEditDialog} textColor={themeColors.secondaryText}>
-              Cancel
-            </Button>
-            <Button 
-              onPress={saveEditedMessage} 
-              textColor={themeColors.headerBackground}
-              disabled={!editedMessageContent.trim()}
+          <Dialog
+            visible={editingMessageId !== null}
+            onDismiss={closeEditDialog}
+            style={{ backgroundColor: themeColors.background, maxHeight: '80%' }}
+          >
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ flexGrow: 1 }}
+              showsVerticalScrollIndicator={false}
             >
-              Save
-            </Button>
-          </Dialog.Actions>
-        </Dialog>
+              <Dialog.Title style={{ color: themeColors.text }}>
+                Edit Message
+              </Dialog.Title>
+              <Dialog.Content>
+                <Text style={[{ color: themeColors.secondaryText, marginBottom: 12, fontSize: 14 }]}>
+                  All messages after this one will be deleted.
+                </Text>
+                <TextInput
+                  style={[
+                    styles.editInput,
+                    {
+                      backgroundColor: themeColors.borderColor,
+                      color: themeColors.text,
+                      borderColor: themeColors.headerBackground
+                    }
+                  ]}
+                  value={editedMessageContent}
+                  onChangeText={setEditedMessageContent}
+                  multiline
+                  placeholder="Enter your message..."
+                  placeholderTextColor={themeColors.secondaryText}
+                  autoFocus
+                  returnKeyType="default"
+                  blurOnSubmit={false}
+                  textAlignVertical="top"
+                  textAlign="left"
+                  selectionColor={themeColors.headerBackground}
+                  underlineColorAndroid="transparent"
+                />
+              </Dialog.Content>
+              <Dialog.Actions>
+                <Button onPress={closeEditDialog} textColor={themeColors.secondaryText}>
+                  Cancel
+                </Button>
+                <Button
+                  onPress={saveEditedMessage}
+                  textColor={themeColors.headerBackground}
+                  disabled={!editedMessageContent.trim()}
+                >
+                  Save
+                </Button>
+              </Dialog.Actions>
+            </ScrollView>
+          </Dialog>
+        </KeyboardAvoidingView>
       </Portal>
     </View>
   );
@@ -1112,6 +1180,9 @@ const styles = StyleSheet.create({
     padding: 12,
     fontSize: 16,
     textAlignVertical: 'top',
+    textAlign: 'left',
+    paddingTop: 12,
+    paddingBottom: 12,
   },
   statItem: {
     flexDirection: 'row',
