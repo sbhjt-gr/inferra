@@ -336,7 +336,6 @@ class OnlineModelService {
     try {
       let title = '';
       
-      console.log(`[OnlineModelService] Generating chat title using ${provider}`);
       
       switch (provider) {
         case 'gemini':
@@ -344,7 +343,6 @@ class OnlineModelService {
             title = await this.sendMessageToGemini(titlePrompt, options);
           } catch (error) {
             if (error instanceof Error && error.message.includes('token limit')) {
-              console.warn('[OnlineModelService] Gemini title generation failed due to token limit, using simple title');
               const now = new Date();
               const dateStr = now.toLocaleDateString();
               const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -366,7 +364,6 @@ class OnlineModelService {
           throw new Error(`Unknown provider: ${provider}`);
       }
       
-      console.log(`[OnlineModelService] Generated title: "${title}"`);
 
       const cleanTitle = title.trim().replace(/['"]/g, '').substring(0, 50);
       if (cleanTitle) {

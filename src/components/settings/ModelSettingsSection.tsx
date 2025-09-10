@@ -132,7 +132,6 @@ const ModelSettingsSection = ({
       {showModelSettings && (
         <>
       
-      {/* Essential Settings */}
       <View style={[styles.sectionHeader, { borderTopColor: 'rgba(150, 150, 150, 0.1)' }]}>
         <Text style={[styles.sectionTitle, { color: themeColors.secondaryText }]}>ESSENTIAL SETTINGS</Text>
       </View>
@@ -236,7 +235,6 @@ const ModelSettingsSection = ({
         })}
       />
 
-      {/* Advanced Sampling */}
       <View style={[styles.sectionHeader, { borderTopColor: 'rgba(150, 150, 150, 0.1)' }]}>
         <Text style={[styles.sectionTitle, { color: themeColors.secondaryText }]}>ADVANCED SAMPLING</Text>
       </View>
@@ -321,7 +319,6 @@ const ModelSettingsSection = ({
         })}
       />
 
-      {/* Generation Control */}
       <View style={[styles.sectionHeader, { borderTopColor: 'rgba(150, 150, 150, 0.1)' }]}>
         <Text style={[styles.sectionTitle, { color: themeColors.secondaryText }]}>GENERATION CONTROL</Text>
       </View>
@@ -362,7 +359,6 @@ const ModelSettingsSection = ({
 
 
 
-      {/* Core Settings */}
       <View style={[styles.sectionHeader, { borderTopColor: 'rgba(150, 150, 150, 0.1)' }]}>
         <Text style={[styles.sectionTitle, { color: themeColors.secondaryText }]}>CORE SETTINGS</Text>
       </View>
@@ -466,7 +462,6 @@ const ModelSettingsSection = ({
         />
       </View>
 
-      {/* Expert Settings */}
       <View style={[styles.sectionHeader, { borderTopColor: 'rgba(150, 150, 150, 0.1)' }]}>
         <Text style={[styles.sectionTitle, { color: themeColors.secondaryText }]}>EXPERT SETTINGS</Text>
       </View>
@@ -545,7 +540,6 @@ const ModelSettingsSection = ({
         <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
       </TouchableOpacity>
 
-      {/* Repetition Penalties */}
       <View style={[styles.sectionHeader, { borderTopColor: 'rgba(150, 150, 150, 0.1)' }]}>
         <Text style={[styles.sectionTitle, { color: themeColors.secondaryText }]}>REPETITION PENALTIES</Text>
       </View>
@@ -630,7 +624,6 @@ const ModelSettingsSection = ({
         })}
       />
 
-      {/* Mirostat Settings */}
       <View style={[styles.sectionHeader, { borderTopColor: 'rgba(150, 150, 150, 0.1)' }]}>
         <Text style={[styles.sectionTitle, { color: themeColors.secondaryText }]}>MIROSTAT SETTINGS</Text>
       </View>
@@ -695,7 +688,6 @@ const ModelSettingsSection = ({
         })}
       />
 
-      {/* DRY Settings */}
       <View style={[styles.sectionHeader, { borderTopColor: 'rgba(150, 150, 150, 0.1)' }]}>
         <Text style={[styles.sectionTitle, { color: themeColors.secondaryText }]}>DRY (DON'T REPEAT YOURSELF)</Text>
       </View>
@@ -817,7 +809,6 @@ const ModelSettingsSection = ({
         <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
       </TouchableOpacity>
 
-      {/* Advanced Settings */}
       <View style={[styles.sectionHeader, { borderTopColor: 'rgba(150, 150, 150, 0.1)' }]}>
         <Text style={[styles.sectionTitle, { color: themeColors.secondaryText }]}>ADVANCED SETTINGS</Text>
       </View>
@@ -895,7 +886,6 @@ const ModelSettingsSection = ({
         </>
       )}
 
-      {/* Grammar Dialog */}
       <Modal
         visible={showGrammarDialog}
         transparent
@@ -956,7 +946,6 @@ const ModelSettingsSection = ({
         </View>
       </Modal>
 
-      {/* Seed Dialog */}
       <Modal
         visible={showSeedDialog}
         transparent
@@ -1014,7 +1003,6 @@ const ModelSettingsSection = ({
         </View>
       </Modal>
 
-      {/* N-Probs Dialog */}
       <Modal
         visible={showNProbsDialog}
         transparent
@@ -1072,7 +1060,6 @@ const ModelSettingsSection = ({
         </View>
       </Modal>
 
-      {/* Logit Bias Dialog */}
       <Modal
         visible={showLogitBiasDialog}
         transparent
@@ -1143,7 +1130,6 @@ const ModelSettingsSection = ({
         </View>
       </Modal>
 
-      {/* DRY Sequence Breakers Dialog */}
       <Modal
         visible={showDrySequenceBreakersDialog}
         transparent

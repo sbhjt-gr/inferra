@@ -46,7 +46,6 @@ export const storeAuthState = async (user: FirebaseAuthTypes.User | null, profil
     return true;
   } catch (error) {
     if (__DEV__) {
-      console.error('Authentication storage failed:', error);
     }
     return false;
   }
@@ -75,7 +74,6 @@ export const getUserFromSecureStorage = async (): Promise<UserData | null> => {
         try {
           await currentUser.reload();
         } catch {
-          // Continue even if reload fails
         }
         
         if (parsed.emailVerified !== currentUser.emailVerified) {
@@ -84,7 +82,6 @@ export const getUserFromSecureStorage = async (): Promise<UserData | null> => {
         }
       }
     } catch {
-      // Continue if Firebase services are not available yet
     }
     
     return parsed;

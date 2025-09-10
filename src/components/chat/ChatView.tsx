@@ -128,7 +128,6 @@ export default function ChatView({
         contentToEdit = parsedMessage.userPrompt;
       }
     } catch (e) {
-      // Not JSON, use as is
     }
     
     setEditingMessageId(messageId);
@@ -147,7 +146,6 @@ export default function ChatView({
     }
 
     try {
-      // Find the original message to get its structure
       const originalMessage = messages.find(msg => msg.id === editingMessageId);
       if (!originalMessage) {
         Alert.alert('Error', 'Original message not found');
@@ -156,18 +154,15 @@ export default function ChatView({
 
       let finalContent = editedMessageContent.trim();
 
-      // Check if the original message was structured JSON and reconstruct it
       try {
         const parsedOriginal = JSON.parse(originalMessage.content);
         
         if (parsedOriginal && parsedOriginal.type === 'file_upload') {
-          // Reconstruct file upload message
           finalContent = JSON.stringify({
             ...parsedOriginal,
             userContent: editedMessageContent.trim()
           });
         } else if (parsedOriginal && parsedOriginal.type === 'multimodal' && parsedOriginal.content) {
-          // Reconstruct multimodal message
           const updatedContent = parsedOriginal.content.map((item: any) => {
             if (item.type === 'text') {
               return { ...item, text: editedMessageContent.trim() };
@@ -179,14 +174,12 @@ export default function ChatView({
             content: updatedContent
           });
         } else if (parsedOriginal && parsedOriginal.type === 'ocr_result') {
-          // Reconstruct OCR result message
           finalContent = JSON.stringify({
             ...parsedOriginal,
             userPrompt: editedMessageContent.trim()
           });
         }
       } catch (e) {
-        // Original wasn't JSON, use plain text
         finalContent = editedMessageContent.trim();
       }
 
@@ -265,7 +258,6 @@ export default function ChatView({
           return parsedMessage.userContent || "";
         }
       } catch (e) {
-        // Not JSON
       }
       
       return content;

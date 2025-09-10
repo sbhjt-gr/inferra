@@ -66,7 +66,6 @@ export default function ImageViewerModal({
       
       onClose();
     } catch (error) {
-      console.error('Error processing image:', error);
     } finally {
       setIsProcessing(false);
       setProcessingProgress('');

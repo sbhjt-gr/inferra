@@ -50,7 +50,6 @@ export class OpenAIService {
       
       return { data: base64String, mimeType };
     } catch (error) {
-      console.error('Error converting image to base64:', error);
       throw new Error('Failed to process image for OpenAI API');
     }
   }
@@ -95,7 +94,6 @@ export class OpenAIService {
         };
       }
     } catch (error) {
-      // Not a JSON message, treat as regular text
     }
     
     return {
@@ -127,7 +125,6 @@ export class OpenAIService {
       const maxTokens = options.maxTokens ?? 1024;
       const topP = options.topP ?? 0.9;
       const model = options.model ?? 'gpt-4o';
-      console.log(`Using OpenAI model: ${model}`);
 
       const formattedMessages = [];
       for (const msg of messages) {
@@ -151,7 +148,6 @@ export class OpenAIService {
         'Authorization': `Bearer ${apiKey}`
       };
       
-      console.log('Making request to OpenAI API...');
       
       const response = await fetch(url, {
         method: 'POST',
@@ -161,9 +157,6 @@ export class OpenAIService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error(`OpenAI API error (${response.status}): ${errorText}`);
-        console.error(`Request URL: ${url}`);
-        console.error(`Request body: ${JSON.stringify(requestBody)}`);
         
         if (response.status === 429 || errorText.includes("quota") || errorText.includes("rate limit") || errorText.includes("insufficient_quota")) {
           throw new Error("QUOTA_EXCEEDED: Your OpenAI API quota has been exceeded. Please try again later or upgrade your API plan.");
@@ -201,7 +194,6 @@ export class OpenAIService {
       }
 
       const jsonResponse = await response.json();
-      console.log("OpenAI response received");
       
       if (jsonResponse.output && jsonResponse.output.length > 0) {
         const message = jsonResponse.output[0];
@@ -319,10 +311,8 @@ export class OpenAIService {
         }
       }
       
-      console.error("Unexpected response format:", JSON.stringify(jsonResponse).substring(0, 200) + "...");
       throw new Error('Failed to extract content from OpenAI API response');
     } catch (error) {
-      console.error('Error calling OpenAI API:', error);
       throw error;
     }
   }

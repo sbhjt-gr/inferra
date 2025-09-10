@@ -58,7 +58,6 @@ export default function ChatHistoryScreen() {
       setChats(allChats);
       setCurrentChatId(chatManager.getCurrentChatId());
     } catch (error) {
-      console.error('Error loading chats:', error);
     } finally {
       setIsLoading(false);
     }
@@ -73,7 +72,6 @@ export default function ChatHistoryScreen() {
         params: { loadChatId: chatId }
       });
     } catch (error) {
-      console.error('Error selecting chat:', error);
       showDialog('Error', 'Failed to load selected chat', [
         <Button key="ok" onPress={hideDialog}>OK</Button>
       ]);
@@ -228,7 +226,6 @@ export default function ChatHistoryScreen() {
         )}
       </View>
 
-      {/* Dialog Portal */}
       <Portal>
         <Dialog visible={dialogVisible} onDismiss={hideDialog}>
           <Dialog.Title>{dialogTitle}</Dialog.Title>

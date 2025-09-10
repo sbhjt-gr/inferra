@@ -25,19 +25,16 @@ export class StoredModelsManager extends EventEmitter {
 
   async getStoredModels(): Promise<StoredModel[]> {
     try {
-      console.log('[StoredModelsManager] Getting stored models');
       
       const baseDir = this.fileManager.getBaseDir();
       
       const dirInfo = await FileSystem.getInfoAsync(baseDir);
       if (!dirInfo.exists) {
-        console.log('[StoredModelsManager] Models directory does not exist, creating it');
         await FileSystem.makeDirectoryAsync(baseDir, { intermediates: true });
         return [...this.externalModels]; 
       }
       
       const dir = await FileSystem.readDirectoryAsync(baseDir);
-      console.log(`[StoredModelsManager] Found ${dir.length} files in models directory:`, dir);
       
       let localModels: StoredModel[] = [];
       if (dir.length > 0) {
@@ -78,21 +75,18 @@ export class StoredModelsManager extends EventEmitter {
       
       return [...localModels, ...this.externalModels];
     } catch (error) {
-      console.error('[StoredModelsManager] Error getting stored models:', error);
       return [...this.externalModels]; 
     }
   }
 
   async deleteModel(path: string): Promise<void> {
     try {
-      console.log('[StoredModelsManager] Deleting model:', path);
       
       const externalModelIndex = this.externalModels.findIndex(model => model.path === path);
       if (externalModelIndex !== -1) {
         this.externalModels.splice(externalModelIndex, 1);
         await this.saveExternalModels();
         this.emit('modelsChanged');
-        console.log('[StoredModelsManager] Removed external model reference:', path);
         return;
       }
       
@@ -100,14 +94,12 @@ export class StoredModelsManager extends EventEmitter {
       
       this.emit('modelsChanged');
     } catch (error) {
-      console.error('[StoredModelsManager] Error deleting model:', error);
       throw error;
     }
   }
 
   async refreshStoredModels(): Promise<void> {
     try {
-      console.log('[StoredModelsManager] Refreshing stored models list...');
       
       const storedModels = await this.getStoredModels();
       const storedModelNames = storedModels.map(model => model.name);
@@ -117,7 +109,6 @@ export class StoredModelsManager extends EventEmitter {
       
       for (const filename of modelDirContents) {
         if (!storedModelNames.includes(filename)) {
-          console.log(`[StoredModelsManager] Found new model in directory: ${filename}`);
           
           const filePath = `${baseDir}/${filename}`;
           const fileInfo = await FileSystem.getInfoAsync(filePath, { size: true });
@@ -133,18 +124,15 @@ export class StoredModelsManager extends EventEmitter {
               downloadId
             });
             
-            console.log(`[StoredModelsManager] Added new model to stored models: ${filename}`);
           }
         }
       }
     } catch (error) {
-      console.error('[StoredModelsManager] Error refreshing stored models:', error);
     }
   }
 
   async linkExternalModel(uri: string, fileName: string): Promise<void> {
     try {
-      console.log(`[StoredModelsManager] Linking external model: ${fileName} from ${uri}`);
       
       const baseDir = this.fileManager.getBaseDir();
       const destPath = `${baseDir}/${fileName}`;
@@ -167,7 +155,6 @@ export class StoredModelsManager extends EventEmitter {
       let isExternal = true;
       
       if (Platform.OS === 'android' && uri.startsWith('content://')) {
-        console.log(`[StoredModelsManager] Android content URI detected, copying file to app directory`);
         
         const appModelPath = `${baseDir}/${fileName}`;
         
@@ -185,9 +172,7 @@ export class StoredModelsManager extends EventEmitter {
           finalPath = appModelPath;
           isExternal = false; 
           
-          console.log(`[StoredModelsManager] Successfully copied model to: ${appModelPath}`);
         } catch (error) {
-          console.error(`[StoredModelsManager] Error copying file:`, error);
           throw new Error('Failed to copy the model file to the app directory');
         }
       }
@@ -219,16 +204,13 @@ export class StoredModelsManager extends EventEmitter {
       
       this.emit('modelsChanged');
       
-      console.log(`[StoredModelsManager] Successfully linked model: ${fileName} at path: ${finalPath}`);
     } catch (error) {
-      console.error(`[StoredModelsManager] Error linking model: ${fileName}`, error);
       throw error;
     }
   }
 
   async exportModel(modelPath: string, modelName: string): Promise<void> {
     try {
-      console.log(`[StoredModelsManager] Starting export for model: ${modelName} from ${modelPath}`);
 
       const fileInfo = await FileSystem.getInfoAsync(modelPath);
       if (!fileInfo.exists) {
@@ -253,19 +235,16 @@ export class StoredModelsManager extends EventEmitter {
         to: tempFilePath
       });
 
-      console.log(`[StoredModelsManager] Copied model to temporary location: ${tempFilePath}`);
 
       await Sharing.shareAsync(tempFilePath, {
         mimeType: 'application/octet-stream',
         dialogTitle: `Export ${modelName}`,
       });
 
-      console.log(`[StoredModelsManager] Successfully initiated export for model: ${modelName}`);
       
       this.emit('modelExported', { modelName, tempFilePath });
 
     } catch (error) {
-      console.error(`[StoredModelsManager] Error exporting model: ${modelName}`, error);
       throw error;
     }
   }
@@ -275,10 +254,8 @@ export class StoredModelsManager extends EventEmitter {
       const externalModelsJson = await AsyncStorage.getItem(this.EXTERNAL_MODELS_KEY);
       if (externalModelsJson) {
         this.externalModels = JSON.parse(externalModelsJson);
-        console.log('[StoredModelsManager] Loaded external models:', this.externalModels);
       }
     } catch (error) {
-      console.error('[StoredModelsManager] Error loading external models:', error);
       this.externalModels = [];
     }
   }
@@ -286,9 +263,7 @@ export class StoredModelsManager extends EventEmitter {
   private async saveExternalModels(): Promise<void> {
     try {
       await AsyncStorage.setItem(this.EXTERNAL_MODELS_KEY, JSON.stringify(this.externalModels));
-      console.log('[StoredModelsManager] Saved external models:', this.externalModels);
     } catch (error) {
-      console.error('[StoredModelsManager] Error saving external models:', error);
     }
   }
 } 

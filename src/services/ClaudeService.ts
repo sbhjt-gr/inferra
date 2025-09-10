@@ -50,7 +50,6 @@ export class ClaudeService {
       
       return { data: base64String, mimeType };
     } catch (error) {
-      console.error('Error converting image to base64:', error);
       throw new Error('Failed to process image for Claude API');
     }
   }
@@ -97,7 +96,6 @@ export class ClaudeService {
         };
       }
     } catch (error) {
-      // treat as regular text
     }
     
     return {
@@ -129,7 +127,6 @@ export class ClaudeService {
       const maxTokens = options.maxTokens ?? 1024;
       const topP = options.topP ?? 0.9;
       const model = options.model ?? 'claude-3-7-sonnet-20250219';
-      console.log(`Using Claude model: ${model}`);
 
       let systemMessage: string | undefined;
       const userAssistantMessages = messages.filter(msg => {
@@ -158,7 +155,6 @@ export class ClaudeService {
         requestBody.system = systemMessage;
       }
 
-      console.log(`Claude API request: ${formattedMessages.length} messages, ${systemMessage ? 'with' : 'without'} system message`);
 
       const headers = {
         'Content-Type': 'application/json',
@@ -166,7 +162,6 @@ export class ClaudeService {
         'anthropic-version': '2023-06-01'
       };
 
-      console.log('Making request to Claude API...');
       
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -174,14 +169,12 @@ export class ClaudeService {
         body: JSON.stringify(requestBody),
       });
 
-      console.log(`Claude API response status: ${response.status}`);
       
       if (!response.ok) {
         await this.handleErrorResponse(response);
       }
 
       const jsonResponse = await response.json();
-      console.log('Claude response received and parsed successfully');
       
       if (jsonResponse.content && jsonResponse.content.length > 0) {
         let text = '';
@@ -206,17 +199,14 @@ export class ClaudeService {
         };
       }
       
-      console.error("Unexpected response format:", JSON.stringify(jsonResponse).substring(0, 200) + "...");
       throw new Error('Failed to extract content from Claude API response');
     } catch (error) {
-      console.error('Error calling Claude API:', error);
       throw error;
     }
   }
 
   private async handleErrorResponse(response: Response): Promise<never> {
     const errorText = await response.text();
-    console.error(`Claude API error (${response.status}): ${errorText}`);
     
     if (response.status === 429 || errorText.includes("quota") || errorText.includes("rate_limit")) {
       throw new Error("QUOTA_EXCEEDED: Your Claude API quota has been exceeded. Please try again later or upgrade your API plan.");

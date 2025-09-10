@@ -103,13 +103,11 @@ class LlamaManager {
 
   constructor() {
     this.loadSettings().catch(error => {
-      console.error('Error loading settings:', error);
     });
   }
 
   async initializeModel(modelPath: string, mmProjectorPath?: string) {
     try {
-      console.log('[LlamaManager] Initializing model from path:', modelPath);
 
       let finalModelPath = modelPath;
       
@@ -147,17 +145,12 @@ class LlamaManager {
       });
 
       if (mmProjectorPath && this.context) {
-        console.log('[LlamaManager] Initializing multimodal capabilities with projector:', mmProjectorPath);
         const success = await this.initMultimodal(mmProjectorPath);
         
         if (success) {
-          console.log('[LlamaManager] Multimodal support initialized successfully!');
           
           const support = await this.context.getMultimodalSupport();
-          console.log('[LlamaManager] Vision support:', support.vision);
-          console.log('[LlamaManager] Audio support:', support.audio);
         } else {
-          console.log('[LlamaManager] Failed to initialize multimodal support');
         }
       }
 
@@ -173,14 +166,12 @@ class LlamaManager {
         throw new Error('Base model context must be initialized before multimodal');
       }
 
-      console.log('[LlamaManager] Initializing multimodal with projector:', mmProjectorPath);
 
       let finalProjectorPath = mmProjectorPath;
       if (finalProjectorPath.startsWith('file://')) {
         finalProjectorPath = finalProjectorPath.slice(7);
       }
 
-      console.log('[LlamaManager] Attempting to initialize multimodal with path:', finalProjectorPath);
 
       const success = await this.context.initMultimodal({
         path: finalProjectorPath,
@@ -193,11 +184,7 @@ class LlamaManager {
           this.multimodalSupport = await this.context.getMultimodalSupport();
           this.mmProjectorPath = finalProjectorPath;
           
-          console.log('[LlamaManager] Multimodal initialization successful');
-          console.log('[LlamaManager] Vision support:', this.multimodalSupport.vision);
-          console.log('[LlamaManager] Audio support:', this.multimodalSupport.audio);
         } catch (statusError) {
-          console.error('[LlamaManager] Error checking multimodal status:', statusError);
           this.isMultimodalEnabled = false;
           this.multimodalSupport = { vision: false, audio: false };
           return false;
@@ -205,12 +192,10 @@ class LlamaManager {
       } else {
         this.isMultimodalEnabled = false;
         this.multimodalSupport = { vision: false, audio: false };
-        console.error('[LlamaManager] Failed to initialize multimodal support');
       }
 
       return success;
     } catch (error) {
-      console.error('[LlamaManager] Multimodal initialization failed:', error);
       this.isMultimodalEnabled = false;
       this.multimodalSupport = { vision: false, audio: false };
       
@@ -224,10 +209,8 @@ class LlamaManager {
         await this.context.releaseMultimodal();
         this.isMultimodalEnabled = false;
         this.multimodalSupport = { vision: false, audio: false };
-        console.log('[LlamaManager] Multimodal context released');
       }
     } catch (error) {
-      console.error('[LlamaManager] Error releasing multimodal context:', error);
     }
   }
 
@@ -293,7 +276,6 @@ class LlamaManager {
       });
       return fileContent;
     } catch (error) {
-      console.error('[LlamaManager] Error converting file to base64:', error);
       return null;
     }
   }
@@ -332,7 +314,6 @@ class LlamaManager {
             cleanPath = cleanPath.slice(7);
           }
           
-          console.log('[LlamaManager] Processing image with path:', cleanPath);
           
           content.push({
             type: 'image_url',
@@ -341,7 +322,6 @@ class LlamaManager {
             },
           });
         } catch (error) {
-          console.error('[LlamaManager] Error processing image:', error);
         }
       }
     }
@@ -354,7 +334,6 @@ class LlamaManager {
             cleanPath = cleanPath.slice(7);
           }
           
-          console.log('[LlamaManager] Processing audio with path:', cleanPath);
           const extension = this.getFileExtension(audioUri);
           
           const validFormats: ('wav' | 'mp3' | 'm4a')[] = ['wav', 'mp3', 'm4a'];
@@ -368,12 +347,10 @@ class LlamaManager {
             },
           });
         } catch (error) {
-          console.error('[LlamaManager] Error processing audio:', error);
         }
       }
     }
 
-    console.log('[LlamaManager] Created multimodal content:', JSON.stringify(content, null, 2));
     return content;
   }
 
@@ -560,7 +537,6 @@ class LlamaManager {
     }
 
     if (elapsed >= maxWaitTime) {
-      console.warn('[LlamaManager] Token queue completion timeout reached');
     }
   }
 
@@ -594,7 +570,6 @@ class LlamaManager {
               const content = await this.createMultimodalContent(processed);
               
               if (content.length === 0) {
-                console.warn('[LlamaManager] No valid multimodal content created, falling back to text');
                 return {
                   role: msg.role,
                   content: processed.text,
@@ -606,7 +581,6 @@ class LlamaManager {
                 content: content,
               };
             } catch (error) {
-              console.error('[LlamaManager] Error creating multimodal content:', error);
               return {
                 role: msg.role,
                 content: processed.text,
@@ -621,7 +595,6 @@ class LlamaManager {
         })
       );
 
-      console.log('[LlamaManager] Final processed messages:', JSON.stringify(processedMessages, null, 2));
 
       const result = await this.context.completion(
         {
@@ -681,7 +654,6 @@ class LlamaManager {
 
       return fullResponse.trim();
     } catch (error) {
-      console.error('[LlamaManager] Error in generateResponse:', error);
       throw error;
     } finally {
       this.clearTokenQueue();
@@ -780,12 +752,9 @@ class LlamaManager {
       try {
         if (typeof this.context.stopCompletion === 'function') {
           await this.context.stopCompletion();
-          console.log('[LlamaManager] Completion stopped using native method');
         } else {
-          console.log('[LlamaManager] Native stopCompletion not available, using fallback');
         }
       } catch (error) {
-        console.error('[LlamaManager] Error stopping completion:', error);
       }
     }
 
@@ -847,7 +816,6 @@ class LlamaManager {
         this.mmProjectorPath = null;
       }
     } catch (error) {
-      console.error('Release error:', error);
       throw error;
     }
   }
@@ -855,7 +823,6 @@ class LlamaManager {
   emergencyCleanup() {
     this.isCancelled = true;
     this.clearTokenQueue();
-    console.log('[LlamaManager] Emergency cleanup completed');
   }
 
   getModelPath() {
@@ -892,7 +859,6 @@ class LlamaManager {
         media_paths: mediaPaths
       });
       
-      console.log('[LlamaManager] Tokenize result:', {
         tokenCount: result.tokens?.length || 0,
         hasMedia: (result as any).has_media,
         mediaPositions: (result as any).chunk_pos_media
@@ -900,7 +866,6 @@ class LlamaManager {
 
       return result;
     } catch (error) {
-      console.error('[LlamaManager] Error tokenizing with media:', error);
       throw error;
     }
   }
@@ -915,7 +880,6 @@ class LlamaManager {
       }
       return await LlamaManagerModule.getMemoryInfo();
     } catch (error) {
-      console.warn('Memory info check failed:', error);
       return {
         requiredMemory: 0,
         availableMemory: 0
@@ -942,7 +906,6 @@ class LlamaManager {
       this.events.emit('model-loaded', modelPath);
       return true;
     } catch (error) {
-      console.error('Error loading model:', error);
       return false;
     }
   }

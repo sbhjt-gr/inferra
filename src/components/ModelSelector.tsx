@@ -141,7 +141,6 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
         sections.push({ title: 'Remote Models', data: ONLINE_MODELS });
         setSections(sections);
       } catch (error) {
-        console.error('Error loading models:', error);
       }
     };
 
@@ -195,7 +194,6 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
           setIsOnlineModelsExpanded(true);
         }
       } catch (error) {
-        console.error('Error checking API keys:', error);
       }
     };
 
@@ -302,7 +300,6 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
         );
         setProjectorModels(projectorModels);
       } catch (error) {
-        console.error('Error loading projector models:', error);
         setProjectorModels([]);
       }
     };
@@ -910,7 +907,6 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
           </View>
         </Modal>
 
-        {/* Dialog Portal */}
         <Portal>
           <Dialog visible={dialogVisible} onDismiss={hideDialog}>
             <Dialog.Title>{dialogTitle}</Dialog.Title>
@@ -922,7 +918,6 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
             </Dialog.Actions>
           </Dialog>
 
-          {/* Projector Selector Dialog */}
           <Dialog visible={projectorSelectorVisible} onDismiss={handleProjectorSelectorClose}>
             <Dialog.Title>Select Multimodal Projector</Dialog.Title>
             <Dialog.Content>

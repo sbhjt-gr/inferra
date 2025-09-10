@@ -30,7 +30,6 @@ export const RemoteModelProvider: React.FC<{ children: React.ReactNode }> = ({ c
     try {
       await AsyncStorage.setItem('@remote_models_enabled', 'false');
     } catch {
-      // do nothing
     }
   };
 
@@ -100,7 +99,6 @@ export const RemoteModelProvider: React.FC<{ children: React.ReactNode }> = ({ c
         setEnableRemoteModels(savedPreference === 'true');
       }
     } catch {
-      // do nothing
     }
   };
 

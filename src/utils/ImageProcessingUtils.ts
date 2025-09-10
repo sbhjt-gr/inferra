@@ -41,7 +41,6 @@ export const performOCROnImage = async (
       return "No text was detected in this image. The image may not contain readable text or the text quality might be too low for recognition.";
     }
   } catch (error) {
-    console.error('OCR Error:', error);
     if (error instanceof Error) {
       return `Text recognition failed: ${error.message}`;
     }

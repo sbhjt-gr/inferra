@@ -37,7 +37,6 @@ class UsageTrackingService {
       }
       return JSON.parse(data);
     } catch (error) {
-      console.error('Failed to get usage data:', error);
       return {
         firstOpenAt: Date.now(),
         totalUsageTime: 0,
@@ -54,7 +53,6 @@ class UsageTrackingService {
     try {
       await AsyncStorage.setItem(USAGE_KEY, JSON.stringify(data));
     } catch (error) {
-      console.error('Failed to save usage data:', error);
     }
   }
 

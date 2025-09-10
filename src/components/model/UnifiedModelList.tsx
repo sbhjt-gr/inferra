@@ -550,7 +550,6 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
       try {
         await AsyncStorage.setItem('hideModelWarning', 'true');
       } catch (error) {
-        console.warn('Failed to save warning preference:', error);
       }
     }
     

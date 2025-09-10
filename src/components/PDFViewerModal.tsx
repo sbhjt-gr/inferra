@@ -102,7 +102,6 @@ export default function PDFViewerModal({
         return false;
       }
     } catch (err) {
-      console.error('Error in safeUpload:', err);
       showDialog(
         'Upload Failed',
         'Failed to upload the PDF content. Please try again.'
@@ -182,7 +181,6 @@ export default function PDFViewerModal({
         setShowGridView(false);
       }
     } catch (err) {
-      console.error('Error performing OCR on PDF content:', err);
       
       if (progressTimer) clearInterval(progressTimer);
       
@@ -344,7 +342,6 @@ export default function PDFViewerModal({
             setSelectedPages(pages.map((_, index) => index));
             setLoading(false);
           } catch (err) {
-            console.error('Error in loadPdf:', err);
             setError('Failed to load PDF. The file might be corrupted or not accessible.');
             setLoading(false);
           }
@@ -354,7 +351,6 @@ export default function PDFViewerModal({
       } catch (err) {
         setLoading(false);
         setError('Failed to load PDF. The file might be corrupted or not accessible.');
-        console.error('PDF loading error:', err);
       }
     } else {
       cleanupTempFiles(tempFileUris);
@@ -493,7 +489,6 @@ export default function PDFViewerModal({
         handleStartOCR={handleStartOCR}
       />
 
-      {/* Dialog Portal */}
       <Portal>
         <Dialog visible={dialogVisible} onDismiss={hideDialog}>
           <Dialog.Title>{dialogTitle}</Dialog.Title>

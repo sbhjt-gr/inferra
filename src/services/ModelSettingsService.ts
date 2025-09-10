@@ -60,7 +60,6 @@ class ModelSettingsService {
         }
       }
     } catch (error) {
-      console.error('[ModelSettingsService] Error during initialization:', error);
     }
     
     this.isInitialized = true;
@@ -84,7 +83,6 @@ class ModelSettingsService {
       this.cache[modelPath] = modelSettings;
       return modelSettings;
     } catch (error) {
-      console.error('Error loading per-model settings:', error);
       return { useGlobalSettings: true };
     }
   }
@@ -99,7 +97,6 @@ class ModelSettingsService {
       
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(allSettings));
     } catch (error) {
-      console.error('Error saving per-model settings:', error);
       throw error;
     }
   }
@@ -136,7 +133,6 @@ class ModelSettingsService {
       
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(allSettings));
     } catch (error) {
-      console.error('Error deleting per-model settings:', error);
     }
   }
 
@@ -149,7 +145,6 @@ class ModelSettingsService {
       await AsyncStorage.removeItem(STORAGE_KEY);
       this.cache = {};
     } catch (error) {
-      console.error('Error clearing corrupted data:', error);
     }
   }
 }

@@ -70,7 +70,6 @@ const formatBytes = (bytes?: number) => {
     if (i < 0 || i >= sizes.length || !isFinite(bytes)) return '0 B';
     return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
   } catch (error) {
-    console.error('Error formatting bytes:', error, bytes);
     return '0 B';
   }
 };
@@ -103,7 +102,6 @@ const DownloadableModelItem: React.FC<DownloadableModelItemProps> = ({
     try {
       await Linking.openURL(url);
     } catch (error) {
-      console.error('Error opening URL:', error);
       showDialog('Error', 'Could not open the download link');
     }
   };

@@ -16,7 +16,6 @@ export const initOpenAIService = (): OpenAIService => {
   onlineModelService.setOpenAIServiceGetter(() => instance);
   
   isInitialized = true;
-  console.log('OpenAIService initialized successfully');
   
   openAIService = instance;
   

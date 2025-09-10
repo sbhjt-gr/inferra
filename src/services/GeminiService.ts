@@ -54,7 +54,6 @@ export class GeminiService {
       
       return { data: base64String, mimeType };
     } catch (error) {
-      console.error('Error converting image to base64:', error);
       throw new Error('Failed to process image for Gemini API');
     }
   }
@@ -90,7 +89,6 @@ export class GeminiService {
         return [{ text: `${instruction}\n\nUser request: ${userPrompt}` }];
       }
     } catch (error) {
-      // treat as regular text
     }
     
     return [{ text: message.content }];
@@ -119,7 +117,6 @@ export class GeminiService {
       const maxTokens = options.maxTokens ?? 1024;
       const topP = options.topP ?? 0.9;
       const model = options.model ?? 'gemini-2.5-flash-preview-05-20';
-      console.log(`Using Gemini model: ${model}`);
       
       const shouldStream = !!onToken;
       const shouldStreamTokens = options.streamTokens ?? true;
@@ -158,7 +155,6 @@ export class GeminiService {
       };
 
       if (shouldStreamTokens && shouldStream && typeof onToken === 'function') {
-        console.log("Using simulated streaming for Gemini API");
         
         try {
           const response = await fetch(url.replace('streamGenerateContent', 'generateContent'), {
@@ -169,9 +165,6 @@ export class GeminiService {
 
           if (!response.ok) {
             const errorText = await response.text();
-            console.error(`Gemini API error (${response.status}): ${errorText}`);
-            console.error(`Request URL: ${url.replace(apiKey, 'API_KEY_REDACTED')}`);
-            console.error(`Request body: ${JSON.stringify(requestBody)}`);
             
             if (response.status === 429 || errorText.includes("quota") || errorText.includes("rate limit")) {
               throw new Error("QUOTA_EXCEEDED: Your Gemini API quota has been exceeded. Please try again later or upgrade your API plan.");
@@ -206,7 +199,6 @@ export class GeminiService {
           }
 
           const jsonResponse = await response.json();
-          console.log("Gemini complete response received, simulating streaming");
           
           let completeText = '';
           let totalTokens = 0;
@@ -247,11 +239,9 @@ export class GeminiService {
               }
             }
           } else {
-            console.error("Unexpected response format:", JSON.stringify(jsonResponse).substring(0, 200) + "...");
             throw new Error('Failed to extract content from Gemini API response');
           }
           
-          console.log(`Complete response length: ${completeText.length} characters, now simulating streaming`);
           
           const words = completeText.split(/(\s+|[,.!?;:"])/);
           let currentText = '';
@@ -262,7 +252,6 @@ export class GeminiService {
             
             const shouldContinue = onToken(currentText);
             if (shouldContinue === false) {
-              console.log('Simulated streaming canceled by callback');
               return { 
                 fullResponse: currentText, 
                 tokenCount: totalTokens || tokenCount, 
@@ -293,7 +282,6 @@ export class GeminiService {
           };
           
         } catch (error) {
-          console.error('Error in streaming mode:', error);
         }
       }
       
@@ -305,9 +293,6 @@ export class GeminiService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error(`Gemini API error (${response.status}): ${errorText}`);
-        console.error(`Request URL: ${url.replace(apiKey, 'API_KEY_REDACTED')}`);
-        console.error(`Request body: ${JSON.stringify(requestBody)}`);
         
         if (response.status === 429 || errorText.includes("quota") || errorText.includes("rate limit")) {
           throw new Error("QUOTA_EXCEEDED: Your Gemini API quota has been exceeded. Please try again later or upgrade your API plan.");
@@ -342,7 +327,6 @@ export class GeminiService {
       }
 
       const jsonResponse = await response.json();
-      console.log("Gemini response received");
       
       const simulateWordByWordStreaming = async (text: string): Promise<boolean> => {
         if (!shouldStream || typeof onToken !== 'function') return true;
@@ -378,7 +362,6 @@ export class GeminiService {
       };
       
       if (Array.isArray(jsonResponse)) {
-        console.log(`Received ${jsonResponse.length} response chunks`);
         
         let completeText = '';
         let totalTokens = 0;
@@ -402,7 +385,6 @@ export class GeminiService {
           }
         }
         
-        console.log(`Complete response length: ${completeText.length} characters`);
         
         fullResponse = completeText;
         
@@ -423,7 +405,6 @@ export class GeminiService {
           startTime
         };
       } else if (jsonResponse.candidates) {
-        console.log("Single response object format detected");
         
         let text = '';
         if (jsonResponse.candidates.length > 0) {
@@ -440,11 +421,9 @@ export class GeminiService {
           } 
           
           else if (candidate.finishReason === 'MAX_TOKENS' && !text) {
-            console.warn("Gemini response hit MAX_TOKENS with empty content, likely due to low maxTokens setting");
             throw new Error('Response was cut off due to token limit. Please try with a higher token limit.');
           }
           
-          console.log(`Response length: ${text.length} characters`);
           
           fullResponse = text;
           
@@ -467,10 +446,8 @@ export class GeminiService {
         }
       }
       
-      console.error("Unexpected response format:", JSON.stringify(jsonResponse).substring(0, 200) + "...");
       throw new Error('Failed to extract content from Gemini API response');
     } catch (error) {
-      console.error('Error calling Gemini API:', error);
       throw error;
     }
   }

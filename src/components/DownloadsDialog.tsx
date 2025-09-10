@@ -65,7 +65,6 @@ const DownloadsDialog = ({ visible, onClose, downloads, setDownloadProgress }: D
         return newProgress;
       });
     } catch (error) {
-      // do nothing
     }
   };
 
@@ -87,7 +86,6 @@ const DownloadsDialog = ({ visible, onClose, downloads, setDownloadProgress }: D
         appState.current = nextAppState;
       });
     } catch (error) {
-      console.error('Error setting up AppState listener in DownloadsDialog:', error);
     }
 
     return () => {
@@ -111,7 +109,6 @@ const DownloadsDialog = ({ visible, onClose, downloads, setDownloadProgress }: D
         return newProgress;
       });
     } catch (error) {
-      // do nothing
     }
   };
 
@@ -125,7 +122,6 @@ const DownloadsDialog = ({ visible, onClose, downloads, setDownloadProgress }: D
         await modelDownloader.pauseDownload(downloadInfo.downloadId);
       }
     } catch (error) {
-      // do nothing
     }
   };
 

@@ -132,7 +132,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           gpu: Device.modelName || 'Unknown'
         }));
       } catch (error) {
-        console.error('Error getting system info:', error);
       }
     };
 
@@ -146,7 +145,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
         setSelectedInferenceEngine(saved as InferenceEngine);
       }
     } catch (error) {
-      console.error('Error loading inference engine preference:', error);
     }
   };
 
@@ -155,7 +153,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
       await AsyncStorage.setItem('@theme_preference', newTheme);
       toggleTheme(newTheme);
     } catch (error) {
-      console.error('Error saving theme preference:', error);
     }
   };
 
@@ -164,7 +161,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
       await AsyncStorage.setItem('@inference_engine', engine);
       setSelectedInferenceEngine(engine);
     } catch (error) {
-      console.error('Error saving inference engine preference:', error);
       showDialog('Error', 'Failed to save inference engine preference', [
         <Button key="ok" onPress={hideDialog}>OK</Button>
       ]);
@@ -185,7 +181,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
       setModelSettings(updatedSettings);
       await llamaManager.updateSettings(updatedSettings);
     } catch (error) {
-      console.error('Error updating settings:', error);
       showDialog('Error', 'Failed to save settings', [
         <Button key="ok" onPress={hideDialog}>OK</Button>
       ]);
@@ -245,7 +240,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
 
       return totalSize;
     } catch (error) {
-      console.error(`Error getting size of ${directory}:`, error);
       return 0;
     }
   };
@@ -266,7 +260,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
         cacheSize: formatBytes(cacheSize)
       });
     } catch (error) {
-      console.error('Error loading storage info:', error);
     }
   };
 
@@ -282,7 +275,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
         await FileSystem.deleteAsync(filePath, { idempotent: true });
       }
     } catch (error) {
-      console.error(`Error clearing directory ${directory}:`, error);
       throw error;
     }
   };

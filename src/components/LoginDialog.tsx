@@ -46,7 +46,6 @@ export default function LoginDialog({
             Please sign in to continue
           </Text>
           
-          {/* Email Input */}
           <View style={[styles.inputContainer, { backgroundColor: themeColors.background }]}>
             <MaterialCommunityIcons
               name="email-outline"
@@ -65,7 +64,6 @@ export default function LoginDialog({
             />
           </View>
 
-          {/* Password Input */}
           <View style={[styles.inputContainer, { backgroundColor: themeColors.background }]}>
             <MaterialCommunityIcons
               name="lock-outline"
@@ -90,7 +88,6 @@ export default function LoginDialog({
             </TouchableOpacity>
           </View>
 
-          {/* Forgot Password */}
           <TouchableOpacity style={styles.forgotPasswordContainer}>
             <Text style={[styles.forgotPasswordText, { color: themeColors.primary }]}>
               Forgot Password?

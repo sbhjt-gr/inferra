@@ -41,7 +41,6 @@ export class DeepSeekService {
         };
       }
     } catch (error) {
-      // treat as regular text
     }
     
     return {
@@ -73,7 +72,6 @@ export class DeepSeekService {
       const maxTokens = options.maxTokens ?? 1024;
       const topP = options.topP ?? 0.9;
       const model = options.model ?? 'deepseek-reasoner';
-      console.log(`Using DeepSeek model: ${model}`);
 
       const formattedMessages = messages.map(msg => this.parseMessageContent(msg));
 
@@ -93,7 +91,6 @@ export class DeepSeekService {
         'Authorization': `Bearer ${apiKey}`
       };
       
-      console.log('Making request to DeepSeek API...');
       
       const response = await fetch(url, {
         method: 'POST',
@@ -103,9 +100,6 @@ export class DeepSeekService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error(`DeepSeek API error (${response.status}): ${errorText}`);
-        console.error(`Request URL: ${url}`);
-        console.error(`Request body: ${JSON.stringify(requestBody)}`);
         
         if (response.status === 429 || errorText.includes("quota") || errorText.includes("rate limit")) {
           throw new Error("QUOTA_EXCEEDED: Your DeepSeek API quota has been exceeded. Please try again later or upgrade your API plan.");
@@ -143,7 +137,6 @@ export class DeepSeekService {
       }
 
       const jsonResponse = await response.json();
-      console.log("DeepSeek response received");
       
       if (jsonResponse.choices && jsonResponse.choices.length > 0) {
         const choice = jsonResponse.choices[0];
@@ -202,10 +195,8 @@ export class DeepSeekService {
         }
       }
       
-      console.error("Unexpected response format:", JSON.stringify(jsonResponse).substring(0, 200) + "...");
       throw new Error('Failed to extract content from DeepSeek API response');
     } catch (error) {
-      console.error('Error calling DeepSeek API:', error);
       throw error;
     }
   }

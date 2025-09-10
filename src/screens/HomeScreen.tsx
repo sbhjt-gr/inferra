@@ -134,7 +134,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
           return modelConfig.customSettings;
         }
       } catch (error) {
-        console.error('Error getting model settings:', error);
       }
     }
     
@@ -179,7 +178,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
           try {
             await inAppReviewService.checkAndRequestReview();
           } catch (error) {
-            console.error('Error checking in-app review:', error);
           }
         }, 2000);
       };
@@ -243,7 +241,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
           setShowMemoryWarning(true);
         }
       } catch (error) {
-        console.error('Error checking system memory:', error);
       }
     };
 
@@ -322,7 +319,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         setAppState(nextAppState);
       });
     } catch (error) {
-      console.error('Error setting up AppState listener:', error);
     }
 
     return () => {
@@ -365,7 +361,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       
       await processMessage();
     } catch (error) {
-      console.error('Error sending message:', error);
       showDialog(
         'Error',
         'Failed to send message',
@@ -408,19 +403,14 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     
     if (activeProvider === 'local') {
       try {
-        console.log('[HomeScreen] Stopping local model generation...');
         await llamaManager.stopCompletion();
-        console.log('[HomeScreen] Local generation stopped successfully');
       } catch (error) {
-        console.error('[HomeScreen] Error stopping generation:', error);
         try {
           await llamaManager.cancelGeneration();
         } catch (fallbackError) {
-          console.error('[HomeScreen] Fallback cancellation also failed:', fallbackError);
         }
       }
     } else {
-      console.log('[HomeScreen] Cancelling online model generation via flag...');
     }
     
     if (currentMessageId && (currentContent || currentThinking)) {
@@ -434,7 +424,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             currentStats
           );
         } catch (error) {
-          console.error('[HomeScreen] Error updating message content:', error);
         }
       }
     }
@@ -451,25 +440,17 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   }, [streamingMessage, streamingThinking, streamingMessageId, streamingStats, activeProvider, messages]);
 
   const stopGenerationIfRunning = useCallback(async () => {
-    console.log('[HomeScreen] stopGenerationIfRunning called');
-    console.log('[HomeScreen] Current state - isLoading:', isLoading, 'isRegenerating:', isRegenerating, 'isStreaming:', isStreaming, 'cancelGenerationRef:', cancelGenerationRef.current);
     
     if (isLoading || isRegenerating || isStreaming) {
-      console.log('[HomeScreen] Generation detected, stopping...');
       
       cancelGenerationRef.current = true;
-      console.log('[HomeScreen] Set cancelGenerationRef.current = true');
       
       if (activeProvider === 'local') {
         try {
-          console.log('[HomeScreen] Stopping local model generation...');
           await llamaManager.stopCompletion();
-          console.log('[HomeScreen] Local generation stopped successfully');
         } catch (error) {
-          console.error('[HomeScreen] Error stopping generation:', error);
         }
       } else {
-        console.log('[HomeScreen] Online model generation - set cancellation flag only');
       }
       
       setIsLoading(false);
@@ -478,14 +459,11 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       
       await new Promise(resolve => setTimeout(resolve, 200));
       
-      console.log('[HomeScreen] Generation stop process completed');
     } else {
-      console.log('[HomeScreen] No generation running to stop');
     }
   }, [isLoading, isRegenerating, isStreaming, activeProvider]);
 
   const handleApiError = (error: unknown, provider: 'Gemini' | 'OpenAI' | 'DeepSeek' | 'Claude') => {
-    console.error(`Error with ${provider} API:`, error);
     
     if (error instanceof Error) {
       if (error.message.startsWith('QUOTA_EXCEEDED:')) {
@@ -1019,7 +997,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       setStreamingStats(null);
       
     } catch (error) {
-      console.error('Error processing message:', error);
       showDialog(
         'Error',
         'Failed to generate response',
@@ -1448,7 +1425,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       }
       
     } catch (error) {
-      console.error('Error regenerating response:', error);
       showDialog(
         'Error',
         'Failed to regenerate response',
@@ -1483,7 +1459,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       setIsLoading(false);
       setIsRegenerating(false);
     } catch (error) {
-      console.error('Error starting new chat:', error);
     }
   };
 
@@ -1506,7 +1481,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         }
       }
     } catch (error) {
-      console.error('Error loading chat:', error);
       showDialog(
         'Error',
         'Failed to load chat',
@@ -1520,7 +1494,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       await AsyncStorage.setItem('@memory_warning_shown', 'true');
       setShowMemoryWarning(false);
     } catch (error) {
-      console.error('Error saving memory warning state:', error);
     }
   };
 

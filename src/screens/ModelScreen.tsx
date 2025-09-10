@@ -56,7 +56,6 @@ const BACKGROUND_DOWNLOAD_TASK = 'background-download-task';
 
 TaskManager.defineTask(BACKGROUND_DOWNLOAD_TASK, async ({ data, error }) => {
   if (error) {
-    console.error('Background task error:', error);
     return BackgroundTask.BackgroundTaskResult.Failed;
   }
   
@@ -68,16 +67,13 @@ const registerBackgroundTask = async () => {
     const isRegistered = await TaskManager.isTaskRegisteredAsync(BACKGROUND_DOWNLOAD_TASK);
     
     if (isRegistered) {
-      console.log('Background download task already registered');
       return;
     }
     
     await BackgroundTask.registerTaskAsync(BACKGROUND_DOWNLOAD_TASK, {
       minimumInterval: 15
     });
-    console.log('Background download task registered in ModelScreen');
   } catch (err) {
-    console.error('Task registration failed in ModelScreen:', err);
   }
 };
 
@@ -194,7 +190,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         setUsername(user.email);
       }
     } catch (error) {
-      console.error('Error checking login status:', error);
     }
   };
 
@@ -226,7 +221,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         );
       }
     } catch (error) {
-      console.error('Logout error:', error);
       showDialog(
         'Error',
         'Failed to log out. Please try again.',
@@ -243,14 +237,12 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       });
 
       if (result.canceled) {
-        console.log('[ModelScreen] Document picking canceled');
         return;
       }
 
       const file = result.assets[0];
       const fileName = file.name.toLowerCase();
       
-      console.log('[ModelScreen] Selected file:', {
         name: file.name,
         uri: file.uri,
         type: file.mimeType,
@@ -294,7 +286,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
                   } catch (error) {
                     setIsLoading(false);
                     setImportingModelName(null);
-                    console.error('[ModelScreen] Error importing model:', error);
                     showDialog(
                       'Error',
                       `Failed to import the model: ${error instanceof Error ? error.message : 'Unknown error'}`,
@@ -331,7 +322,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       } catch (error) {
         setIsLoading(false);
         setImportingModelName(null);
-        console.error('[ModelScreen] Error picking document:', error);
         showDialog(
           'Error',
           'Failed to access the file. Please try again or choose a different file.',
@@ -340,7 +330,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       }
     } catch (error) {
       setIsLoading(false);
-      console.error('[ModelScreen] DocumentPicker error:', error);
       showDialog(
         'Error',
         'Could not open the file picker. Please ensure the app has storage permissions.',
@@ -383,7 +372,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       
       await loadStoredModels();
     } catch (error) {
-      console.error('Error canceling download:', error);
       showDialog('Error', 'Failed to cancel download', [
         <Button key="ok" onPress={hideDialog}>OK</Button>
       ]);
@@ -391,21 +379,15 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
   };
 
   const loadStoredModels = async () => {
-    console.log('[ModelScreen] Loading stored models...');
     try {
       try {
-        console.log('[ModelScreen] Checking for background downloads...');
         await modelDownloader.checkBackgroundDownloads();
-        console.log('[ModelScreen] Background downloads check completed');
       } catch (checkError) {
-        console.error('[ModelScreen] Error checking background downloads:', checkError);
       }
       
-      console.log('[ModelScreen] Getting stored models from modelDownloader...');
       const models = await modelDownloader.getStoredModels();
       setStoredModels(models);
     } catch (error) {
-      console.error('[ModelScreen] Error loading stored models:', error);
       showDialog(
         'Error Loading Models',
         'There was a problem loading your stored models. Please try again.',
@@ -429,7 +411,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       const claudeKey = await onlineModelService.getApiKey('claude');
       setClaudeApiKey(claudeKey || '');
     } catch (error) {
-      console.error('Error loading API keys:', error);
     } finally {
       setIsLoadingApiKeys(false);
     }
@@ -447,14 +428,12 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     }) => {
       const filename = modelName.split('/').pop() || modelName;
       
-      console.log(`[ModelScreen] Download progress for ${filename}:`, progress.status, progress.progress);
       
       const bytesDownloaded = typeof progress.bytesDownloaded === 'number' ? progress.bytesDownloaded : 0;
       const totalBytes = typeof progress.totalBytes === 'number' ? progress.totalBytes : 0;
       const progressValue = typeof progress.progress === 'number' ? progress.progress : 0;
 
       if (progress.status === 'completed') {
-        console.log(`[ModelScreen] Download completed for ${filename}`);
         
         if (Platform.OS === 'android') {
           await downloadNotificationService.showNotification(
@@ -485,7 +464,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
           });
         }, 1000);
       } else if (progress.status === 'failed') {
-        console.log(`[ModelScreen] Download failed for ${filename}:`, progress.error);
         
         if (Platform.OS === 'android') {
           await downloadNotificationService.cancelNotification(progress.downloadId);
@@ -568,18 +546,14 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
   }, [downloadProgress]);
 
   const handleDelete = (model: StoredModel) => {
-    console.log(`[ModelScreen] Attempting to delete model: ${model.name}, path: ${model.path}`);
     
     if (model.isExternal) {
       (async () => {
         try {
-          console.log(`[ModelScreen] Removing linkage for external model: ${model.name}`);
           modelDownloader.deleteModel(model.path);
           await modelSettingsService.deleteModelSettings(model.path);
-          console.log(`[ModelScreen] Model settings cleaned up for: ${model.path}`);
           loadStoredModels();
         } catch (error) {
-          console.error(`[ModelScreen] Error removing linkage for model ${model.name}:`, error);
           showDialog('Error', 'Failed to remove model linkage', [
             <Button key="ok" onPress={hideDialog}>OK</Button>
           ]);
@@ -596,13 +570,10 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
             onPress={async () => {
               hideDialog();
               try {
-                console.log(`[ModelScreen] User confirmed deletion of model: ${model.name}`);
                 await modelDownloader.deleteModel(model.path);
                 await modelSettingsService.deleteModelSettings(model.path);
-                console.log(`[ModelScreen] Model and settings deleted, refreshing stored models list`);
                 await loadStoredModels();
               } catch (error) {
-                console.error(`[ModelScreen] Error deleting model ${model.name}:`, error);
                 showDialog('Error', 'Failed to delete model', [
                 ]);
               }
@@ -617,7 +588,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
 
   const handleExport = async (modelPath: string, modelName: string) => {
     try {
-      console.log(`[ModelScreen] Starting export for model: ${modelName}`);
       setIsLoading(true);
       setIsExporting(true);
       
@@ -628,7 +598,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     } catch (error) {
       setIsLoading(false);
       setIsExporting(false);
-      console.error(`[ModelScreen] Error exporting model ${modelName}:`, error);
       showDialog(
         'Share Failed',
         `Failed to share ${modelName}: ${error instanceof Error ? error.message : 'Unknown error'}`,
@@ -638,7 +607,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
   };
 
   const handleModelSettings = (modelPath: string, modelName: string) => {
-    console.log('[ModelScreen] Navigating to settings for model:', modelName, modelPath);
     navigation.navigate('ModelSettings', {
       modelName,
       modelPath
@@ -827,10 +795,8 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       status: 'importing' | 'completed' | 'error';
       error?: string;
     }) => {
-      console.log('[ModelScreen] Import progress:', progress);
       
       if (isExporting) {
-        console.log('[ModelScreen] Ignoring import progress during export');
         return;
       }
       
@@ -849,7 +815,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     };
 
     const handleModelExported = (data: { modelName: string; tempFilePath: string }) => {
-      console.log('[ModelScreen] Model exported:', data);
       showDialog(
         'Share Successful',
         `${data.modelName} has been successfully prepared for sharing. You can now save it to your desired location.`,
@@ -1108,7 +1073,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: 6,
-    // flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },

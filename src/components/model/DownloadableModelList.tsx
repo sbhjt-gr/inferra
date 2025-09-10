@@ -90,13 +90,11 @@ const DownloadableModelList: React.FC<DownloadableModelListProps> = ({
               additionalFile.name
             );
           } catch (error) {
-            console.error(`Failed to download additional file ${additionalFile.name}:`, error);
           }
         }
       }
 
     } catch (error) {
-      console.error('Download error:', error);
       setDownloadProgress((prev: any) => {
         const newProgress = { ...prev };
         delete newProgress[model.name];
@@ -126,7 +124,6 @@ const DownloadableModelList: React.FC<DownloadableModelListProps> = ({
         />
       ))}
 
-      {/* Dialog Portal */}
       <Portal>
         <Dialog visible={dialogVisible} onDismiss={hideDialog}>
           <Dialog.Title>{dialogTitle}</Dialog.Title>

@@ -49,7 +49,6 @@ export const DownloadProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           setDownloadProgress(filteredProgress);
         }
       } catch (error) {
-        console.error('Error loading saved download states:', error);
       }
     };
     loadSavedStates();
@@ -64,7 +63,6 @@ export const DownloadProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           await AsyncStorage.removeItem('download_progress');
         }
       } catch (error) {
-        console.error('Error saving download states:', error);
       }
     };
     saveStates();

@@ -33,8 +33,6 @@ const configureGoogleSignIn = async (): Promise<void> => {
   }
   
   if (__DEV__) {
-    console.log('Configuring Google Sign-In with Web Client ID...');
-    console.log('Web Client ID (first 20 chars):', extra.GOOGLE_SIGN_IN_WEB_CLIENT_ID.substring(0, 20) + '...');
   }
   
   try {
@@ -43,11 +41,9 @@ const configureGoogleSignIn = async (): Promise<void> => {
     });
     
     if (__DEV__) {
-      console.log('Google Sign-In configured successfully');
     }
   } catch (error) {
     if (__DEV__) {
-      console.error('Google Sign-In configuration failed:', error);
     }
     throw error;
   }
@@ -59,11 +55,9 @@ const ensureGoogleSignInConfigured = async (): Promise<void> => {
   try {
     await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: false });
     if (__DEV__) {
-      console.log('Google Sign-In configuration verified');
     }
   } catch (error) {
     if (__DEV__) {
-      console.error('Google Sign-In verification failed:', error);
     }
     throw error;
   }
@@ -161,7 +155,6 @@ export const signInWithGoogle = async (): Promise<{ success: boolean; error?: st
 
   } catch (error: any) {
     if (__DEV__) {
-      console.error('Google Sign-In Error:', error);
     }
     
     await incrementAuthAttempts();
@@ -292,7 +285,6 @@ export const signInWithGoogleLogin = async (): Promise<{ success: boolean; error
 
   } catch (error: any) {
     if (__DEV__) {
-      console.error('Google Sign-In Login Error:', error);
     }
     
     await incrementAuthAttempts();

@@ -110,22 +110,18 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
     setTermsError(null);
 
     try {
-      console.log('Testing Firebase connection...');
       const connectionTest = await testFirebaseConnection();
       
       if (!connectionTest.connected) {
-        console.error('Firebase connection failed:', connectionTest.error);
         setError(`Firebase configuration error: ${connectionTest.error}`);
         setIsLoading(false);
         return;
       }
       
-      console.log('Firebase connection OK, proceeding with registration...');
       
       const result = await registerWithEmail(name, email, password);
       
       if (result.success) {
-        console.log('Registration successful');
         await checkLoginStatus();
         
         if (result.passwordWarning) {
@@ -134,7 +130,6 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
         
         setDialogVisible(true);
       } else {
-        console.error('Registration failed:', result.error);
         setError(result.error || 'Registration failed');
         
         if (result.passwordWarning) {
@@ -142,7 +137,6 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
         }
       }
     } catch (error: any) {
-      console.error('Registration error:', error);
       setError(error.message || 'Registration failed');
     } finally {
       setIsLoading(false);
@@ -176,7 +170,6 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
         setError(result.error || 'Google sign-in failed. Please try again.');
       }
     } catch (err) {
-      console.error('Google sign-in error:', err);
       setError('Google sign-in failed. Please try again.');
     } finally {
       setIsLoading(false);
@@ -362,7 +355,6 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
                       if (typeof handleGoogleSignIn === 'function') {
                         handleGoogleSignIn();
                       } else {
-                        console.error('Google sign-in handler is not defined');
                         setError('Google sign-in is not available');
                       }
                     }}

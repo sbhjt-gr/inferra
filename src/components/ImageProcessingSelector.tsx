@@ -53,7 +53,6 @@ export default function ImageProcessingSelector({
       );
       setStoredModels(projectorModels);
     } catch (error) {
-      console.error('Error loading stored models:', error);
       setStoredModels([]);
     }
   };
@@ -99,7 +98,6 @@ export default function ImageProcessingSelector({
         onMultimodalReady?.();
       }
     } catch (error) {
-      console.error('Error loading projector:', error);
     } finally {
       setIsLoadingProjector(false);
       setMmProjSelectorVisible(false);

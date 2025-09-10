@@ -69,7 +69,6 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setSelectedTheme(savedTheme as ThemeType);
       }
     } catch (error) {
-      console.error('Error loading theme preference:', error);
     }
   };
 
@@ -78,7 +77,6 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     try {
       await AsyncStorage.setItem('@theme_preference', newTheme);
     } catch (error) {
-      console.error('Error saving theme preference:', error);
     }
   };
 

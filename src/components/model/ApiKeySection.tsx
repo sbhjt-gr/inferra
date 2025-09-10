@@ -73,7 +73,6 @@ const ApiKeySection: React.FC = () => {
       name: 'Claude', 
       key: '', 
       placeholder: 'Enter your Claude API key', 
-      url: 'https://console.anthropic.com/', 
       expanded: false,
       defaultKeyAvailable: onlineModelService.hasDefaultKey('claude'),
       usingDefaultKey: false,
@@ -141,7 +140,6 @@ const ApiKeySection: React.FC = () => {
       );
       
     } catch (error) {
-      // do nothing
     } finally {
       setSavingKey(null);
     }

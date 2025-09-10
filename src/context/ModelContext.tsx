@@ -51,9 +51,7 @@ export const ModelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setIsModelLoading(true);
     
     try {
-      console.log('[ModelContext] Loading model:', modelPath);
       if (mmProjectorPath) {
-        console.log('[ModelContext] With multimodal projector:', mmProjectorPath);
       }
       
       const success = await llamaManager.loadModel(modelPath, mmProjectorPath);
@@ -76,7 +74,6 @@ export const ModelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return false;
       }
     } catch (error) {
-      console.error('[ModelContext] Error loading model:', error);
       showSnackbar('Error loading model', 'error');
       setSelectedModelPath(null);
       setSelectedProjectorPath(null);
@@ -95,7 +92,6 @@ export const ModelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setIsMultimodalEnabled(false);
       showSnackbar('Model unloaded');
     } catch (error) {
-      console.error('[ModelContext] Error unloading model:', error);
       showSnackbar('Error unloading model', 'error');
     }
   };
@@ -107,7 +103,6 @@ export const ModelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setIsMultimodalEnabled(false);
       showSnackbar('Projector model unloaded');
     } catch (error) {
-      console.error('[ModelContext] Error unloading projector:', error);
       showSnackbar('Error unloading projector', 'error');
     }
   };

@@ -61,7 +61,6 @@ export default function ModelSettingsScreen() {
         setCustomSettings({ ...globalSettings });
       }
     } catch (error) {
-      console.error('Error loading settings:', error);
     } finally {
       setIsLoading(false);
     }
@@ -78,7 +77,6 @@ export default function ModelSettingsScreen() {
       await modelSettingsService.setModelSettings(modelPath, newModelSettings);
       setModelSettingsConfig(newModelSettings);
     } catch (error) {
-      console.error('Error toggling global settings:', error);
     }
   };
 
@@ -95,7 +93,6 @@ export default function ModelSettingsScreen() {
         customSettings: updatedSettings
       }));
     } catch (error) {
-      console.error('Error saving custom settings:', error);
     }
   };
 

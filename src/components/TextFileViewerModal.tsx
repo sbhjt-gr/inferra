@@ -106,7 +106,6 @@ export default function TextFileViewerModal({
         } catch (err) {
           setLoading(false);
           setError('Failed to load file. The file might be corrupted or not accessible.');
-          console.error('File loading error:', err);
         }
       };
 
