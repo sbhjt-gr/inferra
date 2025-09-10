@@ -580,6 +580,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
 
     try {
       await stopGenerationIfRunning();
+      setIsRegenerating(true);
       
       const currentMessages = currentChat.messages;
       const settings = await getEffectiveSettings();
@@ -995,6 +996,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       setStreamingMessageId(null);
       setStreamingThinking('');
       setStreamingStats(null);
+      setIsRegenerating(false);
       
     } catch (error) {
       showDialog(
@@ -1006,6 +1008,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       setStreamingMessageId(null);
       setStreamingThinking('');
       setStreamingStats(null);
+      setIsRegenerating(false);
     }
   };
 
