@@ -103,7 +103,13 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
   const [selectedVisionModel, setSelectedVisionModel] = useState<DownloadableModel | null>(null);
   const [showingHfResults, setShowingHfResults] = useState(false);
   const [showWarningDialog, setShowWarningDialog] = useState(false);
-  const [pendingDownload, setPendingDownload] = useState<{filename: string, downloadUrl: string, modelId: string} | null>(null);
+  const [pendingDownload, setPendingDownload] = useState<{
+    filename: string, 
+    downloadUrl: string, 
+    modelId: string, 
+    curatedModel?: DownloadableModel,
+    filesToDownload?: any[]
+  } | null>(null);
   const [pendingVisionDownload, setPendingVisionDownload] = useState<{
     filename: string, 
     downloadUrl: string, 
@@ -419,7 +425,8 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
         setPendingDownload({ 
           filename: `${filesToDownload.length} files`, 
           downloadUrl: '', 
-          modelId: JSON.stringify(filesToDownload.map(f => ({ filename: f.filename, downloadUrl: f.downloadUrl })))
+          modelId: modelId,
+          filesToDownload: filesToDownload
         });
         setShowWarningDialog(true);
         return;
@@ -430,7 +437,8 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
       setPendingDownload({ 
         filename: `${filesToDownload.length} files`, 
         downloadUrl: '', 
-        modelId: JSON.stringify(filesToDownload.map(f => ({ filename: f.filename, downloadUrl: f.downloadUrl })))
+        modelId: modelId,
+        filesToDownload: filesToDownload
       });
       setShowWarningDialog(true);
     }
@@ -615,27 +623,26 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
       setPendingVisionDownload(null);
     } else if (pendingDownload) {
       const isHuggingFaceModel = pendingDownload.modelId.includes('/');
-      const isMultipleFiles = pendingDownload.modelId.startsWith('[');
+      const isMultipleFiles = Boolean(pendingDownload.filesToDownload);
       
       if (isMultipleFiles) {
-        try {
-          const filesToDownload = JSON.parse(pendingDownload.modelId);
-          await proceedWithMultipleDownloads(filesToDownload, selectedModel?.id || '');
-        } catch (error) {
-          showDialog('Download Error', 'Failed to parse selected files for download');
-        }
+        await proceedWithMultipleDownloads(pendingDownload.filesToDownload!, pendingDownload.modelId);
       } else if (isHuggingFaceModel) {
         await proceedWithDownload(pendingDownload.filename, pendingDownload.downloadUrl, pendingDownload.modelId);
       } else {
-        const curatedModel: DownloadableModel = {
-          name: pendingDownload.filename,
-          huggingFaceLink: pendingDownload.downloadUrl,
-          licenseLink: '',
-          size: 'Unknown',
-          modelFamily: 'Unknown',
-          quantization: 'Unknown'
-        };
-        await proceedWithCuratedDownload(curatedModel);
+        if (pendingDownload.curatedModel) {
+          await proceedWithCuratedDownload(pendingDownload.curatedModel);
+        } else {
+          const curatedModel: DownloadableModel = {
+            name: pendingDownload.filename,
+            huggingFaceLink: pendingDownload.downloadUrl,
+            licenseLink: '',
+            size: 'Unknown',
+            modelFamily: 'Unknown',
+            quantization: 'Unknown'
+          };
+          await proceedWithCuratedDownload(curatedModel);
+        }
       }
       setPendingDownload(null);
     }
@@ -656,7 +663,8 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
         setPendingDownload({ 
           filename: model.name, 
           downloadUrl: model.huggingFaceLink, 
-          modelId: model.name 
+          modelId: model.name,
+          curatedModel: model
         });
         setShowWarningDialog(true);
         return;
@@ -667,7 +675,8 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
       setPendingDownload({ 
         filename: model.name, 
         downloadUrl: model.huggingFaceLink, 
-        modelId: model.name 
+        modelId: model.name,
+        curatedModel: model
       });
       setShowWarningDialog(true);
     }
@@ -681,36 +690,51 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
 
     navigation.navigate('Downloads' as never);
 
-    try {
-      setDownloadProgress((prev: any) => ({
-        ...prev,
-        [model.name]: {
-          progress: 0,
-          bytesDownloaded: 0,
-          totalBytes: 0,
-          status: 'starting',
-          downloadId: 0
-        }
-      }));
+    const filesToDownload = [
+      { filename: model.name, downloadUrl: model.huggingFaceLink }
+    ];
 
-      const { downloadId } = await modelDownloader.downloadModel(model.huggingFaceLink, model.name);
-      
-      setDownloadProgress((prev: any) => ({
-        ...prev,
-        [model.name]: {
-          ...prev[model.name],
-          downloadId
-        }
-      }));
-
-    } catch (error) {
-      setDownloadProgress((prev: any) => {
-        const newProgress = { ...prev };
-        delete newProgress[model.name];
-        return newProgress;
+    if (model.additionalFiles && model.additionalFiles.length > 0) {
+      model.additionalFiles.forEach(file => {
+        filesToDownload.push({
+          filename: file.name,
+          downloadUrl: file.url
+        });
       });
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      showDialog('Download Error', `Failed to start download: ${errorMessage}`);
+    }
+
+    for (const file of filesToDownload) {
+      try {
+        setDownloadProgress((prev: any) => ({
+          ...prev,
+          [file.filename]: {
+            progress: 0,
+            bytesDownloaded: 0,
+            totalBytes: 0,
+            status: 'starting',
+            downloadId: 0
+          }
+        }));
+
+        const { downloadId } = await modelDownloader.downloadModel(file.downloadUrl, file.filename);
+        
+        setDownloadProgress((prev: any) => ({
+          ...prev,
+          [file.filename]: {
+            ...prev[file.filename],
+            downloadId
+          }
+        }));
+
+      } catch (error) {
+        setDownloadProgress((prev: any) => {
+          const newProgress = { ...prev };
+          delete newProgress[file.filename];
+          return newProgress;
+        });
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        showDialog('Download Error', `Failed to start download for ${file.filename}: ${errorMessage}`);
+      }
     }
   };
 
