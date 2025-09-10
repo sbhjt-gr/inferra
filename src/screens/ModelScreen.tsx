@@ -121,7 +121,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
   useEffect(() => {
     const handleAppStateChange = (nextAppState: AppStateStatus) => {
       if (nextAppState === 'active') {
-        setFilteredModels(DOWNLOADABLE_MODELS);
         applyFilters(filters);
       }
     };

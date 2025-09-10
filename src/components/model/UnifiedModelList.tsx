@@ -80,6 +80,7 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
   storedModels,
   downloadProgress,
   setDownloadProgress,
+  filters,
   onFiltersChange,
   getAvailableFilterOptions,
   onCustomUrlPress,
@@ -88,6 +89,7 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme];
   const navigation = useNavigation();
+
 
   const [searchQuery, setSearchQuery] = useState('');
   const [hfModels, setHfModels] = useState<HFModel[]>([]);
@@ -110,6 +112,7 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
     modelDetails: HFModelDetails
   } | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
+  const [forceRender, setForceRender] = useState(0);
 
   const showDialog = (title: string, message: string) => {
     setDialogTitle(title);
@@ -118,6 +121,12 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
   };
 
   const hideDialog = () => setDialogVisible(false);
+
+  const handleFilterExpandChange = (isExpanded: boolean) => {
+    if (!isExpanded) {
+      setForceRender(prev => prev + 1);
+    }
+  };
 
   const convertHfModelToDownloadable = (hfModel: HFModel): DownloadableModel => {
     const modelId = hfModel.id;
@@ -929,6 +938,8 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
               availableTags={getAvailableFilterOptions().tags}
               availableModelFamilies={getAvailableFilterOptions().modelFamilies}
               availableQuantizations={getAvailableFilterOptions().quantizations}
+              initialFilters={filters}
+              onExpandChange={handleFilterExpandChange}
             />
             
             <TouchableOpacity
@@ -951,6 +962,7 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
               </View>
               
               <DownloadableModelList 
+                key={forceRender}
                 models={curatedModels}
                 storedModels={storedModels}
                 downloadProgress={downloadProgress}

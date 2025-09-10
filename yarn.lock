@@ -2361,12 +2361,7 @@
   dependencies:
     "@radix-ui/react-compose-refs" "1.1.2"
 
-"@react-native-async-storage/async-storage@^1.18.1":
-  version "1.24.0"
-  dependencies:
-    merge-options "^3.0.4"
-
-"@react-native-async-storage/async-storage@2.1.2":
+"@react-native-async-storage/async-storage@^1.18.1", "@react-native-async-storage/async-storage@2.1.2":
   version "2.1.2"
   resolved "https://registry.npmjs.org/@react-native-async-storage/async-storage/-/async-storage-2.1.2.tgz"
   integrity sha512-dvlNq4AlGWC+ehtH12p65+17V0Dx7IecOWl6WanF2ja38O1Dcjjvn7jVzkUHJ5oWkQBlyASurTPlTHgKXyYiow==
@@ -8860,7 +8855,7 @@ react-native-url-polyfill@2.0.0:
   dependencies:
     whatwg-url-without-unicode "8.0.0-3"
 
-react-native@*, "react-native@^0.0.0-0 || >=0.60 <1.0", "react-native@^0.0.0-0 || >=0.65 <1.0", react-native@^0.79.5, react-native@>=0.42.0, react-native@>=0.50.4, react-native@>=0.56, react-native@>=0.57.0, react-native@>=0.60, "react-native@>=0.60.0-rc.0 <1.0.x", react-native@>=0.65.1:
+react-native@*, "react-native@^0.0.0-0 || >=0.65 <1.0", react-native@^0.79.5, react-native@>=0.42.0, react-native@>=0.50.4, react-native@>=0.56, react-native@>=0.57.0, react-native@>=0.60, "react-native@>=0.60.0-rc.0 <1.0.x", react-native@>=0.65.1:
   version "0.79.6"
   dependencies:
     "@jest/create-cache-key-function" "^29.7.0"

@@ -22,6 +22,8 @@ interface ModelFilterProps {
   availableTags: string[];
   availableModelFamilies: string[];
   availableQuantizations: string[];
+  initialFilters?: FilterOptions;
+  onExpandChange?: (isExpanded: boolean) => void;
 }
 
 const ModelFilter: React.FC<ModelFilterProps> = ({
@@ -29,14 +31,17 @@ const ModelFilter: React.FC<ModelFilterProps> = ({
   availableTags,
   availableModelFamilies,
   availableQuantizations,
+  initialFilters,
+  onExpandChange,
 }) => {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
   
   const [isExpanded, setIsExpanded] = useState(false);
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [selectedModelFamilies, setSelectedModelFamilies] = useState<string[]>([]);
-  const [selectedQuantizations, setSelectedQuantizations] = useState<string[]>([]);
+  const [selectedTags, setSelectedTags] = useState<string[]>(initialFilters?.tags || []);
+  const [selectedModelFamilies, setSelectedModelFamilies] = useState<string[]>(initialFilters?.modelFamilies || []);
+  const [selectedQuantizations, setSelectedQuantizations] = useState<string[]>(initialFilters?.quantizations || []);
+
 
   const toggleTag = (tag: string) => {
     const newTags = selectedTags.includes(tag)
@@ -151,7 +156,11 @@ const ModelFilter: React.FC<ModelFilterProps> = ({
     <View style={[styles.container, { backgroundColor: themeColors.borderColor }]}>
       <TouchableOpacity
         style={styles.header}
-        onPress={() => setIsExpanded(!isExpanded)}
+        onPress={() => {
+          const newExpanded = !isExpanded;
+          setIsExpanded(newExpanded);
+          onExpandChange?.(newExpanded);
+        }}
       >
         <View style={styles.headerLeft}>
           <MaterialCommunityIcons
