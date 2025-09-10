@@ -93,6 +93,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   const copyToastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const copyToastMessageRef = useRef<string>('Copied to clipboard');
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const [isEditingMessage, setIsEditingMessage] = useState(false);
   const cancelGenerationRef = useRef<boolean>(false);
   const [showMemoryWarning, setShowMemoryWarning] = useState(false);
   const [memoryWarningType, setMemoryWarningType] = useState('');
@@ -1031,6 +1032,10 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     }
   };
 
+  const handleEditingStateChange = useCallback((isEditing: boolean) => {
+    setIsEditingMessage(isEditing);
+  }, []);
+
   const handleRegenerate = async () => {
     if (messages.length < 2) return;
     
@@ -1740,7 +1745,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       </View>
       <KeyboardAvoidingView
         style={styles.chatContainer}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior={isEditingMessage ? undefined : (Platform.OS === "ios" ? "padding" : "height")}
         keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
       >
         <ChatView
@@ -1757,6 +1762,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
            flatListRef={flatListRef}
            onEditMessageAndRegenerate={processMessage}
            onStopGeneration={stopGenerationIfRunning}
+           onEditingStateChange={handleEditingStateChange}
         />
 
         <ChatInput

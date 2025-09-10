@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -52,6 +52,7 @@ type ChatViewProps = {
   flatListRef: React.RefObject<FlatList | null>;
   onEditMessageAndRegenerate?: () => void;
   onStopGeneration?: () => void;
+  onEditingStateChange?: (isEditing: boolean) => void;
 };
 
 const hasMarkdownFormatting = (content: string): boolean => {
@@ -86,6 +87,7 @@ export default function ChatView({
   flatListRef,
   onEditMessageAndRegenerate,
   onStopGeneration,
+  onEditingStateChange,
 }: ChatViewProps) {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
@@ -95,6 +97,40 @@ export default function ChatView({
   const [isImageViewerVisible, setIsImageViewerVisible] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editedMessageContent, setEditedMessageContent] = useState('');
+
+  useEffect(() => {
+    if (editingMessageId) {
+      const keyboardWillShowListener = Keyboard.addListener(
+        'keyboardDidShow',
+        () => {
+          setTimeout(() => {
+            scrollToEditingMessage();
+          }, 100);
+        }
+      );
+
+      return () => {
+        keyboardWillShowListener?.remove();
+      };
+    }
+  }, [editingMessageId]);
+
+  const scrollToEditingMessage = useCallback(() => {
+    if (editingMessageId && flatListRef?.current) {
+      const messageIndex = messages.findIndex(msg => msg.id === editingMessageId);
+      if (messageIndex !== -1) {
+        try {
+          flatListRef.current.scrollToIndex({
+            index: messageIndex,
+            animated: true,
+            viewPosition: 0.3,
+          });
+        } catch (error) {
+          flatListRef.current.scrollToEnd({ animated: true });
+        }
+      }
+    }
+  }, [editingMessageId, messages, flatListRef]);
 
   const openReportDialog = useCallback((messageContent: string, provider: string) => {
     navigation.navigate('Report', {
@@ -131,12 +167,18 @@ export default function ChatView({
     
     setEditingMessageId(messageId);
     setEditedMessageContent(contentToEdit);
-  }, []);
+    onEditingStateChange?.(true);
+    
+    setTimeout(() => {
+      scrollToEditingMessage();
+    }, 100);
+  }, [onEditingStateChange, scrollToEditingMessage]);
 
   const cancelEditing = useCallback(() => {
     setEditingMessageId(null);
     setEditedMessageContent('');
-  }, []);
+    onEditingStateChange?.(false);
+  }, [onEditingStateChange]);
 
   const saveEditedMessage = useCallback(async () => {
     if (!editingMessageId || !editedMessageContent.trim()) {
@@ -187,6 +229,7 @@ export default function ChatView({
       if (success) {
         setEditingMessageId(null);
         setEditedMessageContent('');
+        onEditingStateChange?.(false);
         if (onEditMessageAndRegenerate) {
           setTimeout(() => {
             onEditMessageAndRegenerate();
@@ -803,7 +846,7 @@ export default function ChatView({
         ) : null}
       </View>
     );
-  }, [themeColors, messages, isStreaming, streamingMessageId, streamingMessage, streamingThinking, streamingStats, onCopyText, isRegenerating, onRegenerateResponse, justCancelled, openImageViewer, startEditing, formatTime, formatDuration, editingMessageId, editedMessageContent, setEditedMessageContent, cancelEditing, saveEditedMessage]);
+  }, [themeColors, messages, isStreaming, streamingMessageId, streamingMessage, streamingThinking, streamingStats, onCopyText, isRegenerating, onRegenerateResponse, justCancelled, openImageViewer, startEditing, formatTime, formatDuration, editingMessageId, editedMessageContent, setEditedMessageContent, cancelEditing, saveEditedMessage, scrollToEditingMessage]);
 
   const renderContent = () => {
     if (messages.length === 0) {
