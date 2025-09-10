@@ -23,6 +23,7 @@ const DownloadableModelList: React.FC<DownloadableModelListProps> = ({
   const navigation = useNavigation();
   const [initializingDownloads, setInitializingDownloads] = useState<{ [key: string]: boolean }>({});
 
+
   const [dialogVisible, setDialogVisible] = useState(false);
   const [dialogTitle, setDialogTitle] = useState('');
   const [dialogMessage, setDialogMessage] = useState('');
