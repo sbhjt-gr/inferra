@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useEffect } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -98,40 +98,6 @@ export default function ChatView({
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editedMessageContent, setEditedMessageContent] = useState('');
 
-  useEffect(() => {
-    if (editingMessageId) {
-      const keyboardWillShowListener = Keyboard.addListener(
-        'keyboardDidShow',
-        () => {
-          setTimeout(() => {
-            scrollToEditingMessage();
-          }, 100);
-        }
-      );
-
-      return () => {
-        keyboardWillShowListener?.remove();
-      };
-    }
-  }, [editingMessageId]);
-
-  const scrollToEditingMessage = useCallback(() => {
-    if (editingMessageId && flatListRef?.current) {
-      const messageIndex = messages.findIndex(msg => msg.id === editingMessageId);
-      if (messageIndex !== -1) {
-        try {
-          flatListRef.current.scrollToIndex({
-            index: messageIndex,
-            animated: true,
-            viewPosition: 0.3,
-          });
-        } catch (error) {
-          flatListRef.current.scrollToEnd({ animated: true });
-        }
-      }
-    }
-  }, [editingMessageId, messages, flatListRef]);
-
   const openReportDialog = useCallback((messageContent: string, provider: string) => {
     navigation.navigate('Report', {
       messageContent,
@@ -168,11 +134,7 @@ export default function ChatView({
     setEditingMessageId(messageId);
     setEditedMessageContent(contentToEdit);
     onEditingStateChange?.(true);
-    
-    setTimeout(() => {
-      scrollToEditingMessage();
-    }, 100);
-  }, [onEditingStateChange, scrollToEditingMessage]);
+  }, [onEditingStateChange]);
 
   const cancelEditing = useCallback(() => {
     setEditingMessageId(null);
@@ -846,7 +808,7 @@ export default function ChatView({
         ) : null}
       </View>
     );
-  }, [themeColors, messages, isStreaming, streamingMessageId, streamingMessage, streamingThinking, streamingStats, onCopyText, isRegenerating, onRegenerateResponse, justCancelled, openImageViewer, startEditing, formatTime, formatDuration, editingMessageId, editedMessageContent, setEditedMessageContent, cancelEditing, saveEditedMessage, scrollToEditingMessage]);
+  }, [themeColors, messages, isStreaming, streamingMessageId, streamingMessage, streamingThinking, streamingStats, onCopyText, isRegenerating, onRegenerateResponse, justCancelled, openImageViewer, startEditing, formatTime, formatDuration, editingMessageId, editedMessageContent, setEditedMessageContent, cancelEditing, saveEditedMessage]);
 
   const renderContent = () => {
     if (messages.length === 0) {
