@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,8 +8,8 @@ import {
   ScrollView,
   AppState,
   AppStateStatus,
-  AsyncStorage,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
@@ -40,6 +40,7 @@ const formatBytes = (bytes: number) => {
 const DownloadsDialog = ({ visible, onClose, downloads, setDownloadProgress }: DownloadsDialogProps) => {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme];
+  const appState = useRef(AppState.currentState);
 
   const checkCompletedDownloads = async () => {
     try {
@@ -80,7 +81,7 @@ const DownloadsDialog = ({ visible, onClose, downloads, setDownloadProgress }: D
     try {
       subscription = AppState.addEventListener('change', async (nextAppState: AppStateStatus) => {
         if (appState.current === 'active' && nextAppState !== 'active') {
-          await AsyncStorage.setItem('active_downloads', JSON.stringify(activeDownloads));
+          await AsyncStorage.setItem('active_downloads', JSON.stringify(downloads));
         }
         
         appState.current = nextAppState;
@@ -93,7 +94,7 @@ const DownloadsDialog = ({ visible, onClose, downloads, setDownloadProgress }: D
         subscription.remove();
       }
     };
-  }, [activeDownloads]);
+  }, [downloads]);
 
   const activeDownloads = Object.entries(downloads).filter(
     ([_, data]) => data.status !== 'completed' && data.status !== 'failed'

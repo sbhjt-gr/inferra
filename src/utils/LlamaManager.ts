@@ -858,11 +858,6 @@ class LlamaManager {
       const result = await this.context.tokenize(text, {
         media_paths: mediaPaths
       });
-      
-        tokenCount: result.tokens?.length || 0,
-        hasMedia: (result as any).has_media,
-        mediaPositions: (result as any).chunk_pos_media
-      });
 
       return result;
     } catch (error) {
