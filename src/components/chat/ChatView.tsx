@@ -51,6 +51,7 @@ type ChatViewProps = {
   justCancelled?: boolean;
   flatListRef: React.RefObject<FlatList | null>;
   onEditMessageAndRegenerate?: () => void;
+  onStopGeneration?: () => void;
 };
 
 const hasMarkdownFormatting = (content: string): boolean => {
@@ -84,6 +85,7 @@ export default function ChatView({
   justCancelled = false,
   flatListRef,
   onEditMessageAndRegenerate,
+  onStopGeneration,
 }: ChatViewProps) {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
@@ -138,7 +140,7 @@ export default function ChatView({
 
   const saveEditedMessage = useCallback(async () => {
     if (!editingMessageId || !editedMessageContent.trim()) {
-      closeEditDialog();
+      cancelEditing();
       return;
     }
 
@@ -365,7 +367,7 @@ export default function ChatView({
     
     return (
       <View style={styles.messageContainer}>
-        {item.role === 'assistant' && thinkingContent && (
+        {item.role === 'assistant' && thinkingContent ? (
           <View key="thinking" style={styles.thinkingContainer}>
             <View style={styles.thinkingHeader}>
               <MaterialCommunityIcons 
@@ -396,10 +398,10 @@ export default function ChatView({
               {thinkingContent || ''}
             </Text>
           </View>
-        )}
+        ) : null}
         
-        {item.role === 'user' && fileAttachment && renderFileAttachment()}
-        {item.role === 'user' && multimodalContent.length > 0 && renderMultimodalContent()}
+        {item.role === 'user' && fileAttachment ? renderFileAttachment() : null}
+        {item.role === 'user' && multimodalContent.length > 0 ? renderMultimodalContent() : null}
 
         <View style={[
           styles.messageCard,
@@ -416,7 +418,7 @@ export default function ChatView({
               {item.role === 'user' ? 'You' : 'Model'}
             </Text>
             <View style={styles.messageHeaderActions}>
-              {item.role === 'user' && (
+              {item.role === 'user' ? (
                 <TouchableOpacity 
                   style={styles.copyButton} 
                   onPress={() => startEditing(item.id, item.content)}
@@ -428,8 +430,8 @@ export default function ChatView({
                     color="#fff" 
                   />
                 </TouchableOpacity>
-              )}
-              {item.role === 'assistant' && (
+              ) : null}
+              {item.role === 'assistant' ? (
                 <TouchableOpacity 
                   style={styles.copyButton} 
                   onPress={() => openReportDialog(messageContent, chatManager.getCurrentProvider() || 'local')}
@@ -441,7 +443,7 @@ export default function ChatView({
                     color={themeColors.text} 
                   />
                 </TouchableOpacity>
-              )}
+              ) : null}
               <TouchableOpacity 
                 style={styles.copyButton} 
                 onPress={() => onCopyText(messageContent)}
@@ -663,7 +665,7 @@ export default function ChatView({
             </View>
           )}
 
-          {item.role === 'assistant' && stats && (
+          {item.role === 'assistant' && stats ? (
             <View style={styles.statsContainer}>
               <View style={styles.statsRow}>
                 <View style={styles.statItem}>
@@ -677,7 +679,7 @@ export default function ChatView({
                     {`${(stats?.tokens ?? 0).toLocaleString()} tokens`}
                   </Text>
                 </View>
-                {stats?.duration && stats.duration > 0 && (
+                {stats?.duration && stats.duration > 0 ? (
                   <View style={[styles.statItem, { marginLeft: 8 }]}>
                     <MaterialCommunityIcons 
                       name="speedometer" 
@@ -689,8 +691,8 @@ export default function ChatView({
                       {`${((stats?.tokens ?? 0) / stats.duration).toFixed(1)} tokens/s`}
                     </Text>
                   </View>
-                )}
-                {stats?.duration && stats.duration > 0 && (
+                ) : null}
+                {stats?.duration && stats.duration > 0 ? (
                   <View style={[styles.statItem, { marginLeft: 8 }]}>
                     <MaterialCommunityIcons 
                       name="clock-outline" 
@@ -702,11 +704,11 @@ export default function ChatView({
                       {formatDuration(stats.duration)}
                     </Text>
                   </View>
-                )}
+                ) : null}
               </View>
               
               <View style={styles.statsRow}>
-                {stats?.firstTokenTime && stats.firstTokenTime > 0 && (
+                {stats?.firstTokenTime && stats.firstTokenTime > 0 ? (
                   <View style={styles.statItem}>
                     <MaterialCommunityIcons 
                       name="flash" 
@@ -718,8 +720,8 @@ export default function ChatView({
                       TTFT: {formatTime(stats.firstTokenTime)}
                     </Text>
                   </View>
-                )}
-                {stats?.avgTokenTime && stats.avgTokenTime > 0 && (
+                ) : null}
+                {stats?.avgTokenTime && stats.avgTokenTime > 0 ? (
                   <View style={[styles.statItem, { marginLeft: 8 }]}>
                     <MaterialCommunityIcons 
                       name="timer-outline" 
@@ -731,9 +733,9 @@ export default function ChatView({
                       Avg/token: {formatTime(stats.avgTokenTime)}
                     </Text>
                   </View>
-                )}
+                ) : null}
                 
-                {item === messages[messages.length - 1] && (
+                {item === messages[messages.length - 1] ? (
                   <TouchableOpacity 
                     style={[
                       styles.regenerateButton,
@@ -761,13 +763,13 @@ export default function ChatView({
                       </>
                     )}
                   </TouchableOpacity>
-                )}
+                ) : null}
               </View>
             </View>
-          )}
+          ) : null}
         </View>
         
-        {editingMessageId === item.id && (
+        {editingMessageId === item.id ? (
           <View style={styles.editActionsContainer}>
             <View style={styles.editActions}>
               <TouchableOpacity
@@ -798,7 +800,7 @@ export default function ChatView({
               All messages after this one will be deleted.
             </Text>
           </View>
-        )}
+        ) : null}
       </View>
     );
   }, [themeColors, messages, isStreaming, streamingMessageId, streamingMessage, streamingThinking, streamingStats, onCopyText, isRegenerating, onRegenerateResponse, justCancelled, openImageViewer, startEditing, formatTime, formatDuration, editingMessageId, editedMessageContent, setEditedMessageContent, cancelEditing, saveEditedMessage]);
@@ -884,13 +886,13 @@ export default function ChatView({
               </TouchableOpacity>
             </View>
             
-            {fullScreenImage && (
+            {fullScreenImage ? (
               <Image
                 source={{ uri: fullScreenImage }}
                 style={styles.fullScreenImage}
                 resizeMode="contain"
               />
-            )}
+            ) : null}
           </View>
         </View>
       </Modal>
