@@ -186,7 +186,9 @@ export default function ChatView({
         setEditingMessageId(null);
         setEditedMessageContent('');
         if (onEditMessageAndRegenerate) {
-          onEditMessageAndRegenerate();
+          setTimeout(() => {
+            onEditMessageAndRegenerate();
+          }, 50);
         }
       } else {
         Alert.alert('Error', 'Failed to edit message');
