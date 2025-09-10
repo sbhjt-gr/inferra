@@ -47,7 +47,7 @@ const DEFAULT_SETTINGS = {
   topP: 0.9,
   minP: 0.05,
   stopWords: ['<|end|>', '<end_of_turn>', '<|im_end|>', '<|endoftext|>','<end_of_utterance>'],
-  systemPrompt: 'You are a helpful, honest, and safe AI assistant. Do not produce harmful, misleading, or offensive content. If asked for actions or information that may be illegal, unethical, dangerous, or violate privacy, refuse clearly. Maintain a neutral and professional tone, avoid personal opinions unless explicitly requested.',
+  systemPrompt: 'You are a helpful, honest, and safe AI assistant. Maintain a neutral and professional tone while responding to user queries.',
   inferenceEngine: 'llama.cpp' as InferenceEngine
 };
 
