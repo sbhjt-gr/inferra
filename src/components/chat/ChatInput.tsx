@@ -330,10 +330,6 @@ export default function ChatInput({
       userContent: userPrompt || ''
     };
     
-      internalInstruction: messageObject.internalInstruction,
-      userContent: messageObject.userContent
-    });
-    
     onSend(JSON.stringify(messageObject));
     setShowAttachmentMenu(false);
   }, [onSend]);

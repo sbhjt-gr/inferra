@@ -242,12 +242,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
 
       const file = result.assets[0];
       const fileName = file.name.toLowerCase();
-      
-        name: file.name,
-        uri: file.uri,
-        type: file.mimeType,
-        size: file.size
-      });
 
       if (!fileName.endsWith('.gguf')) {
         showDialog(

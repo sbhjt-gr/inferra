@@ -16,7 +16,7 @@ import RootNavigator from './src/navigation/RootNavigator';
 import { DownloadProvider } from './src/context/DownloadContext';
 import { modelDownloader } from './src/services/ModelDownloader';
 import * as TaskManager from 'expo-task-manager';
-import * as BackgroundFetch from 'expo-background-task';
+import * as BackgroundTask from 'expo-background-task';
 import { ThemeColors } from './src/types/theme';
 import { notificationService } from './src/services/NotificationService';
 import { initializeFirebase } from './src/services/FirebaseAuth';
@@ -51,9 +51,9 @@ if (!TaskManager.isTaskDefined(BACKGROUND_DOWNLOAD_TASK)) {
     TaskManager.defineTask(BACKGROUND_DOWNLOAD_TASK, async () => {
       try {
         await modelDownloader.checkBackgroundDownloads();
-        return BackgroundFetch.BackgroundFetchResult.NewData;
+        return BackgroundTask.BackgroundTaskResult.NewData;
       } catch (error) {
-        return BackgroundFetch.BackgroundFetchResult.Failed;
+        return BackgroundTask.BackgroundTaskResult.Failed;
       }
     });
   } catch (error) {
@@ -69,7 +69,7 @@ async function registerBackgroundFetchAsync() {
       return;
     }
     
-    await BackgroundFetch.registerTaskAsync(BACKGROUND_DOWNLOAD_TASK, {
+    await BackgroundTask.registerTaskAsync(BACKGROUND_DOWNLOAD_TASK, {
       minimumInterval: 900,
       stopOnTerminate: false, 
       startOnBoot: true 

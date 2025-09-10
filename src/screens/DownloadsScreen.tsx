@@ -71,6 +71,7 @@ export default function DownloadsScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { downloadProgress, setDownloadProgress } = useDownloads();
   const buttonProcessingRef = useRef<Set<string>>(new Set());
+  const appState = useRef(AppState.currentState);
   const insets = useSafeAreaInsets();
 
   const [dialogVisible, setDialogVisible] = useState(false);
