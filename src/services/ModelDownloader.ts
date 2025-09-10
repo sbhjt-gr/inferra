@@ -45,7 +45,6 @@ class ModelDownloader extends EventEmitter {
   private handleAppStateChange = (nextAppState: AppStateStatus): void => {
     if (nextAppState === 'active') {
       this.checkBackgroundDownloads().catch(error => {
-        // do nothing
       });
     }
   }
@@ -61,7 +60,6 @@ class ModelDownloader extends EventEmitter {
       try {
         AppState.addEventListener('change', this.handleAppStateChange);
       } catch (error) {
-        console.error('Error setting up AppState listener in ModelDownloader:', error);
       }
       
       await this.downloadTaskManager.processCompletedDownloads();
@@ -70,7 +68,6 @@ class ModelDownloader extends EventEmitter {
       
       this.isInitialized = true;
     } catch (error) {
-      // do nothing
     }
   }
 
@@ -141,7 +138,6 @@ class ModelDownloader extends EventEmitter {
       
       await this.storedModelsManager.refreshStoredModels();
     } catch (error) {
-      // do nothing
     }
   }
 
@@ -161,7 +157,6 @@ class ModelDownloader extends EventEmitter {
     try {
       await this.downloadTaskManager.processCompletedDownloads();
     } catch (error) {
-      // do nothing
     }
   }
 }

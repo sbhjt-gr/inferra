@@ -130,7 +130,6 @@ export const incrementAuthAttempts = async (): Promise<void> => {
     const newData = JSON.stringify({ attempts: attempts + 1, timestamp });
     await AsyncStorage.setItem(AUTH_ATTEMPTS_KEY, newData);
   } catch (error) {
-    // do nothing
   }
 };
 
@@ -138,7 +137,6 @@ export const resetAuthAttempts = async (): Promise<void> => {
   try {
     await AsyncStorage.removeItem(AUTH_ATTEMPTS_KEY);
   } catch (error) {
-    // do nothing
   }
 };
 
@@ -228,7 +226,6 @@ export const storeUserSecurityInfo = async (
     await addDoc(collection(firestore, 'users', uid, 'security_info'), securityRecord);
   } catch (error) {
     if (__DEV__) {
-      console.error('Error storing user security info:', error);
     }
   }
 }; 

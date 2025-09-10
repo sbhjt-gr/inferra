@@ -77,7 +77,6 @@ const LicensesScreen = ({ navigation }: LicensesScreenProps) => {
     try {
       await Linking.openURL(url);
     } catch (error) {
-      console.error('Failed to open URL:', error);
     }
   };
 

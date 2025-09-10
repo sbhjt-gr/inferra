@@ -45,7 +45,6 @@ class DownloadNotificationService {
       this.hasPermission = true;
       return true;
     } catch (error) {
-      console.error('Error requesting notification permissions:', error);
       return false;
     }
   }
@@ -64,7 +63,6 @@ class DownloadNotificationService {
         Math.round(progress)
       );
     } catch (error) {
-      console.error('Error showing download notification:', error);
       return false;
     }
   }
@@ -79,7 +77,6 @@ class DownloadNotificationService {
         Math.round(progress)
       );
     } catch (error) {
-      console.error('Error updating download progress:', error);
       return false;
     }
   }
@@ -90,7 +87,6 @@ class DownloadNotificationService {
       
       return await nativeModule.cancelNotification(downloadId.toString());
     } catch (error) {
-      console.error('Error cancelling notification:', error);
       return false;
     }
   }

@@ -62,7 +62,6 @@ export const registerWithEmail = async (
       await storeAuthState(user, profileData);
     } catch (secondaryError) {
       if (__DEV__) {
-        console.error('Error during secondary registration operations:', secondaryError);
       }
     }
     
@@ -72,7 +71,6 @@ export const registerWithEmail = async (
     };
   } catch (error: any) {
     if (__DEV__) {
-      console.error('Registration error:', error);
     }
     
     await incrementAuthAttempts();

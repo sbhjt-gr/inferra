@@ -117,7 +117,6 @@ export default function DownloadsScreen() {
     try {
       subscription = AppState.addEventListener('change', handleAppStateChange);
     } catch (error) {
-      console.error('Error setting up AppState listener in DownloadsScreen:', error);
     }
     
     loadSavedDownloadStates();
@@ -131,7 +130,6 @@ export default function DownloadsScreen() {
 
   const loadSavedDownloadStates = async () => {
     try {
-      console.log('[DownloadsScreen] Loading saved download states...');
       
       const savedStates = await AsyncStorage.getItem('active_downloads');
       if (savedStates) {
@@ -148,11 +146,9 @@ export default function DownloadsScreen() {
               fileSize = (fileInfo as any).size || 0;
             }
           } catch (error) {
-            console.error(`[DownloadsScreen] Error getting file size for ${modelName}:`, error);
           }
           
           if (fileSize > 0) {
-            console.log(`[DownloadsScreen] Found completed model: ${modelName}`);
             
             setDownloadProgress(prev => ({
               ...prev,
@@ -185,7 +181,6 @@ export default function DownloadsScreen() {
                   to: destPath
                 });
                 
-                console.log(`[DownloadsScreen] Moved completed download: ${modelName}`);
                 
                 let fileSize = 0;
                 try {
@@ -194,7 +189,6 @@ export default function DownloadsScreen() {
                     fileSize = (fileInfo as any).size || 0;
                   }
                 } catch (error) {
-                  console.error(`[DownloadsScreen] Error getting file size for ${modelName}:`, error);
                 }
                 
                 setDownloadProgress(prev => ({
@@ -212,7 +206,6 @@ export default function DownloadsScreen() {
                 delete updatedStates[modelName];
                 await AsyncStorage.setItem('active_downloads', JSON.stringify(updatedStates));
               } catch (error) {
-                console.error(`[DownloadsScreen] Error moving temp file for ${modelName}:`, error);
               }
             } else {
               if (!downloadProgress[modelName]) {
@@ -232,7 +225,6 @@ export default function DownloadsScreen() {
         }
       }
     } catch (error) {
-      console.error('[DownloadsScreen] Error loading saved download states:', error);
     }
   };
 
@@ -245,7 +237,6 @@ export default function DownloadsScreen() {
           await AsyncStorage.removeItem('download_progress');
         }
       } catch (error) {
-        console.error('Error saving download progress:', error);
       }
     };
 
@@ -270,7 +261,6 @@ export default function DownloadsScreen() {
                 return newProgress;
               });
             } catch (error) {
-              console.error('Error canceling download:', error);
               showDialog('Error', 'Failed to cancel download', [
                 <Button key="ok" onPress={hideDialog}>OK</Button>
               ]);

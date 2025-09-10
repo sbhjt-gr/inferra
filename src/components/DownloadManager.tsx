@@ -235,7 +235,6 @@ const DownloadManager = forwardRef<DownloadManagerRef, DownloadManagerProps>(
           </View>
         </Modal>
 
-        {/* Dialog Portal */}
         <Portal>
           <Dialog visible={dialogVisible} onDismiss={hideAppDialog}>
             <Dialog.Title>{dialogTitle}</Dialog.Title>

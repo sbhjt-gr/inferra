@@ -248,9 +248,7 @@ class ChatManager {
       
       setTimeout(async () => {
         try {
-          console.log('[ChatManager] Starting title generation for user message:', userMessage.slice(0, 50) + '...');
           const title = await this.generateChatTitle(userMessage);
-          console.log('[ChatManager] Generated title:', title);
           
           
           const chatToUpdate = this.getChatById(this.currentChatId!);
@@ -258,10 +256,8 @@ class ChatManager {
             chatToUpdate.title = title;
             await this.saveAllChats();
             this.notifyListeners();
-            console.log('[ChatManager] Title updated successfully');
           }
         } catch (error) {
-          console.error('[ChatManager] Title generation failed:', error);
         }
       }, 1000);
     } catch (error) {

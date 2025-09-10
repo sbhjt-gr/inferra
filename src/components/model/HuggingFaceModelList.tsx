@@ -49,13 +49,10 @@ const HuggingFaceModelList: React.FC<HuggingFaceModelListProps> = ({
       };
       
       const results = await huggingFaceService.searchModels(searchParams);
-      console.log('[UI] Received models:', results.length);
       results.forEach(model => {
-        console.log(`[UI] Model: ${model.id}, hasVision: ${model.hasVision}, siblings: ${model.siblings?.length || 0}`);
       });
       
       if (results.length > 0 && !results.some(m => m.hasVision)) {
-        console.log('[UI] No vision models detected, forcing first model for testing');
         results[0] = { ...results[0], hasVision: true, capabilities: ['vision', 'text'] };
       }
       

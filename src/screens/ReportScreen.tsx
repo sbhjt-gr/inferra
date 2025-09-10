@@ -87,7 +87,6 @@ export default function ReportScreen({ navigation, route }: ReportScreenProps) {
         await addMediaFile(asset);
       }
     } catch (error) {
-      // Silent error handling
     }
   };
 
@@ -116,7 +115,6 @@ export default function ReportScreen({ navigation, route }: ReportScreenProps) {
         fileSize
       }]);
     } catch (error) {
-      // Silent error handling
     }
   };
 
@@ -158,7 +156,6 @@ export default function ReportScreen({ navigation, route }: ReportScreenProps) {
       await submitReport(reportData);
       setShowSuccessDialog(true);
     } catch (error) {
-      // Silent error handling
     } finally {
       setIsSubmitting(false);
     }

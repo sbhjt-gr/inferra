@@ -25,10 +25,8 @@ export const ShowDialogExample = () => {
       confirmText: 'Yes, Proceed',
       cancelText: 'Cancel',
       onConfirm: () => {
-        console.log('User confirmed the action');
       },
       onCancel: () => {
-        console.log('User cancelled the action');
       }
     });
   };
@@ -40,7 +38,6 @@ export const ShowDialogExample = () => {
       confirmText: 'Retry',
       cancelText: 'Close',
       onConfirm: () => {
-        console.log('User wants to retry');
       }
     });
   };

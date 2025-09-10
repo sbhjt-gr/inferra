@@ -31,7 +31,6 @@ class NotificationService {
 
       this.isInitialized = true;
     } catch (error) {
-      console.error('Error initializing notifications:', error);
       
       this.isInitialized = true;
     }
@@ -68,7 +67,6 @@ class NotificationService {
       
       await AsyncStorage.setItem('downloadNotifications', JSON.stringify(notifications));
     } catch (error) {
-      console.error('Error storing notification:', error);
     }
   }
 
@@ -233,7 +231,6 @@ class NotificationService {
     try {
       await AsyncStorage.setItem('downloadNotificationIds', JSON.stringify(this.notificationIds));
     } catch (error) {
-      console.error('Error saving notification IDs:', error);
     }
   }
 

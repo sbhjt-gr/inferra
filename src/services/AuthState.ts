@@ -53,7 +53,6 @@ export const getCurrentUser = (): FirebaseAuthTypes.User | null => {
     return getAuthInstance().currentUser;
   } catch (error) {
     if (__DEV__) {
-      console.error('Error getting current user:', error);
     }
     return null;
   }
@@ -72,7 +71,6 @@ export const isAuthenticated = async (): Promise<boolean> => {
     });
   } catch (error) {
     if (__DEV__) {
-      console.error('Error checking authentication status:', error);
     }
     return false;
   }
@@ -149,7 +147,6 @@ export const initAuthState = async (): Promise<{ user: FirebaseAuthTypes.User | 
     });
   } catch (error) {
     if (__DEV__) {
-      console.error('Error initializing auth state:', error);
     }
     return { user: null, profile: null };
   }
@@ -206,7 +203,6 @@ export const getCompleteUserData = async (forceRefresh = false): Promise<{
         }
       } catch (error) {
         if (__DEV__) {
-          console.warn('Failed to fetch fresh profile data, using stored data:', error);
         }
         if (!profileData) {
           profileData = await getUserFromSecureStorage();
@@ -231,7 +227,6 @@ export const getCompleteUserData = async (forceRefresh = false): Promise<{
     };
   } catch (error) {
     if (__DEV__) {
-      console.error('Error getting complete user data:', error);
     }
     return {
       user: null,

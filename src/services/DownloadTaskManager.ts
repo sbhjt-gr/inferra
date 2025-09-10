@@ -33,12 +33,9 @@ export class DownloadTaskManager extends EventEmitter {
       await this.loadDownloadProgress();
 
       try {
-        console.log('[DownloadTaskManager] Checking for existing background downloads...');
         const existingTasks = await RNBackgroundDownloader.checkForExistingDownloads();
-        console.log(`[DownloadTaskManager] Found ${existingTasks.length} existing background downloads`);
         
         for (const task of existingTasks) {
-          console.log(`[DownloadTaskManager] Re-attaching to download: ${task.id}`);
           
           const modelName = task.id;
           
@@ -63,14 +60,12 @@ export class DownloadTaskManager extends EventEmitter {
           } as DownloadProgressEvent);
         }
       } catch (error) {
-        console.error('[DownloadTaskManager] Error checking for existing downloads:', error);
       }
 
       await this.checkForExistingDownloads();
 
       this.isInitialized = true;
     } catch (error) {
-      console.error('[DownloadTaskManager] Error initializing:', error);
     }
   }
 
@@ -85,7 +80,6 @@ export class DownloadTaskManager extends EventEmitter {
       
       const destination = `${this.fileManager.getDownloadDir()}/${modelName}`;
       
-      console.log(`[DownloadTaskManager] Starting download for ${modelName} from ${url}`);
       
       const headers: Record<string, string> = {
         'Accept-Ranges': 'bytes'
@@ -126,13 +120,11 @@ export class DownloadTaskManager extends EventEmitter {
       
       return { downloadId };
     } catch (error) {
-      console.error(`[DownloadTaskManager] Error starting download for ${modelName}:`, error);
       throw error;
     }
   }
 
   async pauseDownload(downloadId: number): Promise<void> {
-    console.log(`[DownloadTaskManager] Attempting to pause download with ID ${downloadId}`);
     
     try {
       let foundEntry: DownloadTaskInfo | undefined;
@@ -147,7 +139,6 @@ export class DownloadTaskManager extends EventEmitter {
       }
       
       if (!foundEntry) {
-        console.warn(`[DownloadTaskManager] No active download found with ID ${downloadId}`);
         return;
       }
       
@@ -179,12 +170,10 @@ export class DownloadTaskManager extends EventEmitter {
         isPaused: true
       } as DownloadProgressEvent);
     } catch (error) {
-      console.error(`[DownloadTaskManager] Error pausing download:`, error);
     }
   }
 
   async resumeDownload(downloadId: number): Promise<void> {
-    console.log(`[DownloadTaskManager] Attempting to resume download with ID ${downloadId}`);
     
     try {
       let foundEntry: DownloadTaskInfo | undefined;
@@ -199,7 +188,6 @@ export class DownloadTaskManager extends EventEmitter {
       }
       
       if (!foundEntry) {
-        console.warn(`[DownloadTaskManager] No active download found with ID ${downloadId}`);
         return;
       }
       
@@ -231,13 +219,11 @@ export class DownloadTaskManager extends EventEmitter {
         isPaused: false
       } as DownloadProgressEvent);
     } catch (error) {
-      console.error(`[DownloadTaskManager] Error resuming download:`, error);
     }
   }
 
   async cancelDownload(downloadId: number): Promise<void> {
     try {
-      console.log('[DownloadTaskManager] Attempting to cancel download:', downloadId);
       
       let foundEntry: DownloadTaskInfo | undefined;
       let foundModelName = '';
@@ -251,24 +237,19 @@ export class DownloadTaskManager extends EventEmitter {
       }
 
       if (!foundEntry) {
-        console.warn('[DownloadTaskManager] No active download found for ID:', downloadId);
         return;
       }
 
-      console.log('[DownloadTaskManager] Found task to cancel:', { modelName: foundModelName, downloadId });
 
       if (foundEntry.task) {
-        console.log('[DownloadTaskManager] Stopping download task');
         foundEntry.task.stop();
       }
 
       this.activeDownloads.delete(foundModelName);
 
       if (foundEntry.destination) {
-        console.log('[DownloadTaskManager] Checking for temporary file:', foundEntry.destination);
         const fileInfo = await FileSystem.getInfoAsync(foundEntry.destination);
         if (fileInfo.exists) {
-          console.log('[DownloadTaskManager] Deleting temporary file');
           await FileSystem.deleteAsync(foundEntry.destination, { idempotent: true });
         }
       }
@@ -295,25 +276,19 @@ export class DownloadTaskManager extends EventEmitter {
       await this.cleanupDownload(foundModelName, foundEntry);
       await this.persistActiveDownloads();
 
-      console.log('[DownloadTaskManager] Successfully cancelled download:', downloadId);
     } catch (error) {
-      console.error('[DownloadTaskManager] Error cancelling download:', error);
       throw error;
     }
   }
 
   async ensureDownloadsAreRunning(): Promise<void> {
     try {
-      console.log('[DownloadTaskManager] Ensuring downloads are running...');
       await RNBackgroundDownloader.ensureDownloadsAreRunning();
-      console.log('[DownloadTaskManager] Downloads should now be running');
     } catch (error) {
-      console.error('[DownloadTaskManager] Error ensuring downloads are running:', error);
     }
   }
 
   async processCompletedDownloads(): Promise<void> {
-    console.log('[DownloadTaskManager] Processing completed downloads from temp directory...');
     
     try {
       const tempDir = this.fileManager.getDownloadDir();
@@ -321,13 +296,11 @@ export class DownloadTaskManager extends EventEmitter {
       
       const tempDirInfo = await FileSystem.getInfoAsync(tempDir);
       if (!tempDirInfo.exists) {
-        console.log('[DownloadTaskManager] Temp directory does not exist, creating it');
         await FileSystem.makeDirectoryAsync(tempDir, { intermediates: true });
         return;
       }
       
       const files = await FileSystem.readDirectoryAsync(tempDir);
-      console.log(`[DownloadTaskManager] Found ${files.length} files in temp directory`);
       
       for (const filename of files) {
         if (filename.startsWith('.')) continue;
@@ -338,12 +311,9 @@ export class DownloadTaskManager extends EventEmitter {
         const tempInfo = await FileSystem.getInfoAsync(tempPath, { size: true });
         
         if (tempInfo.exists && (tempInfo as any).size && (tempInfo as any).size > 0) {
-          console.log(`[DownloadTaskManager] Found potentially completed download in temp: ${filename} (${(tempInfo as any).size} bytes)`);
           
           try {
-            console.log(`[DownloadTaskManager] Moving ${filename} from ${tempPath} to ${modelPath}`);
             await this.fileManager.moveFile(tempPath, modelPath);
-            console.log(`[DownloadTaskManager] Successfully moved ${filename} from temp to models directory`);
             
             const modelInfo = await FileSystem.getInfoAsync(modelPath, { size: true });
             if (!modelInfo.exists) {
@@ -375,7 +345,6 @@ export class DownloadTaskManager extends EventEmitter {
               );
             }
           } catch (error) {
-            console.error(`[DownloadTaskManager] Error processing completed download for ${filename}:`, error);
             
             if (Platform.OS === 'android') {
               downloadNotificationService.cancelNotification(this.nextDownloadId - 1);
@@ -387,11 +356,9 @@ export class DownloadTaskManager extends EventEmitter {
             }
           }
         } else {
-          console.log(`[DownloadTaskManager] File ${filename} in temp directory is empty or invalid`);
         }
       }
     } catch (error) {
-      console.error('[DownloadTaskManager] Error processing completed downloads:', error);
     }
   }
 
@@ -400,14 +367,12 @@ export class DownloadTaskManager extends EventEmitter {
       const savedDownloads = await AsyncStorage.getItem('active_downloads');
       if (savedDownloads) {
         const downloads = JSON.parse(savedDownloads);
-        console.log('[DownloadTaskManager] Found saved downloads:', downloads);
 
         for (const [modelName, downloadState] of Object.entries(downloads)) {
           const { downloadId, destination, url, progress, bytesDownloaded, totalBytes, status } = downloadState as any;
           
           const fileInfo = await FileSystem.getInfoAsync(destination);
           if (fileInfo.exists) {
-            console.log(`[DownloadTaskManager] Found existing download for ${modelName}`);
             
             this.emit('downloadProgress', {
               modelName,
@@ -418,7 +383,6 @@ export class DownloadTaskManager extends EventEmitter {
               downloadId
             } as DownloadProgressEvent);
           } else {
-            console.log(`[DownloadTaskManager] Temp file not found for ${modelName}, cleaning up state`);
             
             this.emit('downloadProgress', {
               modelName,
@@ -441,7 +405,6 @@ export class DownloadTaskManager extends EventEmitter {
         }
       }
     } catch (error) {
-      console.error('[DownloadTaskManager] Error checking for existing downloads:', error);
     }
   }
 
@@ -461,20 +424,16 @@ export class DownloadTaskManager extends EventEmitter {
       }, {} as Record<string, any>);
 
       await AsyncStorage.setItem('active_downloads', JSON.stringify(downloadsToSave));
-      console.log('[DownloadTaskManager] Persisted active downloads:', downloadsToSave);
     } catch (error) {
-      console.error('[DownloadTaskManager] Error persisting active downloads:', error);
     }
   }
 
   private async cleanupDownload(modelName: string, downloadInfo: DownloadTaskInfo): Promise<void> {
     try {
-      console.log(`[DownloadTaskManager] Cleaning up download for ${modelName}`);
       
       if (downloadInfo.destination) {
         const tempInfo = await FileSystem.getInfoAsync(downloadInfo.destination);
         if (tempInfo.exists) {
-          console.log(`[DownloadTaskManager] Cleaning up temp file: ${downloadInfo.destination}`);
           await FileSystem.deleteAsync(downloadInfo.destination);
         }
       }
@@ -489,9 +448,7 @@ export class DownloadTaskManager extends EventEmitter {
       
       await this.persistActiveDownloads();
       
-      console.log(`[DownloadTaskManager] Cleanup completed for ${modelName}`);
     } catch (error) {
-      console.error(`[DownloadTaskManager] Error cleaning up download for ${modelName}:`, error);
     }
   }
 
@@ -500,13 +457,11 @@ export class DownloadTaskManager extends EventEmitter {
     const downloadInfo = this.activeDownloads.get(task.id);
 
     if (!downloadInfo) {
-      console.error(`[DownloadTaskManager] No download info found for task ${task.id}`);
       return;
     }
 
     task.begin((data: any) => {
       const expectedBytes = data.expectedBytes || 0;
-      console.log(`[DownloadTaskManager] Download started for ${task.id}, expected bytes: ${expectedBytes}`);
       expectedTotalBytes = expectedBytes;
 
       downloadInfo.totalBytes = expectedBytes;
@@ -582,7 +537,6 @@ export class DownloadTaskManager extends EventEmitter {
     });
     
     task.done(async () => {
-      console.log(`[DownloadTaskManager] Download completed for ${task.id}`);
       
       try {
         const tempPath = downloadInfo.destination || `${this.fileManager.getDownloadDir()}/${downloadInfo.modelName}`;
@@ -594,7 +548,6 @@ export class DownloadTaskManager extends EventEmitter {
           const tempSize = (tempInfo as any).size || 0;
           
           await this.fileManager.moveFile(tempPath, modelPath);
-          console.log(`[DownloadTaskManager] Moved ${downloadInfo.modelName} from temp to models directory`);
           
           const progressData = {
             progress: 100,
@@ -626,7 +579,6 @@ export class DownloadTaskManager extends EventEmitter {
           
           await this.cleanupDownload(downloadInfo.modelName, downloadInfo);
         } else {
-          console.error(`[DownloadTaskManager] Temp file not found for ${downloadInfo.modelName}`);
           
           const progressData = {
             progress: 0,
@@ -654,7 +606,6 @@ export class DownloadTaskManager extends EventEmitter {
           }
         }
       } catch (error) {
-        console.error(`[DownloadTaskManager] Error handling download completion for ${downloadInfo.modelName}:`, error);
         
         const progressData = {
           progress: 0,
@@ -687,7 +638,6 @@ export class DownloadTaskManager extends EventEmitter {
       const error = data.error || 'Unknown error';
       const errorCode = data.errorCode || 0;
       
-      console.error(`[DownloadTaskManager] Download error for ${task.id}:`, error, errorCode);
       
       const progressData = {
         progress: 0,
@@ -727,7 +677,6 @@ export class DownloadTaskManager extends EventEmitter {
       
       await AsyncStorage.setItem(this.DOWNLOAD_PROGRESS_KEY, JSON.stringify(progressData));
     } catch (error) {
-      console.error('[DownloadTaskManager] Error saving download progress:', error);
     }
   }
 
@@ -759,7 +708,6 @@ export class DownloadTaskManager extends EventEmitter {
         });
       }
     } catch (error) {
-      console.error('[DownloadTaskManager] Error loading download progress:', error);
     }
   }
 
@@ -772,7 +720,6 @@ export class DownloadTaskManager extends EventEmitter {
         await AsyncStorage.setItem(this.DOWNLOAD_PROGRESS_KEY, JSON.stringify(progressData));
       }
     } catch (error) {
-      console.error('[DownloadTaskManager] Error clearing download progress:', error);
     }
   }
 } 

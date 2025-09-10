@@ -227,7 +227,6 @@ const CustomModelSettingsSection = ({
 
   return (
     <View style={styles.container}>
-      {/* Essential Settings */}
       <Text style={[styles.sectionHeader, { color: themeColors.text }]}>Essential Settings</Text>
       
       <SettingItem
@@ -286,7 +285,6 @@ const CustomModelSettingsSection = ({
         onReset={() => onSettingsChange({ stopWords: defaultSettings.stopWords || [] })}
       />
 
-      {/* Advanced Settings */}
       <Text style={[styles.sectionHeader, { color: themeColors.text }]}>Advanced Settings</Text>
 
       <SliderItem

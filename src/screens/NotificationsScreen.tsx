@@ -49,7 +49,6 @@ export default function NotificationsScreen({ navigation }: NotificationsScreenP
       
       setNotifications(sortedNotifications);
     } catch (error) {
-      console.error('Error loading notifications:', error);
     }
   };
 
@@ -64,7 +63,6 @@ export default function NotificationsScreen({ navigation }: NotificationsScreenP
       await AsyncStorage.removeItem('downloadNotifications');
       setNotifications([]);
     } catch (error) {
-      console.error('Error clearing notifications:', error);
     }
   };
 

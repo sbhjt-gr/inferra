@@ -109,7 +109,6 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
     try {
       subscription = AppState.addEventListener('change', handleAppStateChange);
     } catch (error) {
-      // Do nothing
     }
 
     return () => {
@@ -133,7 +132,6 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
         try {
           await user.reload();
         } catch (error) {
-          // Continue even if reload fails
         }
         
         const updatedProfile = await refreshUserProfile();
@@ -176,7 +174,6 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
             await user.reload();
             refreshUserData();
           } catch (error) {
-            // Continue even if reload fails
             refreshUserData();
           }
         } else if (user && user.emailVerified) {
@@ -207,7 +204,6 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
         try {
           await user.reload();
         } catch (error) {
-          // Continue even if reload fails
         }
       }
       

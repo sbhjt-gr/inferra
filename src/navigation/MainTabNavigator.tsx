@@ -14,7 +14,6 @@ import { OpenSansFont } from '../hooks/OpenSansFont';
 
 const Tab = createBottomTabNavigator<TabParamList>();
 
-// a custom tab bar to avoid the ripple effect on android
 
 function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const { theme: currentTheme } = useTheme();

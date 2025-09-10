@@ -33,9 +33,7 @@ SplashScreen.preventAutoHideAsync();
 const initializeServices = async () => {
   try {
     await initializeFirebase();
-    console.log('Firebase initialized successfully');
   } catch (error) {
-    console.error('Firebase initialization failed:', error);
   }
   
   initGeminiService();
@@ -172,7 +170,6 @@ function Navigation() {
       try {
         subscription = AppState.addEventListener('change', changeHandler);
       } catch (err) {
-        console.error('Failed to add app state event listener:', err);
       }
     }
 

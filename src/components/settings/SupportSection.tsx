@@ -30,7 +30,6 @@ const SupportSection = ({ onOpenLink, onNavigateToLicenses }: SupportSectionProp
       const termsValue = await AsyncStorage.getItem(AI_TERMS_ACCEPTED_KEY);
       setTermsAccepted(termsValue === 'true');
     } catch (error) {
-      console.warn('Failed to load AI terms acceptance:', error);
     }
   };
 
@@ -40,7 +39,6 @@ const SupportSection = ({ onOpenLink, onNavigateToLicenses }: SupportSectionProp
       setTermsAccepted(true);
       setShowTermsDialog(false);
     } catch (error) {
-      console.warn('Failed to save terms acceptance:', error);
     }
   };
 

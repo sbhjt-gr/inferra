@@ -76,7 +76,6 @@ export const createUserProfile = async (user: FirebaseAuthTypes.User, name: stri
       deviceInfo
     );
   } catch (error) {
-    // do nothing
   }
 };
 
@@ -111,7 +110,6 @@ export const getUserProfile = async (uid: string): Promise<UserData | null> => {
         if (__DEV__) {
           const fromCache = userDoc.metadata.fromCache;
           const hasPendingWrites = userDoc.metadata.hasPendingWrites;
-          console.log(`User profile loaded: fromCache=${fromCache}, hasPendingWrites=${hasPendingWrites}`);
         }
         
         return userData;
@@ -120,7 +118,6 @@ export const getUserProfile = async (uid: string): Promise<UserData | null> => {
       return null;
     } catch (networkError: any) {
       if (__DEV__) {
-        console.warn('Network error fetching user profile, checking cache:', networkError.message);
       }
       
       try {
@@ -131,7 +128,6 @@ export const getUserProfile = async (uid: string): Promise<UserData | null> => {
           const currentUser = auth().currentUser;
           
           if (__DEV__) {
-            console.log('Using cached user profile data');
           }
           
           return {
@@ -151,7 +147,6 @@ export const getUserProfile = async (uid: string): Promise<UserData | null> => {
         }
       } catch (cacheError) {
         if (__DEV__) {
-          console.error('Error accessing cached user profile:', cacheError);
         }
       }
       
@@ -159,7 +154,6 @@ export const getUserProfile = async (uid: string): Promise<UserData | null> => {
     }
   } catch (error) {
     if (__DEV__) {
-      console.error('Error fetching user profile:', error);
     }
     return null;
   }
@@ -174,7 +168,6 @@ export const updateEmailVerificationStatus = async (uid: string, emailVerified: 
     }, { merge: true });
   } catch (error) {
     if (__DEV__) {
-      console.error('Error updating email verification status:', error);
     }
   }
 };
@@ -207,7 +200,6 @@ export const updateUserLoginInfo = async (uid: string): Promise<void> => {
     await storeUserSecurityInfo(uid, ipData, geoData, deviceInfo);
   } catch (error) {
     if (__DEV__) {
-      console.error('Error updating user login info:', error);
     }
   }
 }; 

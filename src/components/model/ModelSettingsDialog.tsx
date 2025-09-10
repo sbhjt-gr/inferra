@@ -56,7 +56,6 @@ export default function ModelSettingsDialog({
   const backdropAnim = React.useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    console.log('[ModelSettingsDialog] Visibility changed:', visible, 'Model:', modelName);
     if (visible) {
       loadSettings();
       Animated.parallel([
@@ -102,7 +101,6 @@ export default function ModelSettingsDialog({
         setCustomSettings({ ...globalSettings });
       }
     } catch (error) {
-      console.error('Error loading settings:', error);
     } finally {
       setIsLoading(false);
     }
@@ -119,7 +117,6 @@ export default function ModelSettingsDialog({
       await modelSettingsService.setModelSettings(modelPath, newModelSettings);
       setModelSettingsConfig(newModelSettings);
     } catch (error) {
-      console.error('Error toggling global settings:', error);
     }
   };
 
@@ -136,7 +133,6 @@ export default function ModelSettingsDialog({
         customSettings: updatedSettings
       }));
     } catch (error) {
-      console.error('Error saving custom settings:', error);
     }
   };
 
@@ -184,11 +180,9 @@ export default function ModelSettingsDialog({
   };
 
   if (!visible) {
-    console.log('[ModelSettingsDialog] Not visible, returning null');
     return null;
   }
   
-  console.log('[ModelSettingsDialog] Rendering modal, visible:', visible);
 
   if (isLoading || !globalSettings) {
     return (

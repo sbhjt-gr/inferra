@@ -16,7 +16,6 @@ export const initClaudeService = (): ClaudeService => {
   onlineModelService.setClaudeServiceGetter(() => instance);
   
   isInitialized = true;
-  console.log('ClaudeService initialized successfully');
   
   claudeService = instance;
   

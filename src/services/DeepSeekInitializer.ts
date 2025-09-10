@@ -16,7 +16,6 @@ export const initDeepSeekService = (): DeepSeekService => {
   onlineModelService.setDeepSeekServiceGetter(() => instance);
   
   isInitialized = true;
-  console.log('DeepSeekService initialized successfully');
   
   deepSeekService = instance;
   

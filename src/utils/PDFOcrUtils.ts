@@ -79,7 +79,6 @@ export const extractPdfPages = async (
     
     const pageCount = pdfInfo.pageCount;
     const pagesToProcess = pageCount;
-    console.log(`Processing PDF with ${pageCount} reported pages, accessing pages 1-${pagesToProcess}`);
     
     setExtractionProgress(`Extracting ${pagesToProcess} pages as images...`);
     
@@ -120,7 +119,6 @@ export const extractPdfPages = async (
               uri: persistentUri
             });
           } catch (retryErr) {
-            // do nothing
           }
         }
       }
@@ -162,10 +160,8 @@ export const extractPdfPages = async (
           try {
             const pages = await PdfPageImage.generateAllPages(formattedPdfPath, 2.0);
             
-            console.log(`Extracted ${pages.length} pages from iOS bulk extraction`);
             
             if (pages.length !== pagesToProcess) {
-              // do nothing
             }
             
             for (let i = 0; i < pages.length; i++) {
@@ -196,13 +192,11 @@ export const extractPdfPages = async (
                   uri: persistentUri
                 });
               } catch (pageErr) {
-                // do nothing
               }
             }
           }
         }
       } catch (err) {
-          // do nothing
       }
     }
     
@@ -234,10 +228,8 @@ export const performOCROnPages = async (
 ): Promise<string> => {
   try {
     setExtractionProgress('Processing PDF...');
-    console.log('Starting OCR on', pages.length, 'pages');
     
     if (pages.length === 0) {
-      console.error('No pages available for OCR');
       return "No pages were extracted from this PDF file.";
     }
     
@@ -255,7 +247,6 @@ export const performOCROnPages = async (
       let imageUri = pages[i].uri;
       
       try {
-        console.log(`OCR - Processing image at: ${imageUri}`);
         
         if (Platform.OS === 'android' && !imageUri.startsWith('file://')) {
           imageUri = `file://${imageUri}`;
@@ -302,11 +293,9 @@ export const cleanupTempFiles = async (tempFileUris: string[]): Promise<void> =>
           await FileSystem.deleteAsync(uri, { idempotent: true });
         }
       } catch (err) {
-        // do nothing
       }
     }
   } catch (err) {
-    // do nothing
   }
 };
 

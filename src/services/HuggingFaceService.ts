@@ -50,7 +50,6 @@ class HuggingFaceService {
 
   constructor() {
     if (!this.token) {
-      console.warn('[HuggingFaceService] No HUGGINGFACE_TOKEN found, using public access');
     }
   }
 

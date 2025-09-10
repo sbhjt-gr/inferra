@@ -95,7 +95,6 @@ export default function ChatInput({
       const termsValue = await AsyncStorage.getItem('@ai_terms_accepted');
       setTermsAccepted(termsValue === 'true');
     } catch (error) {
-      console.warn('Failed to load AI terms acceptance:', error);
     }
   };
 
@@ -105,7 +104,6 @@ export default function ChatInput({
       setTermsAccepted(true);
       setShowAITermsDialog(false);
     } catch (error) {
-      console.warn('Failed to save terms acceptance:', error);
     }
   };
 
@@ -168,7 +166,6 @@ export default function ChatInput({
       setRecordingPermission(granted);
       return granted;
     } catch (error) {
-      console.error('Error checking audio permissions:', error);
       setRecordingPermission(false);
       return false;
     }
@@ -180,7 +177,6 @@ export default function ChatInput({
       setRecordingPermission(granted);
       return granted;
     } catch (error) {
-      console.error('Error requesting audio permissions:', error);
       setRecordingPermission(false);
       return false;
     }
@@ -204,7 +200,6 @@ export default function ChatInput({
       );
       setStoredModels(projectorModels);
     } catch (error) {
-      console.error('Error loading stored models:', error);
       setStoredModels([]);
     }
   };
@@ -258,7 +253,6 @@ export default function ChatInput({
         );
       }
     } catch (error) {
-      console.error('Error loading model with projector:', error);
       showDialog(
         'Loading Error',
         'An error occurred while loading the model with multimodal support.'
@@ -336,7 +330,6 @@ export default function ChatInput({
       userContent: userPrompt || ''
     };
     
-    console.log('File Upload Message:', {
       internalInstruction: messageObject.internalInstruction,
       userContent: messageObject.userContent
     });
@@ -346,7 +339,6 @@ export default function ChatInput({
   }, [onSend]);
 
   const handlePhotoTaken = useCallback((photoUri: string, messageContent: string) => {
-    console.log('Photo Upload Message:', messageContent);
     
     onSend(messageContent);
     setShowAttachmentMenu(false);
@@ -367,7 +359,6 @@ export default function ChatInput({
       ]
     };
     
-    console.log('Audio Upload Message:', messageObject);
     
     onSend(JSON.stringify(messageObject));
     setShowAttachmentMenu(false);
@@ -409,7 +400,6 @@ export default function ChatInput({
         return;
       }
 
-      console.log('Starting audio recording...');
       
       await AudioModule.setAudioModeAsync({
         allowsRecording: true,
@@ -420,9 +410,7 @@ export default function ChatInput({
       audioRecorder.record();
       setIsRecording(true);
       setShowAttachmentMenu(false);
-      console.log('Recording started');
     } catch (error) {
-      console.error('Failed to start recording:', error);
       showDialog(
         'Recording Error',
         'Failed to start audio recording. Please try again.'
@@ -434,14 +422,12 @@ export default function ChatInput({
     try {
       if (!audioRecorder.isRecording) return;
 
-      console.log('Stopping audio recording...');
       await audioRecorder.stop();
       
       const uri = audioRecorder.uri;
       setIsRecording(false);
 
       if (uri) {
-        console.log('Audio recorded to:', uri);
         
         const fileInfo = await FileSystem.getInfoAsync(uri);
         if (fileInfo.exists) {
@@ -469,7 +455,6 @@ export default function ChatInput({
         );
       }
     } catch (error) {
-      console.error('Failed to stop recording:', error);
       showDialog(
         'Recording Error',
         'Failed to save audio recording. Please try again.'
@@ -549,7 +534,6 @@ export default function ChatInput({
         setShowAttachmentMenu(false);
       }
     } catch (error) {
-      console.error('Error picking document:', error);
       showDialog('Error', 'Could not pick the document. Please try again.');
     }
   }, [selectedModelPath, isMultimodalEnabled]);
@@ -783,13 +767,11 @@ export default function ChatInput({
           textAlign: 'center'
         }}
         >
-          {/* AI-generated content may contain errors, verify important information.{''} */}
         </Text>
         {/* <TouchableOpacity onPress={() => setShowAITermsDialog(true)}>
           <Text style={{
             fontSize: 12,
             color: isDark ? '#BB86FC' : '#6200EA',
-            // textDecorationLine: 'underline'
           }}
           >
             Learn more

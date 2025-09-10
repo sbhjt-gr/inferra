@@ -73,7 +73,6 @@ export default function CameraOverlay({ visible, onClose, onPhotoTaken }: Camera
           setShowPromptDialog(true);
         }
       } catch (error) {
-        console.error('Error taking picture:', error);
       }
     }
   };
@@ -99,7 +98,6 @@ export default function CameraOverlay({ visible, onClose, onPhotoTaken }: Camera
       setProcessingProgress('');
       onClose();
     } catch (error) {
-      console.error('Error processing photo:', error);
     } finally {
       setIsProcessing(false);
     }
