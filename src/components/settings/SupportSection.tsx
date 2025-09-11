@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View, Platform } from 'react-native';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../../context/ThemeContext';
@@ -48,11 +48,19 @@ const SupportSection = ({ onOpenLink, onNavigateToLicenses }: SupportSectionProp
 
         <TouchableOpacity 
           style={[styles.settingItem, styles.settingItemBorder]}
-          onPress={() => onOpenLink('https://play.google.com/store/apps/details?id=com.gorai.ragionare')}
+          onPress={() => onOpenLink(
+            Platform.OS === 'ios' 
+              ? 'https://apps.apple.com/app/inferra-local-ai-chat/id6736842393'
+              : 'https://play.google.com/store/apps/details?id=com.gorai.ragionare'
+          )}
         >
         <View style={styles.settingLeft}>
           <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
-            <MaterialCommunityIcons name="google-play" size={22} color={iconColor} />
+            <MaterialCommunityIcons 
+              name={Platform.OS === 'ios' ? 'apple' : 'google-play'} 
+              size={22} 
+              color={iconColor} 
+            />
           </View>
           <View style={styles.settingTextContainer}>
             <Text style={[styles.settingText, { color: themeColors.text }]}>
@@ -80,6 +88,26 @@ const SupportSection = ({ onOpenLink, onNavigateToLicenses }: SupportSectionProp
             </Text>
             <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
               Star my project on GitHub
+            </Text>
+          </View>
+        </View>
+        <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
+      </TouchableOpacity>
+
+      <TouchableOpacity 
+        style={[styles.settingItem, styles.settingItemBorder]}
+        onPress={() => onOpenLink('https://github.com/sbhjt-gr/inferra/issues')}
+      >
+        <View style={styles.settingLeft}>
+          <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
+            <MaterialCommunityIcons name="bug" size={22} color={iconColor} />
+          </View>
+          <View style={styles.settingTextContainer}>
+            <Text style={[styles.settingText, { color: themeColors.text }]}>
+              Report an Issue
+            </Text>
+            <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
+              Report bugs and request features
             </Text>
           </View>
         </View>
