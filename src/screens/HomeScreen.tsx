@@ -94,6 +94,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   const copyToastMessageRef = useRef<string>('Copied to clipboard');
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [isEditingMessage, setIsEditingMessage] = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingMessageText, setEditingMessageText] = useState('');
   const cancelGenerationRef = useRef<boolean>(false);
   const [showMemoryWarning, setShowMemoryWarning] = useState(false);
   const [memoryWarningType, setMemoryWarningType] = useState('');
@@ -1036,6 +1038,77 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     setIsEditingMessage(isEditing);
   }, []);
 
+  const handleStartEdit = useCallback((messageId: string, content: string) => {
+    setEditingMessageId(messageId);
+    setEditingMessageText(content);
+    setIsEditingMessage(true);
+  }, []);
+
+  const handleSaveEdit = useCallback(async (text: string) => {
+    if (!editingMessageId || !text.trim()) {
+      handleCancelEdit();
+      return;
+    }
+
+    try {
+      const originalMessage = messages.find(msg => msg.id === editingMessageId);
+      if (!originalMessage) {
+        Alert.alert('Error', 'Original message not found');
+        return;
+      }
+
+      let finalContent = text.trim();
+
+      try {
+        const parsedOriginal = JSON.parse(originalMessage.content);
+        
+        if (parsedOriginal && parsedOriginal.type === 'file_upload') {
+          finalContent = JSON.stringify({
+            ...parsedOriginal,
+            userContent: text.trim()
+          });
+        } else if (parsedOriginal && parsedOriginal.type === 'multimodal' && parsedOriginal.content) {
+          const updatedContent = parsedOriginal.content.map((item: any) => {
+            if (item.type === 'text') {
+              return { ...item, text: text.trim() };
+            }
+            return item;
+          });
+          finalContent = JSON.stringify({
+            ...parsedOriginal,
+            content: updatedContent
+          });
+        } else if (parsedOriginal && parsedOriginal.type === 'ocr_result') {
+          finalContent = JSON.stringify({
+            ...parsedOriginal,
+            userPrompt: text.trim()
+          });
+        }
+      } catch (e) {
+        finalContent = text.trim();
+      }
+
+      const success = await chatManager.editMessage(editingMessageId, finalContent);
+      
+      if (success) {
+        handleCancelEdit();
+        setTimeout(() => {
+          processMessage();
+        }, 50);
+      } else {
+        Alert.alert('Error', 'Failed to edit message');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to edit message');
+    }
+  }, [editingMessageId, messages]);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingMessageId(null);
+    setEditingMessageText('');
+    setIsEditingMessage(false);
+  }, []);
+
   const handleRegenerate = async () => {
     if (messages.length < 2) return;
     
@@ -1745,7 +1818,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       </View>
       <KeyboardAvoidingView
         style={styles.chatContainer}
-        behavior={isEditingMessage ? undefined : (Platform.OS === "ios" ? "padding" : "height")}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
       >
         <ChatView
@@ -1763,6 +1836,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
            onEditMessageAndRegenerate={processMessage}
            onStopGeneration={stopGenerationIfRunning}
            onEditingStateChange={handleEditingStateChange}
+           onStartEdit={handleStartEdit}
         />
 
         <ChatInput
@@ -1774,6 +1848,10 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
           onStop={handleCancelGeneration}
           style={{ backgroundColor: themeColors.background, borderTopColor: themeColors.borderColor }}
           placeholderColor={themeColors.secondaryText}
+          isEditing={isEditingMessage}
+          editingText={editingMessageText}
+          onSaveEdit={handleSaveEdit}
+          onCancelEdit={handleCancelEdit}
         />
       </KeyboardAvoidingView>
 

@@ -13,7 +13,6 @@ import {
   Modal,
   Dimensions,
   Alert,
-  TextInput,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Markdown from 'react-native-markdown-display';
@@ -53,6 +52,7 @@ type ChatViewProps = {
   onEditMessageAndRegenerate?: () => void;
   onStopGeneration?: () => void;
   onEditingStateChange?: (isEditing: boolean) => void;
+  onStartEdit?: (messageId: string, content: string) => void;
 };
 
 const hasMarkdownFormatting = (content: string): boolean => {
@@ -88,6 +88,7 @@ export default function ChatView({
   onEditMessageAndRegenerate,
   onStopGeneration,
   onEditingStateChange,
+  onStartEdit,
 }: ChatViewProps) {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
@@ -95,8 +96,6 @@ export default function ChatView({
   
   const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
   const [isImageViewerVisible, setIsImageViewerVisible] = useState(false);
-  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
-  const [editedMessageContent, setEditedMessageContent] = useState('');
 
   const openReportDialog = useCallback((messageContent: string, provider: string) => {
     navigation.navigate('Report', {
@@ -131,79 +130,9 @@ export default function ChatView({
     } catch (e) {
     }
     
-    setEditingMessageId(messageId);
-    setEditedMessageContent(contentToEdit);
+    onStartEdit?.(messageId, contentToEdit);
     onEditingStateChange?.(true);
-  }, [onEditingStateChange]);
-
-  const cancelEditing = useCallback(() => {
-    setEditingMessageId(null);
-    setEditedMessageContent('');
-    onEditingStateChange?.(false);
-  }, [onEditingStateChange]);
-
-  const saveEditedMessage = useCallback(async () => {
-    if (!editingMessageId || !editedMessageContent.trim()) {
-      cancelEditing();
-      return;
-    }
-
-    try {
-      const originalMessage = messages.find(msg => msg.id === editingMessageId);
-      if (!originalMessage) {
-        Alert.alert('Error', 'Original message not found');
-        return;
-      }
-
-      let finalContent = editedMessageContent.trim();
-
-      try {
-        const parsedOriginal = JSON.parse(originalMessage.content);
-        
-        if (parsedOriginal && parsedOriginal.type === 'file_upload') {
-          finalContent = JSON.stringify({
-            ...parsedOriginal,
-            userContent: editedMessageContent.trim()
-          });
-        } else if (parsedOriginal && parsedOriginal.type === 'multimodal' && parsedOriginal.content) {
-          const updatedContent = parsedOriginal.content.map((item: any) => {
-            if (item.type === 'text') {
-              return { ...item, text: editedMessageContent.trim() };
-            }
-            return item;
-          });
-          finalContent = JSON.stringify({
-            ...parsedOriginal,
-            content: updatedContent
-          });
-        } else if (parsedOriginal && parsedOriginal.type === 'ocr_result') {
-          finalContent = JSON.stringify({
-            ...parsedOriginal,
-            userPrompt: editedMessageContent.trim()
-          });
-        }
-      } catch (e) {
-        finalContent = editedMessageContent.trim();
-      }
-
-      const success = await chatManager.editMessage(editingMessageId, finalContent);
-      
-      if (success) {
-        setEditingMessageId(null);
-        setEditedMessageContent('');
-        onEditingStateChange?.(false);
-        if (onEditMessageAndRegenerate) {
-          setTimeout(() => {
-            onEditMessageAndRegenerate();
-          }, 50);
-        }
-      } else {
-        Alert.alert('Error', 'Failed to edit message');
-      }
-    } catch (error) {
-      Alert.alert('Error', 'Failed to edit message');
-    }
-  }, [editingMessageId, editedMessageContent, messages, onEditMessageAndRegenerate]);
+  }, [onStartEdit, onEditingStateChange]);
 
   const formatDuration = useCallback((seconds: number): string => {
     const minutes = Math.floor(seconds / 60);
@@ -472,26 +401,6 @@ export default function ChatView({
               <Text style={[styles.loadingText, { color: themeColors.secondaryText }]}>
                 Generating response...
               </Text>
-            </View>
-          ) : editingMessageId === item.id ? (
-            <View style={styles.messageContent}>
-              <TextInput
-                style={[
-                  styles.editInput,
-                  {
-                    backgroundColor: 'transparent',
-                    color: item.role === 'user' ? '#fff' : themeColors.text,
-                    borderWidth: 0,
-                  }
-                ]}
-                value={editedMessageContent}
-                onChangeText={setEditedMessageContent}
-                multiline
-                placeholder="Edit your message..."
-                placeholderTextColor={item.role === 'user' ? 'rgba(255, 255, 255, 0.7)' : themeColors.secondaryText}
-                autoFocus
-                selectionColor={item.role === 'user' ? '#fff' : themeColors.primary}
-              />
             </View>
           ) : !hasMarkdownFormatting(messageContent) ? (
             messageContent && messageContent.trim() ? (
@@ -773,42 +682,9 @@ export default function ChatView({
             </View>
           ) : null}
         </View>
-        
-        {editingMessageId === item.id ? (
-          <View style={styles.editActionsContainer}>
-            <View style={styles.editActions}>
-              <TouchableOpacity
-                style={[styles.editActionButton, styles.cancelButton, { backgroundColor: themeColors.borderColor }]}
-                onPress={cancelEditing}
-              >
-                <MaterialCommunityIcons 
-                  name="close" 
-                  size={16} 
-                  color={themeColors.text}
-                />
-                <Text style={[styles.editActionText, { color: themeColors.text }]}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.editActionButton, styles.saveButton, { backgroundColor: themeColors.primary }]}
-                onPress={saveEditedMessage}
-                disabled={!editedMessageContent.trim()}
-              >
-                <MaterialCommunityIcons 
-                  name="check" 
-                  size={16} 
-                  color="#fff"
-                />
-                <Text style={[styles.editActionText, { color: '#fff' }]}>Save</Text>
-              </TouchableOpacity>
-            </View>
-            <Text style={[styles.editWarning, { color: themeColors.secondaryText }]}>
-              All messages after this one will be deleted.
-            </Text>
-          </View>
-        ) : null}
       </View>
     );
-  }, [themeColors, messages, isStreaming, streamingMessageId, streamingMessage, streamingThinking, streamingStats, onCopyText, isRegenerating, onRegenerateResponse, justCancelled, openImageViewer, startEditing, formatTime, formatDuration, editingMessageId, editedMessageContent, setEditedMessageContent, cancelEditing, saveEditedMessage]);
+  }, [themeColors, messages, isStreaming, streamingMessageId, streamingMessage, streamingThinking, streamingStats, onCopyText, isRegenerating, onRegenerateResponse, justCancelled, openImageViewer, startEditing, formatTime, formatDuration]);
 
   const renderContent = () => {
     if (messages.length === 0) {
@@ -1161,46 +1037,6 @@ const styles = StyleSheet.create({
   fullScreenImage: {
     width: Dimensions.get('window').width,
     height: Dimensions.get('window').height,
-  },
-  editInput: {
-    fontSize: 15,
-    lineHeight: 20,
-    textAlignVertical: 'top',
-    minHeight: 20,
-  },
-  editActionsContainer: {
-    marginTop: 8,
-    paddingHorizontal: 16,
-  },
-  editActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 8,
-    marginBottom: 4,
-  },
-  editActionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-  },
-  editActionText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  cancelButton: {
-    opacity: 0.8,
-  },
-  saveButton: {
-    opacity: 1,
-  },
-  editWarning: {
-    fontSize: 12,
-    fontStyle: 'italic',
-    opacity: 0.8,
-    textAlign: 'center',
   },
   statItem: {
     flexDirection: 'row',
