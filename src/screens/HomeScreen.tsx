@@ -198,13 +198,15 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     }
     
     const unsubscribe = chatManager.addListener(() => {
-      loadCurrentChat();
+      if (!route.params?.loadChatId) {
+        loadCurrentChat();
+      }
     });
     
     return () => {
       unsubscribe();
     };
-  }, []);
+  }, [route.params?.loadChatId]);
 
   useEffect(() => {
     if (route.params?.modelPath) {
@@ -213,8 +215,11 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     }
     
     if (route.params?.loadChatId) {
-      loadChat(route.params.loadChatId);
-      navigation.setParams({ loadChatId: undefined });
+      const chatId = route.params.loadChatId;
+      setTimeout(() => {
+        loadChat(chatId);
+        navigation.setParams({ loadChatId: undefined });
+      }, 0);
     }
   }, [route.params]);
 
