@@ -279,9 +279,12 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
   };
 
   const [emailSentTimestamp, setEmailSentTimestamp] = useState<number | null>(null);
+  const [isResendingEmail, setIsResendingEmail] = useState(false);
   const EMAIL_COOLDOWN_PERIOD = 60000;
 
   const resendVerificationEmail = async () => {
+    if (isResendingEmail) return;
+    
     try {
       const user = getCurrentUser();
       if (!user) {
@@ -310,6 +313,14 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
         return;
       }
 
+      setIsResendingEmail(true);
+      
+      showDialog({
+        message: 'Resending verification email...',
+        showLoading: true,
+        showTitle: false
+      });
+
       await user.sendEmailVerification();
       setEmailSentTimestamp(currentTime);
       
@@ -330,6 +341,8 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
         title: 'Error',
         message: errorMessage
       });
+    } finally {
+      setIsResendingEmail(false);
     }
   };
 
@@ -409,12 +422,20 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
             </Text>
             {!userData.emailVerified && (
               <TouchableOpacity 
-                style={styles.resendButton}
+                style={[styles.resendButton, isResendingEmail && styles.resendButtonDisabled]}
                 onPress={resendVerificationEmail}
+                disabled={isResendingEmail}
                 accessibilityLabel="Resend verification email"
                 accessibilityHint="Sends a new verification email to your address"
               >
-                <Text style={styles.resendButtonText}>Resend Email</Text>
+                {isResendingEmail ? (
+                  <View style={styles.resendButtonContent}>
+                    <ActivityIndicator size="small" color="#fff" style={styles.resendButtonLoader} />
+                    <Text style={styles.resendButtonText}>Sending...</Text>
+                  </View>
+                ) : (
+                  <Text style={styles.resendButtonText}>Resend Email</Text>
+                )}
               </TouchableOpacity>
             )}
           </View>
@@ -558,6 +579,18 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 12,
     marginTop: 5,
+  },
+  resendButtonDisabled: {
+    backgroundColor: '#FFC107',
+    opacity: 0.7,
+  },
+  resendButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  resendButtonLoader: {
+    marginRight: 4,
   },
   resendButtonText: {
     color: '#fff',

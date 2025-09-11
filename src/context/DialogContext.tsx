@@ -6,13 +6,17 @@ type DialogContextType = {
   message: string;
   confirmText: string;
   cancelText: string | null;
+  showLoading: boolean;
+  showTitle: boolean;
   onConfirm: () => void;
   onCancel: () => void;
   showDialog: (params: {
-    title: string;
+    title?: string;
     message: string;
     confirmText?: string;
     cancelText?: string | null;
+    showLoading?: boolean;
+    showTitle?: boolean;
     onConfirm?: () => void;
     onCancel?: () => void;
   }) => void;
@@ -39,21 +43,27 @@ export const DialogProvider = ({ children }: DialogProviderProps) => {
   const [message, setMessage] = useState('');
   const [confirmText, setConfirmText] = useState('OK');
   const [cancelText, setCancelText] = useState<string | null>('Cancel');
+  const [showLoading, setShowLoading] = useState(false);
+  const [showTitle, setShowTitle] = useState(true);
   const [confirmCallback, setConfirmCallback] = useState<(() => void) | undefined>(() => {});
   const [cancelCallback, setCancelCallback] = useState<(() => void) | undefined>(() => {});
 
   const showDialog = ({
-    title,
+    title = '',
     message,
     confirmText = 'OK',
     cancelText = 'Cancel',
+    showLoading = false,
+    showTitle = true,
     onConfirm = () => {},
     onCancel = () => {},
   }: {
-    title: string;
+    title?: string;
     message: string;
     confirmText?: string;
     cancelText?: string | null;
+    showLoading?: boolean;
+    showTitle?: boolean;
     onConfirm?: () => void;
     onCancel?: () => void;
   }) => {
@@ -61,6 +71,8 @@ export const DialogProvider = ({ children }: DialogProviderProps) => {
     setMessage(message);
     setConfirmText(confirmText);
     setCancelText(cancelText);
+    setShowLoading(showLoading);
+    setShowTitle(showTitle);
     setConfirmCallback(() => onConfirm);
     setCancelCallback(() => onCancel);
     setVisible(true);
@@ -68,6 +80,8 @@ export const DialogProvider = ({ children }: DialogProviderProps) => {
 
   const hideDialog = () => {
     setVisible(false);
+    setShowLoading(false);
+    setShowTitle(true);
   };
 
   const handleConfirm = () => {
@@ -90,6 +104,8 @@ export const DialogProvider = ({ children }: DialogProviderProps) => {
     message,
     confirmText,
     cancelText,
+    showLoading,
+    showTitle,
     onConfirm: handleConfirm,
     onCancel: handleCancel,
     showDialog,
