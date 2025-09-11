@@ -5,7 +5,7 @@ export default {
     name: "Inferra",
     slug: "inferra",
     owner: "subhajitgorai",
-    version: "2.6.2",
+    version: "2.6.2"
     orientation: "portrait",
     icon: "./assets/icon.png",
     userInterfaceStyle: "automatic",
@@ -32,7 +32,7 @@ export default {
       requireFullScreen: false,
       bundleIdentifier: "com.gorai.ragionare",
       buildNumber: "262",
-      runtimeVersion: "2.6.2",
+      runtimeVersion: "2.6.2"
       googleServicesFile: "./ios/GoogleService-Info.plist",
       updates: {
         enabled: false
