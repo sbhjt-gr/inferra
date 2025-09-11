@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, AppState, AppStateStatus } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, AppState, AppStateStatus, ActivityIndicator } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import AppHeader from '../components/AppHeader';
@@ -32,6 +32,9 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
     creationTime: '',
     lastSignInTime: ''
   });
+  const [isLoading, setIsLoading] = useState(true);
+  const loadingRef = useRef(false);
+  const isInitialMount = useRef(true);
 
   const verificationCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
@@ -59,8 +62,13 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
     }
   };
   
-  const refreshUserData = useCallback(async () => {
+  const refreshUserData = useCallback(async (showLoader: boolean = false) => {
     try {
+      if (showLoader && !loadingRef.current) {
+        loadingRef.current = true;
+        setIsLoading(true);
+      }
+      
       await waitForAuthReady();
       
       const { user, profile } = await forceRefreshUserData();
@@ -91,7 +99,12 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
         });
       }
     } catch (error) {
-      loadUserData();
+      await loadUserData(false);
+    } finally {
+      if (showLoader) {
+        loadingRef.current = false;
+        setIsLoading(false);
+      }
     }
   }, []);
   
@@ -99,7 +112,7 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
     const handleAppStateChange = async (nextAppState: AppStateStatus) => {
       if (appStateRef.current.match(/inactive|background/) && nextAppState === 'active') {
         await initializeAuthAndSync();
-        await refreshUserData();
+        await refreshUserData(false);
       }
       appStateRef.current = nextAppState;
     };
@@ -121,14 +134,14 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
   useEffect(() => {
     const initializeAndLoad = async () => {
       await initializeAuthAndSync();
-      await loadUserData();
+      await loadUserData(true);
     };
     
     initializeAndLoad();
     
     const auth = getFirebaseServices().auth();
     const unsubscribe = onAuthStateChanged(auth, async (user: FirebaseAuthTypes.User | null) => {
-      if (user) {
+      if (user && !loadingRef.current) {
         try {
           await user.reload();
         } catch (error) {
@@ -165,16 +178,21 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
   
   useFocusEffect(
     useCallback(() => {
-      refreshUserData();
+      if (isInitialMount.current) {
+        isInitialMount.current = false;
+        return;
+      }
+      
+      refreshUserData(false);
       
       verificationCheckIntervalRef.current = setInterval(async () => {
         const user = getCurrentUser();
         if (user && !user.emailVerified) {
           try {
             await user.reload();
-            refreshUserData();
+            refreshUserData(false);
           } catch (error) {
-            refreshUserData();
+            refreshUserData(false);
           }
         } else if (user && user.emailVerified) {
           if (verificationCheckIntervalRef.current) {
@@ -193,8 +211,13 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
     }, [])
   );
 
-  const loadUserData = async () => {
+  const loadUserData = async (showLoader: boolean = true) => {
     try {
+      if (showLoader && !loadingRef.current) {
+        loadingRef.current = true;
+        setIsLoading(true);
+      }
+      
       await waitForAuthReady();
       
       const profile = await getUserFromSecureStorage();
@@ -234,6 +257,11 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
           creationTime: user.metadata.creationTime || '',
           lastSignInTime: user.metadata.lastSignInTime || ''
         });
+      }
+    } finally {
+      if (showLoader) {
+        loadingRef.current = false;
+        setIsLoading(false);
       }
     }
   };
@@ -326,12 +354,32 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
     });
   };
 
+  if (isLoading) {
+    return (
+      <View style={[styles.container, { backgroundColor: themeColors.background }]}>
+        <AppHeader 
+          title="My Profile"
+          showBackButton={true}
+          showLogo={false}
+          rightButtons={[]}
+        />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={themeColors.primary} />
+          <Text style={[styles.loadingText, { color: themeColors.text }]}>
+            Loading profile...
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.container, { backgroundColor: themeColors.background }]}>
       <AppHeader 
         title="My Profile"
         showBackButton={true}
         showLogo={false}
+        rightButtons={[]}
       />
       <ScrollView contentContainerStyle={[styles.contentContainer, { paddingBottom: insets.bottom + 20 }]}>
         <View style={[styles.profileHeader, { backgroundColor: themeColors.background }]}>
@@ -411,6 +459,16 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 16,
+  },
+  loadingText: {
+    fontSize: 16,
+    fontWeight: '500',
   },
   contentContainer: {
     padding: 16,
