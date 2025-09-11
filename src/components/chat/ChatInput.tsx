@@ -360,6 +360,11 @@ export default function ChatInput({
     setShowAttachmentMenu(false);
   }, [onSend]);
 
+  const handleImageUpload = useCallback((messageContent: string) => {
+    onSend(messageContent);
+    setShowAttachmentMenu(false);
+  }, [onSend]);
+
   const handlePhotoTaken = useCallback((photoUri: string, messageContent: string) => {
     
     onSend(messageContent);
@@ -819,6 +824,7 @@ export default function ChatInput({
         filePath={selectedFile?.uri || ''}
         fileName={selectedFile?.name}
         onUpload={handleFileUpload}
+        onImageUpload={handleImageUpload}
       />
 
       <CameraOverlay

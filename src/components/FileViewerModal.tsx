@@ -10,6 +10,7 @@ type FileViewerModalProps = {
   filePath: string;
   fileName?: string;
   onUpload?: (content: string, fileName: string, userPrompt: string) => void;
+  onImageUpload?: (messageContent: string) => void;
 };
 
 export default function FileViewerModal({
@@ -18,6 +19,7 @@ export default function FileViewerModal({
   filePath,
   fileName,
   onUpload,
+  onImageUpload,
 }: FileViewerModalProps) {
   const [fileType, setFileType] = useState<FileType>('unknown');
   
@@ -49,6 +51,7 @@ export default function FileViewerModal({
           imagePath={filePath}
           fileName={fileName}
           onUpload={onUpload}
+          onImageUpload={onImageUpload}
         />
       );
     case 'text':
