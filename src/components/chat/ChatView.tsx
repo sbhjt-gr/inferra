@@ -205,6 +205,7 @@ export default function ChatView({
       let thinking = '';
       let cleanContent = content;
       
+      // Handle complete <think>...</think> tags
       const completeThinkTagRegex = /<think>([\s\S]*?)<\/think>/gi;
       const completeMatches = content.match(completeThinkTagRegex);
       
@@ -215,6 +216,7 @@ export default function ChatView({
         cleanContent = content.replace(completeThinkTagRegex, '').trim();
       }
       
+      // Handle incomplete <think> tags during streaming
       const incompleteThinkMatch = content.match(/<think>([\s\S]*?)$/i);
       if (incompleteThinkMatch && !content.includes('</think>')) {
         thinking = incompleteThinkMatch[1].trim();

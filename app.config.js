@@ -5,7 +5,7 @@ export default {
     name: "Inferra",
     slug: "inferra",
     owner: "subhajitgorai",
-    version: "2.6.1",
+    version: "2.6.2"
     orientation: "portrait",
     icon: "./assets/icon.png",
     userInterfaceStyle: "automatic",
@@ -31,8 +31,8 @@ export default {
       supportsTablet: true,
       requireFullScreen: false,
       bundleIdentifier: "com.gorai.ragionare",
-      buildNumber: "261",
-      runtimeVersion: "2.6.1",
+      buildNumber: "262",
+      runtimeVersion: "2.6.2"
       googleServicesFile: "./ios/GoogleService-Info.plist",
       updates: {
         enabled: false
@@ -50,13 +50,13 @@ export default {
       scheme: "com.gorai.ragionare"
     },
     android: {
-      versionCode: 261,
+      versionCode: 262,
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon.png",
         backgroundColor: "#660880"
       },
       package: "com.gorai.ragionare",
-      runtimeVersion: "2.6.1",
+      runtimeVersion: "2.6.2",
       googleServicesFile: "./android/app/google-services.json",
       edgeToEdgeEnabled: true,
       resizeableActivity: true,
@@ -105,7 +105,6 @@ export default {
       typedRoutes: true
     },
     plugins: [
-      "react-native-edge-to-edge",
       "@react-native-firebase/app",
       [
         

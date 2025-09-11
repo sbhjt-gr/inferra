@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import { getThemeAwareColor } from '../utils/ColorUtils';
@@ -50,6 +51,7 @@ export default function CameraOverlay({ visible, onClose, onPhotoTaken }: Camera
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
   const isDark = currentTheme === 'dark';
+  const insets = useSafeAreaInsets();
 
 
   const toggleCameraFacing = () => {
@@ -174,7 +176,7 @@ export default function CameraOverlay({ visible, onClose, onPhotoTaken }: Camera
     >
       <StatusBar hidden={true} />
       <View style={styles.fullScreenContainer}>
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
           <TouchableOpacity style={styles.headerButton} onPress={onClose}>
             <MaterialCommunityIcons name="close" size={24} color="#fff" />
           </TouchableOpacity>
@@ -192,7 +194,7 @@ export default function CameraOverlay({ visible, onClose, onPhotoTaken }: Camera
           />
         </View>
 
-        <View style={styles.controls}>
+        <View style={[styles.controls, { paddingBottom: insets.bottom + 30 }]}>
           <TouchableOpacity style={styles.captureButton} onPress={takePicture}>
             <View style={styles.captureButtonInner} />
           </TouchableOpacity>
@@ -300,7 +302,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'ios' ? 50 : 30,
     paddingBottom: 15,
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
     position: 'absolute',
@@ -338,7 +339,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: 30,
-    paddingBottom: Platform.OS === 'ios' ? 50 : 30,
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
   },
   captureButton: {
