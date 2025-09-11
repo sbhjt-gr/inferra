@@ -1292,22 +1292,47 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                   return false;
                 }
                 
-                tokenCount = partialResponse.split(/\s+/).length;
+                const currentTime = Date.now();
+                
+                if (firstTokenTime === null && partialResponse.trim().length > 0) {
+                  firstTokenTime = currentTime - startTime;
+                }
+                
+                const wordCount = partialResponse.trim().split(/\s+/).filter(word => word.length > 0).length;
+                tokenCount = Math.max(1, Math.ceil(wordCount * 1.33));
                 fullResponse = partialResponse;
+                
+                const duration = (currentTime - startTime) / 1000;
+                let avgTokenTime = undefined;
+                
+                if (firstTokenTime !== null && tokenCount > 0) {
+                  const timeAfterFirstToken = currentTime - (startTime + firstTokenTime);
+                  avgTokenTime = timeAfterFirstToken / tokenCount;
+                }
                 
                 setStreamingMessage(partialResponse);
                 setStreamingStats({
                   tokens: tokenCount,
-                  duration: (Date.now() - startTime) / 1000
+                  duration: duration,
+                  firstTokenTime: firstTokenTime || undefined,
+                  avgTokenTime: avgTokenTime && avgTokenTime > 0 ? avgTokenTime : undefined
                 });
                 
                 if (tokenCount % 5 === 0 || partialResponse.endsWith('.') || partialResponse.endsWith('!') || partialResponse.endsWith('?')) {
+                  let debouncedAvgTokenTime = undefined;
+                  if (firstTokenTime !== null && tokenCount > 0) {
+                    const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
+                    debouncedAvgTokenTime = timeAfterFirstToken / tokenCount;
+                  }
+                  
                   const finalMessage: ChatMessage = {
                     ...assistantMessage,
                     content: partialResponse,
                     stats: {
                       duration: (Date.now() - startTime) / 1000,
                       tokens: tokenCount,
+                      firstTokenTime: firstTokenTime || undefined,
+                      avgTokenTime: debouncedAvgTokenTime && debouncedAvgTokenTime > 0 ? debouncedAvgTokenTime : undefined
                     }
                   };
                   
@@ -1321,6 +1346,12 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             );
             
             if (!cancelGenerationRef.current) {
+              let finalAvgTokenTime = undefined;
+              if (firstTokenTime !== null && tokenCount > 0) {
+                const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
+                finalAvgTokenTime = timeAfterFirstToken / tokenCount;
+              }
+              
               const finalMessage: ChatMessage = {
                 id: assistantMessage.id,
                 role: assistantMessage.role,
@@ -1328,6 +1359,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                 stats: {
                   duration: (Date.now() - startTime) / 1000,
                   tokens: tokenCount,
+                  firstTokenTime: firstTokenTime || undefined,
+                  avgTokenTime: finalAvgTokenTime && finalAvgTokenTime > 0 ? finalAvgTokenTime : undefined
                 }
               };
               
@@ -1361,22 +1394,47 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                   return false;
                 }
                 
-                tokenCount = partialResponse.split(/\s+/).length;
+                const currentTime = Date.now();
+                
+                if (firstTokenTime === null && partialResponse.trim().length > 0) {
+                  firstTokenTime = currentTime - startTime;
+                }
+                
+                const wordCount = partialResponse.trim().split(/\s+/).filter(word => word.length > 0).length;
+                tokenCount = Math.max(1, Math.ceil(wordCount * 1.33));
                 fullResponse = partialResponse;
+                
+                const duration = (currentTime - startTime) / 1000;
+                let avgTokenTime = undefined;
+                
+                if (firstTokenTime !== null && tokenCount > 0) {
+                  const timeAfterFirstToken = currentTime - (startTime + firstTokenTime);
+                  avgTokenTime = timeAfterFirstToken / tokenCount;
+                }
                 
                 setStreamingMessage(partialResponse);
                 setStreamingStats({
                   tokens: tokenCount,
-                  duration: (Date.now() - startTime) / 1000
+                  duration: duration,
+                  firstTokenTime: firstTokenTime || undefined,
+                  avgTokenTime: avgTokenTime && avgTokenTime > 0 ? avgTokenTime : undefined
                 });
                 
                 if (tokenCount % 5 === 0 || partialResponse.endsWith('.') || partialResponse.endsWith('!') || partialResponse.endsWith('?')) {
+                  let debouncedAvgTokenTime = undefined;
+                  if (firstTokenTime !== null && tokenCount > 0) {
+                    const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
+                    debouncedAvgTokenTime = timeAfterFirstToken / tokenCount;
+                  }
+                  
                   const finalMessage: ChatMessage = {
                     ...assistantMessage,
                     content: partialResponse,
                     stats: {
                       duration: (Date.now() - startTime) / 1000,
                       tokens: tokenCount,
+                      firstTokenTime: firstTokenTime || undefined,
+                      avgTokenTime: debouncedAvgTokenTime && debouncedAvgTokenTime > 0 ? debouncedAvgTokenTime : undefined
                     }
                   };
                   
@@ -1390,6 +1448,12 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             );
             
             if (!cancelGenerationRef.current) {
+              let finalAvgTokenTime = undefined;
+              if (firstTokenTime !== null && tokenCount > 0) {
+                const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
+                finalAvgTokenTime = timeAfterFirstToken / tokenCount;
+              }
+              
               const finalMessage: ChatMessage = {
                 id: assistantMessage.id,
                 role: assistantMessage.role,
@@ -1397,6 +1461,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                 stats: {
                   duration: (Date.now() - startTime) / 1000,
                   tokens: tokenCount,
+                  firstTokenTime: firstTokenTime || undefined,
+                  avgTokenTime: finalAvgTokenTime && finalAvgTokenTime > 0 ? finalAvgTokenTime : undefined
                 }
               };
               
@@ -1430,22 +1496,47 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                   return false;
                 }
                 
-                tokenCount = partialResponse.split(/\s+/).length;
+                const currentTime = Date.now();
+                
+                if (firstTokenTime === null && partialResponse.trim().length > 0) {
+                  firstTokenTime = currentTime - startTime;
+                }
+                
+                const wordCount = partialResponse.trim().split(/\s+/).filter(word => word.length > 0).length;
+                tokenCount = Math.max(1, Math.ceil(wordCount * 1.33));
                 fullResponse = partialResponse;
+                
+                const duration = (currentTime - startTime) / 1000;
+                let avgTokenTime = undefined;
+                
+                if (firstTokenTime !== null && tokenCount > 0) {
+                  const timeAfterFirstToken = currentTime - (startTime + firstTokenTime);
+                  avgTokenTime = timeAfterFirstToken / tokenCount;
+                }
                 
                 setStreamingMessage(partialResponse);
                 setStreamingStats({
                   tokens: tokenCount,
-                  duration: (Date.now() - startTime) / 1000
+                  duration: duration,
+                  firstTokenTime: firstTokenTime || undefined,
+                  avgTokenTime: avgTokenTime && avgTokenTime > 0 ? avgTokenTime : undefined
                 });
                 
                 if (tokenCount % 5 === 0 || partialResponse.endsWith('.') || partialResponse.endsWith('!') || partialResponse.endsWith('?')) {
+                  let debouncedAvgTokenTime = undefined;
+                  if (firstTokenTime !== null && tokenCount > 0) {
+                    const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
+                    debouncedAvgTokenTime = timeAfterFirstToken / tokenCount;
+                  }
+                  
                   const finalMessage: ChatMessage = {
                     ...assistantMessage,
                     content: partialResponse,
                     stats: {
                       duration: (Date.now() - startTime) / 1000,
                       tokens: tokenCount,
+                      firstTokenTime: firstTokenTime || undefined,
+                      avgTokenTime: debouncedAvgTokenTime && debouncedAvgTokenTime > 0 ? debouncedAvgTokenTime : undefined
                     }
                   };
                   
@@ -1459,6 +1550,12 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             );
             
             if (!cancelGenerationRef.current) {
+              let finalAvgTokenTime = undefined;
+              if (firstTokenTime !== null && tokenCount > 0) {
+                const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
+                finalAvgTokenTime = timeAfterFirstToken / tokenCount;
+              }
+              
               const finalMessage: ChatMessage = {
                 id: assistantMessage.id,
                 role: assistantMessage.role,
@@ -1466,6 +1563,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                 stats: {
                   duration: (Date.now() - startTime) / 1000,
                   tokens: tokenCount,
+                  firstTokenTime: firstTokenTime || undefined,
+                  avgTokenTime: finalAvgTokenTime && finalAvgTokenTime > 0 ? finalAvgTokenTime : undefined
                 }
               };
               
