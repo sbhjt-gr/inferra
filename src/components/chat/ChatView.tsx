@@ -16,6 +16,8 @@ import {
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Markdown from 'react-native-markdown-display';
+import CodeHighlighter from 'react-native-code-highlighter';
+import { atomOneDark } from 'react-syntax-highlighter/dist/esm/styles/hljs';
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../constants/theme';
 import chatManager from '../../utils/ChatManager';
@@ -572,11 +574,21 @@ export default function ChatView({
                 rules={{
                   fence: (node, _children, _parent, styles) => {
                     const codeContent = node.content;
+                    const language = (node as any).sourceInfo || 'text';
                     return (
-                      <View style={[styles.fence, { position: 'relative' }]} key={node.key}>
-                        <Text style={styles.fence_text} selectable={true}>
+                      <View style={[styles.fence, { position: 'relative', backgroundColor: '#000000' }]} key={node.key}>
+                        <CodeHighlighter
+                          hljsStyle={atomOneDark}
+                          textStyle={{
+                            fontSize: 14,
+                            lineHeight: 20,
+                            fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+                          }}
+                          scrollViewProps={{ contentContainerStyle: { backgroundColor: '#000000' } }}
+                          language={language}
+                        >
                           {codeContent || ''}
-                        </Text>
+                        </CodeHighlighter>
                         <TouchableOpacity 
                           style={styles.codeBlockCopyButton}
                           onPress={() => onCopyText(codeContent)}
@@ -593,11 +605,21 @@ export default function ChatView({
                   },
                   code_block: (node, _children, _parent, styles) => {
                     const codeContent = node.content;
+                    const language = (node as any).sourceInfo || 'text';
                     return (
-                      <View style={[styles.code_block, { position: 'relative' }]} key={node.key}>
-                        <Text style={styles.code_block_text} selectable={true}>
+                      <View style={[styles.code_block, { position: 'relative', backgroundColor: '#000000' }]} key={node.key}>
+                        <CodeHighlighter
+                          hljsStyle={atomOneDark}
+                          textStyle={{
+                            fontSize: 14,
+                            lineHeight: 20,
+                            fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+                          }}
+                          scrollViewProps={{ contentContainerStyle: { backgroundColor: '#000000' } }}
+                          language={language}
+                        >
                           {codeContent || ''}
-                        </Text>
+                        </CodeHighlighter>
                         <TouchableOpacity 
                           style={styles.codeBlockCopyButton}
                           onPress={() => onCopyText(codeContent)}
