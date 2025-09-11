@@ -156,6 +156,13 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     }
   }, 500)).current;
 
+  const saveMessagesImmediate = useCallback(async (messages: ChatMessage[]) => {
+    saveMessagesDebounced.cancel();
+    if (chat) {
+      await chatManager.updateChatMessages(chat.id, messages);
+    }
+  }, [chat]);
+
   const updateMessageContentDebounced = useRef(debounce((
     messageId: string, 
     content: string, 
@@ -326,7 +333,10 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
           appStateRef.current.match(/inactive|background/) && 
           nextAppState === 'active'
         ) {
-          loadCurrentChat();
+          // Only reload chat if we're not actively generating or streaming
+          if (!isRegenerating && !isStreaming && !isLoading) {
+            loadCurrentChat();
+          }
           usageTrackingService.startSession();
           inAppReviewService.resetSessionCheck();
         } else if (
@@ -350,7 +360,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         subscription.remove();
       }
     };
-  }, [chat, messages, saveMessages, loadCurrentChat]);
+  }, [chat, messages, saveMessages, loadCurrentChat, isRegenerating, isStreaming, isLoading]);
 
   const handleSend = async (text: string) => {
     const messageText = text.trim();
@@ -423,6 +433,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       });
       
       setMessages(updatedMessages);
+      saveMessagesDebounced.cancel();
+      await saveMessagesImmediate(updatedMessages);
     }
     
     if (activeProvider === 'local') {
@@ -1176,6 +1188,9 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     
     const newMessages = messages.slice(0, -1);
     
+    setMessages(newMessages);
+    await saveMessagesImmediate(newMessages);
+    
     const assistantMessage: ChatMessage = {
       id: generateRandomId(),
       content: '',
@@ -1188,7 +1203,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     
     const updatedMessages = [...newMessages, assistantMessage];
     setMessages(updatedMessages);
-    await saveMessages(updatedMessages);
+    await saveMessagesImmediate(updatedMessages);
     setIsRegenerating(true);
     cancelGenerationRef.current = false;
     
@@ -1277,7 +1292,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                   
                   const finalMessages = [...newMessages, finalMessage];
                   setMessages(finalMessages);
-                  saveMessages(finalMessages);
                 }
                 
                 return !cancelGenerationRef.current;
@@ -1305,7 +1319,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
               
               const finalMessages = [...newMessages, finalMessage];
               setMessages(finalMessages);
-              saveMessages(finalMessages);
+              saveMessagesDebounced.cancel();
+              await saveMessagesImmediate(finalMessages);
             }
           } catch (error) {
             handleApiError(error, 'Gemini');
@@ -1379,7 +1394,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                   
                   const finalMessages = [...newMessages, finalMessage];
                   setMessages(finalMessages);
-                  saveMessages(finalMessages);
                 }
                 
                 return !cancelGenerationRef.current;
@@ -1407,7 +1421,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
               
               const finalMessages = [...newMessages, finalMessage];
               setMessages(finalMessages);
-              saveMessages(finalMessages);
+              saveMessagesDebounced.cancel();
+              await saveMessagesImmediate(finalMessages);
             }
           } catch (error) {
             handleApiError(error, 'OpenAI');
@@ -1481,7 +1496,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                   
                   const finalMessages = [...newMessages, finalMessage];
                   setMessages(finalMessages);
-                  saveMessages(finalMessages);
                 }
                 
                 return !cancelGenerationRef.current;
@@ -1509,7 +1523,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
               
               const finalMessages = [...newMessages, finalMessage];
               setMessages(finalMessages);
-              saveMessages(finalMessages);
+              saveMessagesDebounced.cancel();
+              await saveMessagesImmediate(finalMessages);
             }
           } catch (error) {
             handleApiError(error, 'DeepSeek');
@@ -1583,7 +1598,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                   
                   const finalMessages = [...newMessages, finalMessage];
                   setMessages(finalMessages);
-                  saveMessages(finalMessages);
                 }
                 
                 return !cancelGenerationRef.current;
@@ -1611,7 +1625,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
               
               const finalMessages = [...newMessages, finalMessage];
               setMessages(finalMessages);
-              saveMessages(finalMessages);
+              saveMessagesDebounced.cancel();
+              await saveMessagesImmediate(finalMessages);
             }
           } catch (error) {
             handleApiError(error, 'Claude');
@@ -1698,7 +1713,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
               
               const finalMessages = [...newMessages, finalMessage];
               setMessages(finalMessages);
-              saveMessages(finalMessages);
             }
             
             return !cancelGenerationRef.current;
@@ -1727,7 +1741,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
           
           const finalMessages = [...newMessages, finalMessage];
           setMessages(finalMessages);
-          saveMessages(finalMessages);
+          saveMessagesDebounced.cancel();
+          await saveMessagesImmediate(finalMessages);
         }
       }
       
@@ -1743,6 +1758,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       setStreamingMessageId(null);
       setStreamingThinking('');
       setStreamingStats(null);
+      
+      saveMessagesDebounced.cancel();
     }
   };
 
