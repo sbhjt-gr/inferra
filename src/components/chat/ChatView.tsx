@@ -199,13 +199,41 @@ export default function ChatView({
       return content;
     };
     
-    const messageContent = isCurrentlyStreaming 
+    const extractThinkingFromContent = (content: string): { thinking: string; cleanContent: string } => {
+      let thinking = '';
+      let cleanContent = content;
+      
+      // Handle complete <think>...</think> tags
+      const completeThinkTagRegex = /<think>([\s\S]*?)<\/think>/gi;
+      const completeMatches = content.match(completeThinkTagRegex);
+      
+      if (completeMatches && completeMatches.length > 0) {
+        thinking = completeMatches
+          .map(match => match.replace(/<\/?think>/gi, '').trim())
+          .join('\n\n');
+        cleanContent = content.replace(completeThinkTagRegex, '').trim();
+      }
+      
+      // Handle incomplete <think> tags during streaming
+      const incompleteThinkMatch = content.match(/<think>([\s\S]*?)$/i);
+      if (incompleteThinkMatch && !content.includes('</think>')) {
+        thinking = incompleteThinkMatch[1].trim();
+        cleanContent = content.replace(/<think>[\s\S]*?$/, '').trim();
+      }
+      
+      return { thinking, cleanContent };
+    };
+
+    const rawMessageContent = isCurrentlyStreaming 
       ? streamingMessage 
       : processContent(item.content);
-      
+    
+    const { thinking: extractedThinking, cleanContent } = extractThinkingFromContent(rawMessageContent);
+    const messageContent = cleanContent;
+
     const thinkingContent = isCurrentlyStreaming
-      ? streamingThinking
-      : item.thinking;
+      ? streamingThinking || extractedThinking
+      : item.thinking || extractedThinking;
 
     const stats = isCurrentlyStreaming
       ? streamingStats
@@ -302,31 +330,40 @@ export default function ChatView({
     return (
       <View style={styles.messageContainer}>
         {item.role === 'assistant' && thinkingContent ? (
-          <View key="thinking" style={styles.thinkingContainer}>
+          <View key="thinking" style={[
+            styles.thinkingBubble,
+            { 
+              backgroundColor: themeColors.borderColor,
+              borderColor: themeColors.primary,
+              borderLeftColor: themeColors.primary,
+            }
+          ]}>
             <View style={styles.thinkingHeader}>
-              <MaterialCommunityIcons 
-                name="lightbulb-outline" 
-                size={14} 
-                color={themeColors.secondaryText}
-                style={styles.thinkingIcon}
-              />
-              <Text style={[styles.thinkingLabel, { color: themeColors.secondaryText }]}>
-                Reasoning
-              </Text>
+              <View style={styles.thinkingTitleRow}>
+                <MaterialCommunityIcons 
+                  name="brain" 
+                  size={18} 
+                  color={themeColors.primary}
+                  style={styles.thinkingIcon}
+                />
+                <Text style={[styles.thinkingLabel, { color: themeColors.primary }]}>
+                  Reasoning
+                </Text>
+              </View>
               <TouchableOpacity 
-                style={styles.copyButton} 
+                style={[styles.thinkingCopyButton, { backgroundColor: themeColors.primary }]} 
                 onPress={() => onCopyText(thinkingContent)}
                 hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
               >
                 <MaterialCommunityIcons 
                   name="content-copy" 
                   size={14} 
-                  color={themeColors.secondaryText} 
+                  color="#ffffff" 
                 />
               </TouchableOpacity>
             </View>
             <Text 
-              style={[styles.thinkingText, { color: themeColors.secondaryText }]} 
+              style={[styles.thinkingText, { color: themeColors.text }]} 
               selectable={true}
             >
               {thinkingContent || ''}
@@ -423,7 +460,10 @@ export default function ChatView({
                     { color: item.role === 'user' ? '#fff' : themeColors.text, fontStyle: 'italic', opacity: 0.7 }
                   ]}
                 >
-                  {item.role === 'user' ? 'Sent a file' : 'Empty message'}
+                  {item.role === 'user' 
+                    ? 'Sent a file' 
+                    : (thinkingContent ? 'Thinking...' : 'Empty message')
+                  }
                 </Text>
               </View>
             )
@@ -530,7 +570,7 @@ export default function ChatView({
                   }
                 }}
                 rules={{
-                  fence: (node, children, parent, styles) => {
+                  fence: (node, _children, _parent, styles) => {
                     const codeContent = node.content;
                     return (
                       <View style={[styles.fence, { position: 'relative' }]} key={node.key}>
@@ -551,7 +591,7 @@ export default function ChatView({
                       </View>
                     );
                   },
-                  code_block: (node, children, parent, styles) => {
+                  code_block: (node, _children, _parent, styles) => {
                     const codeContent = node.content;
                     return (
                       <View style={[styles.code_block, { position: 'relative' }]} key={node.key}>
@@ -631,7 +671,7 @@ export default function ChatView({
                       style={styles.statIcon}
                     />
                     <Text style={[styles.statsText, { color: themeColors.secondaryText }]}> 
-                      TTFT: {formatTime(stats.firstTokenTime)}
+                      1st token: {formatTime(stats.firstTokenTime)}
                     </Text>
                   </View>
                 ) : null}
@@ -644,7 +684,7 @@ export default function ChatView({
                       style={styles.statIcon}
                     />
                     <Text style={[styles.statsText, { color: themeColors.secondaryText }]}> 
-                      Avg/token: {formatTime(stats.avgTokenTime)}
+                      Avg/tok: {formatTime(stats.avgTokenTime)}
                     </Text>
                   </View>
                 ) : null}
@@ -887,29 +927,64 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 16,
   },
-  thinkingContainer: {
-    marginBottom: 4,
-    paddingHorizontal: 12,
-    marginTop: -4,
+  thinkingBubble: {
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+    borderLeftWidth: 4,
+    borderRadius: 12,
+    marginBottom: 8,
+    padding: 16,
+    width: '90%',
+    alignSelf: 'flex-start'
   },
   thinkingHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 4,
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
+  },
+  thinkingTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
   },
   thinkingIcon: {
-    marginRight: 4,
+    marginRight: 8,
   },
   thinkingLabel: {
-    fontSize: 12,
-    fontWeight: '500',
-    opacity: 0.8,
+    fontSize: 14,
+    fontWeight: '700',
+    marginRight: 8,
+  },
+  thinkingBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    minWidth: 24,
+    alignItems: 'center',
+  },
+  thinkingBadgeText: {
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  thinkingCopyButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   thinkingText: {
     fontSize: 14,
-    lineHeight: 20,
+    lineHeight: 22,
+    fontStyle: 'italic',
     opacity: 0.9,
-    marginLeft: 18,
   },
   codeBlockCopyButton: {
     position: 'absolute',
