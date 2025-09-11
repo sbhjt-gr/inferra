@@ -93,6 +93,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   const copyToastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const copyToastMessageRef = useRef<string>('Copied to clipboard');
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const [pendingRegenerate, setPendingRegenerate] = useState(false);
   const [isEditingMessage, setIsEditingMessage] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingMessageText, setEditingMessageText] = useState('');
@@ -1121,14 +1122,23 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     
     const settings = await getEffectiveSettings();
     
-    if (!llamaManager.getModelPath() && !activeProvider) {
-      showDialog(
-        'No Model Selected',
-        'Please select a model first to regenerate a response.',
-        [<Button key="ok" onPress={hideDialog}>OK</Button>]
-      );
+    const hasLocalModel = llamaManager.getModelPath();
+    const hasActiveProvider = activeProvider;
+    
+    const hasValidModel = (activeProvider === 'local' && hasLocalModel) || 
+                         (activeProvider && activeProvider !== 'local');
+    
+    if (!hasValidModel) {
+      setPendingRegenerate(true);
+      setShouldOpenModelSelector(true);
       return;
     }
+    
+    await performActualRegeneration();
+  };
+
+  const performActualRegeneration = async () => {
+    const settings = await getEffectiveSettings();
     
     const lastUserMessageIndex = [...messages].reverse().findIndex(msg => msg.role === 'user');
     if (lastUserMessageIndex === -1) return;
@@ -1652,6 +1662,14 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         chatManager.setCurrentProvider(model);
       }
     }
+
+    if (pendingRegenerate) {
+      setPendingRegenerate(false);
+      setShouldOpenModelSelector(false);
+      setTimeout(() => {
+        performActualRegeneration();
+      }, 300);
+    }
   };
 
   useEffect(() => {
@@ -1776,7 +1794,10 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         <ModelSelector 
           ref={modelSelectorRef}
           isOpen={shouldOpenModelSelector}
-          onClose={() => setShouldOpenModelSelector(false)}
+          onClose={() => {
+            setShouldOpenModelSelector(false);
+            setPendingRegenerate(false);
+          }}
           preselectedModelPath={currentModelPath}
           isGenerating={isLoading || isRegenerating}
           onModelSelect={handleModelSelect}

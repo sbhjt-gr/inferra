@@ -1,17 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import 'react-native-get-random-values'; 
-import { v4 as uuidv4 } from 'uuid';
-
 
 const generateRandomId = () => {
-  try {
-    return uuidv4(); 
-  } catch (error) {
-    
-    const timestamp = Date.now().toString(36);
-    const randomStr = Math.random().toString(36).substring(2, 15);
-    return `${timestamp}-${randomStr}`;
-  }
+  return `${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
 };
 
 export type ChatMessage = {
