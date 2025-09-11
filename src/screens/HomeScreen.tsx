@@ -93,7 +93,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   const copyToastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const copyToastMessageRef = useRef<string>('Copied to clipboard');
   const [isRegenerating, setIsRegenerating] = useState(false);
-  const [pendingRegenerate, setPendingRegenerate] = useState(false);
   const [isEditingMessage, setIsEditingMessage] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingMessageText, setEditingMessageText] = useState('');
@@ -1122,23 +1121,14 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     
     const settings = await getEffectiveSettings();
     
-    const hasLocalModel = llamaManager.getModelPath();
-    const hasActiveProvider = activeProvider;
-    
-    const hasValidModel = (activeProvider === 'local' && hasLocalModel) || 
-                         (activeProvider && activeProvider !== 'local');
-    
-    if (!hasValidModel) {
-      setPendingRegenerate(true);
-      setShouldOpenModelSelector(true);
+    if (!llamaManager.getModelPath() && !activeProvider) {
+      showDialog(
+        'No Model Selected',
+        'Please select a model first to regenerate a response.',
+        [<Button key="ok" onPress={hideDialog}>OK</Button>]
+      );
       return;
     }
-    
-    await performActualRegeneration();
-  };
-
-  const performActualRegeneration = async () => {
-    const settings = await getEffectiveSettings();
     
     const lastUserMessageIndex = [...messages].reverse().findIndex(msg => msg.role === 'user');
     if (lastUserMessageIndex === -1) return;
@@ -1200,22 +1190,47 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                   return false;
                 }
                 
-                tokenCount = partialResponse.split(/\s+/).length;
+                const currentTime = Date.now();
+                
+                if (firstTokenTime === null && partialResponse.trim().length > 0) {
+                  firstTokenTime = currentTime - startTime;
+                }
+                
+                const wordCount = partialResponse.trim().split(/\s+/).filter(word => word.length > 0).length;
+                tokenCount = Math.max(1, Math.ceil(wordCount * 1.33));
                 fullResponse = partialResponse;
+                
+                const duration = (currentTime - startTime) / 1000;
+                let avgTokenTime = undefined;
+                
+                if (firstTokenTime !== null && tokenCount > 0) {
+                  const timeAfterFirstToken = currentTime - (startTime + firstTokenTime);
+                  avgTokenTime = timeAfterFirstToken / tokenCount;
+                }
                 
                 setStreamingMessage(partialResponse);
                 setStreamingStats({
                   tokens: tokenCount,
-                  duration: (Date.now() - startTime) / 1000
+                  duration: duration,
+                  firstTokenTime: firstTokenTime || undefined,
+                  avgTokenTime: avgTokenTime && avgTokenTime > 0 ? avgTokenTime : undefined
                 });
                 
                 if (tokenCount % 5 === 0 || partialResponse.endsWith('.') || partialResponse.endsWith('!') || partialResponse.endsWith('?')) {
+                  let debouncedAvgTokenTime = undefined;
+                  if (firstTokenTime !== null && tokenCount > 0) {
+                    const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
+                    debouncedAvgTokenTime = timeAfterFirstToken / tokenCount;
+                  }
+                  
                   const finalMessage: ChatMessage = {
                     ...assistantMessage,
                     content: partialResponse,
                     stats: {
                       duration: (Date.now() - startTime) / 1000,
                       tokens: tokenCount,
+                      firstTokenTime: firstTokenTime || undefined,
+                      avgTokenTime: debouncedAvgTokenTime && debouncedAvgTokenTime > 0 ? debouncedAvgTokenTime : undefined
                     }
                   };
                   
@@ -1229,6 +1244,12 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             );
             
             if (!cancelGenerationRef.current) {
+              let finalAvgTokenTime = undefined;
+              if (firstTokenTime !== null && tokenCount > 0) {
+                const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
+                finalAvgTokenTime = timeAfterFirstToken / tokenCount;
+              }
+              
               const finalMessage: ChatMessage = {
                 id: assistantMessage.id,
                 role: assistantMessage.role,
@@ -1236,6 +1257,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
                 stats: {
                   duration: (Date.now() - startTime) / 1000,
                   tokens: tokenCount,
+                  firstTokenTime: firstTokenTime || undefined,
+                  avgTokenTime: finalAvgTokenTime && finalAvgTokenTime > 0 ? finalAvgTokenTime : undefined
                 }
               };
               
@@ -1485,6 +1508,12 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
               return true;
             }
             
+            const currentTime = Date.now();
+            
+            if (firstTokenTime === null && !isThinking && token.trim().length > 0) {
+              firstTokenTime = currentTime - startTime;
+            }
+            
             tokenCount++;
             if (isThinking) {
               thinking += token;
@@ -1494,18 +1523,36 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
               setStreamingMessage(fullResponse);
             }
             
+            const duration = (currentTime - startTime) / 1000;
+            let avgTokenTime = undefined;
+            
+            if (firstTokenTime !== null && tokenCount > 0 && !isThinking) {
+              const timeAfterFirstToken = currentTime - (startTime + firstTokenTime);
+              avgTokenTime = timeAfterFirstToken / Math.max(1, tokenCount);
+            }
+            
             setStreamingStats({
               tokens: tokenCount,
-              duration: (Date.now() - startTime) / 1000
+              duration: duration,
+              firstTokenTime: firstTokenTime || undefined,
+              avgTokenTime: avgTokenTime && avgTokenTime > 0 ? avgTokenTime : undefined
             });
             
             if (tokenCount % 10 === 0) {
+              let debouncedAvgTokenTime = undefined;
+              if (firstTokenTime !== null && tokenCount > 0) {
+                const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
+                debouncedAvgTokenTime = timeAfterFirstToken / Math.max(1, tokenCount);
+              }
+              
               const finalMessage: ChatMessage = {
                 ...assistantMessage,
                 content: fullResponse,
                 stats: {
                   duration: (Date.now() - startTime) / 1000,
                   tokens: tokenCount,
+                  firstTokenTime: firstTokenTime || undefined,
+                  avgTokenTime: debouncedAvgTokenTime && debouncedAvgTokenTime > 0 ? debouncedAvgTokenTime : undefined
                 }
               };
               
@@ -1518,6 +1565,30 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
           },
           settings
         );
+        
+        if (!cancelGenerationRef.current) {
+          let finalAvgTokenTime = undefined;
+          if (firstTokenTime !== null && tokenCount > 0) {
+            const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
+            finalAvgTokenTime = timeAfterFirstToken / Math.max(1, tokenCount);
+          }
+          
+          const finalMessage: ChatMessage = {
+            id: assistantMessage.id,
+            role: assistantMessage.role,
+            content: fullResponse,
+            stats: {
+              duration: (Date.now() - startTime) / 1000,
+              tokens: tokenCount,
+              firstTokenTime: firstTokenTime || undefined,
+              avgTokenTime: finalAvgTokenTime && finalAvgTokenTime > 0 ? finalAvgTokenTime : undefined
+            }
+          };
+          
+          const finalMessages = [...newMessages, finalMessage];
+          setMessages(finalMessages);
+          saveMessages(finalMessages);
+        }
       }
       
     } catch (error) {
@@ -1662,14 +1733,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         chatManager.setCurrentProvider(model);
       }
     }
-
-    if (pendingRegenerate) {
-      setPendingRegenerate(false);
-      setShouldOpenModelSelector(false);
-      setTimeout(() => {
-        performActualRegeneration();
-      }, 300);
-    }
   };
 
   useEffect(() => {
@@ -1794,10 +1857,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         <ModelSelector 
           ref={modelSelectorRef}
           isOpen={shouldOpenModelSelector}
-          onClose={() => {
-            setShouldOpenModelSelector(false);
-            setPendingRegenerate(false);
-          }}
+          onClose={() => setShouldOpenModelSelector(false)}
           preselectedModelPath={currentModelPath}
           isGenerating={isLoading || isRegenerating}
           onModelSelect={handleModelSelect}
