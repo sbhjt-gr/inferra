@@ -13,15 +13,13 @@ import {
   Modal,
   Dimensions,
   Alert,
-  TextInput,
-  KeyboardAvoidingView,
-  ScrollView,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Markdown from 'react-native-markdown-display';
+import CodeHighlighter from 'react-native-code-highlighter';
+import { atomOneDark } from 'react-syntax-highlighter/dist/esm/styles/hljs';
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../constants/theme';
-import { Dialog, Portal, Button } from 'react-native-paper';
 import chatManager from '../../utils/ChatManager';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -54,6 +52,9 @@ type ChatViewProps = {
   justCancelled?: boolean;
   flatListRef: React.RefObject<FlatList | null>;
   onEditMessageAndRegenerate?: () => void;
+  onStopGeneration?: () => void;
+  onEditingStateChange?: (isEditing: boolean) => void;
+  onStartEdit?: (messageId: string, content: string) => void;
 };
 
 const hasMarkdownFormatting = (content: string): boolean => {
@@ -87,6 +88,9 @@ export default function ChatView({
   justCancelled = false,
   flatListRef,
   onEditMessageAndRegenerate,
+  onStopGeneration,
+  onEditingStateChange,
+  onStartEdit,
 }: ChatViewProps) {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
@@ -94,8 +98,6 @@ export default function ChatView({
   
   const [fullScreenImage, setFullScreenImage] = useState<string | null>(null);
   const [isImageViewerVisible, setIsImageViewerVisible] = useState(false);
-  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
-  const [editedMessageContent, setEditedMessageContent] = useState('');
 
   const openReportDialog = useCallback((messageContent: string, provider: string) => {
     navigation.navigate('Report', {
@@ -114,7 +116,7 @@ export default function ChatView({
     setFullScreenImage(null);
   }, []);
 
-  const openEditDialog = useCallback((messageId: string, currentContent: string) => {
+  const startEditing = useCallback((messageId: string, currentContent: string) => {
     let contentToEdit = currentContent;
     
     try {
@@ -130,73 +132,9 @@ export default function ChatView({
     } catch (e) {
     }
     
-    setEditingMessageId(messageId);
-    setEditedMessageContent(contentToEdit);
-  }, []);
-
-  const closeEditDialog = useCallback(() => {
-    setEditingMessageId(null);
-    setEditedMessageContent('');
-  }, []);
-
-  const saveEditedMessage = useCallback(async () => {
-    if (!editingMessageId || !editedMessageContent.trim()) {
-      closeEditDialog();
-      return;
-    }
-
-    try {
-      const originalMessage = messages.find(msg => msg.id === editingMessageId);
-      if (!originalMessage) {
-        Alert.alert('Error', 'Original message not found');
-        return;
-      }
-
-      let finalContent = editedMessageContent.trim();
-
-      try {
-        const parsedOriginal = JSON.parse(originalMessage.content);
-        
-        if (parsedOriginal && parsedOriginal.type === 'file_upload') {
-          finalContent = JSON.stringify({
-            ...parsedOriginal,
-            userContent: editedMessageContent.trim()
-          });
-        } else if (parsedOriginal && parsedOriginal.type === 'multimodal' && parsedOriginal.content) {
-          const updatedContent = parsedOriginal.content.map((item: any) => {
-            if (item.type === 'text') {
-              return { ...item, text: editedMessageContent.trim() };
-            }
-            return item;
-          });
-          finalContent = JSON.stringify({
-            ...parsedOriginal,
-            content: updatedContent
-          });
-        } else if (parsedOriginal && parsedOriginal.type === 'ocr_result') {
-          finalContent = JSON.stringify({
-            ...parsedOriginal,
-            userPrompt: editedMessageContent.trim()
-          });
-        }
-      } catch (e) {
-        finalContent = editedMessageContent.trim();
-      }
-
-      const success = await chatManager.editMessage(editingMessageId, finalContent);
-      
-      if (success) {
-        closeEditDialog();
-        if (onEditMessageAndRegenerate) {
-          onEditMessageAndRegenerate();
-        }
-      } else {
-        Alert.alert('Error', 'Failed to edit message');
-      }
-    } catch (error) {
-      Alert.alert('Error', 'Failed to edit message');
-    }
-  }, [editingMessageId, editedMessageContent, messages, closeEditDialog, onEditMessageAndRegenerate]);
+    onStartEdit?.(messageId, contentToEdit);
+    onEditingStateChange?.(true);
+  }, [onStartEdit, onEditingStateChange]);
 
   const formatDuration = useCallback((seconds: number): string => {
     const minutes = Math.floor(seconds / 60);
@@ -263,13 +201,39 @@ export default function ChatView({
       return content;
     };
     
-    const messageContent = isCurrentlyStreaming 
+    const extractThinkingFromContent = (content: string): { thinking: string; cleanContent: string } => {
+      let thinking = '';
+      let cleanContent = content;
+      
+      const completeThinkTagRegex = /<think>([\s\S]*?)<\/think>/gi;
+      const completeMatches = content.match(completeThinkTagRegex);
+      
+      if (completeMatches && completeMatches.length > 0) {
+        thinking = completeMatches
+          .map(match => match.replace(/<\/?think>/gi, '').trim())
+          .join('\n\n');
+        cleanContent = content.replace(completeThinkTagRegex, '').trim();
+      }
+      
+      const incompleteThinkMatch = content.match(/<think>([\s\S]*?)$/i);
+      if (incompleteThinkMatch && !content.includes('</think>')) {
+        thinking = incompleteThinkMatch[1].trim();
+        cleanContent = content.replace(/<think>[\s\S]*?$/, '').trim();
+      }
+      
+      return { thinking, cleanContent };
+    };
+
+    const rawMessageContent = isCurrentlyStreaming 
       ? streamingMessage 
       : processContent(item.content);
-      
+    
+    const { thinking: extractedThinking, cleanContent } = extractThinkingFromContent(rawMessageContent);
+    const messageContent = cleanContent;
+
     const thinkingContent = isCurrentlyStreaming
-      ? streamingThinking
-      : item.thinking;
+      ? streamingThinking || extractedThinking
+      : item.thinking || extractedThinking;
 
     const stats = isCurrentlyStreaming
       ? streamingStats
@@ -365,41 +329,50 @@ export default function ChatView({
     
     return (
       <View style={styles.messageContainer}>
-        {item.role === 'assistant' && thinkingContent && (
-          <View key="thinking" style={styles.thinkingContainer}>
+        {item.role === 'assistant' && thinkingContent ? (
+          <View key="thinking" style={[
+            styles.thinkingBubble,
+            { 
+              backgroundColor: themeColors.borderColor,
+              borderColor: themeColors.primary,
+              borderLeftColor: themeColors.primary,
+            }
+          ]}>
             <View style={styles.thinkingHeader}>
-              <MaterialCommunityIcons 
-                name="lightbulb-outline" 
-                size={14} 
-                color={themeColors.secondaryText}
-                style={styles.thinkingIcon}
-              />
-              <Text style={[styles.thinkingLabel, { color: themeColors.secondaryText }]}>
-                Reasoning
-              </Text>
+              <View style={styles.thinkingTitleRow}>
+                <MaterialCommunityIcons 
+                  name="brain" 
+                  size={18} 
+                  color={themeColors.primary}
+                  style={styles.thinkingIcon}
+                />
+                <Text style={[styles.thinkingLabel, { color: themeColors.primary }]}>
+                  Reasoning
+                </Text>
+              </View>
               <TouchableOpacity 
-                style={styles.copyButton} 
+                style={[styles.thinkingCopyButton, { backgroundColor: themeColors.primary }]} 
                 onPress={() => onCopyText(thinkingContent)}
                 hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
               >
                 <MaterialCommunityIcons 
                   name="content-copy" 
                   size={14} 
-                  color={themeColors.secondaryText} 
+                  color="#ffffff" 
                 />
               </TouchableOpacity>
             </View>
             <Text 
-              style={[styles.thinkingText, { color: themeColors.secondaryText }]} 
+              style={[styles.thinkingText, { color: themeColors.text }]} 
               selectable={true}
             >
               {thinkingContent || ''}
             </Text>
           </View>
-        )}
+        ) : null}
         
-        {item.role === 'user' && fileAttachment && renderFileAttachment()}
-        {item.role === 'user' && multimodalContent.length > 0 && renderMultimodalContent()}
+        {item.role === 'user' && fileAttachment ? renderFileAttachment() : null}
+        {item.role === 'user' && multimodalContent.length > 0 ? renderMultimodalContent() : null}
 
         <View style={[
           styles.messageCard,
@@ -416,10 +389,10 @@ export default function ChatView({
               {item.role === 'user' ? 'You' : 'Model'}
             </Text>
             <View style={styles.messageHeaderActions}>
-              {item.role === 'user' && (
+              {item.role === 'user' ? (
                 <TouchableOpacity 
                   style={styles.copyButton} 
-                  onPress={() => openEditDialog(item.id, item.content)}
+                  onPress={() => startEditing(item.id, item.content)}
                   hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
                 >
                   <MaterialCommunityIcons 
@@ -428,8 +401,8 @@ export default function ChatView({
                     color="#fff" 
                   />
                 </TouchableOpacity>
-              )}
-              {item.role === 'assistant' && (
+              ) : null}
+              {item.role === 'assistant' ? (
                 <TouchableOpacity 
                   style={styles.copyButton} 
                   onPress={() => openReportDialog(messageContent, chatManager.getCurrentProvider() || 'local')}
@@ -441,7 +414,7 @@ export default function ChatView({
                     color={themeColors.text} 
                   />
                 </TouchableOpacity>
-              )}
+              ) : null}
               <TouchableOpacity 
                 style={styles.copyButton} 
                 onPress={() => onCopyText(messageContent)}
@@ -487,7 +460,10 @@ export default function ChatView({
                     { color: item.role === 'user' ? '#fff' : themeColors.text, fontStyle: 'italic', opacity: 0.7 }
                   ]}
                 >
-                  {item.role === 'user' ? 'Sent a file' : 'Empty message'}
+                  {item.role === 'user' 
+                    ? 'Sent a file' 
+                    : (thinkingContent ? 'Thinking...' : 'Empty message')
+                  }
                 </Text>
               </View>
             )
@@ -594,13 +570,23 @@ export default function ChatView({
                   }
                 }}
                 rules={{
-                  fence: (node, children, parent, styles) => {
+                  fence: (node, _children, _parent, styles) => {
                     const codeContent = node.content;
+                    const language = (node as any).sourceInfo || 'text';
                     return (
-                      <View style={[styles.fence, { position: 'relative' }]} key={node.key}>
-                        <Text style={styles.fence_text} selectable={true}>
+                      <View style={[styles.fence, { position: 'relative', backgroundColor: '#000000' }]} key={node.key}>
+                        <CodeHighlighter
+                          hljsStyle={atomOneDark}
+                          textStyle={{
+                            fontSize: 14,
+                            lineHeight: 20,
+                            fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+                          }}
+                          scrollViewProps={{ contentContainerStyle: { backgroundColor: '#000000' } }}
+                          language={language}
+                        >
                           {codeContent || ''}
-                        </Text>
+                        </CodeHighlighter>
                         <TouchableOpacity 
                           style={styles.codeBlockCopyButton}
                           onPress={() => onCopyText(codeContent)}
@@ -615,13 +601,23 @@ export default function ChatView({
                       </View>
                     );
                   },
-                  code_block: (node, children, parent, styles) => {
+                  code_block: (node, _children, _parent, styles) => {
                     const codeContent = node.content;
+                    const language = (node as any).sourceInfo || 'text';
                     return (
-                      <View style={[styles.code_block, { position: 'relative' }]} key={node.key}>
-                        <Text style={styles.code_block_text} selectable={true}>
+                      <View style={[styles.code_block, { position: 'relative', backgroundColor: '#000000' }]} key={node.key}>
+                        <CodeHighlighter
+                          hljsStyle={atomOneDark}
+                          textStyle={{
+                            fontSize: 14,
+                            lineHeight: 20,
+                            fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+                          }}
+                          scrollViewProps={{ contentContainerStyle: { backgroundColor: '#000000' } }}
+                          language={language}
+                        >
                           {codeContent || ''}
-                        </Text>
+                        </CodeHighlighter>
                         <TouchableOpacity 
                           style={styles.codeBlockCopyButton}
                           onPress={() => onCopyText(codeContent)}
@@ -643,7 +639,7 @@ export default function ChatView({
             </View>
           )}
 
-          {item.role === 'assistant' && stats && (
+          {item.role === 'assistant' && stats ? (
             <View style={styles.statsContainer}>
               <View style={styles.statsRow}>
                 <View style={styles.statItem}>
@@ -657,7 +653,7 @@ export default function ChatView({
                     {`${(stats?.tokens ?? 0).toLocaleString()} tokens`}
                   </Text>
                 </View>
-                {stats?.duration && stats.duration > 0 && (
+                {stats?.duration && stats.duration > 0 ? (
                   <View style={[styles.statItem, { marginLeft: 8 }]}>
                     <MaterialCommunityIcons 
                       name="speedometer" 
@@ -669,8 +665,8 @@ export default function ChatView({
                       {`${((stats?.tokens ?? 0) / stats.duration).toFixed(1)} tokens/s`}
                     </Text>
                   </View>
-                )}
-                {stats?.duration && stats.duration > 0 && (
+                ) : null}
+                {stats?.duration && stats.duration > 0 ? (
                   <View style={[styles.statItem, { marginLeft: 8 }]}>
                     <MaterialCommunityIcons 
                       name="clock-outline" 
@@ -682,11 +678,11 @@ export default function ChatView({
                       {formatDuration(stats.duration)}
                     </Text>
                   </View>
-                )}
+                ) : null}
               </View>
               
               <View style={styles.statsRow}>
-                {stats?.firstTokenTime && stats.firstTokenTime > 0 && (
+                {stats?.firstTokenTime && stats.firstTokenTime > 0 ? (
                   <View style={styles.statItem}>
                     <MaterialCommunityIcons 
                       name="flash" 
@@ -695,11 +691,11 @@ export default function ChatView({
                       style={styles.statIcon}
                     />
                     <Text style={[styles.statsText, { color: themeColors.secondaryText }]}> 
-                      TTFT: {formatTime(stats.firstTokenTime)}
+                      1st token: {formatTime(stats.firstTokenTime)}
                     </Text>
                   </View>
-                )}
-                {stats?.avgTokenTime && stats.avgTokenTime > 0 && (
+                ) : null}
+                {stats?.avgTokenTime && stats.avgTokenTime > 0 ? (
                   <View style={[styles.statItem, { marginLeft: 8 }]}>
                     <MaterialCommunityIcons 
                       name="timer-outline" 
@@ -708,12 +704,12 @@ export default function ChatView({
                       style={styles.statIcon}
                     />
                     <Text style={[styles.statsText, { color: themeColors.secondaryText }]}> 
-                      Avg/token: {formatTime(stats.avgTokenTime)}
+                      Avg/tok: {formatTime(stats.avgTokenTime)}
                     </Text>
                   </View>
-                )}
+                ) : null}
                 
-                {item === messages[messages.length - 1] && (
+                {item === messages[messages.length - 1] ? (
                   <TouchableOpacity 
                     style={[
                       styles.regenerateButton,
@@ -741,14 +737,14 @@ export default function ChatView({
                       </>
                     )}
                   </TouchableOpacity>
-                )}
+                ) : null}
               </View>
             </View>
-          )}
+          ) : null}
         </View>
       </View>
     );
-  }, [themeColors, messages, isStreaming, streamingMessageId, streamingMessage, streamingThinking, streamingStats, onCopyText, isRegenerating, onRegenerateResponse, justCancelled, openImageViewer, openEditDialog, formatTime, formatDuration]);
+  }, [themeColors, messages, isStreaming, streamingMessageId, streamingMessage, streamingThinking, streamingStats, onCopyText, isRegenerating, onRegenerateResponse, justCancelled, openImageViewer, startEditing, formatTime, formatDuration]);
 
   const renderContent = () => {
     if (messages.length === 0) {
@@ -831,79 +827,17 @@ export default function ChatView({
               </TouchableOpacity>
             </View>
             
-            {fullScreenImage && (
+            {fullScreenImage ? (
               <Image
                 source={{ uri: fullScreenImage }}
                 style={styles.fullScreenImage}
                 resizeMode="contain"
               />
-            )}
+            ) : null}
           </View>
         </View>
       </Modal>
 
-      <Portal>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 0}
-          style={{ flex: 1 }}
-        >
-          <Dialog
-            visible={editingMessageId !== null}
-            onDismiss={closeEditDialog}
-            style={{ backgroundColor: themeColors.background, maxHeight: '80%' }}
-          >
-            <ScrollView
-              keyboardShouldPersistTaps="handled"
-              contentContainerStyle={{ flexGrow: 1 }}
-              showsVerticalScrollIndicator={false}
-            >
-              <Dialog.Title style={{ color: themeColors.text }}>
-                Edit Message
-              </Dialog.Title>
-              <Dialog.Content>
-                <Text style={[{ color: themeColors.secondaryText, marginBottom: 12, fontSize: 14 }]}>
-                  All messages after this one will be deleted.
-                </Text>
-                <TextInput
-                  style={[
-                    styles.editInput,
-                    {
-                      backgroundColor: themeColors.borderColor,
-                      color: themeColors.text,
-                      borderColor: themeColors.headerBackground
-                    }
-                  ]}
-                  value={editedMessageContent}
-                  onChangeText={setEditedMessageContent}
-                  multiline
-                  placeholder="Enter your message..."
-                  placeholderTextColor={themeColors.secondaryText}
-                  autoFocus
-                  returnKeyType="default"
-                  blurOnSubmit={false}
-                  textAlignVertical="top"
-                  textAlign="left"
-                  selectionColor={themeColors.headerBackground}
-                  underlineColorAndroid="transparent"
-                />
-              </Dialog.Content>
-              <Dialog.Actions>
-                <Button onPress={closeEditDialog} textColor={themeColors.secondaryText}>
-                  Cancel
-                </Button>
-                <Button
-                  onPress={saveEditedMessage}
-                  textColor={themeColors.headerBackground}
-                  disabled={!editedMessageContent.trim()}
-                >
-                  Save
-                </Button>
-              </Dialog.Actions>
-            </ScrollView>
-          </Dialog>
-        </KeyboardAvoidingView>
-      </Portal>
     </View>
   );
 }
@@ -1013,29 +947,64 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 16,
   },
-  thinkingContainer: {
-    marginBottom: 4,
-    paddingHorizontal: 12,
-    marginTop: -4,
+  thinkingBubble: {
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+    borderLeftWidth: 4,
+    borderRadius: 12,
+    marginBottom: 8,
+    padding: 16,
+    width: '90%',
+    alignSelf: 'flex-start'
   },
   thinkingHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 4,
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
+  },
+  thinkingTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
   },
   thinkingIcon: {
-    marginRight: 4,
+    marginRight: 8,
   },
   thinkingLabel: {
-    fontSize: 12,
-    fontWeight: '500',
-    opacity: 0.8,
+    fontSize: 14,
+    fontWeight: '700',
+    marginRight: 8,
+  },
+  thinkingBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    minWidth: 24,
+    alignItems: 'center',
+  },
+  thinkingBadgeText: {
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  thinkingCopyButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   thinkingText: {
     fontSize: 14,
-    lineHeight: 20,
+    lineHeight: 22,
+    fontStyle: 'italic',
     opacity: 0.9,
-    marginLeft: 18,
   },
   codeBlockCopyButton: {
     position: 'absolute',
@@ -1163,18 +1132,6 @@ const styles = StyleSheet.create({
   fullScreenImage: {
     width: Dimensions.get('window').width,
     height: Dimensions.get('window').height,
-  },
-  editInput: {
-    minHeight: 80,
-    maxHeight: 200,
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    textAlignVertical: 'top',
-    textAlign: 'left',
-    paddingTop: 12,
-    paddingBottom: 12,
   },
   statItem: {
     flexDirection: 'row',

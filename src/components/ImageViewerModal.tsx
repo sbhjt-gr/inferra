@@ -30,6 +30,7 @@ type ImageViewerModalProps = {
   imagePath: string;
   fileName?: string;
   onUpload?: (content: string, fileName: string, userPrompt: string) => void;
+  onImageUpload?: (messageContent: string) => void;
 };
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
@@ -40,6 +41,7 @@ export default function ImageViewerModal({
   imagePath,
   fileName,
   onUpload,
+  onImageUpload,
 }: ImageViewerModalProps) {
   const [userPrompt, setUserPrompt] = useState('Describe this image in detail.');
   const [processingMode, setProcessingMode] = useState<ImageProcessingMode>(null);
@@ -50,7 +52,7 @@ export default function ImageViewerModal({
   const isDark = currentTheme === 'dark';
 
   const handleSend = async () => {
-    if (!onUpload || !imagePath || isProcessing || !processingMode) return;
+    if ((!onUpload && !onImageUpload) || !imagePath || isProcessing || !processingMode) return;
 
     try {
       setIsProcessing(true);
@@ -58,10 +60,18 @@ export default function ImageViewerModal({
       if (processingMode === 'ocr') {
         const extractedText = await performOCROnImage(imagePath, setProcessingProgress);
         const ocrMessage = createOCRMessage(extractedText, imagePath, fileName, userPrompt);
-        onUpload(ocrMessage, fileName || 'image', userPrompt);
+        if (onImageUpload) {
+          onImageUpload(ocrMessage);
+        } else {
+          onUpload?.(ocrMessage, fileName || 'image', userPrompt);
+        }
       } else if (processingMode === 'multimodal') {
         const multimodalMessage = createMultimodalMessage(imagePath, userPrompt);
-        onUpload(multimodalMessage, fileName || 'image', userPrompt);
+        if (onImageUpload) {
+          onImageUpload(multimodalMessage);
+        } else {
+          onUpload?.(multimodalMessage, fileName || 'image', userPrompt);
+        }
       }
       
       onClose();

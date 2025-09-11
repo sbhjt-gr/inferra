@@ -44,6 +44,32 @@ const DownloadableModelList: React.FC<DownloadableModelListProps> = ({
     });
   };
 
+  const isModelDownloading = (model: DownloadableModel) => {
+    const mainFileDownloading = Boolean(downloadProgress[model.name]);
+    
+    if (model.additionalFiles && model.additionalFiles.length > 0) {
+      const additionalFilesDownloading = model.additionalFiles.some(file => 
+        Boolean(downloadProgress[file.name])
+      );
+      return mainFileDownloading || additionalFilesDownloading;
+    }
+    
+    return mainFileDownloading;
+  };
+
+  const isModelInitializing = (model: DownloadableModel) => {
+    const mainFileInitializing = Boolean(initializingDownloads[model.name]);
+    
+    if (model.additionalFiles && model.additionalFiles.length > 0) {
+      const additionalFilesInitializing = model.additionalFiles.some(file => 
+        Boolean(initializingDownloads[file.name])
+      );
+      return mainFileInitializing || additionalFilesInitializing;
+    }
+    
+    return mainFileInitializing;
+  };
+
   const handleDownload = async (model: DownloadableModel) => {
     if (isModelDownloaded(model.name)) {
       showDialog(
@@ -53,56 +79,64 @@ const DownloadableModelList: React.FC<DownloadableModelListProps> = ({
       return;
     }
 
+    if (onDownload) {
+      onDownload(model);
+      return;
+    }
+
     navigation.navigate('Downloads' as never);
     
-    try {
-      setInitializingDownloads(prev => ({ ...prev, [model.name]: true }));
-      
-      setDownloadProgress((prev: any) => ({
-        ...prev,
-        [model.name]: {
-          progress: 0,
-          bytesDownloaded: 0,
-          totalBytes: 0,
-          status: 'starting',
-          downloadId: 0
-        }
-      }));
-      
-      const { downloadId } = await modelDownloader.downloadModel(
-        model.huggingFaceLink, 
-        model.name
-      );
-      
-      setDownloadProgress((prev: any) => ({
-        ...prev,
-        [model.name]: {
-          ...prev[model.name],
-          downloadId
-        }
-      }));
+    const filesToDownload = [
+      { filename: model.name, downloadUrl: model.huggingFaceLink }
+    ];
 
-      if (model.additionalFiles && model.additionalFiles.length > 0) {
-        for (const additionalFile of model.additionalFiles) {
-          try {
-            await modelDownloader.downloadModel(
-              additionalFile.url,
-              additionalFile.name
-            );
-          } catch (error) {
-          }
-        }
-      }
-
-    } catch (error) {
-      setDownloadProgress((prev: any) => {
-        const newProgress = { ...prev };
-        delete newProgress[model.name];
-        return newProgress;
+    if (model.additionalFiles && model.additionalFiles.length > 0) {
+      model.additionalFiles.forEach(file => {
+        filesToDownload.push({
+          filename: file.name,
+          downloadUrl: file.url
+        });
       });
-      showDialog('Error', 'Failed to start download');
-    } finally {
-      setInitializingDownloads(prev => ({ ...prev, [model.name]: false }));
+    }
+
+    for (const file of filesToDownload) {
+      try {
+        setInitializingDownloads(prev => ({ ...prev, [file.filename]: true }));
+        
+        setDownloadProgress((prev: any) => ({
+          ...prev,
+          [file.filename]: {
+            progress: 0,
+            bytesDownloaded: 0,
+            totalBytes: 0,
+            status: 'starting',
+            downloadId: 0
+          }
+        }));
+        
+        const { downloadId } = await modelDownloader.downloadModel(
+          file.downloadUrl, 
+          file.filename
+        );
+        
+        setDownloadProgress((prev: any) => ({
+          ...prev,
+          [file.filename]: {
+            ...prev[file.filename],
+            downloadId
+          }
+        }));
+
+      } catch (error) {
+        setDownloadProgress((prev: any) => {
+          const newProgress = { ...prev };
+          delete newProgress[file.filename];
+          return newProgress;
+        });
+        showDialog('Error', `Failed to start download for ${file.filename}`);
+      } finally {
+        setInitializingDownloads(prev => ({ ...prev, [file.filename]: false }));
+      }
     }
   };
 
@@ -117,8 +151,8 @@ const DownloadableModelList: React.FC<DownloadableModelListProps> = ({
           key={model.name}
           model={model}
           isDownloaded={isModelDownloaded(model.name)}
-          isDownloading={Boolean(downloadProgress[model.name])}
-          isInitializing={Boolean(initializingDownloads[model.name])}
+          isDownloading={isModelDownloading(model)}
+          isInitializing={isModelInitializing(model)}
           downloadProgress={downloadProgress[model.name]}
           onDownload={onDownload || handleDownload}
         />

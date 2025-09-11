@@ -93,6 +93,9 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   const copyToastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const copyToastMessageRef = useRef<string>('Copied to clipboard');
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const [isEditingMessage, setIsEditingMessage] = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingMessageText, setEditingMessageText] = useState('');
   const cancelGenerationRef = useRef<boolean>(false);
   const [showMemoryWarning, setShowMemoryWarning] = useState(false);
   const [memoryWarningType, setMemoryWarningType] = useState('');
@@ -195,13 +198,15 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     }
     
     const unsubscribe = chatManager.addListener(() => {
-      loadCurrentChat();
+      if (!route.params?.loadChatId) {
+        loadCurrentChat();
+      }
     });
     
     return () => {
       unsubscribe();
     };
-  }, []);
+  }, [route.params?.loadChatId]);
 
   useEffect(() => {
     if (route.params?.modelPath) {
@@ -210,8 +215,11 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     }
     
     if (route.params?.loadChatId) {
-      loadChat(route.params.loadChatId);
-      navigation.setParams({ loadChatId: undefined });
+      const chatId = route.params.loadChatId;
+      setTimeout(() => {
+        loadChat(chatId);
+        navigation.setParams({ loadChatId: undefined });
+      }, 0);
     }
   }, [route.params]);
 
@@ -580,6 +588,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
 
     try {
       await stopGenerationIfRunning();
+      setIsRegenerating(true);
       
       const currentMessages = currentChat.messages;
       const settings = await getEffectiveSettings();
@@ -995,6 +1004,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       setStreamingMessageId(null);
       setStreamingThinking('');
       setStreamingStats(null);
+      setIsRegenerating(false);
       
     } catch (error) {
       showDialog(
@@ -1006,6 +1016,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       setStreamingMessageId(null);
       setStreamingThinking('');
       setStreamingStats(null);
+      setIsRegenerating(false);
     }
   };
 
@@ -1028,6 +1039,80 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     }
   };
 
+  const handleEditingStateChange = useCallback((isEditing: boolean) => {
+    setIsEditingMessage(isEditing);
+  }, []);
+
+  const handleStartEdit = useCallback((messageId: string, content: string) => {
+    setEditingMessageId(messageId);
+    setEditingMessageText(content);
+    setIsEditingMessage(true);
+  }, []);
+
+  const handleSaveEdit = useCallback(async (text: string) => {
+    if (!editingMessageId || !text.trim()) {
+      handleCancelEdit();
+      return;
+    }
+
+    try {
+      const originalMessage = messages.find(msg => msg.id === editingMessageId);
+      if (!originalMessage) {
+        Alert.alert('Error', 'Original message not found');
+        return;
+      }
+
+      let finalContent = text.trim();
+
+      try {
+        const parsedOriginal = JSON.parse(originalMessage.content);
+        
+        if (parsedOriginal && parsedOriginal.type === 'file_upload') {
+          finalContent = JSON.stringify({
+            ...parsedOriginal,
+            userContent: text.trim()
+          });
+        } else if (parsedOriginal && parsedOriginal.type === 'multimodal' && parsedOriginal.content) {
+          const updatedContent = parsedOriginal.content.map((item: any) => {
+            if (item.type === 'text') {
+              return { ...item, text: text.trim() };
+            }
+            return item;
+          });
+          finalContent = JSON.stringify({
+            ...parsedOriginal,
+            content: updatedContent
+          });
+        } else if (parsedOriginal && parsedOriginal.type === 'ocr_result') {
+          finalContent = JSON.stringify({
+            ...parsedOriginal,
+            userPrompt: text.trim()
+          });
+        }
+      } catch (e) {
+        finalContent = text.trim();
+      }
+
+      const success = await chatManager.editMessage(editingMessageId, finalContent);
+      
+      if (success) {
+        handleCancelEdit();
+        setTimeout(() => {
+          processMessage();
+        }, 50);
+      } else {
+        Alert.alert('Error', 'Failed to edit message');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to edit message');
+    }
+  }, [editingMessageId, messages]);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingMessageId(null);
+    setEditingMessageText('');
+    setIsEditingMessage(false);
+  }, []);
   const handleRegenerate = async () => {
     if (messages.length < 2) return;
     
@@ -1754,6 +1839,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
            flatListRef={flatListRef}
            onEditMessageAndRegenerate={processMessage}
            onStopGeneration={stopGenerationIfRunning}
+           onEditingStateChange={handleEditingStateChange}
+           onStartEdit={handleStartEdit}
         />
 
         <ChatInput
@@ -1765,6 +1852,10 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
           onStop={handleCancelGeneration}
           style={{ backgroundColor: themeColors.background, borderTopColor: themeColors.borderColor }}
           placeholderColor={themeColors.secondaryText}
+          isEditing={isEditingMessage}
+          editingText={editingMessageText}
+          onSaveEdit={handleSaveEdit}
+          onCancelEdit={handleCancelEdit}
         />
       </KeyboardAvoidingView>
 

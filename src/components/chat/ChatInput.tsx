@@ -35,6 +35,10 @@ type ChatInputProps = {
   onStop?: () => void | Promise<void>;
   style?: any;
   placeholderColor?: string;
+  isEditing?: boolean;
+  editingText?: string;
+  onSaveEdit?: (text: string) => void;
+  onCancelEdit?: () => void;
 };
 
 interface StoredModel {
@@ -52,7 +56,11 @@ export default function ChatInput({
   onCancel = () => {},
   onStop = () => {},
   style = {},
-  placeholderColor
+  placeholderColor,
+  isEditing = false,
+  editingText = '',
+  onSaveEdit,
+  onCancelEdit,
 }: ChatInputProps) {
   const [text, setText] = useState('');
   const [inputHeight, setInputHeight] = useState(52);
@@ -89,6 +97,17 @@ export default function ChatInput({
   React.useEffect(() => {
     loadTermsAcceptance();
   }, []);
+
+  React.useEffect(() => {
+    if (isEditing && editingText !== undefined) {
+      setText(editingText);
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 100);
+    } else if (!isEditing) {
+      setText('');
+    }
+  }, [isEditing, editingText]);
 
   const loadTermsAcceptance = async () => {
     try {
@@ -293,6 +312,13 @@ export default function ChatInput({
   const handleSend = useCallback(() => {
     if (!hasText) return;
 
+    if (isEditing) {
+      onSaveEdit?.(text);
+      setText('');
+      setInputHeight(52);
+      return;
+    }
+
     if (!selectedModelPath) {
       showDialog(
         'No Model Selected',
@@ -314,7 +340,7 @@ export default function ChatInput({
     setText('');
     setInputHeight(52);
     setShowAttachmentMenu(false);
-  }, [text, onSend, selectedModelPath, isModelLoading, hasText]);
+  }, [text, onSend, selectedModelPath, isModelLoading, hasText, isEditing, onSaveEdit]);
 
   const handleContentSizeChange = useCallback((event: any) => {
     const height = Math.min(120, Math.max(52, event.nativeEvent.contentSize.height + 8));
@@ -331,6 +357,11 @@ export default function ChatInput({
     };
     
     onSend(JSON.stringify(messageObject));
+    setShowAttachmentMenu(false);
+  }, [onSend]);
+
+  const handleImageUpload = useCallback((messageContent: string) => {
+    onSend(messageContent);
     setShowAttachmentMenu(false);
   }, [onSend]);
 
@@ -620,7 +651,7 @@ export default function ChatInput({
         setShowAttachmentMenu(false);
       }}>
         <View style={[styles.container, style]}>
-          {showAttachmentMenu && (
+          {showAttachmentMenu && !isEditing && (
             <Animated.View
               style={[
                                  styles.attachmentMenu,
@@ -682,23 +713,25 @@ export default function ChatInput({
           )}
 
           <View style={styles.inputWrapper}>
-            <TouchableOpacity 
-              style={attachmentButtonStyle} 
-              onPress={toggleAttachmentMenu}
-              disabled={disabled}
-            >
-              <MaterialCommunityIcons 
-                name={showAttachmentMenu ? "close" : "plus"} 
-                size={20} 
-                color={attachmentIconColor} 
-              />
-            </TouchableOpacity>
+            {!isEditing && (
+              <TouchableOpacity 
+                style={attachmentButtonStyle} 
+                onPress={toggleAttachmentMenu}
+                disabled={disabled}
+              >
+                <MaterialCommunityIcons 
+                  name={showAttachmentMenu ? "close" : "plus"} 
+                  size={20} 
+                  color={attachmentIconColor} 
+                />
+              </TouchableOpacity>
+            )}
 
             <View style={inputContainerStyle}>
               <TextInput
                 ref={inputRef}
                 style={inputStyle}
-                placeholder="Type a message..."
+                placeholder={isEditing ? "Edit your message..." : "Type a message..."}
                 placeholderTextColor={placeholderColor || defaultPlaceholderColor}
                 value={text}
                 onChangeText={setText}
@@ -711,7 +744,7 @@ export default function ChatInput({
               />
             </View>
 
-            {isRecording && (
+            {isRecording && !isEditing && (
               <Animated.View style={recordingButtonStyle}>
                 <TouchableOpacity 
                   style={styles.recordingButtonInner} 
@@ -722,7 +755,33 @@ export default function ChatInput({
               </Animated.View>
             )}
 
-            {isGenerating ? (
+            {isEditing ? (
+              <View style={styles.editingActions}>
+                <TouchableOpacity 
+                  style={[styles.editButton, { backgroundColor: isDark ? '#444' : '#f0f0f0' }]} 
+                  onPress={onCancelEdit}
+                  activeOpacity={0.7}
+                >
+                  <MaterialCommunityIcons 
+                    name="close" 
+                    size={20} 
+                    color={isDark ? '#fff' : '#666'} 
+                  />
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={sendButtonStyle} 
+                  onPress={handleSend}
+                  disabled={!hasText || disabled}
+                  activeOpacity={0.7}
+                >
+                  <MaterialCommunityIcons 
+                    name="check" 
+                    size={20} 
+                    color={sendIconColor} 
+                  />
+                </TouchableOpacity>
+              </View>
+            ) : isGenerating ? (
               <StopButton 
                 onPress={handleStop}
                 color="#ff4444"
@@ -757,22 +816,6 @@ export default function ChatInput({
         paddingVertical: 4,
         flexWrap: 'wrap'
       }}>
-        <Text style={{
-          fontSize: 12,
-          color: isDark ? '#888' : '#666',
-          textAlign: 'center'
-        }}
-        >
-        </Text>
-        {/* <TouchableOpacity onPress={() => setShowAITermsDialog(true)}>
-          <Text style={{
-            fontSize: 12,
-            color: isDark ? '#BB86FC' : '#6200EA',
-          }}
-          >
-            Learn more
-          </Text>
-        </TouchableOpacity> */}
       </View>
 
       <FileViewerModal
@@ -781,6 +824,7 @@ export default function ChatInput({
         filePath={selectedFile?.uri || ''}
         fileName={selectedFile?.name}
         onUpload={handleFileUpload}
+        onImageUpload={handleImageUpload}
       />
 
       <CameraOverlay
@@ -1039,5 +1083,16 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+  },
+  editingActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  editButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 }); 
