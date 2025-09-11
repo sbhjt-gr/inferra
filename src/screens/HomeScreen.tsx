@@ -107,7 +107,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   const [appState, setAppState] = useState(appStateRef.current);
   const isFirstLaunchRef = useRef(true);
   const [activeProvider, setActiveProvider] = useState<'local' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude' | null>(null);
-  const { loadModel, unloadModel, setSelectedModelPath, isModelLoading } = useModel();
+  const { loadModel, unloadModel, setSelectedModelPath, isModelLoading, selectedModelPath } = useModel();
   const insets = useSafeAreaInsets();
   const flatListRef = useRef<FlatList>(null);
 
@@ -279,10 +279,26 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     useCallback(() => {
       setKeyboardVisible(false);
       
+      const recheckApiKeys = async () => {
+        if (activeProvider && activeProvider !== 'local') {
+          if (!enableRemoteModels || !isLoggedIn) {
+            setActiveProvider(null);
+            return;
+          }
+          
+          const hasKey = await onlineModelService.hasApiKey(activeProvider);
+          if (!hasKey) {
+            setActiveProvider(null);
+          }
+        }
+      };
+      
+      recheckApiKeys();
+      
       return () => {
         Keyboard.dismiss();
       };
-    }, [])
+    }, [activeProvider, enableRemoteModels, isLoggedIn])
   );
 
   const loadCurrentChat = useCallback(async () => {
@@ -1121,7 +1137,32 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     
     const settings = await getEffectiveSettings();
     
-    if (!llamaManager.getModelPath() && !activeProvider) {
+    const hasLocalModel = !!llamaManager.getModelPath();
+    
+    let hasValidModel = false;
+    let validProvider = activeProvider;
+    
+    if (!activeProvider) {
+      hasValidModel = false;
+      validProvider = null;
+    } else if (activeProvider === 'local') {
+      hasValidModel = hasLocalModel;
+    } else {
+      try {
+        const hasApiKey = await onlineModelService.hasApiKey(activeProvider);
+        hasValidModel = hasApiKey;
+        if (!hasApiKey) {
+          validProvider = null;
+          setActiveProvider(null);
+        }
+      } catch (error) {
+        hasValidModel = false;
+        validProvider = null;
+        setActiveProvider(null);
+      }
+    }
+    
+    if (!hasValidModel || !validProvider) {
       showDialog(
         'No Model Selected',
         'Please select a model first to regenerate a response.',
@@ -1165,10 +1206,10 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     let firstTokenTime: number | null = null;
     
     try {
-      const isOnlineModel = activeProvider && activeProvider !== 'local';
+      const isOnlineModel = validProvider && validProvider !== 'local';
       
       if (isOnlineModel) {
-        if (activeProvider === 'gemini') {
+        if (validProvider === 'gemini') {
           try {
             await onlineModelService.sendMessageToGemini(
               [...newMessages]
@@ -1270,7 +1311,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             handleApiError(error, 'Gemini');
             setIsRegenerating(false);
           }
-        } else if (activeProvider === 'chatgpt') {
+        } else if (validProvider === 'chatgpt') {
           try {
             await onlineModelService.sendMessageToOpenAI(
               [...newMessages]
@@ -1372,7 +1413,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             handleApiError(error, 'OpenAI');
             setIsRegenerating(false);
           }
-        } else if (activeProvider === 'deepseek') {
+        } else if (validProvider === 'deepseek') {
           try {
             await onlineModelService.sendMessageToDeepSeek(
               [...newMessages]
@@ -1474,7 +1515,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
             handleApiError(error, 'DeepSeek');
             setIsRegenerating(false);
           }
-        } else if (activeProvider === 'claude') {
+        } else if (validProvider === 'claude') {
           try {
             await onlineModelService.sendMessageToClaude(
               [...newMessages]
@@ -1579,7 +1620,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         } else {
           const finalMessage: ChatMessage = {
             ...assistantMessage,
-            content: `This model provider (${activeProvider}) is not yet implemented.`,
+            content: `This model provider (${validProvider}) is not yet implemented.`,
             stats: {
               duration: 0,
               tokens: 0,
@@ -1840,18 +1881,26 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       if (modelPath) {
         setActiveProvider('local');
         chatManager.setCurrentProvider('local');
-      } else if (activeProvider === null) {
-        setActiveProvider('local');
+      } else if (activeProvider === 'local') {
+        setActiveProvider(null);
         chatManager.setCurrentProvider('local');
+      }
+    };
+    
+    const handleModelUnload = () => {
+      if (activeProvider === 'local') {
+        setActiveProvider(null);
       }
     };
     
     handleModelChange();
     
-    const unsubscribe = llamaManager.addListener('model-loaded', handleModelChange);
+    const unsubscribeLoaded = llamaManager.addListener('model-loaded', handleModelChange);
+    const unsubscribeUnloaded = llamaManager.addListener('model-unloaded', handleModelUnload);
     
     return () => {
-      unsubscribe();
+      unsubscribeLoaded();
+      unsubscribeUnloaded();
     };
   }, [activeProvider]);
 
@@ -1861,6 +1910,12 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       chatManager.setCurrentProvider(activeProvider);
     }
   }, [activeProvider]);
+
+  useEffect(() => {
+    if (selectedModelPath === null && activeProvider !== null) {
+      setActiveProvider(null);
+    }
+  }, [selectedModelPath, activeProvider]);
 
   useEffect(() => {
     const checkApiKey = async () => {
