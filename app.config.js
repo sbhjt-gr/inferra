@@ -111,9 +111,10 @@ export default {
     },
     plugins: [
       "expo-asset",
-      "expo-audio", 
+      "expo-audio",
       "expo-background-task",
       "expo-router",
+      "expo-secure-store",
       [
         "expo-splash-screen",
         {

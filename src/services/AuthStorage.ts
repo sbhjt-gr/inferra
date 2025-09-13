@@ -1,5 +1,5 @@
 import { User as FirebaseUser } from 'firebase/auth';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 
 export type UserData = {
   uid: string;
@@ -21,7 +21,7 @@ export const USER_AUTH_KEY = 'inferra_secure_user_auth_state';
 export const storeAuthState = async (user: FirebaseUser | null, profileData?: any): Promise<boolean> => {
   try {
     if (!user) {
-      await AsyncStorage.removeItem(USER_AUTH_KEY);
+      await SecureStore.deleteItemAsync(USER_AUTH_KEY);
       return true;
     }
 
@@ -42,10 +42,15 @@ export const storeAuthState = async (user: FirebaseUser | null, profileData?: an
       };
     }
 
-    await AsyncStorage.setItem(USER_AUTH_KEY, JSON.stringify(userData));
+    await SecureStore.setItemAsync(USER_AUTH_KEY, JSON.stringify(userData), {
+      requireAuthentication: false,
+      authenticationPrompt: 'Authenticate to access your account',
+      keychainService: 'inferra_auth'
+    });
     return true;
   } catch (error) {
     if (__DEV__) {
+      console.error('secure_storage_error', error);
     }
     return false;
   }
@@ -53,27 +58,26 @@ export const storeAuthState = async (user: FirebaseUser | null, profileData?: an
 
 export const getUserFromSecureStorage = async (): Promise<UserData | null> => {
   try {
-    const userData = await AsyncStorage.getItem(USER_AUTH_KEY);
-    
+    const userData = await SecureStore.getItemAsync(USER_AUTH_KEY);
+
     if (!userData) {
       return null;
     }
-    
+
     const parsed = JSON.parse(userData);
     if (!parsed.uid) {
-      await AsyncStorage.removeItem(USER_AUTH_KEY);
+      await SecureStore.deleteItemAsync(USER_AUTH_KEY);
       return null;
     }
-    
+
     try {
-      // Remove circular dependency - just return stored data without Firebase validation
       return parsed;
     } catch {
-      await AsyncStorage.removeItem(USER_AUTH_KEY);
+      await SecureStore.deleteItemAsync(USER_AUTH_KEY);
       return null;
     }
   } catch {
-    await AsyncStorage.removeItem(USER_AUTH_KEY);
+    await SecureStore.deleteItemAsync(USER_AUTH_KEY);
     return null;
   }
 }; 

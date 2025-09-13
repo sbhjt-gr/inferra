@@ -60,12 +60,15 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps) {
   };
 
   const handleLogin = async () => {
-    if (!email.trim()) {
+    const trimmedEmail = email.trim().toLowerCase();
+    const trimmedPassword = password.trim();
+
+    if (!trimmedEmail) {
       setError('Email is required');
       return;
     }
 
-    if (!password.trim()) {
+    if (!trimmedPassword) {
       setError('Password is required');
       return;
     }
@@ -74,7 +77,7 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps) {
       setIsLoading(true);
       setError(null);
       
-      const result = await loginWithEmail(email, password);
+      const result = await loginWithEmail(trimmedEmail, trimmedPassword);
       
       if (result.success) {
         await checkLoginStatus();
