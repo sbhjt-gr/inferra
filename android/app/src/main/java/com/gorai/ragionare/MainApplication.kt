@@ -16,15 +16,16 @@ import com.facebook.soloader.SoLoader
 import expo.modules.ApplicationLifecycleDispatcher
 import expo.modules.ReactNativeHostWrapper
 
+import com.inferra.transfer.TransferPackage
+
 class MainApplication : Application(), ReactApplication {
 
   override val reactNativeHost: ReactNativeHost = ReactNativeHostWrapper(
         this,
         object : DefaultReactNativeHost(this) {
           override fun getPackages(): List<ReactPackage> {
-            val packages = PackageList(this).packages
-            // Packages that cannot be autolinked yet can be added manually here, for example:
-            // packages.add(MyReactNativePackage())
+            val packages = PackageList(this).packages.toMutableList()
+            packages.add(TransferPackage())
             return packages
           }
 

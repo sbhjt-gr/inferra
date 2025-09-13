@@ -37,8 +37,21 @@ class ModelDownloader extends EventEmitter {
       this.emit('downloadProgress', data);
     });
 
-    this.downloadTaskManager.on('downloadProgress', (data) => {
+    // Forward DownloadTaskManager events
+    this.downloadTaskManager.on('progress', (data) => {
       this.emit('downloadProgress', data);
+    });
+    
+    this.downloadTaskManager.on('downloadStarted', (data) => {
+      this.emit('downloadStarted', data);
+    });
+    
+    this.downloadTaskManager.on('downloadCompleted', (data) => {
+      this.emit('downloadCompleted', data);
+    });
+    
+    this.downloadTaskManager.on('downloadFailed', (data) => {
+      this.emit('downloadFailed', data);
     });
   }
 
