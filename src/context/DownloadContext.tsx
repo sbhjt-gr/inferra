@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { modelDownloader } from '../services/ModelDownloader';
 
 interface DownloadProgress {
   [key: string]: {
@@ -49,9 +50,82 @@ export const DownloadProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           setDownloadProgress(filteredProgress);
         }
       } catch (error) {
+        console.error('DownloadContext: Error loading saved states:', error);
       }
     };
+    
     loadSavedStates();
+
+    const handleDownloadProgress = (data: any) => {
+      console.log('DownloadContext: received_progress_event:', data);
+      setDownloadProgress(prev => ({
+        ...prev,
+        [data.modelName]: {
+          progress: data.progress || 0,
+          bytesDownloaded: data.bytesDownloaded || 0,
+          totalBytes: data.totalBytes || 0,
+          status: data.status || 'downloading',
+          downloadId: data.downloadId || 0,
+          isPaused: false
+        }
+      }));
+    };
+
+    const handleDownloadStarted = (data: any) => {
+      console.log('DownloadContext: download_started:', data);
+      setDownloadProgress(prev => ({
+        ...prev,
+        [data.modelName]: {
+          progress: 0,
+          bytesDownloaded: 0,
+          totalBytes: 0,
+          status: 'downloading',
+          downloadId: data.downloadId || 0,
+          isPaused: false
+        }
+      }));
+    };
+
+    const handleDownloadCompleted = (data: any) => {
+      console.log('DownloadContext: download_completed:', data);
+      setDownloadProgress(prev => {
+        const newProgress = { ...prev };
+        if (newProgress[data.modelName]) {
+          newProgress[data.modelName] = {
+            ...newProgress[data.modelName],
+            progress: 100,
+            status: 'completed'
+          };
+        }
+        return newProgress;
+      });
+    };
+
+    const handleDownloadFailed = (data: any) => {
+      console.log('DownloadContext: download_failed:', data);
+      setDownloadProgress(prev => {
+        const newProgress = { ...prev };
+        if (newProgress[data.modelName]) {
+          newProgress[data.modelName] = {
+            ...newProgress[data.modelName],
+            status: 'failed'
+          };
+        }
+        return newProgress;
+      });
+    };
+
+    modelDownloader.on('downloadProgress', handleDownloadProgress);
+    modelDownloader.on('downloadStarted', handleDownloadStarted);
+    modelDownloader.on('downloadCompleted', handleDownloadCompleted);
+    modelDownloader.on('downloadFailed', handleDownloadFailed);
+
+    return () => {
+      modelDownloader.off('downloadProgress', handleDownloadProgress);
+      modelDownloader.off('downloadStarted', handleDownloadStarted);
+      modelDownloader.off('downloadCompleted', handleDownloadCompleted);
+      modelDownloader.off('downloadFailed', handleDownloadFailed);
+    };
   }, []);
 
   useEffect(() => {

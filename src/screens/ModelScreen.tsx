@@ -769,11 +769,11 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
 
   useEffect(() => {
     const handleDownloadStarted = (data: { modelName: string; message: string }) => {
-      showDialog(
-        'Download Started',
-        data.message,
-        [<Button key="ok" onPress={hideDialog}>OK</Button>]
-      );
+      // showDialog(
+      //   'Download Started',
+      //   data.message,
+      //   [<Button key="ok" onPress={hideDialog}>OK</Button>]
+      // );
     };
 
     modelDownloader.on('downloadStarted', handleDownloadStarted);
