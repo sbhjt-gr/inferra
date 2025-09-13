@@ -130,9 +130,13 @@ export const signInWithGoogle = async (): Promise<{ success: boolean; error?: st
   try {
     const extra = Constants.expoConfig?.extra;
     const clientId = extra?.GOOGLE_SIGN_IN_WEB_CLIENT_ID;
-    
+
     if (!clientId) {
       throw new Error('Google Sign-In Web Client ID not configured');
+    }
+
+    if (__DEV__) {
+      console.log('google_sign_in_start', { clientId: clientId.substring(0, 20) + '...' });
     }
 
     const request = new AuthSession.AuthRequest({
@@ -149,23 +153,53 @@ export const signInWithGoogle = async (): Promise<{ success: boolean; error?: st
       authorizationEndpoint: 'https://accounts.google.com/oauth2/auth',
     });
 
+    if (__DEV__) {
+      console.log('google_auth_result', { type: result.type });
+    }
+
+    if (result.type === 'cancel') {
+      return {
+        success: false,
+        error: 'Sign-in was cancelled'
+      };
+    }
+
     if (result.type !== 'success' || !result.params.id_token) {
-      return { 
-        success: false, 
-        error: result.type === 'cancel' ? 'Sign-in was cancelled' : 'Failed to get authentication' 
+      return {
+        success: false,
+        error: 'Failed to get authentication token from Google'
       };
     }
 
     const googleCredential = GoogleAuthProvider.credential(result.params.id_token);
     const userCredential = await signInWithCredential(auth, googleCredential);
     const user = userCredential.user;
-    
+
     await storeAuthState(user);
+
+    if (__DEV__) {
+      console.log('google_sign_in_success', { uid: user.uid });
+    }
+
     return { success: true };
   } catch (error: any) {
-    return { 
-      success: false, 
-      error: error.message || 'Google sign-in failed. Please try again.' 
+    if (__DEV__) {
+      console.error('google_sign_in_error', error);
+    }
+
+    let errorMessage = 'Google sign-in failed. Please try again.';
+
+    if (error.code === 'auth/popup-closed-by-user') {
+      errorMessage = 'Sign-in was cancelled';
+    } else if (error.code === 'auth/network-request-failed') {
+      errorMessage = 'Network error. Please check your connection.';
+    } else if (error.code === 'auth/invalid-credential') {
+      errorMessage = 'Invalid credentials. Please try again.';
+    }
+
+    return {
+      success: false,
+      error: errorMessage
     };
   }
 };
