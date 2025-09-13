@@ -1,22 +1,15 @@
 export {
   initializeFirebase,
   isFirebaseReady,
-  testFirebaseConnection,
+  waitForAuthReady,
   registerWithEmail,
   loginWithEmail,
   signInWithGoogle,
-  signInWithGoogleLogin,
   logoutUser,
   getCurrentUser,
   isAuthenticated,
-  initializeAuthAndSync,
-  initAuthState,
-  refreshUserProfile,
-  getCompleteUserData,
-  forceRefreshUserData,
-  waitForAuthReady,
-  getFirebaseServices,
-  debugGoogleOAuthConfig,
+  getUserProfile,
+  onAuthStateChange,
   type UserData
 } from './FirebaseAuth';
 
@@ -24,13 +17,6 @@ export {
   getUserFromSecureStorage,
   storeAuthState
 } from './AuthStorage';
-
-export {
-  getUserProfile,
-  updateEmailVerificationStatus,
-  createUserProfile,
-  updateUserLoginInfo
-} from './UserProfile';
 
 export {
   validateEmail,

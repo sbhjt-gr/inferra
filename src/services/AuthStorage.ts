@@ -1,4 +1,4 @@
-import { FirebaseAuthTypes } from '@react-native-firebase/auth';
+import { User as FirebaseUser } from 'firebase/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export type UserData = {
@@ -18,7 +18,7 @@ export type UserData = {
 
 export const USER_AUTH_KEY = 'inferra_secure_user_auth_state';
 
-export const storeAuthState = async (user: FirebaseAuthTypes.User | null, profileData?: any): Promise<boolean> => {
+export const storeAuthState = async (user: FirebaseUser | null, profileData?: any): Promise<boolean> => {
   try {
     if (!user) {
       await AsyncStorage.removeItem(USER_AUTH_KEY);
@@ -66,25 +66,12 @@ export const getUserFromSecureStorage = async (): Promise<UserData | null> => {
     }
     
     try {
-      const { getFirebaseServices } = await import('./FirebaseService');
-      const { auth } = getFirebaseServices();
-      const currentUser = auth().currentUser;
-      
-      if (currentUser && currentUser.uid === parsed.uid) {
-        try {
-          await currentUser.reload();
-        } catch {
-        }
-        
-        if (parsed.emailVerified !== currentUser.emailVerified) {
-          parsed.emailVerified = currentUser.emailVerified;
-          await AsyncStorage.setItem(USER_AUTH_KEY, JSON.stringify(parsed));
-        }
-      }
+      // Remove circular dependency - just return stored data without Firebase validation
+      return parsed;
     } catch {
+      await AsyncStorage.removeItem(USER_AUTH_KEY);
+      return null;
     }
-    
-    return parsed;
   } catch {
     await AsyncStorage.removeItem(USER_AUTH_KEY);
     return null;

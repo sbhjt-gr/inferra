@@ -7,13 +7,12 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
-import { getCurrentUser, logoutUser, getCompleteUserData, forceRefreshUserData, refreshUserProfile, waitForAuthReady, initializeAuthAndSync } from '../services/FirebaseAuth';
+import { getCurrentUser, logoutUser, waitForAuthReady, onAuthStateChange, sendVerificationEmail, getUserProfile, initializeFirebase } from '../services/FirebaseAuth';
 import { getUserFromSecureStorage } from '../services/AuthStorage';
-import { getFirebaseServices } from '../services/FirebaseService';
 import { useRemoteModel } from '../context/RemoteModelContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDialog } from '../context/DialogContext';
-import { onAuthStateChanged, FirebaseAuthTypes } from '@react-native-firebase/auth';
+import { User as FirebaseUser } from 'firebase/auth';
 
 type ProfileScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList>;
@@ -71,15 +70,8 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
       
       await waitForAuthReady();
       
-      const { user, profile } = await forceRefreshUserData();
-      
-      if (user) {
-        try {
-          await user.reload();
-        } catch (error) {
-          
-        }
-      }
+      const user = getCurrentUser();
+      const profile = user ? await getUserProfile(user.uid) : null;
       
       if (profile) {
         setUserData({
@@ -111,7 +103,7 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
   useEffect(() => {
     const handleAppStateChange = async (nextAppState: AppStateStatus) => {
       if (appStateRef.current.match(/inactive|background/) && nextAppState === 'active') {
-        await initializeAuthAndSync();
+        await initializeFirebase();
         await refreshUserData(false);
       }
       appStateRef.current = nextAppState;
@@ -133,28 +125,26 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
   
   useEffect(() => {
     const initializeAndLoad = async () => {
-      await initializeAuthAndSync();
+      await initializeFirebase();
       await loadUserData(true);
     };
     
     initializeAndLoad();
     
-    const auth = getFirebaseServices().auth();
-    const unsubscribe = onAuthStateChanged(auth, async (user: FirebaseAuthTypes.User | null) => {
+    const unsubscribe = onAuthStateChange(async (user: FirebaseUser | null) => {
       if (user && !loadingRef.current) {
         try {
-          await user.reload();
         } catch (error) {
         }
         
-        const updatedProfile = await refreshUserProfile();
+        const updatedProfile = user ? await getUserProfile(user.uid) : null;
         if (updatedProfile) {
           setUserData({
             displayName: updatedProfile.displayName || user.displayName || 'User',
             email: updatedProfile.email || user.email || '',
             emailVerified: user.emailVerified,
             creationTime: formatFirestoreDate(updatedProfile.createdAt),
-            lastSignInTime: formatFirestoreDate(updatedProfile.lastLoginAt || (user.metadata?.lastSignInTime ? new Date(user.metadata.lastSignInTime).toISOString() : updatedProfile.updatedAt))
+            lastSignInTime: formatFirestoreDate(updatedProfile.lastLoginAt || updatedProfile.updatedAt)
           });
         } else {
           setUserData({
@@ -321,25 +311,21 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
         showTitle: false
       });
 
-      await user.sendEmailVerification();
-      setEmailSentTimestamp(currentTime);
+      const result = await sendVerificationEmail();
       
-      showDialog({
-        title: 'Verification Email Sent',
-        message: 'Please check your email and click the verification link. The status will update automatically once verified.'
-      });
-      
-    } catch (error: any) {
-      
-      let errorMessage = 'Failed to send verification email. Please try again later.';
-      
-      if (error?.code === 'auth/too-many-requests') {
-        errorMessage = 'Too many requests. Please try again later.';
+      if (result.success) {
+        setEmailSentTimestamp(currentTime);
+        
+        showDialog({
+          title: 'Verification Email Sent',
+          message: 'Please check your email and click the verification link. The status will update automatically once verified.'
+        });
       }
       
+    } catch (error: any) {
       showDialog({
         title: 'Error',
-        message: errorMessage
+        message: 'An unexpected error occurred. Please try again.'
       });
     } finally {
       setIsResendingEmail(false);

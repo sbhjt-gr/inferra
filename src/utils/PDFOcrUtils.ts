@@ -1,7 +1,8 @@
 import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system';
 import PdfPageImage from 'react-native-pdf-page-image';
-import TextRecognition from '@subhajit-gorai/react-native-ml-kit-text-recognition';
+// TODO: Temporarily commented out - install react-native-ml-kit when ready
+// import TextRecognition from '@subhajit-gorai/react-native-ml-kit-text-recognition';
 
 export type PageImage = {
   uri: string;
@@ -258,9 +259,10 @@ export const performOCROnPages = async (
           continue;
         }
         
-        
         setExtractionProgress(`Processing page ${actualPageNumber}...`);
         
+        // TODO: Temporarily commented out - install react-native-ml-kit when ready
+        /*
         const recognitionResult = await TextRecognition.recognize(imageUri);
         
         if (recognitionResult && recognitionResult.text) {
@@ -268,6 +270,10 @@ export const performOCROnPages = async (
         } else {
           allText += `--- Page ${actualPageNumber} ---\n[No text detected on this page]\n\n`;
         }
+        */
+        
+        // Temporary fallback while ml-kit is disabled
+        allText += `--- Page ${actualPageNumber} ---\n[OCR temporarily unavailable - react-native-ml-kit not installed]\n\n`;
       } catch (err) {
         allText += `--- Page ${actualPageNumber} ---\n[Text recognition failed for this page]\n\n`;
       }

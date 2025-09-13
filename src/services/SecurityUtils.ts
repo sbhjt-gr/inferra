@@ -195,15 +195,13 @@ export const storeUserSecurityInfo = async (
 ): Promise<void> => {
   try {
     const { 
-      getFirestore, 
-      collection, 
       doc, 
       setDoc, 
       addDoc, 
+      collection,
       serverTimestamp 
-    } = await import('@react-native-firebase/firestore');
-    
-    const firestore = getFirestore();
+    } = await import('firebase/firestore');
+    const { firestore } = await import('../config/firebase');
     
     const securityRecord = {
       ipAddress: ipData.ip,

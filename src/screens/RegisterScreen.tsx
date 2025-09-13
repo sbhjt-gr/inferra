@@ -27,7 +27,7 @@ import {
   Portal,
   Checkbox,
 } from 'react-native-paper';
-import { registerWithEmail, signInWithGoogle, isEmailFromTrustedProvider, testFirebaseConnection, debugGoogleOAuthConfig } from '../services/FirebaseService';
+import { registerWithEmail, signInWithGoogle, isEmailFromTrustedProvider } from '../services/FirebaseService';
 
 type RegisterScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList>;
@@ -110,31 +110,13 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
     setTermsError(null);
 
     try {
-      const connectionTest = await testFirebaseConnection();
-      
-      if (!connectionTest.connected) {
-        setError(`Firebase configuration error: ${connectionTest.error}`);
-        setIsLoading(false);
-        return;
-      }
-      
-      
       const result = await registerWithEmail(name, email, password);
       
       if (result.success) {
         await checkLoginStatus();
-        
-        if (result.passwordWarning) {
-          setPasswordWarning(result.passwordWarning);
-        }
-        
         setDialogVisible(true);
       } else {
         setError(result.error || 'Registration failed');
-        
-        if (result.passwordWarning) {
-          setPasswordWarning(result.passwordWarning);
-        }
       }
     } catch (error: any) {
       setError(error.message || 'Registration failed');
@@ -153,8 +135,6 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
       setIsLoading(true);
       setError(null);
       setTermsError(null);
-      
-      debugGoogleOAuthConfig();
       
       const result = await signInWithGoogle();
       
