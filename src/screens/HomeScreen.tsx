@@ -160,16 +160,30 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   );
 
   useEffect(() => {
-    if (isFirstLaunchRef.current) {
-      startNewChat();
-      isFirstLaunchRef.current = false;
-      return;
-    }
+    const initializeChat = async () => {
+      if (isFirstLaunchRef.current) {
+        await startNewChat();
+        isFirstLaunchRef.current = false;
+        return;
+      }
 
-    ChatLifecycleService.loadCurrentChat({ setChat, setMessages });
+      const currentChat = chatManager.getCurrentChat();
+      if (currentChat) {
+        setChat(currentChat);
+        setMessages(currentChat.messages || []);
+      } else {
+        await startNewChat();
+      }
+    };
+
+    initializeChat();
 
     const unsubscribe = chatManager.addListener(() => {
-      ChatLifecycleService.loadCurrentChat({ setChat, setMessages });
+      const currentChat = chatManager.getCurrentChat();
+      if (currentChat) {
+        setChat(currentChat);
+        setMessages(currentChat.messages || []);
+      }
     });
 
     return () => {
@@ -189,10 +203,22 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   }, [route.params?.modelPath, checkSystemMemory]);
 
   useEffect(() => {
-    if (route.params?.loadChatId) {
-      navigation.setParams({ loadChatId: undefined });
-    }
-  }, [route.params?.loadChatId, navigation]);
+    const handleLoadChat = async () => {
+      const loadChatId = route.params?.loadChatId || (route.params as any)?.params?.loadChatId;
+
+      if (loadChatId) {
+        const specificChat = chatManager.getChatById(loadChatId);
+        if (specificChat) {
+          setChat(specificChat);
+          setMessages(specificChat.messages || []);
+          await chatManager.setCurrentChat(loadChatId);
+        }
+        navigation.setParams({ loadChatId: undefined });
+      }
+    };
+
+    handleLoadChat();
+  }, [route.params?.loadChatId, (route.params as any)?.params?.loadChatId, navigation]);
 
   useFocusEffect(
     useCallback(() => {

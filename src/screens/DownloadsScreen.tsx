@@ -16,12 +16,11 @@ import { RootStackParamList } from '../types/navigation';
 import { modelDownloader } from '../services/ModelDownloader';
 import { useDownloads } from '../context/DownloadContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { DownloadTask } from '@kesha-antonov/react-native-background-downloader';
 import * as FileSystem from 'expo-file-system';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AppHeader from '../components/AppHeader';
 import { getThemeAwareColor } from '../utils/ColorUtils';
-import { Dialog, Portal, PaperProvider, Text, Button } from 'react-native-paper';
+import { Dialog, Portal, Text, Button } from 'react-native-paper';
 
 const formatBytes = (bytes: number) => {
   if (bytes === undefined || bytes === null || isNaN(bytes) || bytes === 0) return '0 B';

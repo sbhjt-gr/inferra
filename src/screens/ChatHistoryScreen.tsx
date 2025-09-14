@@ -65,8 +65,6 @@ export default function ChatHistoryScreen() {
 
   const handleSelectChat = async (chatId: string) => {
     try {
-      await chatManager.setCurrentChat(chatId);
-      
       navigation.navigate('MainTabs', {
         screen: 'HomeTab',
         params: { loadChatId: chatId }

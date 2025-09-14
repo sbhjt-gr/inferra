@@ -60,13 +60,9 @@ class ChatManager {
         this.chats = [];
       }
 
-      
       const currentId = await AsyncStorage.getItem(CURRENT_CHAT_ID_KEY);
       this.currentChatId = currentId;
-      
-      
-      
-      
+
       this.notifyListeners();
     } catch (error) {
       this.chats = [];
@@ -78,16 +74,15 @@ class ChatManager {
       const nonEmptyChats = this.chats.filter(chat => {
         return chat.messages.some(msg => msg.role === 'user' || msg.role === 'assistant');
       });
-      
+
       await AsyncStorage.setItem(CHATS_STORAGE_KEY, JSON.stringify(nonEmptyChats));
-      
+
       this.chats = nonEmptyChats;
-      
-      
+
       if (this.currentChatId && !this.getChatById(this.currentChatId)) {
         this.currentChatId = null;
       }
-      
+
       this.notifyListeners();
       return true;
     } catch (error) {
@@ -120,7 +115,6 @@ class ChatManager {
 
   
   async createNewChat(initialMessages: ChatMessage[] = []): Promise<Chat> {
-    
     if (this.currentChatId) {
       const currentChat = this.getChatById(this.currentChatId);
       if (currentChat && currentChat.messages.some(msg => msg.role === 'user' || msg.role === 'assistant')) {
@@ -129,27 +123,24 @@ class ChatManager {
       }
     }
 
-    
-    const existingEmptyChat = this.chats.find(chat => 
+    const existingEmptyChat = this.chats.find(chat =>
       !chat.messages.some(msg => msg.role === 'user' || msg.role === 'assistant')
     );
 
     if (existingEmptyChat) {
-      
       this.currentChatId = existingEmptyChat.id;
       existingEmptyChat.timestamp = Date.now();
       existingEmptyChat.messages = initialMessages;
-      
+
       await this.saveCurrentChatId();
       this.notifyListeners();
-      
+
       return existingEmptyChat;
     }
 
-    
     const newChat: Chat = {
       id: generateRandomId(),
-      title: 'New Chat', 
+      title: 'New Chat',
       messages: initialMessages,
       timestamp: Date.now(),
     };
@@ -159,7 +150,7 @@ class ChatManager {
 
     await this.saveCurrentChatId();
     this.notifyListeners();
-    
+
     return newChat;
   }
 
