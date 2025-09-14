@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, StyleSheet, TouchableOpacity, Text, Animated } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -14,6 +16,8 @@ import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 
 type TabType = 'models' | 'settings';
 
+const SIDEBAR_WIDTH_STORAGE_KEY = 'widescreen_sidebar_width';
+
 interface WideScreenLayoutProps {
   // Navigation props can be passed down if needed
 }
@@ -23,10 +27,91 @@ export default function WideScreenLayout({}: WideScreenLayoutProps) {
   const themeColors = theme[currentTheme];
   const insets = useSafeAreaInsets();
   const { fonts } = OpenSansFont();
-  const { sidebarWidth, chatWidth } = useResponsiveLayout();
+  const { screenWidth } = useResponsiveLayout();
   const [activeTab, setActiveTab] = useState<TabType>('models');
   const navigation = useNavigation();
   const route = useRoute();
+
+  const [sidebarWidth, setSidebarWidth] = useState(screenWidth * 0.3);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
+  const translateX = useRef(new Animated.Value(0)).current;
+  const MIN_SIDEBAR_WIDTH = 200;
+  const MAX_SIDEBAR_WIDTH = screenWidth * 0.6;
+
+  const chatWidth = screenWidth - sidebarWidth;
+
+  const loadSidebarWidth = async () => {
+    try {
+      const savedWidth = await AsyncStorage.getItem(SIDEBAR_WIDTH_STORAGE_KEY);
+      if (savedWidth) {
+        const width = parseFloat(savedWidth);
+        if (width >= MIN_SIDEBAR_WIDTH && width <= MAX_SIDEBAR_WIDTH) {
+          setSidebarWidth(width);
+        }
+      }
+    } catch (error) {
+      console.log('sidebar_width_load_error', error);
+    } finally {
+      setIsInitialized(true);
+    }
+  };
+
+  const saveSidebarWidth = async (width: number) => {
+    try {
+      await AsyncStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, width.toString());
+    } catch (error) {
+      console.log('sidebar_width_save_error', error);
+    }
+  };
+
+  useEffect(() => {
+    loadSidebarWidth();
+  }, []);
+
+  useEffect(() => {
+    if (isInitialized) {
+      saveSidebarWidth(sidebarWidth);
+    }
+  }, [sidebarWidth, isInitialized]);
+
+  useEffect(() => {
+    setIsDragging(false);
+  }, [sidebarWidth]);
+
+  const onPanGestureEvent = (event: any) => {
+    const { translationX } = event.nativeEvent;
+    const newWidth = sidebarWidth + translationX;
+    
+    if (newWidth >= MIN_SIDEBAR_WIDTH && newWidth <= MAX_SIDEBAR_WIDTH) {
+      translateX.setValue(translationX);
+    }
+  };
+
+  const onPanHandlerStateChange = (event: any) => {
+    const state = event.nativeEvent.state;
+    
+    if (state === State.BEGAN) {
+      setIsDragging(true);
+    } else if (state === State.END || state === State.CANCELLED || state === State.FAILED) {
+      if (state === State.END) {
+        const { translationX } = event.nativeEvent;
+        const newWidth = Math.max(
+          MIN_SIDEBAR_WIDTH,
+          Math.min(MAX_SIDEBAR_WIDTH, sidebarWidth + translationX)
+        );
+        
+        setSidebarWidth(newWidth);
+      }
+      
+      translateX.setValue(0);
+      setIsDragging(false);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    setIsDragging(false);
+  };
 
   const TabButton = ({ 
     tab, 
@@ -77,11 +162,12 @@ export default function WideScreenLayout({}: WideScreenLayoutProps) {
     <LayoutProvider constrainToChat={true}>
       <View style={[styles.container, { backgroundColor: themeColors.background }]}>
         {/* Sidebar */}
-        <View style={[
+        <Animated.View style={[
           styles.sidebar,
           {
             width: sidebarWidth,
             backgroundColor: themeColors.background,
+            transform: [{ translateX }],
           }
         ]}>
           {/* Tab content */}
@@ -111,9 +197,38 @@ export default function WideScreenLayout({}: WideScreenLayoutProps) {
               isActive={activeTab === 'settings'}
             />
           </View>
-        </View>
+        </Animated.View>
 
-        {/* Chat area */}
+        <PanGestureHandler
+          onGestureEvent={onPanGestureEvent}
+          onHandlerStateChange={onPanHandlerStateChange}
+        >
+          <Animated.View 
+            style={[
+              styles.dragHandle,
+              {
+                left: sidebarWidth - 6,
+                transform: [{ translateX }],
+              }
+            ]}
+            onTouchEnd={handleTouchEnd}
+            onTouchCancel={handleTouchEnd}
+          >
+            <View style={[styles.doorHandle, { backgroundColor: themeColors.borderColor }]} />
+          </Animated.View>
+        </PanGestureHandler>
+
+        {isDragging && (
+          <Animated.View style={[
+            styles.dragStripLine,
+            {
+              left: sidebarWidth,
+              transform: [{ translateX }],
+              backgroundColor: themeColors.borderColor,
+            }
+          ]} />
+        )}
+
         <View style={[
           styles.chatArea,
           {
@@ -150,6 +265,35 @@ const styles = StyleSheet.create({
   tabLabel: {
     fontSize: 12,
     marginTop: 4,
+  },
+  dragHandle: {
+    position: 'absolute',
+    top: '50%',
+    marginTop: -30,
+    width: 12,
+    height: 60,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  doorHandle: {
+    width: 6,
+    height: 40,
+    borderRadius: 3,
+    opacity: 0.6,
+  },
+  dragStripLine: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 1,
+    zIndex: 999,
+    opacity: 0.8,
+  },
+  dragIndicator: {
+    width: 2,
+    height: 40,
+    borderRadius: 1,
   },
   chatArea: {
     flex: 1,
