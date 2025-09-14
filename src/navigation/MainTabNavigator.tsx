@@ -7,10 +7,12 @@ import React, { useState, useEffect } from 'react';
 import HomeScreen from '../screens/HomeScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import ModelScreen from '../screens/ModelScreen';
+import WideScreenLayout from '../components/WideScreenLayout';
 import { TabParamList } from '../types/navigation';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import { OpenSansFont } from '../hooks/OpenSansFont';
+import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 
 const Tab = createBottomTabNavigator<TabParamList>();
 
@@ -119,6 +121,12 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
 }
 
 export default function MainTabNavigator() {
+  const { isWideScreen } = useResponsiveLayout();
+
+  if (isWideScreen) {
+    return <WideScreenLayout />;
+  }
+
   return (
     <Tab.Navigator
       tabBar={props => <CustomTabBar {...props} />}

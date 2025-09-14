@@ -1,6 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import {
-  StyleSheet,
   Platform,
   TouchableOpacity,
   Keyboard,
@@ -10,19 +9,16 @@ import {
   FlatList,
   KeyboardAvoidingView,
   Clipboard,
-  AppStateStatus,
-  ActivityIndicator,
-  Alert,
+  ActivityIndicator
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import ModelSelector, { ModelSelectorRef } from '../components/ModelSelector';
+import { ModelSelectorRef } from '../components/ModelSelector';
 import { llamaManager } from '../utils/LlamaManager';
 import AppHeader from '../components/AppHeader';
 import { useFocusEffect, RouteProp } from '@react-navigation/native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList, TabParamList } from '../types/navigation';
 import chatManager, { Chat, ChatMessage } from '../utils/ChatManager';
@@ -30,13 +26,8 @@ import ChatView from '../components/chat/ChatView';
 import ChatInput from '../components/chat/ChatInput';
 import { onlineModelService } from '../services/OnlineModelService';
 import { useModel } from '../context/ModelContext';
-import { Dialog, Portal, PaperProvider, Button, Text as PaperText } from 'react-native-paper';
-import { useDownloads } from '../context/DownloadContext';
-import { modelDownloader } from '../services/ModelDownloader';
+import { Dialog, Portal, Button, Text as PaperText } from 'react-native-paper';
 import { useRemoteModel } from '../context/RemoteModelContext';
-import { modelSettingsService } from '../services/ModelSettingsService';
-import { usageTrackingService } from '../services/UsageTrackingService';
-import { inAppReviewService } from '../services/InAppReviewService';
 
 import { debounce, generateRandomId } from '../utils/homeScreenUtils';
 import { useDialog } from '../hooks/useDialog';
@@ -49,14 +40,13 @@ import { useStreamingState } from '../hooks/useStreamingState';
 import { useHomeScreenSettings } from '../hooks/useHomeScreenSettings';
 import CopyToast from '../components/CopyToast';
 import MemoryWarningDialog from '../components/MemoryWarningDialog';
-import ModelSelectorButton from '../components/chat/ModelSelectorButton';
 import ModelSelectorComponent from '../components/chat/ModelSelectorComponent';
 import { MessageProcessingService } from '../services/MessageProcessingService';
 import { RegenerationService } from '../services/RegenerationService';
 import { ModelManagementService } from '../services/ModelManagementService';
 import { ChatLifecycleService } from '../services/ChatLifecycleService';
-import { APIKeysService } from '../services/APIKeysService';
 import { homeScreenStyles } from './homeScreenStyles';
+import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 
 type HomeScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList>;
@@ -66,6 +56,7 @@ type HomeScreenProps = {
 export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   const { theme: currentTheme, selectedTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
+  const { isWideScreen } = useResponsiveLayout();
   const [chat, setChat] = useState<Chat | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const modelSelectorRef = useRef<ModelSelectorRef>(null);
@@ -73,11 +64,9 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   const [preselectedModelPath, setPreselectedModelPath] = useState<string | null>(null);
   const [onlineModelProvider, setOnlineModelProvider] = useState<string | null>(null);
   const appStateRef = useRef(AppState.currentState);
-  const [appState, setAppState] = useState(appStateRef.current);
   const isFirstLaunchRef = useRef(true);
   const [activeProvider, setActiveProvider] = useState<'local' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude' | null>(null);
   const { loadModel, unloadModel, setSelectedModelPath, isModelLoading, selectedModelPath } = useModel();
-  const insets = useSafeAreaInsets();
   const flatListRef = useRef<FlatList>(null);
 
   const [isCooldown, setIsCooldown] = useState(false);
@@ -85,31 +74,19 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
 
   const { dialogVisible, dialogTitle, dialogMessage, dialogActions, showDialog, hideDialog } = useDialog();
   const { showCopyToast, copyToastMessage, showToast } = useCopyToast();
-  const { keyboardVisible } = useKeyboard();
   const { showMemoryWarning, memoryWarningType, checkSystemMemory, handleMemoryWarningClose } = useMemoryWarning();
   
   const {
-    chatId,
     messages,
     setMessages,
-    inputText,
-    setInputText,
-    isLoadingChat,
-    chats,
-    chatTitles,
-    loadChats,
     loadChat,
-    createNewChat,
     saveMessages,
     saveMessagesImmediate,
     saveMessagesDebounced,
-    updateChatTitle,
-    deleteChat,
   } = useChatManagement();
 
   const {
     isEditingMessage,
-    editingMessageId,
     editingMessageText,
     handleStartEdit,
     handleSaveEdit,
@@ -131,7 +108,6 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     setIsRegenerating,
     cancelGenerationRef,
     resetStreamingState,
-    cancelGeneration,
   } = useStreamingState();
 
   const { enableRemoteModels, isLoggedIn } = useRemoteModel();
@@ -616,6 +592,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]} edges={['left', 'right']}>
       <AppHeader 
         onNewChat={startNewChat}
+        showLogo={!isWideScreen}
+        title={isWideScreen ? '' : 'Inferra'}
         rightButtons={
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <TouchableOpacity
