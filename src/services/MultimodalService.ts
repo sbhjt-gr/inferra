@@ -7,6 +7,15 @@ import {
   MultimodalSupport 
 } from '../types/llama';
 
+const withTimeout = <T>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => 
+      setTimeout(() => reject(new Error(`Multimodal operation timed out after ${timeoutMs}ms`)), timeoutMs)
+    )
+  ]);
+};
+
 export class MultimodalService {
   private isMultimodalEnabled: boolean = false;
   private multimodalSupport: MultimodalSupport = { vision: false, audio: false };
@@ -55,13 +64,23 @@ export class MultimodalService {
   }
 
   async releaseMultimodal(context: LlamaContext): Promise<void> {
+    if (!context) {
+      return;
+    }
+
     try {
-      if (context && this.isMultimodalEnabled) {
-        await context.releaseMultimodal();
-        this.isMultimodalEnabled = false;
-        this.multimodalSupport = { vision: false, audio: false };
+      if (this.isMultimodalEnabled) {
+        try {
+          await withTimeout(context.releaseMultimodal(), 5000);
+        } catch (contextReleaseError) {
+          console.error('Error releasing multimodal context:', contextReleaseError);
+        }
       }
     } catch (error) {
+      console.error('Error during multimodal release:', error);
+    } finally {
+      this.isMultimodalEnabled = false;
+      this.multimodalSupport = { vision: false, audio: false };
     }
   }
 

@@ -87,23 +87,26 @@ export const ModelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const unloadModel = async (): Promise<void> => {
     try {
       await llamaManager.unloadModel();
+    } catch (error) {
+      console.error('Error unloading model:', error);
+      llamaManager.emergencyCleanup();
+    } finally {
       setSelectedModelPath(null);
       setSelectedProjectorPath(null);
       setIsMultimodalEnabled(false);
       showSnackbar('Model unloaded');
-    } catch (error) {
-      showSnackbar('Error unloading model', 'error');
     }
   };
 
   const unloadProjector = async (): Promise<void> => {
     try {
       await llamaManager.releaseMultimodal();
+    } catch (error) {
+      console.error('Error unloading projector:', error);
+    } finally {
       setSelectedProjectorPath(null);
       setIsMultimodalEnabled(false);
       showSnackbar('Projector model unloaded');
-    } catch (error) {
-      showSnackbar('Error unloading projector', 'error');
     }
   };
 

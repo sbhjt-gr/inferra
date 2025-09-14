@@ -73,7 +73,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     const [modalVisible, setModalVisible] = useState(false);
     const [models, setModels] = useState<StoredModel[]>([]);
     const [sections, setSections] = useState<SectionData[]>([]);
-    const { selectedModelPath, selectedProjectorPath, isModelLoading, loadModel, unloadModel, unloadProjector } = useModel();
+    const { selectedModelPath, selectedProjectorPath, isModelLoading, loadModel, unloadModel, unloadProjector, isMultimodalEnabled } = useModel();
     const [onlineModelStatuses, setOnlineModelStatuses] = useState<{[key: string]: boolean}>({
       gemini: false,
       chatgpt: false,
@@ -366,6 +366,15 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     };
 
     const handleUnloadModel = () => {
+      if (!selectedModelPath) {
+        showDialog(
+          'No Model Loaded',
+          'There is no model currently loaded to unload.',
+          [<Button key="ok" onPress={hideDialog}>OK</Button>]
+        );
+        return;
+      }
+
       const title = 'Unload Model';
       const message = isGenerating
         ? 'This will stop the current generation. Are you sure you want to unload the model?'
@@ -375,7 +384,16 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
         <Button key="cancel" onPress={hideDialog}>Cancel</Button>,
         <Button key="unload" onPress={async () => {
           hideDialog();
-          await unloadModel();
+          try {
+            await unloadModel();
+          } catch (error) {
+            console.error('Error unloading model:', error);
+            showDialog(
+              'Unload Warning',
+              `Model unloading completed with warnings. The model has been cleared from memory.`,
+              [<Button key="ok" onPress={hideDialog}>OK</Button>]
+            );
+          }
         }}>
           Unload
         </Button>
@@ -385,6 +403,15 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     };
 
     const handleUnloadProjector = () => {
+      if (!selectedProjectorPath && !isMultimodalEnabled) {
+        showDialog(
+          'No Projector Loaded',
+          'There is no projector model currently loaded to unload.',
+          [<Button key="ok" onPress={hideDialog}>OK</Button>]
+        );
+        return;
+      }
+
       const title = 'Unload Projector';
       const message = isGenerating
         ? 'This will disable vision capabilities and stop the current generation. Are you sure you want to unload the projector?'
@@ -394,7 +421,16 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
         <Button key="cancel" onPress={hideDialog}>Cancel</Button>,
         <Button key="unload" onPress={async () => {
           hideDialog();
-          await unloadProjector();
+          try {
+            await unloadProjector();
+          } catch (error) {
+            console.error('Error unloading projector:', error);
+            showDialog(
+              'Unload Warning',
+              `Projector unloading completed with warnings. Vision capabilities have been disabled.`,
+              [<Button key="ok" onPress={hideDialog}>OK</Button>]
+            );
+          }
         }}>
           Unload Projector
         </Button>

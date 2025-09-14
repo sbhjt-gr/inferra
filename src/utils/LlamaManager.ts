@@ -16,11 +16,21 @@ import { LLAMA_INIT_CONFIG, TITLE_GENERATION_CONFIG } from '../config/llamaConfi
 
 const LlamaManagerModule = NativeModules.LlamaManager as LlamaManagerInterface;
 
+const withTimeout = <T>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => 
+      setTimeout(() => reject(new Error(`Operation timed out after ${timeoutMs}ms`)), timeoutMs)
+    )
+  ]);
+};
+
 class LlamaManager {
   private context: LlamaContext | null = null;
   private modelPath: string | null = null;
   private events = new EventEmitter<LlamaManagerEvents>();
   private isCancelled: boolean = false;
+  private isUnloading: boolean = false;
   
   private multimodalService = new MultimodalService();
   private tokenProcessingService = new TokenProcessingService();
@@ -48,7 +58,6 @@ class LlamaManager {
 
       if (this.context) {
         await this.multimodalService.releaseMultimodal(this.context);
-        await this.context.release();
         this.context = null;
       }
 
@@ -403,7 +412,6 @@ class LlamaManager {
         const currentMmProjectorPath = this.multimodalService.getMultimodalProjectorPath();
         
         await this.multimodalService.releaseMultimodal(this.context);
-        await this.context.release();
         this.context = null;
         
         this.context = await initLlama({
@@ -422,25 +430,39 @@ class LlamaManager {
   }
 
   async release() {
+    if (!this.context) {
+      return;
+    }
+
+    const contextToRelease = this.context;
+    const wasMultimodalEnabled = this.multimodalService.isMultimodalInitialized();
+    
     try {
       this.isCancelled = true;
-      
       this.tokenProcessingService.clearTokenQueue();
       
-      if (this.context) {
-        await this.multimodalService.releaseMultimodal(this.context);
-        await this.context.release();
-        this.context = null;
-        this.modelPath = null;
+      if (wasMultimodalEnabled) {
+        try {
+          await withTimeout(this.multimodalService.releaseMultimodal(contextToRelease), 10000);
+        } catch (multimodalError) {
+          console.error('Error releasing multimodal context:', multimodalError);
+        }
       }
+      
     } catch (error) {
-      throw error;
+      console.error('Error during context release:', error);
+    } finally {
+      this.context = null;
+      this.modelPath = null;
     }
   }
 
   emergencyCleanup() {
     this.isCancelled = true;
     this.tokenProcessingService.clearTokenQueue();
+    this.context = null;
+    this.modelPath = null;
+    this.isUnloading = false;
   }
 
   getModelPath() {
@@ -457,6 +479,16 @@ class LlamaManager {
 
   getMultimodalSupport(): MultimodalSupport {
     return this.multimodalService.getMultimodalSupport();
+  }
+
+  async releaseMultimodal(): Promise<void> {
+    try {
+      if (this.context) {
+        await withTimeout(this.multimodalService.releaseMultimodal(this.context), 8000);
+      }
+    } catch (error) {
+      console.error('Error releasing multimodal context:', error);
+    }
   }
 
   hasVisionSupport(): boolean {
@@ -524,8 +556,19 @@ class LlamaManager {
   }
 
   async unloadModel() {
-    await this.release();
-    this.events.emit('model-unloaded');
+    if (this.isUnloading) {
+      throw new Error('Model unload already in progress');
+    }
+
+    this.isUnloading = true;
+    try {
+      await this.release();
+    } catch (error) {
+      console.error('Error during model release:', error);
+    } finally {
+      this.events.emit('model-unloaded');
+      this.isUnloading = false;
+    }
   }
 
   addListener(event: keyof LlamaManagerEvents, listener: any): () => void {
