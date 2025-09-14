@@ -18,6 +18,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getThemeAwareColor } from '../utils/ColorUtils';
 import { onlineModelService } from '../services/OnlineModelService';
 import { Dialog, Portal, Text, Button } from 'react-native-paper';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
@@ -27,6 +29,8 @@ interface StoredModel {
   path: string;
   size: number;
   modified: string;
+  isExternal?: boolean;
+  originalPath?: string;
 }
 
 interface OnlineModel {
@@ -82,6 +86,8 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     });
     const [isOnlineModelsExpanded, setIsOnlineModelsExpanded] = useState(false);
     const [isLocalModelsExpanded, setIsLocalModelsExpanded] = useState(true);
+    const [isLoadingFromStorage, setIsLoadingFromStorage] = useState(false);
+    const [loadingPhase, setLoadingPhase] = useState<'file_picker' | 'processing' | 'loading'>('file_picker');
 
     const [dialogVisible, setDialogVisible] = useState(false);
     const [dialogTitle, setDialogTitle] = useState('');
@@ -107,6 +113,122 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
 
     const toggleOnlineModelsDropdown = () => {
       setIsOnlineModelsExpanded(!isOnlineModelsExpanded);
+    };
+
+    const verifyExternalFileAccess = async (filePath: string): Promise<boolean> => {
+      try {
+        const fileInfo = await FileSystem.getInfoAsync(filePath);
+        return fileInfo.exists;
+      } catch (error) {
+        return false;
+      }
+    };
+
+    const handleLoadFromStorage = async () => {
+      try {
+        setIsLoadingFromStorage(true);
+        setLoadingPhase('file_picker');
+
+        setTimeout(async () => {
+          try {
+            const result = await DocumentPicker.getDocumentAsync({
+              type: '*/*',
+              copyToCacheDirectory: false,
+            });
+
+            if (result.canceled) {
+              setIsLoadingFromStorage(false);
+              return;
+            }
+
+            setLoadingPhase('processing');
+
+            const file = result.assets[0];
+            const fileName = file.name.toLowerCase();
+
+            if (!fileName.endsWith('.gguf')) {
+              setIsLoadingFromStorage(false);
+              showDialog(
+                'Invalid File',
+                'Please select a .gguf model file.',
+                [<Button key="ok" onPress={hideDialog}>OK</Button>]
+              );
+              return;
+            }
+
+            const isAccessible = await verifyExternalFileAccess(file.uri);
+            if (!isAccessible) {
+              setIsLoadingFromStorage(false);
+              showDialog(
+                'File Not Accessible',
+                'The selected file is not accessible. Please try again.',
+                [<Button key="ok" onPress={hideDialog}>OK</Button>]
+              );
+              return;
+            }
+
+            const isVisionModel = fileName.includes('llava') || 
+                                 fileName.includes('vision') ||
+                                 fileName.includes('minicpm');
+            
+            if (isVisionModel) {
+              setIsLoadingFromStorage(false);
+              const tempModel: StoredModel = {
+                name: file.name,
+                path: file.uri,
+                size: file.size || 0,
+                modified: new Date().toISOString(),
+                isExternal: true,
+                originalPath: file.uri,
+              };
+              showMultimodalDialog(tempModel);
+            } else {
+              setLoadingPhase('loading');
+              
+              if (onModelSelect) {
+                setModalVisible(false);
+                setIsLoadingFromStorage(false);
+                onModelSelect('local', file.uri);
+              } else {
+                const success = await loadModel(file.uri);
+                setModalVisible(false);
+                setIsLoadingFromStorage(false);
+                if (success) {
+                  showDialog(
+                    'Model Loaded',
+                    `Successfully loaded ${file.name} from storage.`,
+                    [<Button key="ok" onPress={hideDialog}>OK</Button>]
+                  );
+                } else {
+                  showDialog(
+                    'Load Failed',
+                    `Failed to load ${file.name}. The file may be corrupted or incompatible.`,
+                    [<Button key="ok" onPress={hideDialog}>OK</Button>]
+                  );
+                }
+              }
+            }
+
+          } catch (error) {
+            console.log('load_from_storage_error');
+            setIsLoadingFromStorage(false);
+            showDialog(
+              'Error',
+              'Failed to load model from storage.',
+              [<Button key="ok" onPress={hideDialog}>OK</Button>]
+            );
+          }
+        }, 100);
+
+      } catch (error) {
+        console.log('load_from_storage_error');
+        setIsLoadingFromStorage(false);
+        showDialog(
+          'Error',
+          'Failed to load model from storage.',
+          [<Button key="ok" onPress={hideDialog}>OK</Button>]
+        );
+      }
     };
 
     const loadModels = async () => {
@@ -162,12 +284,42 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
         }
       };
 
-      const interval = setInterval(checkDownloads, 2000);
+      const interval = setInterval(checkDownloads, 1000);
       return () => clearInterval(interval);
     }, []);
 
+    useEffect(() => {
+      const setupModelListener = () => {
+        const handleModelsChanged = () => {
+          loadModels();
+        };
+
+        if (modelDownloader.on) {
+          modelDownloader.on('modelsChanged', handleModelsChanged);
+          modelDownloader.on('modelDeleted', handleModelsChanged);
+          modelDownloader.on('modelAdded', handleModelsChanged);
+        }
+
+        return () => {
+          if (modelDownloader.off) {
+            modelDownloader.off('modelsChanged', handleModelsChanged);
+            modelDownloader.off('modelDeleted', handleModelsChanged);
+            modelDownloader.off('modelAdded', handleModelsChanged);
+          }
+        };
+      };
+
+      const cleanup = setupModelListener();
+      return cleanup;
+    }, []);
+
     useImperativeHandle(ref, () => ({
-      refreshModels: loadModels
+      refreshModels: () => {
+        loadModels();
+        if (modalVisible) {
+          loadModels();
+        }
+      }
     }));
 
     useEffect(() => {
@@ -198,6 +350,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     };
 
     const handleModelSelect = async (model: Model) => {
+      // Close modal immediately for better responsiveness
       setModalVisible(false);
       
       if (isGenerating) {
@@ -242,17 +395,19 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
           onModelSelect(model.id as 'gemini' | 'chatgpt' | 'deepseek' | 'claude');
         }
       } else {
-        const isVisionModel = model.name.toLowerCase().includes('llava') || 
-                             model.name.toLowerCase().includes('vision') ||
-                             model.name.toLowerCase().includes('minicpm');
+        const storedModel = model as StoredModel;
+        
+        const isVisionModel = storedModel.name.toLowerCase().includes('llava') || 
+                             storedModel.name.toLowerCase().includes('vision') ||
+                             storedModel.name.toLowerCase().includes('minicpm');
         
         if (isVisionModel) {
-          showMultimodalDialog(model);
+          showMultimodalDialog(storedModel);
         } else {
           if (onModelSelect) {
-            onModelSelect('local', model.path);
+            onModelSelect('local', storedModel.path);
           } else {
-            await loadModel(model.path);
+            await loadModel(storedModel.path);
           }
         }
       }
@@ -267,10 +422,14 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
             key="text-only" 
             onPress={() => {
               hideDialog();
+              setModalVisible(false);
+              setIsLoadingFromStorage(false);
+              const storedModel = model as StoredModel;
+              const modelPath = storedModel.isExternal && storedModel.originalPath ? storedModel.originalPath : storedModel.path;
               if (onModelSelect) {
-                onModelSelect('local', (model as StoredModel).path);
+                onModelSelect('local', modelPath);
               } else {
-                loadModel((model as StoredModel).path);
+                loadModel(modelPath);
               }
             }}
           >
@@ -292,6 +451,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     const loadProjectorModels = async () => {
       try {
         const storedModels = await modelDownloader.getStoredModels();
+        
         const projectorModels = storedModels.filter(model => 
           model.name.toLowerCase().includes('proj') || 
           model.name.toLowerCase().includes('mmproj') ||
@@ -305,6 +465,8 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     };
 
     const promptForProjector = async (model: Model) => {
+      setModalVisible(false);
+      setIsLoadingFromStorage(false);
       setSelectedVisionModel(model);
       await loadProjectorModels();
       setProjectorSelectorVisible(true);
@@ -315,15 +477,19 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
       
       if (!selectedVisionModel) return;
 
+      const storedModel = selectedVisionModel as StoredModel;
+      const modelPath = storedModel.isExternal && storedModel.originalPath ? storedModel.originalPath : storedModel.path;
+      const projectorPath = projectorModel.path;
+
       if (onModelSelect) {
         showDialog(
           'Multimodal Model Ready',
           `Loading ${selectedVisionModel.name} with vision capabilities using ${projectorModel.name}`,
           [<Button key="ok" onPress={hideDialog}>OK</Button>]
         );
-        onModelSelect('local', (selectedVisionModel as StoredModel).path, projectorModel.path);
+        onModelSelect('local', modelPath, projectorPath);
       } else {
-        const success = await loadModel((selectedVisionModel as StoredModel).path, projectorModel.path);
+        const success = await loadModel(modelPath, projectorPath);
         if (success) {
           showDialog(
             'Success',
@@ -340,15 +506,18 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
       
       if (!selectedVisionModel) return;
 
+      const storedModel = selectedVisionModel as StoredModel;
+      const modelPath = storedModel.isExternal && storedModel.originalPath ? storedModel.originalPath : storedModel.path;
+
       if (onModelSelect) {
         showDialog(
           'Text-Only Model Ready',
           `Loading ${selectedVisionModel.name} in text-only mode (without vision capabilities)`,
           [<Button key="ok" onPress={hideDialog}>OK</Button>]
         );
-        onModelSelect('local', (selectedVisionModel as StoredModel).path);
+        onModelSelect('local', modelPath);
       } else {
-        const success = await loadModel((selectedVisionModel as StoredModel).path);
+        const success = await loadModel(modelPath);
         if (success) {
           showDialog(
             'Success',
@@ -708,6 +877,9 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     useEffect(() => {
       if (isOpen !== undefined) {
         setModalVisible(isOpen);
+        if (isOpen) {
+          loadModels();
+        }
       }
     }, [isOpen]);
 
@@ -724,6 +896,12 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
         }
       }
     }, [preselectedModelPath, models]);
+
+    useEffect(() => {
+      if (modalVisible) {
+        loadModels();
+      }
+    }, [modalVisible]);
 
     useEffect(() => {
       if (isGenerating && modalVisible) {
@@ -758,6 +936,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
               );
               return;
             }
+            loadModels();
             setModalVisible(true);
           }}
           disabled={isModelLoading || isGenerating}
@@ -919,14 +1098,69 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                 contentContainerStyle={styles.modelList}
                 stickySectionHeadersEnabled={true}
                 ListHeaderComponent={
-                  models.length === 0 ? (
-                    <View style={styles.emptyContainer}>
-                      <MaterialCommunityIcons name="cube-outline" size={48} color={currentTheme === 'dark' ? '#fff' : themeColors.secondaryText} />
-                      <Text style={[styles.emptyText, { color: currentTheme === 'dark' ? '#fff' : themeColors.text }]}>
-                        No local models found. Go to the Models → Download Models screen to download a Model.
-                      </Text>
-                    </View>
-                  ) : null
+                  <View>
+                    <TouchableOpacity 
+                      style={[
+                        styles.loadFromStorageModelCard, 
+                        { backgroundColor: themeColors.borderColor },
+                        isLoadingFromStorage && { opacity: 0.7 }
+                      ]}
+                      onPress={handleLoadFromStorage}
+                      disabled={isLoadingFromStorage}
+                    >
+                      <View style={styles.modelIconContainer}>
+                        {isLoadingFromStorage ? (
+                          <ActivityIndicator 
+                            size="small" 
+                            color={currentTheme === 'dark' ? '#fff' : themeColors.text} 
+                          />
+                        ) : (
+                          <MaterialCommunityIcons 
+                            name="plus" 
+                            size={28} 
+                            color={currentTheme === 'dark' ? '#fff' : themeColors.text}
+                          />
+                        )}
+                      </View>
+                      <View style={styles.modelInfo}>
+                        <View style={styles.modelNameRow}>
+                          <Text style={[
+                            styles.modelName, 
+                            { color: currentTheme === 'dark' ? '#fff' : themeColors.text }
+                          ]}>
+                            {isLoadingFromStorage 
+                              ? loadingPhase === 'file_picker' 
+                                ? 'Opening File Manager...' 
+                                : loadingPhase === 'processing'
+                                ? 'Processing File...'
+                                : 'Loading Model...'
+                              : 'Load from Storage'
+                            }
+                          </Text>
+                        </View>
+                        <View style={styles.modelMetaInfo}>
+                          <Text style={[styles.modelDetails, { color: currentTheme === 'dark' ? '#fff' : themeColors.secondaryText }]}>
+                            {isLoadingFromStorage 
+                              ? loadingPhase === 'file_picker'
+                                ? 'Preparing to access files...'
+                                : loadingPhase === 'processing'
+                                ? 'Validating selected file...'
+                                : 'Copying model to memory...'
+                              : 'Load .gguf models directly from device'
+                            }
+                          </Text>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                    {models.length === 0 && (
+                      <View style={styles.emptyContainer}>
+                        <MaterialCommunityIcons name="cube-outline" size={48} color={currentTheme === 'dark' ? '#fff' : themeColors.secondaryText} />
+                        <Text style={[styles.emptyText, { color: currentTheme === 'dark' ? '#fff' : themeColors.text }]}>
+                          No local models found. Download from Models tab.
+                        </Text>
+                      </View>
+                    )}
+                  </View>
                 }
                 ListEmptyComponent={
                   sections.length === 0 ? (
@@ -1274,5 +1508,32 @@ const styles = StyleSheet.create({
   projectorUnloadButton: {
     backgroundColor: 'rgba(95, 213, 132, 0.1)',
     borderRadius: 12,
+  },
+  loadFromStorageButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 16,
+  },
+  loadFromStorageModelCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 8,
+    marginHorizontal: 4,
+  },
+  loadFromStorageTextContainer: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  loadFromStorageTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  loadFromStorageDescription: {
+    fontSize: 14,
+    marginTop: 2,
   },
 }); 
