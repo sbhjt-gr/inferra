@@ -43,32 +43,44 @@ const ModelWarningDialog: React.FC<ModelWarningDialogProps> = ({
 
   return (
     <Portal>
-      <Dialog visible={visible} onDismiss={onCancel} style={styles.warningDialog}>
-        <Dialog.Title style={[styles.warningTitle, { color: themeColors.text }]}>
-          <MaterialCommunityIcons name="alert-circle-outline" size={20} color={themeColors.text} style={{ marginRight: 8 }} />
+      <Dialog visible={visible} onDismiss={onCancel}>
+        <Dialog.Title style={{ color: themeColors.text }}>
           Content Warning
         </Dialog.Title>
         
-        <Dialog.Content style={styles.warningContent}>
-          <Text style={[styles.warningText, { color: themeColors.text }]}>
-            <Text style={{ fontWeight: 'bold' }}>Important:</Text> I do not own these models. They may generate harmful, biased, or inappropriate content. Use responsibly and at your own discretion.
+        <Dialog.Content>
+          <Text style={{ color: themeColors.text, marginBottom: 16 }}>
+            I do not own these models. They may generate harmful, biased, or inappropriate content. Use responsibly and at your own discretion.
           </Text>
           
-          <View style={styles.checkboxContainer}>
-            <Checkbox
-              status={dontShowAgain ? 'checked' : 'unchecked'}
-              onPress={() => setDontShowAgain(!dontShowAgain)}
-              color={themeColors.primary}
-            />
+          <TouchableOpacity 
+            style={styles.checkboxContainer}
+            onPress={() => setDontShowAgain(!dontShowAgain)}
+          >
+            <View style={[
+              styles.checkboxSquare,
+              { 
+                borderColor: themeColors.primary,
+                backgroundColor: dontShowAgain ? themeColors.primary : 'transparent'
+              }
+            ]}>
+              {dontShowAgain && (
+                <MaterialCommunityIcons 
+                  name="check" 
+                  size={16} 
+                  color="white" 
+                />
+              )}
+            </View>
             <Text style={[styles.checkboxText, { color: themeColors.text }]}>
               Don't show again
             </Text>
-          </View>
+          </TouchableOpacity>
         </Dialog.Content>
         
-        <Dialog.Actions style={styles.warningActions}>
-          <Button mode="outlined" onPress={onCancel}>Cancel</Button>
-          <Button mode="contained" onPress={() => onAccept(dontShowAgain)}>Continue</Button>
+        <Dialog.Actions>
+          <Button onPress={onCancel}>Cancel</Button>
+          <Button onPress={() => onAccept(dontShowAgain)}>Continue</Button>
         </Dialog.Actions>
       </Dialog>
     </Portal>
@@ -1247,45 +1259,27 @@ const styles = StyleSheet.create({
   loadingDialogText: {
     fontSize: 16,
   },
-  warningDialog: {
-    maxWidth: 320,
-    width: '85%',
-    alignSelf: 'center',
-    margin: 20,
-  },
-  warningTitle: {
-    textAlign: 'center',
-    fontSize: 16,
-    fontWeight: '600',
-    paddingBottom: 8,
-  },
-  warningContent: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  warningText: {
-    fontSize: 14,
-    lineHeight: 20,
-    textAlign: 'center',
-  },
   checkboxContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 12,
     marginBottom: 4,
-    paddingHorizontal: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    borderRadius: 6,
+  },
+  checkboxSquare: {
+    width: 20,
+    height: 20,
+    borderRadius: 3,
+    borderWidth: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   checkboxText: {
     fontSize: 13,
     marginLeft: 8,
     flex: 1,
-  },
-  warningActions: {
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 0,
-    paddingBottom: 20,
-    gap: 12,
   },
 });
 
