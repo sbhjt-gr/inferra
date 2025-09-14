@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Text, TouchableOpacity, Alert, Switch } from 'react-native';
+import { View, StyleSheet, ScrollView, Text, TouchableOpacity, Alert, Switch, Clipboard, Share } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import QRCodeStyled from 'react-native-qrcode-styled';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTheme } from '../context/ThemeContext';
@@ -263,6 +264,29 @@ export default function LocalServerScreen() {
           </SettingsSection>
         )}
 
+        {serverStatus.isRunning && (
+          <SettingsSection title="QR CODE">
+            <View style={styles.qrDisplayContainer}>
+              <View style={[styles.qrWrapper, { backgroundColor: '#FFFFFF' }]}>
+                {serverStatus.url && (
+                  <QRCodeStyled
+                    data={serverStatus.url}
+                    style={styles.qrCode}
+                    size={160}
+                    color={themeColors.primary}
+                  />
+                )}
+              </View>
+              <Text style={[styles.qrTitle, { color: themeColors.text }]}>
+                Scan to Access Server
+              </Text>
+              <Text style={[styles.qrDescription, { color: themeColors.secondaryText }]}>
+                Scan this QR code with any device on the same WiFi network to open the Inferra chat interface
+              </Text>
+            </View>
+          </SettingsSection>
+        )}
+
         <SettingsSection title="CONFIGURATION">
           <View style={styles.settingItem}>
             <View style={styles.settingLeft}>
@@ -399,5 +423,30 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  qrDisplayContainer: {
+    alignItems: 'center',
+    paddingVertical: 24,
+    paddingHorizontal: 16,
+  },
+  qrWrapper: {
+    padding: 20,
+    borderRadius: 16,
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  qrCode: {
+    marginBottom: 8,
+  },
+  qrTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  qrDescription: {
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
   },
 });

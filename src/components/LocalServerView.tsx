@@ -45,19 +45,11 @@ export default function LocalServerView({ onClose }: LocalServerViewProps) {
     }
 
     try {
-      const localPath = localServer.getLocalServerPath();
-      if (localPath) {
-        await Share.share({
-          url: `file://${localPath}`,
-          message: `Check out my Hello World page from Inferra!\n\nThis HTML file contains a local server page created on my mobile device.`,
-          title: 'Inferra Hello World Page'
-        });
-      } else {
-        await Share.share({
-          message: `Check out my local content server on Inferra!\n\nServer info: ${serverStatus.url}\n\nThis content is served directly from my mobile app.`,
-          title: 'Inferra Content Server'
-        });
-      }
+      await Share.share({
+        url: serverStatus.url,
+        message: `Check out my local content server on Inferra!\n\nServer URL: ${serverStatus.url}\n\nThis content is served directly from my mobile app.`,
+        title: 'Inferra Content Server'
+      });
     } catch (error) {
       console.error('share_error', error);
     }

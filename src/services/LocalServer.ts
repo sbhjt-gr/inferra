@@ -2,7 +2,7 @@ import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system';
 import Server from '@dr.pogodin/react-native-static-server';
 
-// Simple event emitter for React Native
+// Simple event emitter
 class SimpleEventEmitter {
   private listeners: { [event: string]: Function[] } = {};
 
@@ -193,6 +193,10 @@ export class LocalServerService extends SimpleEventEmitter {
             padding: 0 16px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             z-index: 10;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
         }
 
         .header-left {
@@ -247,6 +251,11 @@ export class LocalServerService extends SimpleEventEmitter {
             border-bottom: 1px solid #3D2D4A;
             padding: 12px 16px;
             background: #1E1326;
+            position: fixed;
+            top: 52px;
+            left: 0;
+            right: 0;
+            z-index: 9;
         }
 
         .model-selector {
@@ -279,6 +288,8 @@ export class LocalServerService extends SimpleEventEmitter {
             display: flex;
             flex-direction: column;
             overflow: hidden;
+            margin-top: 100px;
+            margin-bottom: 100px;
         }
 
         .chat-view {
@@ -330,6 +341,11 @@ export class LocalServerService extends SimpleEventEmitter {
             border-top: 1px solid #3D2D4A;
             padding: 16px;
             background: #1E1326;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 9;
         }
 
         .chat-input-wrapper {
