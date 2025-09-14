@@ -11,7 +11,7 @@ import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { modelDownloader } from '../services/ModelDownloader';
-import { ThemeType, ThemeColors } from '../types/theme';
+import { ThemeColors } from '../types/theme';
 import { useModel } from '../context/ModelContext';
 import { useRemoteModel } from '../context/RemoteModelContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -330,33 +330,32 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
 
     const loadModels = async () => {
       try {
+        console.log('model_load_start');
+        const startTime = Date.now();
+
         const storedModels = await modelDownloader.getStoredModels();
-        const downloadStates = await AsyncStorage.getItem('active_downloads');
-        const activeDownloads = downloadStates ? JSON.parse(downloadStates) : {};
-        
+
+        const loadTime = Date.now() - startTime;
+        console.log('model_load_complete', loadTime);
+
         const completedModels = storedModels.filter(model => {
-          const isDownloading = Object.values(activeDownloads).some(
-            (download: any) => 
-              download.filename === model.name && 
-              download.status !== 'completed'
-          );
           const isProjectorModel = model.name.toLowerCase().includes('mmproj') ||
                                    model.name.toLowerCase().includes('.proj');
-          
-          return !isDownloading && !isProjectorModel;
+
+          return !isProjectorModel;
         });
-        
+
         setModels(completedModels);
-        
+
         const sections: SectionData[] = [];
-        
+
         if (completedModels.length > 0) {
           sections.push({ title: 'Local Models', data: completedModels });
           setIsLocalModelsExpanded(true);
         } else {
           setIsLocalModelsExpanded(false);
         }
-        
+
         sections.push({ title: 'Remote Models', data: ONLINE_MODELS });
         setSections(sections);
       } catch (error) {
@@ -367,27 +366,11 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
       loadModels();
     }, []);
 
-    useEffect(() => {
-      const checkDownloads = async () => {
-        const downloadStates = await AsyncStorage.getItem('active_downloads');
-        if (downloadStates) {
-          const downloads = JSON.parse(downloadStates);
-          const hasCompletedDownload = Object.values(downloads).some(
-            (download: any) => download.status === 'completed'
-          );
-          if (hasCompletedDownload) {
-            loadModels();
-          }
-        }
-      };
-
-      const interval = setInterval(checkDownloads, 1000);
-      return () => clearInterval(interval);
-    }, []);
 
     useEffect(() => {
       const setupModelListener = () => {
         const handleModelsChanged = () => {
+          modelDownloader.refresh();
           loadModels();
         };
 
@@ -395,6 +378,12 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
           modelDownloader.on('modelsChanged', handleModelsChanged);
           modelDownloader.on('modelDeleted', handleModelsChanged);
           modelDownloader.on('modelAdded', handleModelsChanged);
+          modelDownloader.on('downloadCompleted', handleModelsChanged);
+          modelDownloader.on('importProgress', (data) => {
+            if (data.status === 'completed') {
+              handleModelsChanged();
+            }
+          });
         }
 
         return () => {
@@ -402,6 +391,8 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
             modelDownloader.off('modelsChanged', handleModelsChanged);
             modelDownloader.off('modelDeleted', handleModelsChanged);
             modelDownloader.off('modelAdded', handleModelsChanged);
+            modelDownloader.off('downloadCompleted', handleModelsChanged);
+            modelDownloader.off('importProgress', handleModelsChanged);
           }
         };
       };
@@ -412,10 +403,8 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
 
     useImperativeHandle(ref, () => ({
       refreshModels: () => {
+        modelDownloader.refresh();
         loadModels();
-        if (modalVisible) {
-          loadModels();
-        }
       }
     }));
 
@@ -971,9 +960,6 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     useEffect(() => {
       if (isOpen !== undefined) {
         setModalVisible(isOpen);
-        if (isOpen) {
-          loadModels();
-        }
       }
     }, [isOpen]);
 
@@ -991,11 +977,6 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
       }
     }, [preselectedModelPath, models]);
 
-    useEffect(() => {
-      if (modalVisible) {
-        loadModels();
-      }
-    }, [modalVisible]);
 
     useEffect(() => {
       if (isGenerating && modalVisible) {
@@ -1030,7 +1011,6 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
               );
               return;
             }
-            loadModels();
             setModalVisible(true);
           }}
           disabled={isModelLoading || isGenerating || isLoadingFromStorage}

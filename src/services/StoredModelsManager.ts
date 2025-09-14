@@ -13,6 +13,9 @@ export class StoredModelsManager extends EventEmitter {
   private externalModels: StoredModel[] = [];
   private readonly EXTERNAL_MODELS_KEY = 'external_models';
   private fileManager: FileManager;
+  private cachedModels: StoredModel[] | null = null;
+  private lastCacheTime: number = 0;
+  private readonly CACHE_TTL = 500;
 
   constructor(fileManager: FileManager) {
     super();
@@ -24,37 +27,44 @@ export class StoredModelsManager extends EventEmitter {
   }
 
   async getStoredModels(): Promise<StoredModel[]> {
+    const now = Date.now();
+
+    if (this.cachedModels && (now - this.lastCacheTime) < this.CACHE_TTL) {
+      return this.cachedModels;
+    }
+
     try {
-      
       const baseDir = this.fileManager.getBaseDir();
-      
+
       const dirInfo = await FileSystem.getInfoAsync(baseDir);
       if (!dirInfo.exists) {
         await FileSystem.makeDirectoryAsync(baseDir, { intermediates: true });
-        return [...this.externalModels]; 
+        this.cachedModels = [...this.externalModels];
+        this.lastCacheTime = now;
+        return this.cachedModels;
       }
-      
+
       const dir = await FileSystem.readDirectoryAsync(baseDir);
-      
+
       let localModels: StoredModel[] = [];
       if (dir.length > 0) {
         localModels = await Promise.all(
           dir.map(async (name) => {
             const path = `${baseDir}/${name}`;
             const fileInfo = await FileSystem.getInfoAsync(path, { size: true });
-            
+
             let size = 0;
             if (fileInfo.exists) {
               size = (fileInfo as any).size || 0;
             }
-            
+
             const modified = new Date().toISOString();
-            
+
             const capabilities = detectVisionCapabilities(name);
-            const modelType = capabilities.isProjection 
-              ? ModelType.PROJECTION 
-              : capabilities.isVision 
-                ? ModelType.VISION 
+            const modelType = capabilities.isProjection
+              ? ModelType.PROJECTION
+              : capabilities.isVision
+                ? ModelType.VISION
                 : ModelType.LLM;
 
             return {
@@ -72,30 +82,44 @@ export class StoredModelsManager extends EventEmitter {
           })
         );
       }
-      
-      return [...localModels, ...this.externalModels];
+
+      this.cachedModels = [...localModels, ...this.externalModels];
+      this.lastCacheTime = now;
+      return this.cachedModels;
     } catch (error) {
-      return [...this.externalModels]; 
+      this.cachedModels = [...this.externalModels];
+      this.lastCacheTime = now;
+      return this.cachedModels;
     }
   }
 
   async deleteModel(path: string): Promise<void> {
     try {
-      
       const externalModelIndex = this.externalModels.findIndex(model => model.path === path);
       if (externalModelIndex !== -1) {
         this.externalModels.splice(externalModelIndex, 1);
         await this.saveExternalModels();
+        this.invalidateCache();
         this.emit('modelsChanged');
         return;
       }
-      
+
       await this.fileManager.deleteFile(path);
-      
+
+      this.invalidateCache();
       this.emit('modelsChanged');
     } catch (error) {
       throw error;
     }
+  }
+
+  private invalidateCache(): void {
+    this.cachedModels = null;
+    this.lastCacheTime = 0;
+  }
+
+  public refresh(): void {
+    this.invalidateCache();
   }
 
   async refreshStoredModels(): Promise<void> {
@@ -201,7 +225,8 @@ export class StoredModelsManager extends EventEmitter {
         this.externalModels.push(newExternalModel);
         await this.saveExternalModels();
       }
-      
+
+      this.invalidateCache();
       this.emit('modelsChanged');
       
     } catch (error) {

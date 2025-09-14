@@ -47,6 +47,7 @@ class ModelDownloader extends EventEmitter {
     });
     
     this.downloadTaskManager.on('downloadCompleted', (data) => {
+      this.storedModelsManager.refresh();
       this.emit('downloadCompleted', data);
     });
     
@@ -138,7 +139,14 @@ class ModelDownloader extends EventEmitter {
   }
 
   async getStoredModels(): Promise<StoredModel[]> {
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
     return await this.storedModelsManager.getStoredModels();
+  }
+
+  refresh(): void {
+    this.storedModelsManager.refresh();
   }
 
   async deleteModel(path: string): Promise<void> {
@@ -173,6 +181,7 @@ class ModelDownloader extends EventEmitter {
   async processCompletedDownloads(): Promise<void> {
     try {
       await this.downloadTaskManager.processCompletedDownloads();
+      this.storedModelsManager.refresh();
     } catch (error) {
     }
   }
