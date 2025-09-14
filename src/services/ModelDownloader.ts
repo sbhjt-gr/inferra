@@ -53,6 +53,10 @@ class ModelDownloader extends EventEmitter {
     this.downloadTaskManager.on('downloadFailed', (data) => {
       this.emit('downloadFailed', data);
     });
+
+    this.downloadTaskManager.on('downloadCancelled', (data) => {
+      this.emit('downloadCancelled', data);
+    });
   }
 
   private handleAppStateChange = (nextAppState: AppStateStatus): void => {

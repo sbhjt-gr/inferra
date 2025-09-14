@@ -81,13 +81,23 @@ export class DownloadTaskManager extends EventEmitter {
         }
       },
       onError: (modelName: string, error: Error) => {
-        
+
         this.emit('downloadFailed', {
           modelName,
           downloadId: this.getDownloadIdForModel(modelName),
           error: error.message
         });
-        
+
+        this.activeDownloads.delete(modelName);
+        this.saveDownloadProgress();
+      },
+      onCancelled: (modelName: string) => {
+
+        this.emit('downloadCancelled', {
+          modelName,
+          downloadId: this.getDownloadIdForModel(modelName)
+        });
+
         this.activeDownloads.delete(modelName);
         this.saveDownloadProgress();
       }
@@ -191,10 +201,6 @@ export class DownloadTaskManager extends EventEmitter {
 
     try {
       await backgroundDownloadService.abortTransfer(modelName);
-      this.activeDownloads.delete(modelName);
-      await this.saveDownloadProgress();
-      
-      this.emit('downloadCancelled', { modelName });
     } catch (error) {
       throw error;
     }

@@ -31,10 +31,11 @@ export const DownloadProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           const parsedProgress = JSON.parse(savedProgress);
           
           const filteredProgress = Object.entries(parsedProgress).reduce((acc, [key, value]) => {
-            if (value && typeof value === 'object' && 
-                'status' in value && 
-                value.status !== 'completed' && 
-                value.status !== 'failed') {
+            if (value && typeof value === 'object' &&
+                'status' in value &&
+                value.status !== 'completed' &&
+                value.status !== 'failed' &&
+                value.status !== 'cancelled') {
               acc[key] = value as {
                 progress: number;
                 bytesDownloaded: number;
@@ -115,16 +116,26 @@ export const DownloadProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       });
     };
 
+    const handleDownloadCancelled = (data: any) => {
+      setDownloadProgress(prev => {
+        const newProgress = { ...prev };
+        delete newProgress[data.modelName];
+        return newProgress;
+      });
+    };
+
     modelDownloader.on('downloadProgress', handleDownloadProgress);
     modelDownloader.on('downloadStarted', handleDownloadStarted);
     modelDownloader.on('downloadCompleted', handleDownloadCompleted);
     modelDownloader.on('downloadFailed', handleDownloadFailed);
+    modelDownloader.on('downloadCancelled', handleDownloadCancelled);
 
     return () => {
       modelDownloader.off('downloadProgress', handleDownloadProgress);
       modelDownloader.off('downloadStarted', handleDownloadStarted);
       modelDownloader.off('downloadCompleted', handleDownloadCompleted);
       modelDownloader.off('downloadFailed', handleDownloadFailed);
+      modelDownloader.off('downloadCancelled', handleDownloadCancelled);
     };
   }, []);
 

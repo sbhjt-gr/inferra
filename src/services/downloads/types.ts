@@ -16,6 +16,7 @@ export interface DownloadJob {
   state: {
     isDownloading: boolean;
     progress?: DownloadProgress;
+    isCancelling?: boolean;
   };
   lastBytesWritten: number;
   lastUpdateTime: number;
@@ -29,6 +30,7 @@ export interface DownloadEventCallbacks {
   onProgress?: (modelId: string, progress: DownloadProgress) => void;
   onComplete?: (modelId: string) => void;
   onError?: (modelId: string, error: Error) => void;
+  onCancelled?: (modelId: string) => void;
 }
 
 export interface DownloadNativeEvent {

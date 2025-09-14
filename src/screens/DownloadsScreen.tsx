@@ -90,8 +90,9 @@ export default function DownloadsScreen() {
 
   const downloads: DownloadItem[] = Object.entries(downloadProgress)
     .filter(([_, data]) => {
-      return data.status !== 'completed' && 
-             data.status !== 'failed' && 
+      return data.status !== 'completed' &&
+             data.status !== 'failed' &&
+             data.status !== 'cancelled' &&
              data.progress < 100;
     })
     .map(([name, data]) => ({
@@ -256,11 +257,6 @@ export default function DownloadsScreen() {
             hideDialog();
             try {
               await modelDownloader.cancelDownload(downloadId);
-              setDownloadProgress(prev => {
-                const newProgress = { ...prev };
-                delete newProgress[modelName];
-                return newProgress;
-              });
             } catch (error) {
               showDialog('Error', 'Failed to cancel download', [
                 <Button key="ok" onPress={hideDialog}>OK</Button>

@@ -30,7 +30,9 @@ export const getDisplayName = (filename: string) => {
 
 export const getActiveDownloadsCount = (downloads: any): number => {
   if (!downloads) return 0;
-  return Object.values(downloads).filter((download: any) => 
-    download.status !== 'completed' && download.status !== 'failed'
+  return Object.values(downloads).filter((download: any) =>
+    download.status !== 'completed' &&
+    download.status !== 'failed' &&
+    download.status !== 'cancelled'
   ).length;
 }; 

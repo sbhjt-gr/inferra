@@ -218,7 +218,7 @@ const DownloadableModelItem: React.FC<DownloadableModelItemProps> = ({
             </TouchableOpacity>
           )}
           
-          {downloadProgress && downloadProgress.status !== 'completed' && downloadProgress.status !== 'failed' && (
+          {downloadProgress && downloadProgress.status !== 'completed' && downloadProgress.status !== 'failed' && downloadProgress.status !== 'cancelled' && (
             <View style={styles.downloadProgress}>
               <Text style={[styles.modelDetails, { color: themeColors.secondaryText }]}>
                 {getProgressText(downloadProgress)}

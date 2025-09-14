@@ -269,6 +269,10 @@ export class BackgroundDownloadService {
           }
 
           const transfer = this.activeTransfers.get(model.name)!;
+
+          if (transfer.state.isCancelling) {
+            return;
+          }
           const currentTimestamp = Date.now();
           const timeDelta = (currentTimestamp - transfer.lastUpdateTime) / 1000 || 1;
           const bytesDelta = res.bytesWritten - transfer.lastBytesWritten;
@@ -325,15 +329,21 @@ export class BackgroundDownloadService {
         }
         
       } catch (error) {
-        console.error(`${LOG_TAG}: ios_transfer_failed:`, model.name, error);
-        
         const transfer = this.activeTransfers.get(model.name);
+        const errorMessage = (error as Error).message || '';
+        const wasAborted = errorMessage.includes('aborted') || errorMessage.includes('cancelled');
+
         if (transfer) {
           transfer.state.isDownloading = false;
           transfer.state.progress = undefined;
-          
-          this.eventCallbacks.onError?.(model.name, error as Error);
-          this.activeTransfers.delete(model.name);
+
+          if (transfer.state.isCancelling || wasAborted) {
+            this.eventCallbacks.onCancelled?.(model.name);
+            this.activeTransfers.delete(model.name);
+          } else {
+            this.eventCallbacks.onError?.(model.name, error as Error);
+            this.activeTransfers.delete(model.name);
+          }
         }
       }
 
@@ -415,13 +425,12 @@ export class BackgroundDownloadService {
   }
 
   async abortTransfer(modelName: string): Promise<void> {
-    console.log(`${LOG_TAG}: transfer_abort_requested:`, modelName);
-
     const transfer = this.activeTransfers.get(modelName);
     if (!transfer) {
-      console.log(`${LOG_TAG}: no_transfer_found:`, modelName);
       return;
     }
+
+    transfer.state.isCancelling = true;
 
     try {
       if (Platform.OS === 'android' && TransferModule) {
@@ -430,12 +439,16 @@ export class BackgroundDownloadService {
         if (transfer.rnfsJobId) {
           const RNFS = require('@dr.pogodin/react-native-fs');
           await RNFS.stopDownload(transfer.rnfsJobId);
-          console.log(`${LOG_TAG}: ios_download_stopped:`, transfer.rnfsJobId);
         }
       }
 
+      if (Platform.OS === 'ios') {
+        setTimeout(() => {
+          this.eventCallbacks.onCancelled?.(modelName);
+        }, 100);
+      }
+
       this.activeTransfers.delete(modelName);
-      console.log(`${LOG_TAG}: transfer_aborted:`, modelName);
     } catch (error) {
       console.error(`${LOG_TAG}: abort_failed:`, error);
       this.activeTransfers.delete(modelName);
