@@ -55,6 +55,70 @@ interface ModelSelectorProps {
   navigation?: NativeStackNavigationProp<RootStackParamList>;
 }
 
+interface StorageWarningDialogProps {
+  visible: boolean;
+  onAccept: (dontShowAgain: boolean) => void;
+  onCancel: () => void;
+}
+
+const StorageWarningDialog: React.FC<StorageWarningDialogProps> = ({
+  visible,
+  onAccept,
+  onCancel
+}) => {
+  const { theme: currentTheme } = useTheme();
+  const themeColors = theme[currentTheme as ThemeColors];
+  const [dontShowAgain, setDontShowAgain] = useState(false);
+
+  return (
+    <Portal>
+      <Dialog 
+        visible={visible} 
+        onDismiss={onCancel}
+        style={{
+          zIndex: 10000,
+          elevation: 10000
+        }}
+      >
+        <Dialog.Title>File Manager Warning</Dialog.Title>
+        <Dialog.Content>
+          <Text variant="bodyMedium" style={{ marginBottom: 16 }}>
+            Large model files may cause the file manager to become temporarily stuck on some devices. Please be patient and wait for the file manager to respond once you click on a file.
+          </Text>
+          
+          <TouchableOpacity 
+            style={styles.checkboxContainer}
+            onPress={() => setDontShowAgain(!dontShowAgain)}
+          >
+            <View style={[
+              styles.checkboxSquare,
+              { 
+                borderColor: getThemeAwareColor('#4a0660', currentTheme),
+                backgroundColor: dontShowAgain ? getThemeAwareColor('#4a0660', currentTheme) : 'transparent'
+              }
+            ]}>
+              {dontShowAgain && (
+                <MaterialCommunityIcons 
+                  name="check" 
+                  size={16} 
+                  color="white" 
+                />
+              )}
+            </View>
+            <Text style={[styles.checkboxText, { color: themeColors.text }]}>
+              Don't show again
+            </Text>
+          </TouchableOpacity>
+        </Dialog.Content>
+        <Dialog.Actions>
+          <Button onPress={onCancel}>Cancel</Button>
+          <Button onPress={() => onAccept(dontShowAgain)}>Continue</Button>
+        </Dialog.Actions>
+      </Dialog>
+    </Portal>
+  );
+};
+
 const ONLINE_MODELS: OnlineModel[] = [
   { id: 'gemini', name: 'Gemini', provider: 'Google', isOnline: true },
   { id: 'chatgpt', name: 'ChatGPT', provider: 'OpenAI', isOnline: true },
@@ -88,6 +152,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     const [isLocalModelsExpanded, setIsLocalModelsExpanded] = useState(true);
     const [isLoadingFromStorage, setIsLoadingFromStorage] = useState(false);
     const [loadingPhase, setLoadingPhase] = useState<'file_picker' | 'processing' | 'loading'>('file_picker');
+    const [showStorageWarningDialog, setShowStorageWarningDialog] = useState(false);
 
     const [dialogVisible, setDialogVisible] = useState(false);
     const [dialogTitle, setDialogTitle] = useState('');
@@ -125,6 +190,24 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     };
 
     const handleLoadFromStorage = async () => {
+      try {
+        const hideWarning = await AsyncStorage.getItem('hideStorageWarning');
+        
+        // Close modal immediately
+        setModalVisible(false);
+        
+        if (hideWarning !== 'true') {
+          setShowStorageWarningDialog(true);
+          return;
+        }
+        
+        await proceedWithStorageLoad();
+      } catch (error) {
+        setShowStorageWarningDialog(true);
+      }
+    };
+
+    const proceedWithStorageLoad = async () => {
       try {
         setIsLoadingFromStorage(true);
         setLoadingPhase('file_picker');
@@ -186,12 +269,10 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
               setLoadingPhase('loading');
               
               if (onModelSelect) {
-                setModalVisible(false);
                 setIsLoadingFromStorage(false);
                 onModelSelect('local', file.uri);
               } else {
                 const success = await loadModel(file.uri);
-                setModalVisible(false);
                 setIsLoadingFromStorage(false);
                 if (success) {
                   showDialog(
@@ -229,6 +310,23 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
           [<Button key="ok" onPress={hideDialog}>OK</Button>]
         );
       }
+    };
+
+    const handleStorageWarningAccept = async (dontShowAgain: boolean) => {
+      if (dontShowAgain) {
+        try {
+          await AsyncStorage.setItem('hideStorageWarning', 'true');
+        } catch (error) {
+          console.log('storage_warning_save_error', error);
+        }
+      }
+      
+      setShowStorageWarningDialog(false);
+      await proceedWithStorageLoad();
+    };
+
+    const handleStorageWarningCancel = () => {
+      setShowStorageWarningDialog(false);
     };
 
     const loadModels = async () => {
@@ -422,7 +520,6 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
             key="text-only" 
             onPress={() => {
               hideDialog();
-              setModalVisible(false);
               setIsLoadingFromStorage(false);
               const storedModel = model as StoredModel;
               const modelPath = storedModel.isExternal && storedModel.originalPath ? storedModel.originalPath : storedModel.path;
@@ -465,7 +562,6 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     };
 
     const promptForProjector = async (model: Model) => {
-      setModalVisible(false);
       setIsLoadingFromStorage(false);
       setSelectedVisionModel(model);
       await loadProjectorModels();
@@ -925,7 +1021,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
           style={[
             styles.selector, 
             { backgroundColor: themeColors.borderColor },
-            (isGenerating || isModelLoading) && styles.selectorDisabled
+            (isGenerating || isModelLoading || isLoadingFromStorage) && styles.selectorDisabled
           ]}
           onPress={() => {
             if (isGenerating) {
@@ -939,11 +1035,11 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
             loadModels();
             setModalVisible(true);
           }}
-          disabled={isModelLoading || isGenerating}
+          disabled={isModelLoading || isGenerating || isLoadingFromStorage}
         >
           <View style={styles.selectorContent}>
             <View style={styles.modelIconWrapper}>
-              {isModelLoading ? (
+              {(isModelLoading || isLoadingFromStorage) ? (
                 <ActivityIndicator size="small" color={getThemeAwareColor('#4a0660', currentTheme)} />
               ) : (
                 <MaterialCommunityIcons 
@@ -969,10 +1065,16 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                 <Text style={[styles.selectorText, { color: currentTheme === 'dark' ? '#fff' : themeColors.text }]}>
                   {isModelLoading 
                     ? 'Loading...' 
-                    : getModelNameFromPath(selectedModelPath, models)
+                    : isLoadingFromStorage 
+                      ? loadingPhase === 'file_picker' 
+                        ? 'Opening File Manager...' 
+                        : loadingPhase === 'processing'
+                        ? 'Processing File...'
+                        : 'Loading Model...'
+                      : getModelNameFromPath(selectedModelPath, models)
                   }
                 </Text>
-                {selectedModelPath && !isModelLoading && (
+                {selectedModelPath && !isModelLoading && !isLoadingFromStorage && (
                   <View style={[
                     styles.connectionTypeBadge,
                     { 
@@ -1003,7 +1105,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                   </View>
                 )}
               </View>
-              {selectedProjectorPath && !isModelLoading && (
+              {selectedProjectorPath && !isModelLoading && !isLoadingFromStorage && (
                 <>
                   <Text style={[styles.projectorLabel, { color: currentTheme === 'dark' ? '#ccc' : themeColors.secondaryText }]}>
                     Vision Projector
@@ -1031,7 +1133,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
             </View>
           </View>
           <View style={styles.selectorActions}>
-            {selectedProjectorPath && !isModelLoading && (
+            {selectedProjectorPath && !isModelLoading && !isLoadingFromStorage && (
               <TouchableOpacity 
                 onPress={handleUnloadProjector}
                 style={[
@@ -1049,7 +1151,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                 />
               </TouchableOpacity>
             )}
-            {selectedModelPath && !isModelLoading && (
+            {selectedModelPath && !isModelLoading && !isLoadingFromStorage && (
               <TouchableOpacity 
                 onPress={handleUnloadModel}
                 style={[
@@ -1102,25 +1204,16 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                     <TouchableOpacity 
                       style={[
                         styles.loadFromStorageModelCard, 
-                        { backgroundColor: themeColors.borderColor },
-                        isLoadingFromStorage && { opacity: 0.7 }
+                        { backgroundColor: themeColors.borderColor }
                       ]}
                       onPress={handleLoadFromStorage}
-                      disabled={isLoadingFromStorage}
                     >
                       <View style={styles.modelIconContainer}>
-                        {isLoadingFromStorage ? (
-                          <ActivityIndicator 
-                            size="small" 
-                            color={currentTheme === 'dark' ? '#fff' : themeColors.text} 
-                          />
-                        ) : (
-                          <MaterialCommunityIcons 
-                            name="plus" 
-                            size={28} 
-                            color={currentTheme === 'dark' ? '#fff' : themeColors.text}
-                          />
-                        )}
+                        <MaterialCommunityIcons 
+                          name="plus" 
+                          size={28} 
+                          color={currentTheme === 'dark' ? '#fff' : themeColors.text}
+                        />
                       </View>
                       <View style={styles.modelInfo}>
                         <View style={styles.modelNameRow}>
@@ -1128,26 +1221,12 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                             styles.modelName, 
                             { color: currentTheme === 'dark' ? '#fff' : themeColors.text }
                           ]}>
-                            {isLoadingFromStorage 
-                              ? loadingPhase === 'file_picker' 
-                                ? 'Opening File Manager...' 
-                                : loadingPhase === 'processing'
-                                ? 'Processing File...'
-                                : 'Loading Model...'
-                              : 'Load from Storage'
-                            }
+                            Load from Storage
                           </Text>
                         </View>
                         <View style={styles.modelMetaInfo}>
                           <Text style={[styles.modelDetails, { color: currentTheme === 'dark' ? '#fff' : themeColors.secondaryText }]}>
-                            {isLoadingFromStorage 
-                              ? loadingPhase === 'file_picker'
-                                ? 'Preparing to access files...'
-                                : loadingPhase === 'processing'
-                                ? 'Validating selected file...'
-                                : 'Copying model to memory...'
-                              : 'Load .gguf models directly from device'
-                            }
+                            Load .gguf models directly from device
                           </Text>
                         </View>
                       </View>
@@ -1248,6 +1327,12 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
             </Dialog.Actions>
           </Dialog>
         </Portal>
+
+        <StorageWarningDialog
+          visible={showStorageWarningDialog}
+          onAccept={handleStorageWarningAccept}
+          onCancel={handleStorageWarningCancel}
+        />
       </>
     );
   }
@@ -1535,5 +1620,27 @@ const styles = StyleSheet.create({
   loadFromStorageDescription: {
     fontSize: 14,
     marginTop: 2,
+  },
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    marginBottom: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    borderRadius: 6,
+  },
+  checkboxSquare: {
+    width: 20,
+    height: 20,
+    borderRadius: 3,
+    borderWidth: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkboxText: {
+    fontSize: 13,
+    marginLeft: 8,
+    flex: 1,
   },
 }); 
