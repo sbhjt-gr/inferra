@@ -1,7 +1,6 @@
 import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system';
-// TODO: Temporarily commented out - install react-native-ml-kit when ready
-// import TextRecognition from '@subhajit-gorai/react-native-ml-kit-text-recognition';
+import TextRecognition from '@react-native-ml-kit/text-recognition';
 
 export type ImageProcessingMode = 'ocr' | 'multimodal' | null;
 
@@ -20,34 +19,27 @@ export const performOCROnImage = async (
       throw new Error('No image provided for OCR processing');
     }
 
-    // TODO: Temporarily commented out - install react-native-ml-kit when ready
-    /*
     let processedImageUri = imageUri;
-    
+
     if (Platform.OS === 'android' && !imageUri.startsWith('file://')) {
       processedImageUri = `file://${imageUri}`;
     }
-    
+
     onProgress?.('Checking image accessibility...');
     const fileInfo = await FileSystem.getInfoAsync(processedImageUri);
     if (!fileInfo.exists) {
       throw new Error('Image file not found or inaccessible');
     }
-    
+
     onProgress?.('Performing text recognition...');
     const recognitionResult = await TextRecognition.recognize(processedImageUri);
-    
+
     if (recognitionResult && recognitionResult.text && recognitionResult.text.trim()) {
       onProgress?.('Text extraction completed successfully');
       return recognitionResult.text.trim();
     } else {
       return "No text was detected in this image. The image may not contain readable text or the text quality might be too low for recognition.";
     }
-    */
-    
-    // Temporary fallback while ml-kit is disabled
-    onProgress?.('OCR temporarily unavailable');
-    return "OCR functionality is temporarily disabled. Text recognition will be available once react-native-ml-kit is installed.";
   } catch (error) {
     if (error instanceof Error) {
       return `Text recognition failed: ${error.message}`;

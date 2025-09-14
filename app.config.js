@@ -31,6 +31,7 @@ export default {
       bundleIdentifier: "com.gorai.ragionare",
       buildNumber: "262",
       runtimeVersion: "2.6.2",
+      deploymentTarget: "16.0",
       updates: {
         enabled: false
       },
