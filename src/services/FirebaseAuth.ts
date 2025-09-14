@@ -1,12 +1,13 @@
 import Constants from 'expo-constants';
-import { 
-  signInWithCredential, 
+import {
+  signInWithCredential,
   GoogleAuthProvider,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
   sendEmailVerification,
+  updateProfile,
   User as FirebaseUser
 } from 'firebase/auth';
 import { 
@@ -97,18 +98,26 @@ export const onAuthStateChange = (callback: (user: FirebaseUser | null) => void)
 };
 
 export const registerWithEmail = async (
-  email: string, 
+  name: string,
+  email: string,
   password: string
 ): Promise<{ success: boolean; error?: string }> => {
   try {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
+
+    if (name) {
+      await updateProfile(user, {
+        displayName: name
+      });
+    }
+
     await storeAuthState(user);
     return { success: true };
   } catch (error: any) {
-    return { 
-      success: false, 
-      error: error.message || 'Registration failed. Please try again.' 
+    return {
+      success: false,
+      error: error.message || 'Registration failed. Please try again.'
     };
   }
 };

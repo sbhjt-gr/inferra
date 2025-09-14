@@ -88,32 +88,27 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
 
 
   const handleRegister = async () => {
-    const trimmedName = name.trim();
-    const trimmedEmail = email.trim().toLowerCase();
-    const trimmedPassword = password.trim();
-    const trimmedConfirmPassword = confirmPassword.trim();
-
-    if (!trimmedName) {
+    if (!name.trim()) {
       setError('Full name is required');
       return;
     }
 
-    if (!trimmedEmail) {
+    if (!email.trim()) {
       setError('Email is required');
       return;
     }
 
-    if (!validateEmail(trimmedEmail)) {
+    if (!validateEmail(email.trim().toLowerCase())) {
       setError('Please enter a valid email address');
       return;
     }
 
-    if (!trimmedPassword) {
+    if (!password.trim()) {
       setError('Password is required');
       return;
     }
 
-    if (trimmedPassword !== trimmedConfirmPassword) {
+    if (password.trim() !== confirmPassword.trim()) {
       setError('Passwords do not match');
       return;
     }
@@ -129,7 +124,7 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
     setTermsError(null);
 
     try {
-      const result = await registerWithEmail(trimmedName, trimmedEmail, trimmedPassword);
+      const result = await registerWithEmail(name.trim(), email.trim().toLowerCase(), password.trim());
       
       if (result.success) {
         await checkLoginStatus();
