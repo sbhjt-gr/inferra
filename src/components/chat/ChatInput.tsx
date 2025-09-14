@@ -227,7 +227,6 @@ export default function ChatInput({
     try {
       return operation();
     } catch (error) {
-      // Handle native shared object access errors
       return null;
     }
   }, []);
@@ -236,7 +235,6 @@ export default function ChatInput({
     try {
       return await operation();
     } catch (error) {
-      // Handle native shared object access errors
       return null;
     }
   }, []);

@@ -338,7 +338,7 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
     const startDownload = async () => {
       navigation.navigate('Downloads' as never);
 
-      for (const file of downloadFiles) {
+      const downloadPromises = downloadFiles.map(async (file) => {
         const fullFilename = `${modelId.replace('/', '_')}_${file.filename}`;
         
         try {
@@ -372,7 +372,9 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
           showDialog('Download Error', `Failed to start download for ${file.filename}: ${errorMessage}`);
         }
-      }
+      });
+
+      await Promise.allSettled(downloadPromises);
     };
 
     if (hideWarning === 'true') {
@@ -459,11 +461,11 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
   const proceedWithMultipleDownloads = async (files: any[], modelId: string) => {
     navigation.navigate('Downloads' as never);
 
-    for (const file of files) {
+    const downloadPromises = files.map(async (file) => {
       const fullFilename = `${modelId.replace('/', '_')}_${file.filename}`;
       
       if (isModelDownloaded(fullFilename)) {
-        continue;
+        return;
       }
 
       try {
@@ -497,7 +499,9 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         showDialog('Download Error', `Failed to start download for ${file.filename}: ${errorMessage}`);
       }
-    }
+    });
+
+    await Promise.allSettled(downloadPromises);
   };
 
   const toggleFileSelection = (filename: string) => {
@@ -596,7 +600,7 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
         }
       }
 
-      for (const file of downloadFiles) {
+      const downloadPromises = downloadFiles.map(async (file) => {
         const fullFilename = `${pendingVisionDownload.modelId.replace('/', '_')}_${file.filename}`;
         
         try {
@@ -630,7 +634,9 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
           showDialog('Download Error', `Failed to start download for ${file.filename}: ${errorMessage}`);
         }
-      }
+      });
+
+      await Promise.allSettled(downloadPromises);
       
       setPendingVisionDownload(null);
     } else if (pendingDownload) {
@@ -715,7 +721,7 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
       });
     }
 
-    for (const file of filesToDownload) {
+    const downloadPromises = filesToDownload.map(async (file) => {
       try {
         setDownloadProgress((prev: any) => ({
           ...prev,
@@ -747,7 +753,9 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         showDialog('Download Error', `Failed to start download for ${file.filename}: ${errorMessage}`);
       }
-    }
+    });
+
+    await Promise.allSettled(downloadPromises);
   };
 
 

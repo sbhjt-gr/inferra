@@ -19,7 +19,7 @@ type TabType = 'models' | 'settings';
 const SIDEBAR_WIDTH_STORAGE_KEY = 'widescreen_sidebar_width';
 
 interface WideScreenLayoutProps {
-  // Navigation props can be passed down if needed
+  // Navigation props 
 }
 
 export default function WideScreenLayout({}: WideScreenLayoutProps) {

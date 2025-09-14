@@ -163,42 +163,36 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     if (isFirstLaunchRef.current) {
       startNewChat();
       isFirstLaunchRef.current = false;
-    } else {
-      ChatLifecycleService.loadCurrentChat({ setChat, setMessages });
+      return;
     }
-    
+
+    ChatLifecycleService.loadCurrentChat({ setChat, setMessages });
+
     const unsubscribe = chatManager.addListener(() => {
-      if (!route.params?.loadChatId) {
-        ChatLifecycleService.loadCurrentChat({ setChat, setMessages });
-      }
+      ChatLifecycleService.loadCurrentChat({ setChat, setMessages });
     });
-    
+
     return () => {
       unsubscribe();
       saveMessagesDebounced.cancel();
       updateMessageContentDebounced.cancel();
     };
-  }, [route.params?.loadChatId]);
+  }, []);
 
   useEffect(() => {
     if (route.params?.modelPath) {
       setShouldOpenModelSelector(true);
       setPreselectedModelPath(route.params.modelPath);
     }
-    
-    if (route.params?.loadChatId) {
-      setTimeout(() => {
-        ChatLifecycleService.loadChatById(
-          route.params.loadChatId!, 
-          loadChat, 
-          { setChat, setMessages }
-        );
-        navigation.setParams({ loadChatId: undefined });
-      }, 0);
-    }
-    
+
     checkSystemMemory();
-  }, [route.params, checkSystemMemory]);
+  }, [route.params?.modelPath, checkSystemMemory]);
+
+  useEffect(() => {
+    if (route.params?.loadChatId) {
+      navigation.setParams({ loadChatId: undefined });
+    }
+  }, [route.params?.loadChatId, navigation]);
 
   useFocusEffect(
     useCallback(() => {

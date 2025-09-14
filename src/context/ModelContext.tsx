@@ -88,7 +88,6 @@ export const ModelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     try {
       await llamaManager.unloadModel();
     } catch (error) {
-      console.error('Error unloading model:', error);
       llamaManager.emergencyCleanup();
     } finally {
       setSelectedModelPath(null);
@@ -102,7 +101,6 @@ export const ModelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     try {
       await llamaManager.releaseMultimodal();
     } catch (error) {
-      console.error('Error unloading projector:', error);
     } finally {
       setSelectedProjectorPath(null);
       setIsMultimodalEnabled(false);

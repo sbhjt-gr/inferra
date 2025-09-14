@@ -193,7 +193,6 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
       try {
         const hideWarning = await AsyncStorage.getItem('hideStorageWarning');
         
-        // Close modal immediately
         setModalVisible(false);
         
         if (hideWarning !== 'true') {
@@ -448,7 +447,6 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     };
 
     const handleModelSelect = async (model: Model) => {
-      // Close modal immediately for better responsiveness
       setModalVisible(false);
       
       if (isGenerating) {
