@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useRef, useMemo, useCallback, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -94,11 +94,11 @@ export default function ChatInput({
   const isGenerating = isLoading || isRegenerating;
   const hasText = text.trim().length > 0;
 
-  React.useEffect(() => {
+  useEffect(() => {
     loadTermsAcceptance();
   }, []);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (isEditing && editingText !== undefined) {
       setText(editingText);
       setTimeout(() => {
@@ -128,7 +128,7 @@ export default function ChatInput({
 
 
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (isRecording) {
       startPulseAnimation();
     } else {
@@ -136,7 +136,7 @@ export default function ChatInput({
     }
   }, [isRecording]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (showAttachmentMenu) {
       Animated.spring(attachmentMenuAnim, {
         toValue: 1,
@@ -222,6 +222,24 @@ export default function ChatInput({
       setStoredModels([]);
     }
   };
+
+  const safeAudioRecorderAccess = useCallback((operation: () => any) => {
+    try {
+      return operation();
+    } catch (error) {
+      // Handle native shared object access errors
+      return null;
+    }
+  }, []);
+
+  const safeAsyncAudioRecorderAccess = useCallback(async (operation: () => Promise<any>) => {
+    try {
+      return await operation();
+    } catch (error) {
+      // Handle native shared object access errors
+      return null;
+    }
+  }, []);
 
   const checkMultimodalSupport = (): boolean => {
     if (!selectedModelPath) return false;
@@ -433,10 +451,18 @@ export default function ChatInput({
         playsInSilentMode: true,
       });
 
-      await audioRecorder.prepareToRecordAsync();
-      audioRecorder.record();
-      setIsRecording(true);
-      setShowAttachmentMenu(false);
+      if (audioRecorder) {
+        const success = await safeAsyncAudioRecorderAccess(async () => {
+          await audioRecorder.prepareToRecordAsync();
+          audioRecorder.record();
+          return true;
+        });
+
+        if (success) {
+          setIsRecording(true);
+          setShowAttachmentMenu(false);
+        }
+      }
     } catch (error) {
       showDialog(
         'Recording Error',
@@ -447,11 +473,14 @@ export default function ChatInput({
 
   const stopRecording = async () => {
     try {
-      if (!audioRecorder.isRecording) return;
+      const isCurrentlyRecording = safeAudioRecorderAccess(() => audioRecorder?.isRecording);
+      if (!isCurrentlyRecording || !audioRecorder) return;
 
-      await audioRecorder.stop();
+      await safeAsyncAudioRecorderAccess(async () => {
+        await audioRecorder.stop();
+      });
       
-      const uri = audioRecorder.uri;
+      const uri = safeAudioRecorderAccess(() => audioRecorder?.uri);
       setIsRecording(false);
 
       if (uri) {
@@ -581,13 +610,15 @@ export default function ChatInput({
     }
   };
 
-  React.useEffect(() => {
+  useEffect(() => {
     return () => {
-      if (audioRecorder.isRecording) {
-        audioRecorder.stop().catch(() => {});
+      if (isRecording && audioRecorder) {
+        safeAsyncAudioRecorderAccess(async () => {
+          await audioRecorder.stop();
+        });
       }
     };
-  }, []);
+  }, [isRecording, safeAsyncAudioRecorderAccess]);
 
   const inputContainerStyle = useMemo(() => [
     styles.inputContainer,
