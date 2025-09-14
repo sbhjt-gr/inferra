@@ -38,6 +38,7 @@ export type TabParamList = {
   };
   SettingsTab: undefined;
   ModelTab: undefined;
+  LocalServerTab: undefined;
   NotificationsTab: undefined;
   SearchTab: undefined;
 }; 

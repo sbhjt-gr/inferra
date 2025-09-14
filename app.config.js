@@ -31,7 +31,7 @@ export default {
       bundleIdentifier: "com.gorai.ragionare",
       buildNumber: "262",
       runtimeVersion: "2.6.2",
-      deploymentTarget: "16.0",
+      deploymentTarget: "17.0",
       updates: {
         enabled: false
       },
@@ -61,7 +61,7 @@ export default {
       },
       package: "com.gorai.ragionare",
       runtimeVersion: "2.6.2",
-      googleServicesFile: "./android/app/google-services.json",
+      // googleServicesFile: "./android/app/google-services.json",
       edgeToEdgeEnabled: true,
       resizeableActivity: true,
       supportsFreeform: true,
@@ -123,6 +123,17 @@ export default {
       "expo-background-task",
       "expo-router",
       "expo-secure-store",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 28
+          },
+          "ios": {
+            "deploymentTarget": "17.0"
+          }
+        }
+      ],
       [
         "expo-splash-screen",
         {

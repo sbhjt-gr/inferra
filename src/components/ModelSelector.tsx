@@ -290,7 +290,6 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
             }
 
           } catch (error) {
-            console.log('load_from_storage_error');
             setIsLoadingFromStorage(false);
             showDialog(
               'Error',
@@ -301,7 +300,6 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
         }, 100);
 
       } catch (error) {
-        console.log('load_from_storage_error');
         setIsLoadingFromStorage(false);
         showDialog(
           'Error',
@@ -316,7 +314,6 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
         try {
           await AsyncStorage.setItem('hideStorageWarning', 'true');
         } catch (error) {
-          console.log('storage_warning_save_error', error);
         }
       }
       
@@ -330,13 +327,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
 
     const loadModels = async () => {
       try {
-        console.log('model_load_start');
-        const startTime = Date.now();
-
         const storedModels = await modelDownloader.getStoredModels();
-
-        const loadTime = Date.now() - startTime;
-        console.log('model_load_complete', loadTime);
 
         const completedModels = storedModels.filter(model => {
           const isProjectorModel = model.name.toLowerCase().includes('mmproj') ||
@@ -639,7 +630,6 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
           try {
             await unloadModel();
           } catch (error) {
-            console.error('Error unloading model:', error);
             showDialog(
               'Unload Warning',
               `Model unloading completed with warnings. The model has been cleared from memory.`,
@@ -676,7 +666,6 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
           try {
             await unloadProjector();
           } catch (error) {
-            console.error('Error unloading projector:', error);
             showDialog(
               'Unload Warning',
               `Projector unloading completed with warnings. Vision capabilities have been disabled.`,
