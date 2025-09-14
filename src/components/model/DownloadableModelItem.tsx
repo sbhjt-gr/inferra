@@ -58,7 +58,7 @@ const getProgressText = (data: any) => {
   const downloadedFormatted = formatBytes(bytesDownloaded);
   const totalFormatted = formatBytes(totalBytes);
   
-  return `${progress}% • ${downloadedFormatted} / ${totalFormatted}`;
+  return `${Math.floor(progress)}% • ${downloadedFormatted} / ${totalFormatted}`;
 };
 
 const formatBytes = (bytes?: number) => {

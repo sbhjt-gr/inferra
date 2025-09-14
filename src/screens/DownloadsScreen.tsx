@@ -291,7 +291,7 @@ export default function DownloadsScreen() {
       </View>
       
       <Text style={[styles.downloadProgress, { color: themeColors.secondaryText }]}>
-        {`${item.progress || 0}% • ${formatBytes(item.bytesDownloaded || 0)} / ${formatBytes(item.totalBytes || 0)}`}
+        {`${Math.floor(item.progress || 0)}% • ${formatBytes(item.bytesDownloaded || 0)} / ${formatBytes(item.totalBytes || 0)}`}
       </Text>
       
       <View style={[styles.progressBar, { backgroundColor: themeColors.background }]}>

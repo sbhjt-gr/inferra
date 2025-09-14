@@ -427,7 +427,11 @@ export class BackgroundDownloadService {
       if (Platform.OS === 'android' && TransferModule) {
         await TransferModule.cancelTransfer(transfer.downloadId);
       } else if (Platform.OS === 'ios') {
-        throw new Error('iOS cancel implementation needed');
+        if (transfer.rnfsJobId) {
+          const RNFS = require('@dr.pogodin/react-native-fs');
+          await RNFS.stopDownload(transfer.rnfsJobId);
+          console.log(`${LOG_TAG}: ios_download_stopped:`, transfer.rnfsJobId);
+        }
       }
 
       this.activeTransfers.delete(modelName);

@@ -161,7 +161,7 @@ const DownloadsDialog = ({ visible, onClose, downloads, setDownloadProgress }: D
                   
                   <Text style={[styles.downloadProgress, { color: themeColors.secondaryText }]}>
                     {data.isPaused ? 'Paused • ' : ''}
-                    {`${data.progress}% • ${formatBytes(data.bytesDownloaded)} / ${formatBytes(data.totalBytes)}`}
+                    {`${Math.floor(data.progress)}% • ${formatBytes(data.bytesDownloaded)} / ${formatBytes(data.totalBytes)}`}
                   </Text>
                   
                   <View style={[styles.progressBar, { backgroundColor: themeColors.background }]}>
