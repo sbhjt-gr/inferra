@@ -42,7 +42,13 @@ export default {
         UIStatusBarStyle: "UIStatusBarStyleDefault",
         UIViewControllerBasedStatusBarAppearance: false,
         UIGestureRecognizerShouldBegin: false,
-        UINavigationControllerHidesBarsOnSwipe: false
+        UINavigationControllerHidesBarsOnSwipe: false,
+        CFBundleURLTypes: [
+          {
+            CFBundleURLName: "google",
+            CFBundleURLSchemes: ["com.googleusercontent.apps.299137610747-u3b72q0vr3fi3qfb71rorhtam2vnr4oj"]
+          }
+        ]
       },
       scheme: "com.gorai.ragionare"
     },
@@ -54,7 +60,7 @@ export default {
       },
       package: "com.gorai.ragionare",
       runtimeVersion: "2.6.2",
-      // googleServicesFile: "./android/app/google-services.json",
+      googleServicesFile: "./android/app/google-services.json",
       edgeToEdgeEnabled: true,
       resizeableActivity: true,
       supportsFreeform: true,
@@ -95,6 +101,7 @@ export default {
       ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
       HUGGINGFACE_TOKEN: process.env.HUGGINGFACE_TOKEN,
       GOOGLE_SIGN_IN_WEB_CLIENT_ID: process.env.GOOGLE_SIGN_IN_WEB_CLIENT_ID,
+      GOOGLE_SIGN_IN_IOS_CLIENT_ID: process.env.GOOGLE_SIGN_IN_IOS_CLIENT_ID,
       FIREBASE_API_KEY: process.env.FIREBASE_API_KEY,
       FIREBASE_AUTH_DOMAIN: process.env.FIREBASE_AUTH_DOMAIN,
       FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID,

@@ -29,10 +29,11 @@
     <key>CFBundleURLTypes</key>
     <array>
       <dict>
+        <key>CFBundleURLName</key>
+        <string>google</string>
         <key>CFBundleURLSchemes</key>
         <array>
-          <string>com.gorai.ragionare</string>
-          <string>com.gorai.ragionare</string>
+          <string>com.googleusercontent.apps.299137610747-u3b72q0vr3fi3qfb71rorhtam2vnr4oj</string>
         </array>
       </dict>
       <dict>

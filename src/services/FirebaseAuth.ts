@@ -19,8 +19,7 @@ import {
   addDoc 
 } from 'firebase/firestore';
 import { auth, firestore } from '../config/firebase';
-import * as AuthSession from 'expo-auth-session';
-import * as WebBrowser from 'expo-web-browser';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { 
   checkRateLimiting, 
   incrementAuthAttempts, 
@@ -49,9 +48,6 @@ export type UserData = {
   registrationInfo?: any;
 };
 
-WebBrowser.maybeCompleteAuthSession();
-
-const redirectUri = AuthSession.makeRedirectUri();
 
 let isFirebaseInitialized = false;
 
@@ -63,11 +59,19 @@ export const initializeFirebase = async (): Promise<void> => {
   if (isFirebaseInitialized) return;
 
   const extra = Constants.expoConfig?.extra;
-  
+
   if (!extra?.GOOGLE_SIGN_IN_WEB_CLIENT_ID) {
     throw new Error('Google Sign-In Web Client ID not configured');
   }
-  
+
+  GoogleSignin.configure({
+    webClientId: extra.GOOGLE_SIGN_IN_WEB_CLIENT_ID,
+    iosClientId: extra.GOOGLE_SIGN_IN_IOS_CLIENT_ID,
+    offlineAccess: true,
+    hostedDomain: '',
+    forceCodeForRefreshToken: true,
+  });
+
   isFirebaseInitialized = true;
 };
 
@@ -128,73 +132,70 @@ export const loginWithEmail = async (
 
 export const signInWithGoogle = async (): Promise<{ success: boolean; error?: string }> => {
   try {
-    const extra = Constants.expoConfig?.extra;
-    const clientId = extra?.GOOGLE_SIGN_IN_WEB_CLIENT_ID;
-
-    if (!clientId) {
-      throw new Error('Google Sign-In Web Client ID not configured');
-    }
+    await GoogleSignin.hasPlayServices();
 
     if (__DEV__) {
-      console.log('google_sign_in_start', { clientId: clientId.substring(0, 20) + '...' });
+      console.log('native_google_sign_in_start');
     }
 
-    const request = new AuthSession.AuthRequest({
-      clientId: clientId,
-      scopes: ['openid', 'profile', 'email'],
-      redirectUri: redirectUri,
-      responseType: AuthSession.ResponseType.IdToken,
-      extraParams: {
-        nonce: Math.random().toString(36).substring(2),
-      },
-    });
-
-    const result = await request.promptAsync({
-      authorizationEndpoint: 'https://accounts.google.com/oauth2/auth',
-    });
+    const userInfo = await GoogleSignin.signIn();
 
     if (__DEV__) {
-      console.log('google_auth_result', { type: result.type });
+      console.log('google_signin_userInfo', {
+        hasIdToken: !!userInfo.idToken,
+        hasUser: !!userInfo.user,
+        email: userInfo.user?.email
+      });
     }
 
-    if (result.type === 'cancel') {
+    let idToken = userInfo.idToken;
+
+    if (!idToken) {
+      if (__DEV__) {
+        console.log('attempting_to_get_tokens_silently');
+      }
+
+      const tokens = await GoogleSignin.getTokens();
+      idToken = tokens.idToken;
+
+      if (__DEV__) {
+        console.log('silent_tokens', { hasIdToken: !!tokens.idToken });
+      }
+    }
+
+    if (!idToken) {
       return {
         success: false,
-        error: 'Sign-in was cancelled'
+        error: 'No ID token received from Google'
       };
     }
 
-    if (result.type !== 'success' || !result.params.id_token) {
-      return {
-        success: false,
-        error: 'Failed to get authentication token from Google'
-      };
-    }
-
-    const googleCredential = GoogleAuthProvider.credential(result.params.id_token);
+    const googleCredential = GoogleAuthProvider.credential(idToken);
     const userCredential = await signInWithCredential(auth, googleCredential);
     const user = userCredential.user;
 
     await storeAuthState(user);
 
     if (__DEV__) {
-      console.log('google_sign_in_success', { uid: user.uid });
+      console.log('native_google_sign_in_success', { uid: user.uid });
     }
 
     return { success: true };
   } catch (error: any) {
     if (__DEV__) {
-      console.error('google_sign_in_error', error);
+      console.error('native_google_sign_in_error', error);
     }
 
     let errorMessage = 'Google sign-in failed. Please try again.';
 
-    if (error.code === 'auth/popup-closed-by-user') {
+    if (error.code === 'SIGN_IN_CANCELLED') {
       errorMessage = 'Sign-in was cancelled';
+    } else if (error.code === 'IN_PROGRESS') {
+      errorMessage = 'Sign-in already in progress';
+    } else if (error.code === 'PLAY_SERVICES_NOT_AVAILABLE') {
+      errorMessage = 'Google Play Services not available';
     } else if (error.code === 'auth/network-request-failed') {
       errorMessage = 'Network error. Please check your connection.';
-    } else if (error.code === 'auth/invalid-credential') {
-      errorMessage = 'Invalid credentials. Please try again.';
     }
 
     return {
@@ -206,13 +207,14 @@ export const signInWithGoogle = async (): Promise<{ success: boolean; error?: st
 
 export const logoutUser = async (): Promise<{ success: boolean; error?: string }> => {
   try {
+    await GoogleSignin.signOut();
     await signOut(auth);
     await storeAuthState(null);
     return { success: true };
   } catch (error: any) {
-    return { 
-      success: false, 
-      error: error.message || 'Logout failed.' 
+    return {
+      success: false,
+      error: error.message || 'Logout failed.'
     };
   }
 };
