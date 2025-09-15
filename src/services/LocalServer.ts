@@ -1,6 +1,7 @@
 import * as FileSystem from 'expo-file-system';
 import Server from '@dr.pogodin/react-native-static-server';
 import { modelDownloader } from './ModelDownloader';
+import { llamaManager } from '../utils/LlamaManager';
 
 class SimpleEventEmitter {
   private listeners: { [event: string]: Function[] } = {};
@@ -73,51 +74,121 @@ export class LocalServerService extends SimpleEventEmitter {
       const updatedModelsJSON = await this.getStoredModelsJSON();
       const serverDirURI = `file://${this.serverDirectory}`;
       
-      const textContent = await this.generateModelsTextContent();
+      const htmlContent = await this.generateModelsHTMLContent();
       
-      await FileSystem.writeAsStringAsync(`${serverDirURI}/index.html`, textContent);
-      await FileSystem.writeAsStringAsync(`${serverDirURI}/index.txt`, textContent);
+      await FileSystem.writeAsStringAsync(`${serverDirURI}/index.html`, htmlContent);
       await FileSystem.writeAsStringAsync(`${serverDirURI}/models.json`, updatedModelsJSON);
     } catch {
     }
   }
 
-  private async generateModelsTextContent(): Promise<string> {
+  private async generateModelsHTMLContent(): Promise<string> {
     try {
       const storedModels = await modelDownloader.getStoredModels();
       
       if (!storedModels || storedModels.length === 0) {
-        return 'INFERRA MODELS\n\nNo models found\n';
+        return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inferra Models</title>
+</head>
+<body>
+<h1>INFERRA MODELS</h1>
+<p>No models found</p>
+</body>
+</html>`;
       }
       
-      let content = 'INFERRA MODELS\n\n';
-      
+      let modelsList = '';
       storedModels.forEach((model, index) => {
         const sizeInMB = Math.round(model.size / (1024 * 1024));
         const modelType = model.modelType || 'LLM';
         const capabilities = model.capabilities ? model.capabilities.join(', ') : 'text';
         
-        content += `${index + 1}. ${model.name}\n`;
-        content += `   Size: ${sizeInMB}MB\n`;
-        content += `   Type: ${modelType}\n`;
-        content += `   Capabilities: ${capabilities}\n`;
-        content += `   Path: ${model.path}\n`;
-        
+        modelsList += `<div>
+<h3>${index + 1}. ${model.name}</h3>
+<p>Size: ${sizeInMB}MB</p>
+<p>Type: ${modelType}</p>
+<p>Capabilities: ${capabilities}</p>
+<p>Path: ${model.path}</p>`;
+
         if (model.isExternal) {
-          content += `   External: Yes\n`;
+          modelsList += `<p>External: Yes</p>`;
         }
         
         if (model.modified) {
           const modifiedDate = new Date(model.modified).toLocaleDateString();
-          content += `   Modified: ${modifiedDate}\n`;
+          modelsList += `<p>Modified: ${modifiedDate}</p>`;
         }
         
-        content += '\n';
+        modelsList += `<button onclick="initializeModel('${model.path.replace(/'/g, "\\'")}')">Initialize Model</button>
+</div><br>`;
       });
       
-      return content;
+      return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inferra Models</title>
+</head>
+<body>
+<h1>INFERRA MODELS</h1>
+${modelsList}
+<div id="status"></div>
+
+<script>
+window.ReactNativeWebView = window.ReactNativeWebView || {};
+
+function initializeModel(modelPath) {
+  const statusDiv = document.getElementById('status');
+  statusDiv.innerHTML = 'Initializing model: ' + modelPath;
+  
+  try {
+    if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+      window.ReactNativeWebView.postMessage(JSON.stringify({
+        action: 'initializeModel',
+        modelPath: modelPath
+      }));
+    } else {
+      statusDiv.innerHTML = 'Error: Cannot communicate with app';
+    }
+  } catch (error) {
+    statusDiv.innerHTML = 'Error: ' + error.message;
+  }
+}
+
+window.addEventListener('message', function(event) {
+  const statusDiv = document.getElementById('status');
+  try {
+    const data = JSON.parse(event.data);
+    if (data.type === 'modelInitialized') {
+      statusDiv.innerHTML = 'Model initialized successfully: ' + data.modelPath;
+    } else if (data.type === 'modelInitializationError') {
+      statusDiv.innerHTML = 'Error initializing model: ' + data.error;
+    }
+  } catch (error) {
+    statusDiv.innerHTML = 'Message received: ' + event.data;
+  }
+});
+</script>
+</body>
+</html>`;
     } catch {
-      return 'INFERRA MODELS\n\nError loading models\n';
+      return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inferra Models</title>
+</head>
+<body>
+<h1>INFERRA MODELS</h1>
+<p>Error loading models</p>
+</body>
+</html>`;
     }
   }
 
@@ -224,10 +295,9 @@ export class LocalServerService extends SimpleEventEmitter {
       }
 
       const modelsJSON = await this.getStoredModelsJSON();
-      const textContent = await this.generateModelsTextContent();
+      const htmlContent = await this.generateModelsHTMLContent();
 
-      await FileSystem.writeAsStringAsync(`${serverDirURI}/index.html`, textContent);
-      await FileSystem.writeAsStringAsync(`${serverDirURI}/index.txt`, textContent);
+      await FileSystem.writeAsStringAsync(`${serverDirURI}/index.html`, htmlContent);
       await FileSystem.writeAsStringAsync(`${serverDirURI}/models.json`, modelsJSON);
       
       this.serverDirectory = serverDirLocal;
@@ -292,6 +362,24 @@ export class LocalServerService extends SimpleEventEmitter {
   async refreshModels(): Promise<void> {
     if (this.isRunning) {
       await this.updateWebContent();
+    }
+  }
+
+  async handleModelInitialization(modelPath: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const success = await llamaManager.loadModel(modelPath);
+      if (success) {
+        this.emit('modelInitialized', { modelPath });
+        return { success: true };
+      } else {
+        const error = 'Failed to initialize model';
+        this.emit('modelInitializationError', { error, modelPath });
+        return { success: false, error };
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.emit('modelInitializationError', { error: errorMessage, modelPath });
+      return { success: false, error: errorMessage };
     }
   }
 }
