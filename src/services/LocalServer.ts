@@ -1,9 +1,7 @@
-import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system';
-import { Asset } from 'expo-asset';
 import Server from '@dr.pogodin/react-native-static-server';
+import { modelDownloader } from './ModelDownloader';
 
-// Simple event emitter
 class SimpleEventEmitter {
   private listeners: { [event: string]: Function[] } = {};
 
@@ -62,8 +60,74 @@ export class LocalServerService extends SimpleEventEmitter {
 
   constructor() {
     super();
+    this.setupModelChangeListener();
   }
 
+  private setupModelChangeListener() {
+  }
+
+  private async updateWebContent(): Promise<void> {
+    if (!this.serverDirectory) return;
+    
+    try {
+      const updatedModelsJSON = await this.getStoredModelsJSON();
+      const serverDirURI = `file://${this.serverDirectory}`;
+      
+      const textContent = await this.generateModelsTextContent();
+      
+      await FileSystem.writeAsStringAsync(`${serverDirURI}/index.txt`, textContent);
+      await FileSystem.writeAsStringAsync(`${serverDirURI}/models.json`, updatedModelsJSON);
+    } catch {
+    }
+  }
+
+  private async generateModelsTextContent(): Promise<string> {
+    try {
+      const storedModels = await modelDownloader.getStoredModels();
+      
+      if (!storedModels || storedModels.length === 0) {
+        return 'INFERRA MODELS\n\nNo models found\n';
+      }
+      
+      let content = 'INFERRA MODELS\n\n';
+      
+      storedModels.forEach((model, index) => {
+        const sizeInMB = Math.round(model.size / (1024 * 1024));
+        const modelType = model.modelType || 'LLM';
+        const capabilities = model.capabilities ? model.capabilities.join(', ') : 'text';
+        
+        content += `${index + 1}. ${model.name}\n`;
+        content += `   Size: ${sizeInMB}MB\n`;
+        content += `   Type: ${modelType}\n`;
+        content += `   Capabilities: ${capabilities}\n`;
+        content += `   Path: ${model.path}\n`;
+        
+        if (model.isExternal) {
+          content += `   External: Yes\n`;
+        }
+        
+        if (model.modified) {
+          const modifiedDate = new Date(model.modified).toLocaleDateString();
+          content += `   Modified: ${modifiedDate}\n`;
+        }
+        
+        content += '\n';
+      });
+      
+      return content;
+    } catch {
+      return 'INFERRA MODELS\n\nError loading models\n';
+    }
+  }
+
+  private async getStoredModelsJSON(): Promise<string> {
+    try {
+      const storedModels = await modelDownloader.getStoredModels();
+      return JSON.stringify(storedModels, null, 2);
+    } catch (error) {
+      return JSON.stringify({ error: 'Failed to fetch models', details: error instanceof Error ? error.message : 'Unknown error' }, null, 2);
+    }
+  }
   async start(port?: number): Promise<{ success: boolean; url?: string; error?: string }> {
     if (this.isRunning) {
       return { success: false, error: 'Server is already running' };
@@ -158,9 +222,12 @@ export class LocalServerService extends SimpleEventEmitter {
         await FileSystem.makeDirectoryAsync(serverDirURI, { intermediates: true });
       }
 
-      const webInterfaceHTML = '<html><body>Hello World</body></html>';
+      const modelsJSON = await this.getStoredModelsJSON();
+      const textContent = await this.generateModelsTextContent();
 
-      await FileSystem.writeAsStringAsync(`${serverDirURI}/index.html`, webInterfaceHTML);
+      await FileSystem.writeAsStringAsync(`${serverDirURI}/index.txt`, textContent);
+      await FileSystem.writeAsStringAsync(`${serverDirURI}/models.json`, modelsJSON);
+      
       this.serverDirectory = serverDirLocal;
     } catch (error) {
       throw new Error(`Failed to create web content: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -176,7 +243,7 @@ export class LocalServerService extends SimpleEventEmitter {
           await FileSystem.deleteAsync(serverDirURI, { idempotent: true });
         }
       }
-    } catch (error) {
+    } catch {
     }
   }
 
@@ -184,7 +251,7 @@ export class LocalServerService extends SimpleEventEmitter {
     try {
       const match = url.match(/http:\/\/([0-9.]+):[0-9]+/);
       return match ? match[1] : null;
-    } catch (error) {
+    } catch {
       return null;
     }
   }
@@ -217,11 +284,45 @@ export class LocalServerService extends SimpleEventEmitter {
   }
 
   getServerContent(): string | null {
-    return null;
+    return this.isRunning && this.serverInfo ? `Models Server running at ${this.serverInfo.url}` : null;
   }
 
   getWebViewSource(): { html: string } | null {
-    return null;
+    if (!this.isRunning) return null;
+    
+    const loadingHTML = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Inferra Models</title>
+          <style>
+            body { font-family: system-ui; text-align: center; padding: 50px; }
+            .loader { border: 4px solid #f3f3f3; border-top: 4px solid #4a0660; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin: 20px auto; }
+            @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+          </style>
+        </head>
+        <body>
+          <h2>Loading Models...</h2>
+          <div class="loader"></div>
+          <p>Redirecting to: ${this.serverInfo?.url}</p>
+          <script>
+            setTimeout(() => {
+              window.location.href = '${this.serverInfo?.url}';
+            }, 1000);
+          </script>
+        </body>
+      </html>
+    `;
+    
+    return { html: loadingHTML };
+  }
+
+  async refreshModels(): Promise<void> {
+    if (this.isRunning) {
+      await this.updateWebContent();
+    }
   }
 }
 
