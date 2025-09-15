@@ -75,6 +75,7 @@ export class LocalServerService extends SimpleEventEmitter {
       
       const textContent = await this.generateModelsTextContent();
       
+      await FileSystem.writeAsStringAsync(`${serverDirURI}/index.html`, textContent);
       await FileSystem.writeAsStringAsync(`${serverDirURI}/index.txt`, textContent);
       await FileSystem.writeAsStringAsync(`${serverDirURI}/models.json`, updatedModelsJSON);
     } catch {
@@ -225,6 +226,7 @@ export class LocalServerService extends SimpleEventEmitter {
       const modelsJSON = await this.getStoredModelsJSON();
       const textContent = await this.generateModelsTextContent();
 
+      await FileSystem.writeAsStringAsync(`${serverDirURI}/index.html`, textContent);
       await FileSystem.writeAsStringAsync(`${serverDirURI}/index.txt`, textContent);
       await FileSystem.writeAsStringAsync(`${serverDirURI}/models.json`, modelsJSON);
       
@@ -285,38 +287,6 @@ export class LocalServerService extends SimpleEventEmitter {
 
   getServerContent(): string | null {
     return this.isRunning && this.serverInfo ? `Models Server running at ${this.serverInfo.url}` : null;
-  }
-
-  getWebViewSource(): { html: string } | null {
-    if (!this.isRunning) return null;
-    
-    const loadingHTML = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Inferra Models</title>
-          <style>
-            body { font-family: system-ui; text-align: center; padding: 50px; }
-            .loader { border: 4px solid #f3f3f3; border-top: 4px solid #4a0660; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin: 20px auto; }
-            @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-          </style>
-        </head>
-        <body>
-          <h2>Loading Models...</h2>
-          <div class="loader"></div>
-          <p>Redirecting to: ${this.serverInfo?.url}</p>
-          <script>
-            setTimeout(() => {
-              window.location.href = '${this.serverInfo?.url}';
-            }, 1000);
-          </script>
-        </body>
-      </html>
-    `;
-    
-    return { html: loadingHTML };
   }
 
   async refreshModels(): Promise<void> {
