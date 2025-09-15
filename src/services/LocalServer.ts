@@ -100,28 +100,329 @@ export class LocalServerService extends SimpleEventEmitter {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Inferra Chat</title>
+<style>
+:root {
+  --bg-primary: #1E1326;
+  --bg-secondary: #2A1F37;
+  --text-primary: #fff;
+  --text-secondary: #BDB7C4;
+  --accent: #660880;
+  --accent-light: #9C38C0;
+  --border: #3D2D4A;
+  --success: #28a745;
+  --danger: #dc3545;
+  --warning: #ffc107;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.header {
+  background: var(--accent);
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  min-height: 64px;
+}
+
+.header h1 {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.model-selector {
+  background: var(--bg-secondary);
+  margin: 16px 20px;
+  border-radius: 12px;
+  padding: 16px;
+  border: 1px solid var(--border);
+}
+
+.model-selector label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 8px;
+  color: var(--text-secondary);
+}
+
+.model-select-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.model-select {
+  flex: 1;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 16px;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.model-select:focus {
+  outline: none;
+  border-color: var(--accent-light);
+}
+
+.load-button {
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 20px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.load-button:hover {
+  background: var(--accent-light);
+}
+
+.load-button:disabled {
+  background: #666;
+  cursor: not-allowed;
+}
+
+.status {
+  background: var(--bg-secondary);
+  margin: 0 20px 16px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+
+.chat-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  margin: 0 20px 0;
+  background: var(--bg-secondary);
+  border-radius: 12px 12px 0 0;
+  border: 1px solid var(--border);
+  border-bottom: none;
+  overflow: hidden;
+  margin-bottom: 0;
+}
+
+.messages-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 16px 120px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.message {
+  display: flex;
+  flex-direction: column;
+  max-width: 85%;
+  word-wrap: break-word;
+}
+
+.message.user {
+  align-self: flex-end;
+}
+
+.message.assistant {
+  align-self: flex-start;
+}
+
+.message-content {
+  padding: 12px 16px;
+  border-radius: 18px;
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.message.user .message-content {
+  background: var(--accent);
+  color: white;
+}
+
+.message.assistant .message-content {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+}
+
+.message-time {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 4px 16px 0;
+}
+
+.input-container {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 16px 20px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-primary);
+  z-index: 100;
+}
+
+.input-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.message-input {
+  flex: 1;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 12px 16px;
+  color: var(--text-primary);
+  font-size: 15px;
+  resize: none;
+  max-height: 100px;
+  min-height: 44px;
+}
+
+.message-input:focus {
+  outline: none;
+  border-color: var(--accent-light);
+}
+
+.message-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.send-button, .stop-button {
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 20px;
+  width: 44px;
+  height: 44px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
+.send-button:hover, .stop-button:hover {
+  background: var(--accent-light);
+}
+
+.send-button:disabled, .stop-button:disabled {
+  background: #666;
+  cursor: not-allowed;
+}
+
+.stop-button {
+  background: var(--danger);
+}
+
+.stop-button:hover {
+  background: #c82333;
+}
+
+.generating {
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+@media (max-width: 768px) {
+  .header {
+    padding: 12px 16px;
+  }
+
+  .model-selector {
+    margin: 12px 16px;
+    padding: 12px;
+  }
+
+  .status {
+    margin: 0 16px 12px;
+  }
+
+  .chat-container {
+    margin: 0 16px 0;
+  }
+
+  .input-container {
+    padding: 12px 16px;
+  }
+
+  .model-select-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .load-button {
+    margin-top: 8px;
+  }
+}
+</style>
 </head>
 <body>
-<h1>Inferra AI Chat</h1>
-
-<div>
-<label for="modelSelect">Select Model:</label>
-<select id="modelSelect">
-<option value="">Choose a model...</option>
-${modelsOptions}
-</select>
-<button onclick="loadSelectedModel()">Initialize Model</button>
+<div class="header">
+  <h1>Inferra</h1>
 </div>
 
-<div id="status">No model loaded</div>
-
-<div id="chatContainer">
-<div id="messages"></div>
-<div>
-<input type="text" id="messageInput" placeholder="Type your message..." disabled>
-<button id="sendButton" onclick="sendMessage()" disabled>Send</button>
-<button id="stopButton" onclick="stopGeneration()" disabled>Stop</button>
+<div class="model-selector">
+  <label for="modelSelect">Select Model</label>
+  <div class="model-select-row">
+    <select id="modelSelect" class="model-select">
+      <option value="">Choose a model...</option>
+      ${modelsOptions}
+    </select>
+    <button onclick="loadSelectedModel()" class="load-button">Load Model</button>
+  </div>
 </div>
+
+<div id="status" class="status">No model loaded</div>
+
+<div class="chat-container">
+  <div id="messages" class="messages-container"></div>
+</div>
+
+<div class="input-container">
+  <div class="input-row">
+    <textarea
+      id="messageInput"
+      class="message-input"
+      placeholder="Type your message..."
+      disabled
+      rows="1"
+    ></textarea>
+    <button id="sendButton" onclick="sendMessage()" class="send-button" disabled>
+      ➤
+    </button>
+    <button id="stopButton" onclick="stopGeneration()" class="stop-button" disabled style="display: none;">
+      ■
+    </button>
+  </div>
 </div>
 
 <script>
@@ -160,7 +461,18 @@ function updateStatus(message) {
 function addMessage(role, content) {
   const messagesDiv = document.getElementById('messages');
   const messageDiv = document.createElement('div');
-  messageDiv.innerHTML = '<strong>' + role + ':</strong> ' + content;
+  messageDiv.className = 'message ' + role.toLowerCase();
+
+  const contentDiv = document.createElement('div');
+  contentDiv.className = 'message-content';
+  contentDiv.textContent = content;
+
+  const timeDiv = document.createElement('div');
+  timeDiv.className = 'message-time';
+  timeDiv.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  messageDiv.appendChild(contentDiv);
+  messageDiv.appendChild(timeDiv);
   messagesDiv.appendChild(messageDiv);
   messagesDiv.scrollTop = messagesDiv.scrollHeight;
 }
@@ -185,6 +497,7 @@ async function loadSelectedModel() {
   document.getElementById('messageInput').disabled = true;
   document.getElementById('sendButton').disabled = true;
   document.getElementById('messageInput').placeholder = 'Model loading...';
+
 
   try {
     const commandId = 'init_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
@@ -226,13 +539,30 @@ async function sendMessage() {
   input.disabled = true;
   document.getElementById('sendButton').disabled = true;
   document.getElementById('stopButton').disabled = false;
+  document.getElementById('stopButton').style.display = 'flex';
 
   isGenerating = true;
   currentResponse = '';
 
+  // Create assistant message container
+  const messagesDiv = document.getElementById('messages');
   const assistantDiv = document.createElement('div');
-  assistantDiv.innerHTML = '<strong>Assistant:</strong> <span id="currentResponse">Generating...</span>';
-  document.getElementById('messages').appendChild(assistantDiv);
+  assistantDiv.className = 'message assistant';
+
+  const contentDiv = document.createElement('div');
+  contentDiv.className = 'message-content generating';
+  contentDiv.id = 'currentResponse';
+  contentDiv.textContent = 'Generating...';
+
+  const timeDiv = document.createElement('div');
+  timeDiv.className = 'message-time';
+  timeDiv.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  assistantDiv.appendChild(contentDiv);
+  assistantDiv.appendChild(timeDiv);
+  messagesDiv.appendChild(assistantDiv);
+  messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
 
   try {
     const commandId = 'cmd_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
@@ -294,14 +624,23 @@ function resetChatInput() {
   document.getElementById('messageInput').disabled = false;
   document.getElementById('sendButton').disabled = false;
   document.getElementById('stopButton').disabled = true;
+  document.getElementById('stopButton').style.display = 'none';
   isGenerating = false;
 }
 
 
 document.getElementById('messageInput').addEventListener('keypress', function(event) {
-  if (event.key === 'Enter') {
+  if (event.key === 'Enter' && !event.shiftKey) {
+    event.preventDefault();
     sendMessage();
   }
+});
+
+document.getElementById('messageInput').addEventListener('input', function() {
+  const textarea = this;
+  textarea.style.height = 'auto';
+  const newHeight = Math.min(textarea.scrollHeight, 100);
+  textarea.style.height = newHeight + 'px';
 });
 
 function updateCurrentResponse(token) {
@@ -422,7 +761,7 @@ document.addEventListener('DOMContentLoaded', function() {
 <title>Inferra Chat</title>
 </head>
 <body>
-<h1>Inferra AI Chat</h1>
+<h1>Inferra</h1>
 <p>Error loading chat interface</p>
 </body>
 </html>`;
