@@ -546,12 +546,16 @@ class LlamaManager {
 
   async loadModel(modelPath: string, mmProjectorPath?: string) {
     try {
+      console.log(`[LlamaManager] Starting model load: ${modelPath}`);
       await this.release();
+      console.log(`[LlamaManager] Released previous model, initializing new one`);
       await this.initializeModel(modelPath, mmProjectorPath);
+      console.log(`[LlamaManager] Model initialized successfully`);
       this.events.emit('model-loaded', modelPath);
       return true;
     } catch (error) {
-      return false;
+      console.error(`[LlamaManager] Model load failed:`, error);
+      throw error;
     }
   }
 

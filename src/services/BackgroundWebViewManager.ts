@@ -1,6 +1,5 @@
 import React from 'react';
 import { WebView } from 'react-native-webview';
-import { localServerV2 } from './LocalServerV2';
 
 interface BackgroundWebViewProps {
   html: string;
@@ -36,8 +35,6 @@ export class BackgroundWebViewManager {
 
   setWebView(webView: any) {
     this.webViewInstance = webView;
-
-    localServerV2.setWebView(webView);
   }
 
   async stop(): Promise<void> {

@@ -11,6 +11,7 @@ import { RootStackParamList } from '../types/navigation';
 import AppHeader from '../components/AppHeader';
 import SettingsSection from '../components/settings/SettingsSection';
 import { localServer } from '../services/LocalServer';
+import { LocalServerWebView } from '../components/LocalServerWebView';
 
 interface ServerStatus {
   isRunning: boolean;
@@ -35,6 +36,7 @@ export default function LocalServerScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [autoStart, setAutoStart] = useState(false);
   const [allowExternalAccess, setAllowExternalAccess] = useState(true);
+  const [showWebView, setShowWebView] = useState(false);
 
   useEffect(() => {
     const server = localServer;
@@ -218,6 +220,24 @@ export default function LocalServerScreen() {
           {serverStatus.isRunning && (
             <>
               <View style={[styles.separator, { backgroundColor: themeColors.background }]} />
+              <TouchableOpacity style={styles.settingItem} onPress={() => setShowWebView(true)}>
+                <View style={styles.settingLeft}>
+                  <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
+                    <MaterialCommunityIcons name="chat" size={22} color={iconColor} />
+                  </View>
+                  <View style={styles.settingTextContainer}>
+                    <Text style={[styles.settingText, { color: themeColors.text }]}>
+                      Open Chat Interface
+                    </Text>
+                    <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
+                      Access the web chat interface
+                    </Text>
+                  </View>
+                </View>
+                <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
+              </TouchableOpacity>
+
+              <View style={[styles.separator, { backgroundColor: themeColors.background }]} />
               <TouchableOpacity style={styles.settingItem} onPress={openInBrowser}>
                 <View style={styles.settingLeft}>
                   <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
@@ -225,7 +245,7 @@ export default function LocalServerScreen() {
                   </View>
                   <View style={styles.settingTextContainer}>
                     <Text style={[styles.settingText, { color: themeColors.text }]}>
-                      Access URL
+                      Server URL
                     </Text>
                     <Text style={[styles.settingDescription, { color: themeColors.primary }]} numberOfLines={1}>
                       {serverStatus.url || 'Not available'}
@@ -363,6 +383,24 @@ export default function LocalServerScreen() {
           </View>
         </SettingsSection>
       </ScrollView>
+
+      {showWebView && serverStatus.url && (
+        <View style={styles.webViewModal}>
+          <View style={styles.webViewHeader}>
+            <Text style={[styles.webViewTitle, { color: themeColors.text }]}>Chat Interface</Text>
+            <TouchableOpacity
+              onPress={() => setShowWebView(false)}
+              style={styles.closeButton}
+            >
+              <MaterialCommunityIcons name="close" size={24} color={themeColors.text} />
+            </TouchableOpacity>
+          </View>
+          <LocalServerWebView
+            serverUrl={serverStatus.url}
+            onClose={() => setShowWebView(false)}
+          />
+        </View>
+      )}
     </View>
   );
 }
@@ -459,5 +497,30 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     lineHeight: 20,
+  },
+  webViewModal: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#FFFFFF',
+    zIndex: 1000,
+  },
+  webViewHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  webViewTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  closeButton: {
+    padding: 4,
   },
 });
