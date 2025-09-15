@@ -2,6 +2,7 @@ import * as FileSystem from 'expo-file-system';
 import Server from '@dr.pogodin/react-native-static-server';
 import { modelDownloader } from './ModelDownloader';
 import { llamaManager } from '../utils/LlamaManager';
+import { logger } from '../utils/logger';
 
 class SimpleEventEmitter {
   private listeners: { [event: string]: Function[] } = {};
@@ -233,6 +234,8 @@ window.addEventListener('message', function(event) {
       this.isRunning = true;
       this.startTime = new Date();
 
+      logger.logServerStart(actualPort, origin);
+
       this.emit('serverStarted', {
         url: origin,
         port: actualPort,
@@ -242,9 +245,11 @@ window.addEventListener('message', function(event) {
 
       return { success: true, url: origin };
     } catch (error) {
+      const errorMessage = `Failed to start server: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      logger.logServerError(errorMessage);
       return {
         success: false,
-        error: `Failed to start server: ${error instanceof Error ? error.message : 'Unknown error'}`
+        error: errorMessage
       };
     }
   }
@@ -267,13 +272,17 @@ window.addEventListener('message', function(event) {
       this.serverInfo = null;
       this.serverDirectory = null;
 
+      logger.logServerStop();
+
       this.emit('serverStopped');
 
       return { success: true };
     } catch (error) {
+      const errorMessage = `Failed to stop server: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      logger.logServerError(errorMessage);
       return {
         success: false,
-        error: `Failed to stop server: ${error instanceof Error ? error.message : 'Unknown error'}`
+        error: errorMessage
       };
     }
   }
@@ -369,15 +378,18 @@ window.addEventListener('message', function(event) {
     try {
       const success = await llamaManager.loadModel(modelPath);
       if (success) {
+        logger.logModelInitialization(modelPath, true);
         this.emit('modelInitialized', { modelPath });
         return { success: true };
       } else {
         const error = 'Failed to initialize model';
+        logger.logModelInitialization(modelPath, false);
         this.emit('modelInitializationError', { error, modelPath });
         return { success: false, error };
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.logModelInitialization(modelPath, false);
       this.emit('modelInitializationError', { error: errorMessage, modelPath });
       return { success: false, error: errorMessage };
     }

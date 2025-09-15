@@ -168,6 +168,17 @@ export default function LocalServerScreen() {
         title="Server"
         rightButtons={
           <View style={{ flexDirection: 'row', gap: 8 }}>
+            <TouchableOpacity
+              style={styles.headerButton}
+              onPress={() => navigation.navigate('ServerLogs')}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <MaterialCommunityIcons
+                name="text-box-outline"
+                size={22}
+                color={themeColors.headerText}
+              />
+            </TouchableOpacity>
             <ProfileButton />
           </View>
         }
