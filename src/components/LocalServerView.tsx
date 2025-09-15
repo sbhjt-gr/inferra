@@ -51,7 +51,6 @@ export default function LocalServerView({ onClose }: LocalServerViewProps) {
         title: 'Inferra Content Server'
       });
     } catch (error) {
-      console.error('share_error', error);
     }
   };
 
@@ -143,10 +142,8 @@ export default function LocalServerView({ onClose }: LocalServerViewProps) {
         allowsInlineMediaPlayback={true}
         mediaPlaybackRequiresUserAction={false}
         onError={(error) => {
-          console.error('webview_error', error);
         }}
         onLoadEnd={() => {
-          console.log('webview_loaded');
         }}
         renderLoading={() => (
           <View style={[styles.centerContent, { backgroundColor: themeColors.background }]}>

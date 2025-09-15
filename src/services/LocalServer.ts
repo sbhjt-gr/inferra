@@ -158,14 +158,7 @@ export class LocalServerService extends SimpleEventEmitter {
         await FileSystem.makeDirectoryAsync(serverDirURI, { intermediates: true });
       }
 
-      const templateAsset = Asset.fromModule(require('../assets/server.html'));
-      await templateAsset.downloadAsync();
-      
-      let htmlTemplate = await FileSystem.readAsStringAsync(templateAsset.localUri!);
-      
-      const webInterfaceHTML = htmlTemplate
-        .replace(/\{\{PLATFORM\}\}/g, Platform.OS)
-        .replace(/\{\{START_TIME\}\}/g, new Date().toLocaleString());
+      const webInterfaceHTML = '<html><body>Hello World</body></html>';
 
       await FileSystem.writeAsStringAsync(`${serverDirURI}/index.html`, webInterfaceHTML);
       this.serverDirectory = serverDirLocal;
@@ -184,7 +177,6 @@ export class LocalServerService extends SimpleEventEmitter {
         }
       }
     } catch (error) {
-      // Cleanup errors
     }
   }
 

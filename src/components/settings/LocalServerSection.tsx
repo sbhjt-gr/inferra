@@ -34,8 +34,6 @@ export default function LocalServerSection({ onNavigateToServer }: LocalServerSe
     const server = localServer;
     
     const handleServerStarted = (data: any) => {
-      console.log('UI received serverStarted event:', data);
-      console.log('Setting serverStatus with real URL');
       setServerStatus(prev => {
         const newStatus = {
           ...prev,
@@ -44,30 +42,24 @@ export default function LocalServerSection({ onNavigateToServer }: LocalServerSe
           port: data.port || 0,
           connections: 0,
         };
-        console.log('New serverStatus:', newStatus);
         return newStatus;
       });
       setIsLoading(false);
     };
     
     const handleServerStopped = () => {
-      console.log('UI received serverStopped event');
       setServerStatus(prev => ({
         ...prev,
         isRunning: false,
       }));
-      // Clear loading state when server stops
       setIsLoading(false);
     };
     
     const handleServerError = (error: string) => {
-      console.log('UI received serverError event:', error);
       setError(error);
     };
     
     const handleContentServerStarted = (data: any) => {
-      console.log('UI received contentServerStarted event:', data);
-      // Show network access notification
       Alert.alert(
         data.title || 'HTTP Server Running!',
         data.message + '\n\nOther devices on your WiFi network can now access this URL.',
@@ -97,9 +89,7 @@ export default function LocalServerSection({ onNavigateToServer }: LocalServerSe
     server.on('serverError', handleServerError);
     server.on('contentServerStarted', handleContentServerStarted);
     
-    // Get initial status and ensure proper mapping
     const status = server.getStatus();
-    console.log('Initial server status:', status);
     setServerStatus(prev => ({
       ...prev,
       isRunning: status.isRunning,
@@ -119,7 +109,6 @@ export default function LocalServerSection({ onNavigateToServer }: LocalServerSe
   const handleToggleServer = async () => {
     setIsLoading(true);
     
-    // Failsafe: Clear loading state after 10 seconds no matter what
     const timeoutId = setTimeout(() => {
       console.log('Loading timeout reached, clearing loading state');
       setIsLoading(false);
@@ -134,7 +123,6 @@ export default function LocalServerSection({ onNavigateToServer }: LocalServerSe
       } else {
         const result = await localServer.start();
         if (result.success) {
-          // Don't show alert here - the contentServerStarted event will handle it
           console.log('Server started successfully, waiting for network server confirmation...');
         } else {
           Alert.alert('Error', result.error || 'Failed to start HTTP server');
@@ -143,7 +131,6 @@ export default function LocalServerSection({ onNavigateToServer }: LocalServerSe
     } catch (error) {
       Alert.alert('Error', 'An unexpected error occurred');
     } finally {
-      // Clear the timeout and loading state
       clearTimeout(timeoutId);
       setIsLoading(false);
     }
@@ -170,13 +157,11 @@ export default function LocalServerSection({ onNavigateToServer }: LocalServerSe
         });
       }
     } catch (error) {
-      console.error('share_error', error);
     }
   };
 
   const refreshServerStatus = () => {
     const currentStatus = localServer.getStatus();
-    console.log('Manual status refresh:', currentStatus);
     setServerStatus(prev => ({
       ...prev,
       isRunning: currentStatus.isRunning,
@@ -187,12 +172,7 @@ export default function LocalServerSection({ onNavigateToServer }: LocalServerSe
   };
 
   const handleViewServer = async () => {
-    console.log('handleViewServer called');
-    console.log('- serverStatus.isRunning:', serverStatus.isRunning);
-    console.log('- localServer.isServerRunning():', localServer.isServerRunning());
-    console.log('- full serverStatus:', serverStatus);
 
-    // Double-check with the actual server state
     const actuallyRunning = localServer.isServerRunning();
     if (!actuallyRunning) {
       Alert.alert('Content Not Available', 'Please start the content server first');
@@ -205,13 +185,11 @@ export default function LocalServerSection({ onNavigateToServer }: LocalServerSe
     }
 
     try {
-      // Check if we have a navigation callback for WebView
       if (onNavigateToServer) {
         console.log('Using onNavigateToServer callback');
         onNavigateToServer();
       } else {
         console.log('No navigation callback - showing content options');
-        // Show content options to user
         Alert.alert(
           'View Content Options',
           'Choose how you would like to view the Hello World content:',
