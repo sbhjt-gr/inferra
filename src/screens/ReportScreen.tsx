@@ -148,7 +148,7 @@ export default function ReportScreen({ navigation, route }: ReportScreenProps) {
         email: email.trim(),
         userId: user?.uid || null,
         timestamp: new Date().toISOString(),
-        appVersion: '2.6.2',
+        appVersion: '2.6.3',
         platform: Platform.OS,
         attachments: attachedMedia,
       };
