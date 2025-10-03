@@ -49,6 +49,40 @@ export type UserData = {
   registrationInfo?: any;
 };
 
+type GoogleSignInResult = {
+  idToken?: string | null;
+  user?: {
+    email?: string | null;
+  };
+};
+
+const AUTH_ERROR_MESSAGES: Record<string, string> = {
+  'auth/invalid-email': 'That email address looks incorrect. Please check and try again.',
+  'auth/user-disabled': 'This account is disabled. Contact support for help.',
+  'auth/user-not-found': 'No account found with that email.',
+  'auth/wrong-password': 'Incorrect password. Please try again.',
+  'auth/email-already-in-use': 'This email is already registered. Try signing in instead.',
+  'auth/weak-password': 'Your password is too weak. Use at least six characters.',
+  'auth/network-request-failed': 'Network error. Check your connection and try again.',
+  'auth/too-many-requests': 'Too many attempts. Please wait and try again.',
+  'auth/missing-email': 'Enter an email address to continue.',
+  'auth/internal-error': 'Something went wrong. Please try again.'
+};
+
+const mapAuthError = (error: any, fallback: string) => {
+  const code = typeof error?.code === 'string' ? error.code : undefined;
+  if (code && AUTH_ERROR_MESSAGES[code]) {
+    return AUTH_ERROR_MESSAGES[code];
+  }
+  if (typeof error?.message === 'string') {
+    const entry = Object.keys(AUTH_ERROR_MESSAGES).find(key => error.message.includes(key));
+    if (entry) {
+      return AUTH_ERROR_MESSAGES[entry];
+    }
+  }
+  return fallback;
+};
+
 
 let isFirebaseInitialized = false;
 
@@ -117,7 +151,7 @@ export const registerWithEmail = async (
   } catch (error: any) {
     return {
       success: false,
-      error: error.message || 'Registration failed. Please try again.'
+      error: mapAuthError(error, 'Registration failed. Please try again.')
     };
   }
 };
@@ -134,7 +168,7 @@ export const loginWithEmail = async (
   } catch (error: any) {
     return { 
       success: false, 
-      error: error.message || 'Login failed. Please try again.' 
+      error: mapAuthError(error, 'Login failed. Please try again.')
     };
   }
 };
@@ -147,7 +181,7 @@ export const signInWithGoogle = async (): Promise<{ success: boolean; error?: st
       console.log('native_google_sign_in_start');
     }
 
-    const userInfo = await GoogleSignin.signIn();
+  const userInfo = (await GoogleSignin.signIn()) as GoogleSignInResult;
 
     if (__DEV__) {
       console.log('google_signin_userInfo', {
@@ -157,7 +191,7 @@ export const signInWithGoogle = async (): Promise<{ success: boolean; error?: st
       });
     }
 
-    let idToken = userInfo.idToken;
+  let idToken = userInfo.idToken;
 
     if (!idToken) {
       if (__DEV__) {
@@ -204,7 +238,9 @@ export const signInWithGoogle = async (): Promise<{ success: boolean; error?: st
     } else if (error.code === 'PLAY_SERVICES_NOT_AVAILABLE') {
       errorMessage = 'Google Play Services not available';
     } else if (error.code === 'auth/network-request-failed') {
-      errorMessage = 'Network error. Please check your connection.';
+      errorMessage = AUTH_ERROR_MESSAGES['auth/network-request-failed'];
+    } else if (typeof error?.code === 'string' && AUTH_ERROR_MESSAGES[error.code]) {
+      errorMessage = AUTH_ERROR_MESSAGES[error.code];
     }
 
     return {
@@ -223,7 +259,7 @@ export const logoutUser = async (): Promise<{ success: boolean; error?: string }
   } catch (error: any) {
     return {
       success: false,
-      error: error.message || 'Logout failed.'
+      error: mapAuthError(error, 'Logout failed.')
     };
   }
 };
@@ -240,7 +276,7 @@ export const sendVerificationEmail = async (): Promise<{ success: boolean; error
   } catch (error: any) {
     return { 
       success: false, 
-      error: error.message || 'Failed to send verification email.' 
+      error: mapAuthError(error, 'Failed to send verification email.')
     };
   }
 };

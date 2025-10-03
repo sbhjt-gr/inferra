@@ -133,7 +133,7 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
         setError(result.error || 'Registration failed');
       }
     } catch (error: any) {
-      setError(error.message || 'Registration failed');
+      setError('Registration failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
