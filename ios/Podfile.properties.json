@@ -3,5 +3,7 @@
   "EX_DEV_CLIENT_NETWORK_INSPECTOR": "true",
   "newArchEnabled": "true",
   "ios.deploymentTarget": "17.0",
-  "apple.privacyManifestAggregationEnabled": "true"
+  "apple.privacyManifestAggregationEnabled": "true",
+  "apple.extraPods": "[]",
+  "apple.ccacheEnabled": "false"
 }
