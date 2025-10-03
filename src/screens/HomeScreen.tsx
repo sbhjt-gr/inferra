@@ -85,13 +85,19 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     saveMessagesDebounced,
   } = useChatManagement();
 
+  const processMessageRef = useRef<(() => Promise<void>) | null>(null);
+
   const {
     isEditingMessage,
     editingMessageText,
     handleStartEdit,
     handleSaveEdit,
     handleCancelEdit,
-  } = useMessageEditing(messages, () => {});
+  } = useMessageEditing(messages, async () => {
+    if (processMessageRef.current) {
+      await processMessageRef.current();
+    }
+  });
 
   const {
     isStreaming,
@@ -520,6 +526,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       resetStreamingState();
     }
   };
+
+  processMessageRef.current = processMessage;
 
   const copyToClipboard = (text: string) => {
     Clipboard.setString(text);

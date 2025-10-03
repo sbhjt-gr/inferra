@@ -29,7 +29,7 @@ export default {
       supportsTablet: true,
       requireFullScreen: false,
       bundleIdentifier: "com.gorai.ragionare",
-      buildNumber: "262",
+      buildNumber: "264",
       runtimeVersion: "2.6.4",
       deploymentTarget: "17.0",
       updates: {
@@ -54,7 +54,7 @@ export default {
       scheme: "com.gorai.ragionare"
     },
     android: {
-      versionCode: 262,
+      versionCode: 264,
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon.png",
         backgroundColor: "#660880"
