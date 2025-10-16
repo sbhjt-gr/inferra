@@ -10,14 +10,12 @@ import { theme } from '../constants/theme';
 import { RootStackParamList } from '../types/navigation';
 import AppHeader from '../components/AppHeader';
 import SettingsSection from '../components/settings/SettingsSection';
-import { localServer } from '../services/LocalServer';
-import { LocalServerWebView } from '../components/LocalServerWebView';
+import { localServerWebRTC } from '../services/LocalServerWebRTC';
 
 interface ServerStatus {
   isRunning: boolean;
-  url?: string;
-  port: number;
-  connections: number;
+  offerSDP?: string;
+  peerCount: number;
   startTime?: Date;
 }
 
@@ -30,24 +28,21 @@ export default function LocalServerScreen() {
 
   const [serverStatus, setServerStatus] = useState<ServerStatus>({
     isRunning: false,
-    port: 0,
-    connections: 0,
+    peerCount: 0,
   });
   const [isLoading, setIsLoading] = useState(false);
   const [autoStart, setAutoStart] = useState(false);
   const [allowExternalAccess, setAllowExternalAccess] = useState(true);
-  const [showWebView, setShowWebView] = useState(false);
 
   useEffect(() => {
-    const server = localServer;
+    const server = localServerWebRTC;
 
     const handleServerStarted = (data: any) => {
       setServerStatus(prev => ({
         ...prev,
         isRunning: true,
-        url: data.url || 'Server running',
-        port: data.port || 0,
-        connections: 0,
+        offerSDP: data.offerSDP,
+        peerCount: 0,
         startTime: new Date(),
       }));
       setIsLoading(false);
@@ -57,6 +52,7 @@ export default function LocalServerScreen() {
       setServerStatus(prev => ({
         ...prev,
         isRunning: false,
+        offerSDP: undefined,
         startTime: undefined,
       }));
       setIsLoading(false);
@@ -66,14 +62,7 @@ export default function LocalServerScreen() {
     server.on('serverStopped', handleServerStopped);
 
     const status = server.getStatus();
-    setServerStatus(prev => ({
-      ...prev,
-      isRunning: status.isRunning,
-      url: status.url,
-      port: status.port,
-      connections: status.connections,
-      startTime: status.startTime,
-    }));
+    setServerStatus(status);
 
     return () => {
       server.off('serverStarted', handleServerStarted);
@@ -86,12 +75,12 @@ export default function LocalServerScreen() {
 
     try {
       if (serverStatus.isRunning) {
-        const result = await localServer.stop();
+        const result = await localServerWebRTC.stop();
         if (!result.success) {
           Alert.alert('Error', result.error || 'Failed to stop server');
         }
       } else {
-        const result = await localServer.start();
+        const result = await localServerWebRTC.start();
         if (!result.success) {
           Alert.alert('Error', result.error || 'Failed to start server');
         }
@@ -103,17 +92,7 @@ export default function LocalServerScreen() {
     }
   };
 
-  const openInBrowser = () => {
-    if (serverStatus.url) {
-      Alert.alert(
-        'Server URL',
-        `${serverStatus.url}\n\nCopy this URL to access your HomeScreen from any device on the same WiFi network.`,
-        [
-          { text: 'OK', style: 'default' }
-        ]
-      );
-    }
-  };
+
 
   const getStatusText = () => {
     if (isLoading) return 'Starting...';
@@ -217,38 +196,23 @@ export default function LocalServerScreen() {
             />
           </View>
 
-          {serverStatus.isRunning && (
+          {serverStatus.isRunning && serverStatus.offerSDP && (
             <>
               <View style={[styles.separator, { backgroundColor: themeColors.background }]} />
-              <TouchableOpacity style={styles.settingItem} onPress={() => setShowWebView(true)}>
+              <TouchableOpacity style={styles.settingItem} onPress={() => {
+                Clipboard.setString(serverStatus.offerSDP || '');
+                Alert.alert('Copied', 'Offer SDP copied to clipboard');
+              }}>
                 <View style={styles.settingLeft}>
                   <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
-                    <MaterialCommunityIcons name="chat" size={22} color={iconColor} />
+                    <MaterialCommunityIcons name="content-copy" size={22} color={iconColor} />
                   </View>
                   <View style={styles.settingTextContainer}>
                     <Text style={[styles.settingText, { color: themeColors.text }]}>
-                      Open Chat Interface
+                      Copy Offer SDP
                     </Text>
                     <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
-                      Access the web chat interface
-                    </Text>
-                  </View>
-                </View>
-                <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
-              </TouchableOpacity>
-
-              <View style={[styles.separator, { backgroundColor: themeColors.background }]} />
-              <TouchableOpacity style={styles.settingItem} onPress={openInBrowser}>
-                <View style={styles.settingLeft}>
-                  <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
-                    <MaterialCommunityIcons name="web" size={22} color={iconColor} />
-                  </View>
-                  <View style={styles.settingTextContainer}>
-                    <Text style={[styles.settingText, { color: themeColors.text }]}>
-                      Server URL
-                    </Text>
-                    <Text style={[styles.settingDescription, { color: themeColors.primary }]} numberOfLines={1}>
-                      {serverStatus.url || 'Not available'}
+                      Paste into browser client
                     </Text>
                   </View>
                 </View>
@@ -259,18 +223,18 @@ export default function LocalServerScreen() {
         </SettingsSection>
 
         {serverStatus.isRunning && (
-          <SettingsSection title="SERVER INFO">
+          <SettingsSection title="CONNECTION INFO">
             <View style={styles.settingItem}>
               <View style={styles.settingLeft}>
                 <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
-                  <MaterialCommunityIcons name="information-outline" size={22} color={iconColor} />
+                  <MaterialCommunityIcons name="connection" size={22} color={iconColor} />
                 </View>
                 <View style={styles.settingTextContainer}>
                   <Text style={[styles.settingText, { color: themeColors.text }]}>
-                    Port
+                    Connected Peers
                   </Text>
                   <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
-                    {serverStatus.port}
+                    {serverStatus.peerCount}
                   </Text>
                 </View>
               </View>
@@ -295,18 +259,16 @@ export default function LocalServerScreen() {
           </SettingsSection>
         )}
 
-        {serverStatus.isRunning && (
-          <SettingsSection title="QR CODE">
+        {serverStatus.isRunning && serverStatus.offerSDP && (
+          <SettingsSection title="OFFER SDP">
             <View style={styles.qrDisplayContainer}>
               <View style={[styles.qrWrapper, { backgroundColor: '#FFFFFF' }]}>
-                {serverStatus.url && (
-                  <QRCodeStyled
-                    data={serverStatus.url}
-                    style={styles.qrCode}
-                    size={160}
-                    color={themeColors.primary}
-                  />
-                )}
+                <QRCodeStyled
+                  data={serverStatus.offerSDP}
+                  style={styles.qrCode}
+                  size={160}
+                  color={themeColors.primary}
+                />
               </View>
               <Text style={[styles.qrTitle, { color: themeColors.text }]}>
                 Scan to Access Server
@@ -383,24 +345,6 @@ export default function LocalServerScreen() {
           </View>
         </SettingsSection>
       </ScrollView>
-
-      {showWebView && serverStatus.url && (
-        <View style={styles.webViewModal}>
-          <View style={styles.webViewHeader}>
-            <Text style={[styles.webViewTitle, { color: themeColors.text }]}>Chat Interface</Text>
-            <TouchableOpacity
-              onPress={() => setShowWebView(false)}
-              style={styles.closeButton}
-            >
-              <MaterialCommunityIcons name="close" size={24} color={themeColors.text} />
-            </TouchableOpacity>
-          </View>
-          <LocalServerWebView
-            serverUrl={serverStatus.url}
-            onClose={() => setShowWebView(false)}
-          />
-        </View>
-      )}
     </View>
   );
 }
