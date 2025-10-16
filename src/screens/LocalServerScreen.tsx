@@ -33,6 +33,7 @@ export default function LocalServerScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [autoStart, setAutoStart] = useState(false);
   const [allowExternalAccess, setAllowExternalAccess] = useState(true);
+  const [showAnswerInput, setShowAnswerInput] = useState(false);
 
   useEffect(() => {
     const server = localServerWebRTC;
@@ -92,7 +93,25 @@ export default function LocalServerScreen() {
     }
   };
 
+  const handlePasteAnswer = async () => {
+    try {
+      const clipboardContent = await Clipboard.getString();
+      if (!clipboardContent || clipboardContent.trim().length === 0) {
+        Alert.alert('Error', 'Clipboard is empty');
+        return;
+      }
 
+      const result = await localServerWebRTC.handleAnswer(clipboardContent);
+      if (result.success) {
+        Alert.alert('Success', 'Connection established with browser client');
+        setShowAnswerInput(false);
+      } else {
+        Alert.alert('Error', result.error || 'Failed to process answer');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to paste answer SDP');
+    }
+  };
 
   const getStatusText = () => {
     if (isLoading) return 'Starting...';
@@ -218,6 +237,24 @@ export default function LocalServerScreen() {
                 </View>
                 <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
               </TouchableOpacity>
+
+              <View style={[styles.separator, { backgroundColor: themeColors.background }]} />
+              <TouchableOpacity style={styles.settingItem} onPress={handlePasteAnswer}>
+                <View style={styles.settingLeft}>
+                  <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
+                    <MaterialCommunityIcons name="content-paste" size={22} color={iconColor} />
+                  </View>
+                  <View style={styles.settingTextContainer}>
+                    <Text style={[styles.settingText, { color: themeColors.text }]}>
+                      Paste Answer SDP
+                    </Text>
+                    <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
+                      From browser to complete connection
+                    </Text>
+                  </View>
+                </View>
+                <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
+              </TouchableOpacity>
             </>
           )}
         </SettingsSection>
@@ -271,10 +308,10 @@ export default function LocalServerScreen() {
                 />
               </View>
               <Text style={[styles.qrTitle, { color: themeColors.text }]}>
-                Scan to Access Server
+                WebRTC Offer
               </Text>
               <Text style={[styles.qrDescription, { color: themeColors.secondaryText }]}>
-                Scan this QR code with any device on the same WiFi network to open the Inferra chat interface
+                Scan or copy this offer in browser client to establish connection
               </Text>
             </View>
           </SettingsSection>
