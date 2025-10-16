@@ -1,4 +1,5 @@
 import { WebRTCMessage, WebRTCResponse } from './WebRTCTypes';
+import { webrtcAPIHandler } from '../WebRTCAPIHandler';
 
 const API_ENDPOINTS: Record<string, string> = {
   '/api/models/list': 'getModels',
@@ -12,16 +13,7 @@ const API_ENDPOINTS: Record<string, string> = {
 
 export class WebRTCMessageRouter {
   private requestCount = new Map<string, { count: number; resetTime: number }>();
-  private messageHandler?: (message: any) => Promise<any>;
-  private streamHandler?: (message: any, callback: (chunk: any) => void) => void;
-
-  setHandlers(handlers: {
-    onMessage?: (message: any) => Promise<any>;
-    onStream?: (message: any, callback: (chunk: any) => void) => void;
-  }) {
-    this.messageHandler = handlers.onMessage;
-    this.streamHandler = handlers.onStream;
-  }
+  private apiHandler = webrtcAPIHandler;
 
   async handleMessage(message: WebRTCMessage, peerId: string): Promise<WebRTCResponse> {
     if (!this.checkRateLimit(peerId)) {
@@ -54,18 +46,12 @@ export class WebRTCMessageRouter {
     }
 
     try {
-      if (!this.messageHandler) {
-        throw new Error('message_handler_not_set');
-      }
-
       const bridgeMessage = {
-        id: message.id,
-        type: 'request',
         action,
         data: message.data || {},
       };
 
-      const result = await this.messageHandler(bridgeMessage);
+      const result = await this.apiHandler.handleMessage(bridgeMessage);
       
       return {
         id: message.id,
@@ -98,19 +84,12 @@ export class WebRTCMessageRouter {
     }
 
     try {
-      if (!this.streamHandler) {
-        sendChunk({ done: true, error: 'stream_handler_not_set' });
-        return;
-      }
-
       const bridgeMessage = {
-        id: message.id,
-        type: 'stream',
         action,
         data: message.data || {},
       };
 
-      this.streamHandler(bridgeMessage, (chunk: any) => {
+      this.apiHandler.handleStream(bridgeMessage, (chunk: any) => {
         sendChunk(chunk);
       });
     } catch (error: any) {

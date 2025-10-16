@@ -1,7 +1,4 @@
-import * as FileSystem from 'expo-file-system';
-import Server from '@dr.pogodin/react-native-static-server';
-import { modelDownloader } from './ModelDownloader';
-import { llamaManager } from '../utils/LlamaManager';
+import { WebRTCPeerManager } from './webrtc/WebRTCPeerManager';
 import { logger } from '../utils/logger';
 
 class SimpleEventEmitter {
@@ -38,34 +35,21 @@ class SimpleEventEmitter {
   }
 }
 
-interface ServerInfo {
-  isRunning: boolean;
-  url: string;
-  port: number;
-  ipAddress: string;
-}
-
 interface ServerStatus {
   isRunning: boolean;
-  url?: string;
-  port: number;
-  connections: number;
+  peerCount: number;
+  offerSDP?: string;
   startTime?: Date;
 }
 
 export class LocalServerService extends SimpleEventEmitter {
   private isRunning: boolean = false;
-  private serverInfo: ServerInfo | null = null;
-  private staticServer: Server | null = null;
-  private serverDirectory: string | null = null;
+  private peerManager: WebRTCPeerManager | null = null;
+  private offerSDP: string | null = null;
   private startTime: Date | null = null;
 
   constructor() {
     super();
-    this.setupModelChangeListener();
-  }
-
-  private setupModelChangeListener() {
   }
 
   private async updateWebContent(): Promise<void> {
