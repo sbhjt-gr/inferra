@@ -202,32 +202,66 @@ export class HTTPSignalingServer {
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Answer Received</title>
+  <title>Connection Established</title>
   <style>
     body { font-family: system-ui; max-width: 600px; margin: 50px auto; padding: 20px; text-align: center; }
     h1 { color: #660880; }
-    .success { background: #d4edda; color: #155724; padding: 20px; border-radius: 8px; margin: 20px 0; }
+    .status { padding: 20px; border-radius: 8px; margin: 20px 0; }
+    .success { background: #d4edda; color: #155724; }
+    .info { background: #d1ecf1; color: #0c5460; }
+    code { background: #f5f5f5; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
   </style>
 </head>
 <body>
-  <h1>Connection Established!</h1>
-  <div class="success">
-    <p>Answer SDP received and processed.</p>
-    <p>WebRTC connection should be established now.</p>
-    <p>You can close this page.</p>
+  <h1>Answer SDP Received</h1>
+  <div id="status" class="status info">
+    <p>For automatic connection, this page needs to be opened in a WebView context.</p>
+    <p>Currently, the answer SDP has been received via URL parameters.</p>
+    <p><strong>Manual step required:</strong> Copy the answer SDP below and paste it into your Inferra app.</p>
+  </div>
+  
+  <div style="text-align: left; background: #f5f5f5; padding: 15px; border-radius: 6px; margin: 20px 0; max-height: 200px; overflow-y: auto;">
+    <pre id="answer-sdp" style="margin: 0; white-space: pre-wrap; word-wrap: break-word; font-size: 11px;"></pre>
+  </div>
+  
+  <button onclick="copyAnswer()" style="padding: 10px 20px; background: #660880; color: white; border: none; border-radius: 6px; cursor: pointer;">
+    Copy Answer SDP
+  </button>
+  
+  <div id="copy-status" style="margin-top: 10px; color: #28a745; display: none;">
+    ✓ Copied to clipboard!
   </div>
   
   <script>
     const urlParams = new URLSearchParams(window.location.search);
     const answerSDP = urlParams.get('sdp');
-    const peerId = urlParams.get('peer');
+    const peerId = urlParams.get('peer') || 'unknown';
     
-    if (window.ReactNativeWebView && answerSDP) {
-      window.ReactNativeWebView.postMessage(JSON.stringify({
-        type: 'answer',
-        sdp: answerSDP,
-        peerId: peerId
-      }));
+    if (answerSDP) {
+      document.getElementById('answer-sdp').textContent = answerSDP;
+      
+      if (window.ReactNativeWebView) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'answer',
+          sdp: answerSDP,
+          peerId: peerId
+        }));
+        
+        document.getElementById('status').className = 'status success';
+        document.getElementById('status').innerHTML = '<p>✓ Answer submitted automatically!</p><p>Connection should be established soon. You can close this page.</p>';
+      }
+    } else {
+      document.getElementById('status').className = 'status info';
+      document.getElementById('status').innerHTML = '<p>No answer SDP found in URL parameters.</p>';
+    }
+    
+    function copyAnswer() {
+      const answerText = document.getElementById('answer-sdp').textContent;
+      navigator.clipboard.writeText(answerText).then(() => {
+        const copyStatus = document.getElementById('copy-status');
+        copyStatus.style.display = 'block';
+        setTimeout(() => { copyStatus.style.display = 'none'; }, 3000);
+      });
     }
   </script>
 </body>

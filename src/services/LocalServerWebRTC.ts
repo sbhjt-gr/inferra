@@ -1,5 +1,5 @@
 import { WebRTCPeerManager } from './webrtc/WebRTCPeerManager';
-import { HTTPSignalingServer } from './HTTPSignalingServer';
+import { tcpSignalingServer } from './TCPSignalingServer';
 import { logger } from '../utils/logger';
 
 class SimpleEventEmitter {
@@ -47,7 +47,6 @@ interface ServerStatus {
 export class LocalServerService extends SimpleEventEmitter {
   private isRunning: boolean = false;
   private peerManager: WebRTCPeerManager | null = null;
-  private signalingServer: HTTPSignalingServer | null = null;
   private offerSDP: string | null = null;
   private signalingURL: string | null = null;
   private startTime: Date | null = null;
@@ -67,8 +66,7 @@ export class LocalServerService extends SimpleEventEmitter {
       const offerSDP = await this.peerManager.createOffer();
       this.offerSDP = offerSDP;
 
-      this.signalingServer = new HTTPSignalingServer();
-      const signalingResult = await this.signalingServer.start(
+      const signalingResult = await tcpSignalingServer.start(
         offerSDP,
         async (answerSDP: string, peerId: string) => {
           await this.handleAnswer(answerSDP, peerId);
