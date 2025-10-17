@@ -1,4 +1,5 @@
 import { WebRTCPeerManager } from './webrtc/WebRTCPeerManager';
+import { HTTPSignalingServer } from './HTTPSignalingServer';
 import { logger } from '../utils/logger';
 
 class SimpleEventEmitter {
@@ -39,20 +40,23 @@ interface ServerStatus {
   isRunning: boolean;
   peerCount: number;
   offerSDP?: string;
+  signalingURL?: string;
   startTime?: Date;
 }
 
 export class LocalServerService extends SimpleEventEmitter {
   private isRunning: boolean = false;
   private peerManager: WebRTCPeerManager | null = null;
+  private signalingServer: HTTPSignalingServer | null = null;
   private offerSDP: string | null = null;
+  private signalingURL: string | null = null;
   private startTime: Date | null = null;
 
   constructor() {
     super();
   }
 
-  async start(): Promise<{ success: boolean; offerSDP?: string; error?: string }> {
+  async start(): Promise<{ success: boolean; offerSDP?: string; signalingURL?: string; error?: string }> {
     if (this.isRunning) {
       return { success: false, error: 'server_already_running' };
     }
@@ -62,21 +66,35 @@ export class LocalServerService extends SimpleEventEmitter {
 
       const offerSDP = await this.peerManager.createOffer();
       this.offerSDP = offerSDP;
+
+      this.signalingServer = new HTTPSignalingServer();
+      const signalingResult = await this.signalingServer.start(
+        offerSDP,
+        async (answerSDP: string, peerId: string) => {
+          await this.handleAnswer(answerSDP, peerId);
+        }
+      );
+
+      this.signalingURL = signalingResult.url;
       this.isRunning = true;
       this.startTime = new Date();
 
       this.emit('serverStarted', {
         offerSDP: this.offerSDP,
+        signalingURL: this.signalingURL,
         isRunning: true
       });
 
+      logger.info(`webrtc_server_started signaling:${this.signalingURL}`, 'webrtc');
+
       return {
         success: true,
-        offerSDP: this.offerSDP || undefined
+        offerSDP: this.offerSDP || undefined,
+        signalingURL: this.signalingURL || undefined
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'unknown_error';
-      logger.error('webrtc_start_failed');
+      logger.error('webrtc_start_failed', 'webrtc');
       return {
         success: false,
         error: errorMessage

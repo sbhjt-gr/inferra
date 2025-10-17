@@ -15,6 +15,7 @@ import { localServerWebRTC } from '../services/LocalServerWebRTC';
 interface ServerStatus {
   isRunning: boolean;
   offerSDP?: string;
+  signalingURL?: string;
   peerCount: number;
   startTime?: Date;
 }
@@ -33,7 +34,6 @@ export default function LocalServerScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [autoStart, setAutoStart] = useState(false);
   const [allowExternalAccess, setAllowExternalAccess] = useState(true);
-  const [showAnswerInput, setShowAnswerInput] = useState(false);
 
   useEffect(() => {
     const server = localServerWebRTC;
@@ -43,6 +43,7 @@ export default function LocalServerScreen() {
         ...prev,
         isRunning: true,
         offerSDP: data.offerSDP,
+        signalingURL: data.signalingURL,
         peerCount: 0,
         startTime: new Date(),
       }));
@@ -90,26 +91,6 @@ export default function LocalServerScreen() {
       Alert.alert('Error', 'An unexpected error occurred');
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const handlePasteAnswer = async () => {
-    try {
-      const clipboardContent = await Clipboard.getString();
-      if (!clipboardContent || clipboardContent.trim().length === 0) {
-        Alert.alert('Error', 'Clipboard is empty');
-        return;
-      }
-
-      const result = await localServerWebRTC.handleAnswer(clipboardContent);
-      if (result.success) {
-        Alert.alert('Success', 'Connection established with browser client');
-        setShowAnswerInput(false);
-      } else {
-        Alert.alert('Error', result.error || 'Failed to process answer');
-      }
-    } catch (error) {
-      Alert.alert('Error', 'Failed to paste answer SDP');
     }
   };
 
@@ -215,12 +196,12 @@ export default function LocalServerScreen() {
             />
           </View>
 
-          {serverStatus.isRunning && serverStatus.offerSDP && (
+          {serverStatus.isRunning && serverStatus.signalingURL && (
             <>
               <View style={[styles.separator, { backgroundColor: themeColors.background }]} />
               <TouchableOpacity style={styles.settingItem} onPress={() => {
-                Clipboard.setString(serverStatus.offerSDP || '');
-                Alert.alert('Copied', 'Offer SDP copied to clipboard');
+                Clipboard.setString(serverStatus.signalingURL || '');
+                Alert.alert('Copied', 'Signaling URL copied to clipboard');
               }}>
                 <View style={styles.settingLeft}>
                   <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
@@ -228,10 +209,10 @@ export default function LocalServerScreen() {
                   </View>
                   <View style={styles.settingTextContainer}>
                     <Text style={[styles.settingText, { color: themeColors.text }]}>
-                      Copy Offer SDP
+                      Copy Signaling URL
                     </Text>
                     <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
-                      Paste into browser client
+                      Share with browser client
                     </Text>
                   </View>
                 </View>
@@ -239,17 +220,22 @@ export default function LocalServerScreen() {
               </TouchableOpacity>
 
               <View style={[styles.separator, { backgroundColor: themeColors.background }]} />
-              <TouchableOpacity style={styles.settingItem} onPress={handlePasteAnswer}>
+              <TouchableOpacity style={styles.settingItem} onPress={() => {
+                Share.share({
+                  message: serverStatus.signalingURL || '',
+                  title: 'Inferra WebRTC Server'
+                });
+              }}>
                 <View style={styles.settingLeft}>
                   <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
-                    <MaterialCommunityIcons name="content-paste" size={22} color={iconColor} />
+                    <MaterialCommunityIcons name="share-variant" size={22} color={iconColor} />
                   </View>
                   <View style={styles.settingTextContainer}>
                     <Text style={[styles.settingText, { color: themeColors.text }]}>
-                      Paste Answer SDP
+                      Share URL
                     </Text>
                     <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
-                      From browser to complete connection
+                      Send connection URL to device
                     </Text>
                   </View>
                 </View>
@@ -296,22 +282,25 @@ export default function LocalServerScreen() {
           </SettingsSection>
         )}
 
-        {serverStatus.isRunning && serverStatus.offerSDP && (
-          <SettingsSection title="OFFER SDP">
+        {serverStatus.isRunning && serverStatus.signalingURL && (
+          <SettingsSection title="CONNECTION QR CODE">
             <View style={styles.qrDisplayContainer}>
               <View style={[styles.qrWrapper, { backgroundColor: '#FFFFFF' }]}>
                 <QRCodeStyled
-                  data={serverStatus.offerSDP}
+                  data={JSON.stringify({
+                    type: 'inferra_signaling',
+                    url: serverStatus.signalingURL
+                  })}
                   style={styles.qrCode}
                   size={160}
                   color={themeColors.primary}
                 />
               </View>
               <Text style={[styles.qrTitle, { color: themeColors.text }]}>
-                WebRTC Offer
+                Scan to Connect
               </Text>
               <Text style={[styles.qrDescription, { color: themeColors.secondaryText }]}>
-                Scan or copy this offer in browser client to establish connection
+                Scan this QR code with browser client for automatic connection
               </Text>
             </View>
           </SettingsSection>
