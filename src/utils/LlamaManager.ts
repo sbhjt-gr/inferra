@@ -1,4 +1,4 @@
-import { initLlama, loadLlamaModelInfo, type LlamaContext } from 'llama.rn';
+import { initLlama, loadLlamaModelInfo, type LlamaContext, type EmbeddingParams } from 'llama.rn';
 import { Platform, NativeModules } from 'react-native';
 import EventEmitter from 'eventemitter3';
 import { ModelSettings } from '../services/ModelSettingsService';
@@ -497,6 +497,15 @@ class LlamaManager {
 
   hasAudioSupport(): boolean {
     return this.multimodalService.hasAudioSupport();
+  }
+
+  async generateEmbedding(text: string, params?: EmbeddingParams): Promise<number[]> {
+    if (!this.context) {
+      throw new Error('Model not initialized');
+    }
+
+    const result = await this.context.embedding(text, params);
+    return result.embedding;
   }
 
   async tokenizeWithMedia(text: string, mediaPaths: string[] = []): Promise<any> {
