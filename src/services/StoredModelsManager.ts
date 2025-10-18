@@ -108,6 +108,7 @@ export class StoredModelsManager extends EventEmitter {
 
   async refreshStoredModels(): Promise<void> {
     try {
+      this.invalidateCache();
       
       const storedModels = await this.getStoredModels();
       const storedModelNames = storedModels.map(model => model.name);
@@ -132,6 +133,8 @@ export class StoredModelsManager extends EventEmitter {
               downloadId
             });
             
+            this.invalidateCache();
+            this.emit('modelsChanged');
           }
         }
       }
