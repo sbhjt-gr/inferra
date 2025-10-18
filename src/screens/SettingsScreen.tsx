@@ -22,10 +22,20 @@ import { modelDownloader } from '../services/ModelDownloader';
 import AppearanceSection from '../components/settings/AppearanceSection';
 import { getCurrentUser } from '../services/FirebaseService';
 import SupportSection from '../components/settings/SupportSection';
-import ModelSettingsSection from '../components/settings/ModelSettingsSection';
+import ModelSettingsSection, { type GpuConfig } from '../components/settings/ModelSettingsSection';
 import SystemInfoSection from '../components/settings/SystemInfoSection';
 import StorageSection from '../components/settings/StorageSection';
 import { Dialog, Portal, PaperProvider, Button, Text as PaperText } from 'react-native-paper';
+import { DEFAULT_SETTINGS } from '../config/llamaConfig';
+import type { ModelSettings as StoredModelSettings } from '../services/ModelSettingsService';
+import {
+  gpuSettingsService,
+  DEFAULT_GPU_LAYERS,
+  GPU_LAYER_MIN,
+  GPU_LAYER_MAX,
+  type GpuSettings,
+} from '../services/GpuSettingsService';
+import { checkGpuSupport, type GpuSupport } from '../utils/gpuCapabilities';
 
 type SettingsScreenProps = {
   navigation: CompositeNavigationProp<
@@ -37,15 +47,20 @@ type SettingsScreenProps = {
 type ThemeOption = 'system' | 'light' | 'dark';
 type InferenceEngine = 'llama.cpp' | 'mediapipe' | 'mlc-llm' | 'mlx';
 
-const DEFAULT_SETTINGS = {
-  maxTokens: 1200,
-  temperature: 0.7,
-  topK: 40,
-  topP: 0.9,
-  minP: 0.05,
-  stopWords: ['<|end|>', '<end_of_turn>', '<|im_end|>', '<|endoftext|>','<end_of_utterance>'],
-  systemPrompt: 'You are a helpful, honest, and safe AI assistant. Maintain a neutral and professional tone while responding to user queries.',
-  inferenceEngine: 'llama.cpp' as InferenceEngine
+const DEFAULT_INFERENCE_ENGINE: InferenceEngine = 'llama.cpp';
+
+type ModelSettingKey = keyof StoredModelSettings;
+
+type DialogSettingConfig = {
+  key?: ModelSettingKey;
+  label: string;
+  value: number;
+  defaultValue?: number;
+  minimumValue: number;
+  maximumValue: number;
+  step: number;
+  description: string;
+  onSave?: (value: number) => Promise<void> | void;
 };
 
 export default function SettingsScreen({ navigation }: SettingsScreenProps) {
@@ -61,23 +76,18 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     memory: 'Unknown',
     gpu: 'Unknown'
   });
-  const [modelSettings, setModelSettings] = useState(llamaManager.getSettings());
+  const [modelSettings, setModelSettings] = useState<StoredModelSettings>(
+    llamaManager.getSettings()
+  );
   const [error, setError] = useState<string | null>(null);
-  const [selectedInferenceEngine, setSelectedInferenceEngine] = useState<InferenceEngine>('llama.cpp');
+  const [selectedInferenceEngine, setSelectedInferenceEngine] =
+    useState<InferenceEngine>(DEFAULT_INFERENCE_ENGINE);
   
   const [dialogConfig, setDialogConfig] = useState<{
     visible: boolean;
-    setting?: {
-      key: keyof typeof modelSettings;
-      label: string;
-      value: number;
-      minimumValue: number;
-      maximumValue: number;
-      step: number;
-      description: string;
-    };
+    setting?: DialogSettingConfig;
   }>({
-    visible: false
+    visible: false,
   });
   const [showStopWordsDialog, setShowStopWordsDialog] = useState(false);
   const [showSystemPromptDialog, setShowSystemPromptDialog] = useState(false);
@@ -87,6 +97,10 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     cacheSize: '0 B'
   });
   const [isClearing, setIsClearing] = useState(false);
+  const [gpuSettings, setGpuSettings] = useState<GpuSettings>(
+    gpuSettingsService.getSettingsSync()
+  );
+  const [gpuSupport, setGpuSupport] = useState<GpuSupport | null>(null);
 
   const [dialogVisible, setDialogVisible] = useState(false);
   const [dialogTitle, setDialogTitle] = useState('');
@@ -102,11 +116,71 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     setDialogVisible(true);
   };
 
+  const getDefaultValueForKey = (key?: ModelSettingKey): number | undefined => {
+    if (!key) {
+      return undefined;
+    }
+
+    const defaultsRecord = DEFAULT_SETTINGS as unknown as Record<string, unknown>;
+    const candidate = defaultsRecord[key as string];
+    return typeof candidate === 'number' ? (candidate as number) : undefined;
+  };
+
+  useEffect(() => {
+    let isActive = true;
+
+    gpuSettingsService
+      .loadSettings()
+      .then(settings => {
+        if (isActive) {
+          setGpuSettings(settings);
+        }
+      })
+      .catch(() => {
+        // Ignore errors; defaults remain in place.
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isActive = true;
+
+    checkGpuSupport()
+      .then(support => {
+        if (isActive) {
+          setGpuSupport(support);
+        }
+      })
+      .catch(() => {
+        if (isActive) {
+          setGpuSupport({ isSupported: false, reason: 'unknown' });
+        }
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (gpuSupport && !gpuSupport.isSupported && gpuSettings.enabled) {
+      setGpuSettings(prev => ({ ...prev, enabled: false }));
+      gpuSettingsService.setEnabled(false).catch(() => {});
+    }
+  }, [gpuSupport, gpuSettings.enabled]);
+
   useFocusEffect(
     React.useCallback(() => {
       setModelSettings(llamaManager.getSettings());
       loadStorageInfo();
       loadInferenceEnginePreference();
+      gpuSettingsService
+        .loadSettings()
+        .then(setGpuSettings)
+        .catch(() => {});
     }, [])
   );
 
@@ -164,6 +238,32 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     }
   };
 
+  const handleGpuToggle = async (enabled: boolean) => {
+    const previous = gpuSettings.enabled;
+    setGpuSettings(prev => ({ ...prev, enabled }));
+
+    try {
+      await gpuSettingsService.setEnabled(enabled);
+    } catch (error) {
+      setGpuSettings(prev => ({ ...prev, enabled: previous }));
+      showDialog('Error', 'Failed to update GPU acceleration preference', [
+        <Button key="ok" onPress={hideDialog}>OK</Button>,
+      ]);
+    }
+  };
+
+  const handleGpuLayersChange = async (layers: number) => {
+    const previous = gpuSettings.layers;
+    setGpuSettings(prev => ({ ...prev, layers }));
+
+    try {
+      await gpuSettingsService.setLayers(layers);
+    } catch (error) {
+      setGpuSettings(prev => ({ ...prev, layers: previous }));
+      throw error;
+    }
+  };
+
   const handleSettingsChange = async (newSettings: Partial<typeof modelSettings>) => {
     try {
       const updatedSettings = { ...modelSettings, ...newSettings };
@@ -188,10 +288,19 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     Linking.openURL(url);
   };
 
-  const handleOpenDialog = (config: typeof dialogConfig.setting) => {
+  const handleOpenDialog = (config: DialogSettingConfig) => {
+    const inferredDefault =
+      config.defaultValue !== undefined
+        ? config.defaultValue
+        : getDefaultValueForKey(config.key);
+
     setDialogConfig({
       visible: true,
-      setting: config
+      setting: {
+        ...config,
+        defaultValue:
+          typeof inferredDefault === 'number' ? inferredDefault : config.value,
+      },
     });
   };
 
@@ -204,12 +313,64 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
       key: 'maxTokens',
       label: 'Max Response Tokens',
       value: modelSettings.maxTokens,
+      defaultValue: DEFAULT_SETTINGS.maxTokens,
       minimumValue: 1,
       maximumValue: 4096,
       step: 1,
       description: "Maximum number of tokens in model responses. More tokens = longer responses but slower generation."
     });
   };
+
+  const gpuConfig = React.useMemo<GpuConfig | undefined>(() => {
+    if (Platform.OS !== 'ios' && Platform.OS !== 'android') {
+      return undefined;
+    }
+
+    const fallbackSupport: GpuSupport = Platform.OS === 'ios'
+      ? { isSupported: true }
+      : { isSupported: true, reason: 'unknown' };
+    const support = gpuSupport ?? fallbackSupport;
+
+    const label = Platform.OS === 'ios' ? 'Metal Acceleration' : 'OpenCL Acceleration';
+
+    let description =
+      Platform.OS === 'ios'
+        ? 'Run transformer layers on the Apple Metal GPU to reduce CPU usage.'
+        : 'Offload transformer layers to your device GPU via OpenCL.';
+
+    if (!support.isSupported) {
+      switch (support.reason) {
+        case 'ios_version':
+          description = 'Requires iOS 18 or newer to use Metal acceleration.';
+          break;
+        case 'no_adreno':
+          description = 'Requires an Adreno GPU to enable OpenCL acceleration.';
+          break;
+        case 'missing_cpu_features':
+          description = 'Requires CPU support for i8mm and dot product instructions.';
+          break;
+        default:
+          description = 'GPU acceleration is not available on this device.';
+      }
+    } else if (support.reason === 'unknown' && Platform.OS === 'android') {
+      description = 'Attempts to use OpenCL for faster inference. Capability check is inconclusive.';
+    }
+
+    const config: GpuConfig = {
+      label,
+      description,
+      enabled: support.isSupported ? gpuSettings.enabled : false,
+      supported: support.isSupported,
+      value: gpuSettings.layers,
+      defaultValue: DEFAULT_GPU_LAYERS,
+      min: GPU_LAYER_MIN,
+      max: GPU_LAYER_MAX,
+      reason: support.reason,
+      experimental: Platform.OS === 'android',
+    };
+
+    return config;
+  }, [gpuSupport, gpuSettings.enabled, gpuSettings.layers]);
 
   const formatBytes = (bytes: number) => {
     if (bytes === 0) return '0 B';
@@ -496,6 +657,9 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           onResetSystemPrompt={() => handleSettingsChange({ systemPrompt: DEFAULT_SETTINGS.systemPrompt })}
           enableRemoteModels={enableRemoteModels}
           onToggleRemoteModels={handleRemoteModelsToggle}
+          gpuConfig={gpuConfig}
+          onToggleGpu={handleGpuToggle}
+          onGpuLayersChange={handleGpuLayersChange}
         />
 
         <StorageSection
@@ -515,14 +679,34 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
         
         {dialogConfig.setting && (
           <ModelSettingDialog
-          key={dialogConfig.setting.key}
+            key={dialogConfig.setting.key ?? dialogConfig.setting.label}
             visible={dialogConfig.visible}
             onClose={handleCloseDialog}
-            onSave={(value) => {
-              handleSettingsChange({ [dialogConfig.setting!.key]: value });
-              handleCloseDialog();
+            onSave={async (value) => {
+              if (!dialogConfig.setting) {
+                return;
+              }
+
+              try {
+                if (dialogConfig.setting.onSave) {
+                  await dialogConfig.setting.onSave(value);
+                } else if (dialogConfig.setting.key) {
+                  await handleSettingsChange(
+                    { [dialogConfig.setting.key]: value } as Partial<typeof modelSettings>
+                  );
+                }
+                handleCloseDialog();
+              } catch (error) {
+                showDialog('Error', 'Failed to save setting', [
+                  <Button key="ok" onPress={hideDialog}>OK</Button>,
+                ]);
+              }
             }}
-            defaultValue={(DEFAULT_SETTINGS as any)[dialogConfig.setting.key] as number}
+            defaultValue={
+              dialogConfig.setting.defaultValue ??
+              getDefaultValueForKey(dialogConfig.setting.key) ??
+              dialogConfig.setting.value
+            }
             label={dialogConfig.setting.label}
             value={dialogConfig.setting.value}
             minimumValue={dialogConfig.setting.minimumValue}

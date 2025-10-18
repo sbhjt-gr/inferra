@@ -39,6 +39,19 @@ type ModelSettings = {
   enableThinking: boolean;
 };
 
+export type GpuConfig = {
+  label: string;
+  description: string;
+  enabled: boolean;
+  supported: boolean;
+  value: number;
+  defaultValue: number;
+  min: number;
+  max: number;
+  reason?: 'ios_version' | 'no_adreno' | 'missing_cpu_features' | 'unknown';
+  experimental?: boolean;
+};
+
 type ModelSettingsSectionProps = {
   modelSettings: ModelSettings;
   defaultSettings: Partial<ModelSettings>;
@@ -59,6 +72,9 @@ type ModelSettingsSectionProps = {
   onResetSystemPrompt?: () => void;
   enableRemoteModels?: boolean;
   onToggleRemoteModels?: (enabled: boolean) => void;
+  gpuConfig?: GpuConfig;
+  onToggleGpu?: (enabled: boolean) => void | Promise<void>;
+  onGpuLayersChange?: (layers: number) => void | Promise<void>;
 };
 
 const ModelSettingsSection = ({
@@ -80,7 +96,10 @@ const ModelSettingsSection = ({
   onOpenSystemPromptDialog,
   onResetSystemPrompt,
   enableRemoteModels,
-  onToggleRemoteModels
+  onToggleRemoteModels,
+  gpuConfig,
+  onToggleGpu,
+  onGpuLayersChange,
 }: ModelSettingsSectionProps) => {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme];
@@ -110,6 +129,53 @@ const ModelSettingsSection = ({
     return currArray.length !== defArray.length || 
            !currArray.every((item, index) => item === defArray[index]);
   };
+
+  const showGpuSettings = Boolean(
+    gpuConfig &&
+      onToggleGpu &&
+      onGpuLayersChange &&
+      typeof onDialogOpen === 'function'
+  );
+
+  const gpuSupportMessage = React.useMemo(() => {
+    if (!gpuConfig) {
+      return null;
+    }
+
+    if (gpuConfig.supported && gpuConfig.reason !== 'unknown') {
+      return null;
+    }
+
+    switch (gpuConfig.reason) {
+      case 'ios_version':
+        return 'Metal acceleration requires iOS 18 or newer.';
+      case 'no_adreno':
+        return 'OpenCL acceleration needs an Adreno GPU.';
+      case 'missing_cpu_features':
+        return 'OpenCL acceleration needs i8mm and dot product CPU instructions.';
+      case 'unknown':
+        return Platform.OS === 'android'
+          ? 'Device GPU capabilities could not be verified. Results may vary.'
+          : null;
+      default:
+        return null;
+    }
+  }, [gpuConfig]);
+
+  const handleGpuLayersReset = React.useCallback(() => {
+    if (!gpuConfig || !onGpuLayersChange) {
+      return;
+    }
+
+    try {
+      const result = onGpuLayersChange(gpuConfig.defaultValue);
+      if (result && typeof (result as Promise<void>).catch === 'function') {
+        (result as Promise<void>).catch(() => {});
+      }
+    } catch (error) {
+      // Errors are surfaced through dialog interactions when applicable.
+    }
+  }, [gpuConfig, onGpuLayersChange]);
 
   return (
     <SettingsSection title="MODEL SETTINGS">
@@ -199,6 +265,139 @@ const ModelSettingsSection = ({
           </View>
           <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
         </TouchableOpacity>
+      )}
+
+      {showGpuSettings && gpuConfig && (
+        <>
+          <View style={styles.settingItem}>
+            <View style={styles.settingLeft}>
+              <View
+                style={[
+                  styles.iconContainer,
+                  {
+                    backgroundColor:
+                      currentTheme === 'dark'
+                        ? 'rgba(255, 255, 255, 0.2)'
+                        : themeColors.primary + '20',
+                  },
+                ]}
+              >
+                <MaterialCommunityIcons name="chip" size={22} color={iconColor} />
+              </View>
+              <View style={styles.settingTextContainer}>
+                <View style={styles.labelRow}>
+                  <Text style={[styles.settingText, { color: themeColors.text }]}>
+                    {gpuConfig.label}
+                  </Text>
+                  {gpuConfig.experimental && (
+                    <View
+                      style={[
+                        styles.gpuBadge,
+                        {
+                          backgroundColor:
+                            currentTheme === 'dark'
+                              ? 'rgba(255, 255, 255, 0.2)'
+                              : themeColors.primary + '20',
+                        },
+                      ]}
+                    >
+                      <Text style={[styles.gpuBadgeText, { color: iconColor }]}>EXPERIMENTAL</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
+                  {gpuConfig.description}
+                </Text>
+                {gpuSupportMessage && (
+                  <Text style={[styles.gpuSupportText, { color: themeColors.secondaryText }]}>
+                    {gpuSupportMessage}
+                  </Text>
+                )}
+              </View>
+            </View>
+            <Switch
+              value={gpuConfig.enabled}
+              onValueChange={value => onToggleGpu?.(value)}
+              disabled={!gpuConfig.supported}
+              trackColor={{ false: themeColors.borderColor, true: themeColors.primary + '80' }}
+              thumbColor={gpuConfig.enabled ? themeColors.primary : themeColors.background}
+            />
+          </View>
+
+          <TouchableOpacity
+            style={[
+              styles.settingItem,
+              styles.settingItemBorder,
+              styles.settingItemBottomBorder,
+              (!gpuConfig.enabled || !gpuConfig.supported) && styles.disabledSettingItem,
+            ]}
+            disabled={!gpuConfig.enabled || !gpuConfig.supported}
+            onPress={() => {
+              if (!gpuConfig.enabled || !gpuConfig.supported) {
+                return;
+              }
+
+              onDialogOpen({
+                label: 'Layers on GPU',
+                value: gpuConfig.value,
+                defaultValue: gpuConfig.defaultValue,
+                minimumValue: gpuConfig.min,
+                maximumValue: gpuConfig.max,
+                step: 1,
+                description:
+                  'Number of transformer layers executed on the GPU. Higher values reduce CPU load but require more GPU memory.',
+                onSave: onGpuLayersChange,
+              });
+            }}
+          >
+            <View style={styles.settingLeft}>
+              <View
+                style={[
+                  styles.iconContainer,
+                  {
+                    backgroundColor:
+                      currentTheme === 'dark'
+                        ? 'rgba(255, 255, 255, 0.2)'
+                        : themeColors.primary + '20',
+                  },
+                ]}
+              >
+                <MaterialCommunityIcons name="layers-triple" size={22} color={iconColor} />
+              </View>
+              <View style={styles.settingTextContainer}>
+                <View style={styles.labelRow}>
+                  <Text style={[styles.settingText, { color: themeColors.text }]}>
+                    Layers on GPU
+                  </Text>
+                  <Text style={[styles.valueText, { color: themeColors.text }]}>
+                    {gpuConfig.value}
+                  </Text>
+                </View>
+                <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
+                  Higher values push more transformer layers to the GPU for faster inference.
+                </Text>
+                {gpuConfig.value !== gpuConfig.defaultValue && (
+                  <TouchableOpacity
+                    onPress={handleGpuLayersReset}
+                    style={[
+                      styles.resetButton,
+                      {
+                        backgroundColor:
+                          currentTheme === 'dark'
+                            ? 'rgba(255, 255, 255, 0.2)'
+                            : themeColors.primary + '20',
+                      },
+                    ]}
+                  >
+                    <MaterialCommunityIcons name="refresh" size={14} color={iconColor} />
+                    <Text style={[styles.resetText, { color: iconColor }]}>Reset to Default</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+            <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
+          </TouchableOpacity>
+        </>
       )}
 
       <TouchableOpacity 
@@ -1535,6 +1734,23 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 0.5,
+  },
+  gpuBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  gpuBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  gpuSupportText: {
+    fontSize: 12,
+    marginTop: 6,
+  },
+  disabledSettingItem: {
+    opacity: 0.5,
   },
   modalOverlay: {
     flex: 1,

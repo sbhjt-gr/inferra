@@ -13,6 +13,8 @@ import { MultimodalService } from '../services/MultimodalService';
 import { TokenProcessingService } from '../services/TokenProcessingService';
 import { LlamaSettingsManager } from '../services/LlamaSettingsManager';
 import { LLAMA_INIT_CONFIG, TITLE_GENERATION_CONFIG } from '../config/llamaConfig';
+import { gpuSettingsService } from '../services/GpuSettingsService';
+import { checkGpuSupport, type GpuSupport } from '../utils/gpuCapabilities';
 
 const LlamaManagerModule = NativeModules.LlamaManager as LlamaManagerInterface;
 
@@ -63,9 +65,22 @@ class LlamaManager {
 
       this.modelPath = finalModelPath;
       
+      let gpuLayerCount = 0;
+      try {
+        const [gpuSettings, gpuSupport] = await Promise.all([
+          gpuSettingsService.loadSettings(),
+          checkGpuSupport().catch((): GpuSupport => ({ isSupported: false, reason: 'unknown' })),
+        ]);
+        gpuLayerCount =
+          gpuSettings.enabled && gpuSupport.isSupported ? gpuSettings.layers : 0;
+      } catch (error) {
+        gpuLayerCount = 0;
+      }
+
       this.context = await initLlama({
         model: finalModelPath,
         ...LLAMA_INIT_CONFIG,
+        n_gpu_layers: gpuLayerCount,
       });
 
       if (mmProjectorPath && this.context) {
