@@ -1,17 +1,12 @@
 import * as FileSystem from 'expo-file-system';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform } from 'react-native';
-import * as DocumentPicker from 'expo-document-picker';
 import * as Sharing from 'expo-sharing';
 import { EventEmitter } from './EventEmitter';
 import { FileManager } from './FileManager';
 import { StoredModel } from './ModelDownloaderTypes';
-import { detectVisionCapabilities, isProjectionModel } from '../utils/multimodalHelpers';
+import { detectVisionCapabilities } from '../utils/multimodalHelpers';
 import { ModelType } from '../types/models';
 
 export class StoredModelsManager extends EventEmitter {
-  private externalModels: StoredModel[] = [];
-  private readonly EXTERNAL_MODELS_KEY = 'external_models';
   private fileManager: FileManager;
   private cachedModels: StoredModel[] | null = null;
   private lastCacheTime: number = 0;
@@ -23,7 +18,6 @@ export class StoredModelsManager extends EventEmitter {
   }
 
   async initialize(): Promise<void> {
-    await this.loadExternalModels();
   }
 
   async getStoredModels(): Promise<StoredModel[]> {
@@ -39,7 +33,7 @@ export class StoredModelsManager extends EventEmitter {
       const dirInfo = await FileSystem.getInfoAsync(baseDir);
       if (!dirInfo.exists) {
         await FileSystem.makeDirectoryAsync(baseDir, { intermediates: true });
-        this.cachedModels = [...this.externalModels];
+        this.cachedModels = [];
         this.lastCacheTime = now;
         return this.cachedModels;
       }
@@ -83,11 +77,11 @@ export class StoredModelsManager extends EventEmitter {
         );
       }
 
-      this.cachedModels = [...localModels, ...this.externalModels];
+      this.cachedModels = localModels;
       this.lastCacheTime = now;
       return this.cachedModels;
     } catch (error) {
-      this.cachedModels = [...this.externalModels];
+      this.cachedModels = [];
       this.lastCacheTime = now;
       return this.cachedModels;
     }
@@ -95,17 +89,7 @@ export class StoredModelsManager extends EventEmitter {
 
   async deleteModel(path: string): Promise<void> {
     try {
-      const externalModelIndex = this.externalModels.findIndex(model => model.path === path);
-      if (externalModelIndex !== -1) {
-        this.externalModels.splice(externalModelIndex, 1);
-        await this.saveExternalModels();
-        this.invalidateCache();
-        this.emit('modelsChanged');
-        return;
-      }
-
       await this.fileManager.deleteFile(path);
-
       this.invalidateCache();
       this.emit('modelsChanged');
     } catch (error) {
@@ -157,7 +141,6 @@ export class StoredModelsManager extends EventEmitter {
 
   async linkExternalModel(uri: string, fileName: string): Promise<void> {
     try {
-      
       const baseDir = this.fileManager.getBaseDir();
       const destPath = `${baseDir}/${fileName}`;
       const destInfo = await FileSystem.getInfoAsync(destPath);
@@ -165,70 +148,24 @@ export class StoredModelsManager extends EventEmitter {
         throw new Error('A model with this name already exists in the models directory');
       }
 
-      const existingExternal = this.externalModels.find(model => model.name === fileName);
-      if (existingExternal) {
-        throw new Error('A model with this name already exists in external models');
-      }
-
       const fileInfo = await FileSystem.getInfoAsync(uri, { size: true });
       if (!fileInfo.exists) {
         throw new Error('External file does not exist');
       }
 
-      let finalPath = uri;
-      let isExternal = true;
-      
-      if (Platform.OS === 'android' && uri.startsWith('content://')) {
-        
-        const appModelPath = `${baseDir}/${fileName}`;
-        
-        try {
-          const dirInfo = await FileSystem.getInfoAsync(baseDir);
-          if (!dirInfo.exists) {
-            await FileSystem.makeDirectoryAsync(baseDir, { intermediates: true });
-          }
-          
-          await FileSystem.copyAsync({
-            from: uri,
-            to: appModelPath
-          });
-          
-          finalPath = appModelPath;
-          isExternal = false; 
-          
-        } catch (error) {
-          throw new Error('Failed to copy the model file to the app directory');
-        }
+      const dirInfo = await FileSystem.getInfoAsync(baseDir);
+      if (!dirInfo.exists) {
+        await FileSystem.makeDirectoryAsync(baseDir, { intermediates: true });
       }
 
-      if (isExternal) {
-        const capabilities = detectVisionCapabilities(fileName);
-        const modelType = capabilities.isProjection 
-          ? ModelType.PROJECTION 
-          : capabilities.isVision 
-            ? ModelType.VISION 
-            : ModelType.LLM;
-
-        const newExternalModel: StoredModel = {
-          name: fileName,
-          path: finalPath,
-          size: (fileInfo as any).size || 0,
-          modified: new Date().toISOString(),
-          isExternal: true,
-          modelType,
-          capabilities: capabilities.capabilities,
-          supportsMultimodal: capabilities.isVision,
-          compatibleProjectionModels: capabilities.compatibleProjections,
-          defaultProjectionModel: capabilities.defaultProjection,
-        };
-
-        this.externalModels.push(newExternalModel);
-        await this.saveExternalModels();
-      }
+      await FileSystem.copyAsync({
+        from: uri,
+        to: destPath
+      });
 
       this.invalidateCache();
       this.emit('modelsChanged');
-      
+
     } catch (error) {
       throw error;
     }
@@ -271,24 +208,6 @@ export class StoredModelsManager extends EventEmitter {
 
     } catch (error) {
       throw error;
-    }
-  }
-
-  private async loadExternalModels(): Promise<void> {
-    try {
-      const externalModelsJson = await AsyncStorage.getItem(this.EXTERNAL_MODELS_KEY);
-      if (externalModelsJson) {
-        this.externalModels = JSON.parse(externalModelsJson);
-      }
-    } catch (error) {
-      this.externalModels = [];
-    }
-  }
-
-  private async saveExternalModels(): Promise<void> {
-    try {
-      await AsyncStorage.setItem(this.EXTERNAL_MODELS_KEY, JSON.stringify(this.externalModels));
-    } catch (error) {
     }
   }
 } 

@@ -426,72 +426,24 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       }
 
       setIsLoading(true);
+      setImportingModelName(file.name);
       
       try {
-        const isAndroidContentUri = Platform.OS === 'android' && file.uri.startsWith('content://');
-        
-        if (isAndroidContentUri) {
-          showDialog(
-            'Importing Model',
-            'The model file needs to be copied to the app directory to work properly. This may take a while for large models.',
-            [
-              <Button
-                key="continue"
-                onPress={async () => {
-                  hideDialog();
-                  try {
-                    setImportingModelName(file.name);
-                    await modelDownloader.linkExternalModel(file.uri, file.name);
-                    setIsLoading(false);
-                    setImportingModelName(null);
-                    showDialog(
-                      'Model Imported',
-                      'The model has been successfully imported. Consider deleting the original file from your device to save space.',
-                      [<Button key="ok" onPress={hideDialog}>OK</Button>]
-                    );
-                    await loadStoredModels(true);
-                  } catch (error) {
-                    setIsLoading(false);
-                    setImportingModelName(null);
-                    showDialog(
-                      'Error',
-                      `Failed to import the model: ${error instanceof Error ? error.message : 'Unknown error'}`,
-                      [<Button key="ok" onPress={hideDialog}>OK</Button>]
-                    );
-                  }
-                }}
-              >
-                Continue
-              </Button>,
-              <Button
-                key="cancel"
-                onPress={() => {
-                  hideDialog();
-                  setIsLoading(false);
-                }}
-              >
-                Cancel
-              </Button>
-            ]
-          );
-        } else {
-          setImportingModelName(file.name);
-          await modelDownloader.linkExternalModel(file.uri, file.name);
-          setIsLoading(false);
-          setImportingModelName(null);
-          showDialog(
-            'Model Linked',
-            'The model has been successfully linked to the app. It will remain in its original location.',
-            [<Button key="ok" onPress={hideDialog}>OK</Button>]
-          );
-          await loadStoredModels(true);
-        }
+        await modelDownloader.linkExternalModel(file.uri, file.name);
+        setIsLoading(false);
+        setImportingModelName(null);
+        showDialog(
+          'Model Imported',
+          'The model has been successfully imported to the app.',
+          [<Button key="ok" onPress={hideDialog}>OK</Button>]
+        );
+        await loadStoredModels(true);
       } catch (error) {
         setIsLoading(false);
         setImportingModelName(null);
         showDialog(
           'Error',
-          'Failed to access the file. Please try again or choose a different file.',
+          `Failed to import the model: ${error instanceof Error ? error.message : 'Unknown error'}`,
           [<Button key="ok" onPress={hideDialog}>OK</Button>]
         );
       }
@@ -697,44 +649,30 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
   }, [downloadProgress]);
 
   const handleDelete = (model: StoredModel) => {
-    
-    if (model.isExternal) {
-      (async () => {
-        try {
-          modelDownloader.deleteModel(model.path);
-          await modelSettingsService.deleteModelSettings(model.path);
-          loadStoredModels(true);
-        } catch (error) {
-          showDialog('Error', 'Failed to remove model linkage', [
-            <Button key="ok" onPress={hideDialog}>OK</Button>
-          ]);
-        }
-      })();
-    } else {
-      showDialog(
-        'Delete Model',
-        `Are you sure you want to delete ${model.name}?`,
-        [
-          <Button key="cancel" onPress={hideDialog}>Cancel</Button>,
-          <Button
-            key="delete"
-            onPress={async () => {
-              hideDialog();
-              try {
-                await modelDownloader.deleteModel(model.path);
-                await modelSettingsService.deleteModelSettings(model.path);
-                await loadStoredModels(true);
-              } catch (error) {
-                showDialog('Error', 'Failed to delete model', [
-                ]);
-              }
-            }}
-          >
-            Delete
-          </Button>
-        ]
-      );
-    }
+    showDialog(
+      'Delete Model',
+      `Are you sure you want to delete ${model.name}?`,
+      [
+        <Button key="cancel" onPress={hideDialog}>Cancel</Button>,
+        <Button
+          key="delete"
+          onPress={async () => {
+            hideDialog();
+            try {
+              await modelDownloader.deleteModel(model.path);
+              await modelSettingsService.deleteModelSettings(model.path);
+              await loadStoredModels(true);
+            } catch (error) {
+              showDialog('Error', 'Failed to delete model', [
+                <Button key="ok" onPress={hideDialog}>OK</Button>
+              ]);
+            }
+          }}
+        >
+          Delete
+        </Button>
+      ]
+    );
   };
 
   const handleExport = async (modelPath: string, modelName: string) => {
@@ -891,7 +829,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         name={item.name}
         path={item.path}
         size={item.size}
-        isExternal={Boolean(item.isExternal)}
         isProjector={isProjectorModel}
         onDelete={() => handleDelete(item)}
         onExport={handleExport}
