@@ -30,6 +30,7 @@ export type RootStackParamList = {
     modelPath: string;
   };
   ServerLogs: undefined;
+  ServerDocs: undefined;
 };
 
 export type TabParamList = {

@@ -34,31 +34,6 @@ export default function LocalServerScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [autoStart, setAutoStart] = useState(false);
   const [allowExternalAccess, setAllowExternalAccess] = useState(true);
-  const apiEndpoints = [
-    { method: 'GET', path: '/api/tags', description: 'List installed models' },
-    { method: 'POST', path: '/api/pull', description: 'Download a model' },
-    { method: 'DELETE', path: '/api/delete', description: 'Remove a model' },
-    { method: 'GET', path: '/api/version', description: 'Check app version' }
-  ];
-
-  const handlePasteAnswer = async () => {
-    try {
-      const clipboardContent = await Clipboard.getString();
-      if (!clipboardContent || clipboardContent.trim().length === 0) {
-        Alert.alert('Error', 'Clipboard is empty');
-        return;
-      }
-
-      const result = await localServerWebRTC.handleAnswer(clipboardContent);
-      if (result.success) {
-        Alert.alert('Success', 'Connection established with browser client');
-      } else {
-        Alert.alert('Error', result.error || 'Failed to process answer');
-      }
-    } catch (error) {
-      Alert.alert('Error', 'Failed to paste answer SDP');
-    }
-  };
 
   useEffect(() => {
     const server = localServerWebRTC;
@@ -273,23 +248,6 @@ export default function LocalServerScreen() {
                 <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
               </TouchableOpacity>
 
-              <View style={[styles.separator, { backgroundColor: themeColors.background }]} />
-              <TouchableOpacity style={styles.settingItem} onPress={handlePasteAnswer}>
-                <View style={styles.settingLeft}>
-                  <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
-                    <MaterialCommunityIcons name="content-paste" size={22} color={iconColor} />
-                  </View>
-                  <View style={styles.settingTextContainer}>
-                    <Text style={[styles.settingText, { color: themeColors.text }]}>
-                      Paste Answer SDP (Fallback)
-                    </Text>
-                    <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
-                      Use if automatic pairing fails
-                    </Text>
-                  </View>
-                </View>
-                <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
-              </TouchableOpacity>
             </>
           )}
         </SettingsSection>
@@ -331,21 +289,27 @@ export default function LocalServerScreen() {
           </SettingsSection>
         )}
 
-        {serverStatus.isRunning && (
-          <SettingsSection title="API ENDPOINTS">
-            {apiEndpoints.map((endpoint) => (
-              <View key={endpoint.path} style={styles.endpointRow}>
-                <View style={[styles.endpointMethodBadge, { backgroundColor: themeColors.primary }]}>
-                  <Text style={styles.endpointMethodText}>{endpoint.method}</Text>
-                </View>
-                <View style={styles.endpointDetails}>
-                  <Text style={[styles.endpointPath, { color: themeColors.text }]}>{endpoint.path}</Text>
-                  <Text style={[styles.endpointDescription, { color: themeColors.secondaryText }]}>{endpoint.description}</Text>
-                </View>
+        <SettingsSection title="API REFERENCE">
+          <TouchableOpacity
+            style={styles.settingItem}
+            onPress={() => navigation.navigate('ServerDocs')}
+          >
+            <View style={styles.settingLeft}>
+              <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
+                <MaterialCommunityIcons name="book-open-variant" size={22} color={iconColor} />
               </View>
-            ))}
-          </SettingsSection>
-        )}
+              <View style={styles.settingTextContainer}>
+                <Text style={[styles.settingText, { color: themeColors.text }]}>
+                  Server API Reference
+                </Text>
+                <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
+                  View REST endpoints documentation and examples
+                </Text>
+              </View>
+            </View>
+            <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
+          </TouchableOpacity>
+        </SettingsSection>
 
         {serverStatus.isRunning && serverStatus.signalingURL && (
           <SettingsSection title="CONNECTION QR CODE">
@@ -529,58 +493,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     lineHeight: 20,
-  },
-  endpointRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  endpointMethodBadge: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 6,
-    marginRight: 12,
-  },
-  endpointMethodText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  endpointDetails: {
-    flex: 1,
-  },
-  endpointPath: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  endpointDescription: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  webViewModal: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: '#FFFFFF',
-    zIndex: 1000,
-  },
-  webViewHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
-  },
-  webViewTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  closeButton: {
-    padding: 4,
   },
 });

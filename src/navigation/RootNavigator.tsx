@@ -10,6 +10,7 @@ import LicensesScreen from '../screens/LicensesScreen';
 import ReportScreen from '../screens/ReportScreen';
 import ModelSettingsScreen from '../screens/ModelSettingsScreen';
 import ServerLogsScreen from '../screens/ServerLogsScreen';
+import ServerDocsScreen from '../screens/ServerDocsScreen.tsx';
 import { RootStackParamList } from '../types/navigation';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -78,6 +79,13 @@ export default function RootNavigator() {
         <Stack.Screen 
           name="ServerLogs" 
           component={ServerLogsScreen}
+          options={{
+            animation: 'slide_from_right'
+          }}
+        />
+        <Stack.Screen 
+          name="ServerDocs" 
+          component={ServerDocsScreen}
           options={{
             animation: 'slide_from_right'
           }}
