@@ -34,6 +34,12 @@ export default function LocalServerScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [autoStart, setAutoStart] = useState(false);
   const [allowExternalAccess, setAllowExternalAccess] = useState(true);
+  const apiEndpoints = [
+    { method: 'GET', path: '/api/tags', description: 'List installed models' },
+    { method: 'POST', path: '/api/pull', description: 'Download a model' },
+    { method: 'DELETE', path: '/api/delete', description: 'Remove a model' },
+    { method: 'GET', path: '/api/version', description: 'Check app version' }
+  ];
 
   const handlePasteAnswer = async () => {
     try {
@@ -74,6 +80,7 @@ export default function LocalServerScreen() {
         ...prev,
         isRunning: false,
         offerSDP: undefined,
+        signalingURL: undefined,
         startTime: undefined,
       }));
       setIsLoading(false);
@@ -196,7 +203,7 @@ export default function LocalServerScreen() {
               </View>
               <View style={styles.settingTextContainer}>
                 <Text style={[styles.settingText, { color: themeColors.text }]}>
-                  WebRTC Server (TCP Signaling)
+                  Inferra Local Server
                 </Text>
                 <View style={styles.statusRow}>
                   <View style={[styles.statusIndicator, { backgroundColor: getStatusColor() }]} />
@@ -220,7 +227,7 @@ export default function LocalServerScreen() {
               <View style={[styles.separator, { backgroundColor: themeColors.background }]} />
               <TouchableOpacity style={styles.settingItem} onPress={() => {
                 Clipboard.setString(serverStatus.signalingURL || '');
-                Alert.alert('Copied', 'Signaling URL copied to clipboard');
+                Alert.alert('Copied', 'Server URL copied to clipboard');
               }}>
                 <View style={styles.settingLeft}>
                   <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
@@ -228,11 +235,16 @@ export default function LocalServerScreen() {
                   </View>
                   <View style={styles.settingTextContainer}>
                     <Text style={[styles.settingText, { color: themeColors.text }]}>
-                      Copy Signaling URL
+                      Copy Server URL
                     </Text>
-                    <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
-                      Share with browser client
+                    <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}> 
+                      Share with other devices on WiFi
                     </Text>
+                    {serverStatus.signalingURL ? (
+                      <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]} numberOfLines={1}>
+                        {serverStatus.signalingURL}
+                      </Text>
+                    ) : null}
                   </View>
                 </View>
                 <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
@@ -242,7 +254,7 @@ export default function LocalServerScreen() {
               <TouchableOpacity style={styles.settingItem} onPress={() => {
                 Share.share({
                   message: serverStatus.signalingURL || '',
-                  title: 'Inferra WebRTC Server'
+                  title: 'Inferra Local Server'
                 });
               }}>
                 <View style={styles.settingLeft}>
@@ -251,10 +263,10 @@ export default function LocalServerScreen() {
                   </View>
                   <View style={styles.settingTextContainer}>
                     <Text style={[styles.settingText, { color: themeColors.text }]}>
-                      Share URL
+                      Share Server Link
                     </Text>
-                    <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
-                      Send connection URL to device
+                    <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}> 
+                      Open from any browser on the network
                     </Text>
                   </View>
                 </View>
@@ -269,10 +281,10 @@ export default function LocalServerScreen() {
                   </View>
                   <View style={styles.settingTextContainer}>
                     <Text style={[styles.settingText, { color: themeColors.text }]}>
-                      Paste Answer SDP
+                      Paste Answer SDP (Fallback)
                     </Text>
                     <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
-                      From browser to complete connection
+                      Use if automatic pairing fails
                     </Text>
                   </View>
                 </View>
@@ -319,25 +331,38 @@ export default function LocalServerScreen() {
           </SettingsSection>
         )}
 
+        {serverStatus.isRunning && (
+          <SettingsSection title="API ENDPOINTS">
+            {apiEndpoints.map((endpoint) => (
+              <View key={endpoint.path} style={styles.endpointRow}>
+                <View style={[styles.endpointMethodBadge, { backgroundColor: themeColors.primary }]}>
+                  <Text style={styles.endpointMethodText}>{endpoint.method}</Text>
+                </View>
+                <View style={styles.endpointDetails}>
+                  <Text style={[styles.endpointPath, { color: themeColors.text }]}>{endpoint.path}</Text>
+                  <Text style={[styles.endpointDescription, { color: themeColors.secondaryText }]}>{endpoint.description}</Text>
+                </View>
+              </View>
+            ))}
+          </SettingsSection>
+        )}
+
         {serverStatus.isRunning && serverStatus.signalingURL && (
           <SettingsSection title="CONNECTION QR CODE">
             <View style={styles.qrDisplayContainer}>
               <View style={[styles.qrWrapper, { backgroundColor: '#FFFFFF' }]}>
                 <QRCodeStyled
-                  data={JSON.stringify({
-                    type: 'inferra_signaling',
-                    url: serverStatus.signalingURL
-                  })}
+                  data={serverStatus.signalingURL || ''}
                   style={styles.qrCode}
                   size={160}
                   color={themeColors.primary}
                 />
               </View>
               <Text style={[styles.qrTitle, { color: themeColors.text }]}>
-                Scan to Connect
+                Open in Browser
               </Text>
               <Text style={[styles.qrDescription, { color: themeColors.secondaryText }]}>
-                Scan this QR code with browser client for automatic connection
+                Scan to open the local server in your browser
               </Text>
             </View>
           </SettingsSection>
@@ -503,6 +528,34 @@ const styles = StyleSheet.create({
   qrDescription: {
     fontSize: 14,
     textAlign: 'center',
+    lineHeight: 20,
+  },
+  endpointRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  endpointMethodBadge: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    marginRight: 12,
+  },
+  endpointMethodText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  endpointDetails: {
+    flex: 1,
+  },
+  endpointPath: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  endpointDescription: {
+    fontSize: 14,
     lineHeight: 20,
   },
   webViewModal: {

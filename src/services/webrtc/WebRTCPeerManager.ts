@@ -12,6 +12,7 @@ export class WebRTCPeerManager {
   private pendingCandidates = new Map<string, RTCIceCandidate[]>();
   private requestHandlers = new Map<string, (message: WebRTCMessage) => Promise<WebRTCResponse>>();
   private streamHandlers = new Map<string, (message: WebRTCMessage, sendChunk: (chunk: any) => void) => void>();
+  private lastOfferPeerId: string | null = null;
 
   private onPeerConnected?: (peer: WebRTCPeer) => void;
   private onPeerDisconnected?: (peerId: string) => void;
@@ -39,7 +40,7 @@ export class WebRTCPeerManager {
     this.streamHandlers.set(endpoint, handler);
   }
 
-  async createOffer(): Promise<string> {
+  async createOffer(): Promise<{ sdp: string; peerId: string }> {
     const peerId = `browser-${generateId()}`;
     const pc = new RTCPeerConnection(ICE_SERVERS);
     
@@ -59,7 +60,12 @@ export class WebRTCPeerManager {
 
     await this.waitForICEGathering(pc);
 
-    return pc.localDescription!.sdp;
+    this.lastOfferPeerId = peerId;
+
+    return {
+      sdp: pc.localDescription!.sdp,
+      peerId
+    };
   }
 
   async handleAnswer(answerSDP: string, peerId: string): Promise<void> {
@@ -253,5 +259,9 @@ export class WebRTCPeerManager {
 
   getLocalPeerId(): string {
     return this.localPeerId;
+  }
+
+  getLastOfferPeerId(): string | null {
+    return this.lastOfferPeerId;
   }
 }

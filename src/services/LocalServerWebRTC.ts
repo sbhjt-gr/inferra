@@ -48,6 +48,7 @@ export class LocalServerService extends SimpleEventEmitter {
   private isRunning: boolean = false;
   private peerManager: WebRTCPeerManager | null = null;
   private offerSDP: string | null = null;
+  private offerPeerId: string | null = null;
   private signalingURL: string | null = null;
   private startTime: Date | null = null;
 
@@ -63,11 +64,13 @@ export class LocalServerService extends SimpleEventEmitter {
     try {
       this.peerManager = new WebRTCPeerManager();
 
-      const offerSDP = await this.peerManager.createOffer();
-      this.offerSDP = offerSDP;
+      const offer = await this.peerManager.createOffer();
+      this.offerSDP = offer.sdp;
+      this.offerPeerId = offer.peerId;
 
       const signalingResult = await tcpSignalingServer.start(
-        offerSDP,
+        offer.sdp,
+        offer.peerId,
         async (answerSDP: string, peerId: string) => {
           await this.handleAnswer(answerSDP, peerId);
         }
@@ -106,7 +109,7 @@ export class LocalServerService extends SimpleEventEmitter {
     }
 
     try {
-      const actualPeerId = peerId || `peer_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const actualPeerId = peerId || this.offerPeerId || `peer_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       await this.peerManager.handleAnswer(answerSDP, actualPeerId);
 
       this.emit('answerReceived', actualPeerId);
@@ -132,9 +135,13 @@ export class LocalServerService extends SimpleEventEmitter {
         this.peerManager = null;
       }
 
+      await tcpSignalingServer.stop();
+
       this.isRunning = false;
       this.startTime = null;
       this.offerSDP = null;
+  this.offerPeerId = null;
+      this.signalingURL = null;
 
       this.emit('serverStopped');
 
@@ -154,6 +161,7 @@ export class LocalServerService extends SimpleEventEmitter {
       isRunning: this.isRunning,
       peerCount: 0,
       offerSDP: this.offerSDP || undefined,
+      signalingURL: this.signalingURL || undefined,
       startTime: this.startTime || undefined
     };
   }
