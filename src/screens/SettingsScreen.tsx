@@ -19,15 +19,12 @@ import SystemPromptDialog from '../components/SystemPromptDialog';
 import * as FileSystem from 'expo-file-system';
 import { useFocusEffect } from '@react-navigation/native';
 import { modelDownloader } from '../services/ModelDownloader';
-import ChatSettingsSection from '../components/settings/ChatSettingsSection';
 import AppearanceSection from '../components/settings/AppearanceSection';
 import { getCurrentUser } from '../services/FirebaseService';
-import RemoteModelsSection from '../components/settings/RemoteModelsSection';
 import SupportSection from '../components/settings/SupportSection';
 import ModelSettingsSection from '../components/settings/ModelSettingsSection';
 import SystemInfoSection from '../components/settings/SystemInfoSection';
 import StorageSection from '../components/settings/StorageSection';
-import InferenceEngineSection from '../components/settings/InferenceEngine';
 import { Dialog, Portal, PaperProvider, Button, Text as PaperText } from 'react-native-paper';
 
 type SettingsScreenProps = {
@@ -484,24 +481,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
         selectedTheme={selectedTheme}
         onThemeChange={handleThemeChange}
         />
-
-        <InferenceEngineSection
-          selectedEngine={selectedInferenceEngine}
-          onEngineChange={handleInferenceEngineChange}
-        />
         
-        <RemoteModelsSection
-          enableRemoteModels={enableRemoteModels}
-          onToggleRemoteModels={handleRemoteModelsToggle}
-        />
-        
-        <ChatSettingsSection
-          modelSettings={modelSettings}
-          defaultSettings={DEFAULT_SETTINGS}
-          onOpenSystemPromptDialog={() => setShowSystemPromptDialog(true)}
-          onResetSystemPrompt={() => handleSettingsChange({ systemPrompt: DEFAULT_SETTINGS.systemPrompt })}
-        />
-
         <ModelSettingsSection
           modelSettings={modelSettings}
           defaultSettings={DEFAULT_SETTINGS}
@@ -510,6 +490,12 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           onMaxTokensPress={handleMaxTokensPress}
           onStopWordsPress={() => setShowStopWordsDialog(true)}
           onDialogOpen={handleOpenDialog}
+          selectedInferenceEngine={selectedInferenceEngine}
+          onInferenceEngineChange={handleInferenceEngineChange}
+          onOpenSystemPromptDialog={() => setShowSystemPromptDialog(true)}
+          onResetSystemPrompt={() => handleSettingsChange({ systemPrompt: DEFAULT_SETTINGS.systemPrompt })}
+          enableRemoteModels={enableRemoteModels}
+          onToggleRemoteModels={handleRemoteModelsToggle}
         />
 
         <StorageSection
@@ -536,7 +522,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
               handleSettingsChange({ [dialogConfig.setting!.key]: value });
               handleCloseDialog();
             }}
-            defaultValue={DEFAULT_SETTINGS[dialogConfig.setting.key] as number}
+            defaultValue={(DEFAULT_SETTINGS as any)[dialogConfig.setting.key] as number}
             label={dialogConfig.setting.label}
             value={dialogConfig.setting.value}
             minimumValue={dialogConfig.setting.minimumValue}
