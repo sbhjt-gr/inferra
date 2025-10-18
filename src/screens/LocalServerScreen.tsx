@@ -148,22 +148,7 @@ export default function LocalServerScreen() {
     <View style={[styles.container, { backgroundColor: themeColors.background }]}>
       <AppHeader
         title="Server"
-        rightButtons={
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            <TouchableOpacity
-              style={styles.headerButton}
-              onPress={() => navigation.navigate('ServerLogs')}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <MaterialCommunityIcons
-                name="text-box-outline"
-                size={22}
-                color={themeColors.headerText}
-              />
-            </TouchableOpacity>
-            <ProfileButton />
-          </View>
-        }
+        rightButtons={<ProfileButton />}
       />
 
       <ScrollView
@@ -289,7 +274,7 @@ export default function LocalServerScreen() {
           </SettingsSection>
         )}
 
-        <SettingsSection title="API REFERENCE">
+        <SettingsSection title="API">
           <TouchableOpacity
             style={styles.settingItem}
             onPress={() => navigation.navigate('ServerDocs')}
@@ -304,6 +289,27 @@ export default function LocalServerScreen() {
                 </Text>
                 <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
                   View REST endpoints documentation and examples
+                </Text>
+              </View>
+            </View>
+            <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
+          </TouchableOpacity>
+
+          <View style={[styles.separator, { backgroundColor: themeColors.background }]} />
+          <TouchableOpacity
+            style={styles.settingItem}
+            onPress={() => navigation.navigate('ServerLogs')}
+          >
+            <View style={styles.settingLeft}>
+              <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
+                <MaterialCommunityIcons name="text-box-outline" size={22} color={iconColor} />
+              </View>
+              <View style={styles.settingTextContainer}>
+                <Text style={[styles.settingText, { color: themeColors.text }]}>
+                  Server Logs
+                </Text>
+                <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
+                  View real-time server logs and activity
                 </Text>
               </View>
             </View>

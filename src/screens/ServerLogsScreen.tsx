@@ -1,16 +1,16 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { View, StyleSheet, ScrollView, Text, TouchableOpacity, Alert, RefreshControl } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import { RootStackParamList } from '../types/navigation';
 import AppHeader from '../components/AppHeader';
-import SettingsSection from '../components/settings/SettingsSection';
 import { logger } from '../utils/logger';
 
 interface LogEntry {
+  id: string;
   timestamp: string;
   level: string;
   message: string;
@@ -27,36 +27,76 @@ export default function ServerLogsScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
 
-  useEffect(() => {
-    loadLogs();
+  const maskSensitiveData = useCallback((value: string) => {
+    if (!value) {
+      return '';
+    }
+
+    let masked = value;
+    masked = masked.replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, '[email]');
+    masked = masked.replace(/\b\d{1,3}(?:\.\d{1,3}){3}\b/g, '[ip]');
+    masked = masked.replace(/(Bearer|Token)\s+[A-Za-z0-9\-._~+/]+=*/gi, (_, label) => `${label} [redacted]`);
+    masked = masked.replace(/(api[_-]?key|access[_-]?token|secret|password)\s*[:=]\s*([^\s]+)/gi, (match, label) => `${label.toLowerCase()}: [redacted]`);
+    masked = masked.replace(/([?&](?:token|key|apikey|api_key|access_token|secret)=)([^&\s]+)/gi, (_, prefix) => `${prefix}[redacted]`);
+    return masked;
   }, []);
 
-  const loadLogs = async () => {
+  const loadLogs = useCallback(async () => {
     try {
       const serverLogs = await logger.getLogs();
-      const formattedLogs = serverLogs.map((log: any) => ({
-        timestamp: new Date(log.timestamp || Date.now()).toLocaleString(),
-        level: log.level || 'INFO',
-        message: log.msg || log.message || String(log),
-        category: log.category || 'server'
-      }));
-      setLogs(formattedLogs);
-      
+      const normalizeNumber = (value: number) => {
+        const formatted = value.toString();
+        return formatted.padStart(2, '0');
+      };
+      const formatted = [...serverLogs]
+        .reverse()
+        .map((log: any, index: number) => {
+          const timestampMs = typeof log.timestamp === 'number' ? log.timestamp : Date.now();
+          const date = new Date(timestampMs);
+          const year = date.getFullYear();
+          const month = normalizeNumber(date.getMonth() + 1);
+          const day = normalizeNumber(date.getDate());
+          const hours = normalizeNumber(date.getHours());
+          const minutes = normalizeNumber(date.getMinutes());
+          const seconds = normalizeNumber(date.getSeconds());
+          const timestamp = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+          const messageSource = log.msg || log.message || String(log);
+
+          return {
+            id: `${timestampMs}-${index}`,
+            timestamp,
+            level: (log.level || 'INFO').toUpperCase(),
+            message: maskSensitiveData(String(messageSource)),
+            category: log.category || 'server',
+          };
+        });
+      setLogs(formatted);
+
       if (autoScroll && scrollViewRef.current) {
-        setTimeout(() => {
+        requestAnimationFrame(() => {
           scrollViewRef.current?.scrollToEnd({ animated: true });
-        }, 100);
+        });
       }
     } catch (error) {
       console.error('Failed to load logs:', error);
     }
-  };
+  }, [autoScroll, maskSensitiveData]);
 
-  const handleRefresh = async () => {
+  useFocusEffect(
+    useCallback(() => {
+      loadLogs();
+      const interval = setInterval(loadLogs, 1000);
+      return () => {
+        clearInterval(interval);
+      };
+    }, [loadLogs])
+  );
+
+  const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
     await loadLogs();
     setIsRefreshing(false);
-  };
+  }, [loadLogs]);
 
   const clearLogs = () => {
     Alert.alert(
@@ -81,22 +121,26 @@ export default function ServerLogsScreen() {
   };
 
   const getLevelColor = (level: string) => {
-    switch (level.toUpperCase()) {
+    const normalized = level.toUpperCase();
+
+    switch (normalized) {
       case 'ERROR':
-        return '#FF4444';
+        return '#FF5C5C';
       case 'WARN':
-        return '#FFA500';
+        return '#FFC15C';
       case 'INFO':
         return themeColors.primary;
       case 'DEBUG':
-        return themeColors.secondaryText;
+        return '#9E9E9E';
       default:
-        return themeColors.text;
+        return '#FFFFFF';
     }
   };
 
   const getLevelIcon = (level: string) => {
-    switch (level.toUpperCase()) {
+    const normalized = level.toUpperCase();
+
+    switch (normalized) {
       case 'ERROR':
         return 'alert-circle';
       case 'WARN':
@@ -111,22 +155,22 @@ export default function ServerLogsScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: themeColors.background }]}>
+    <View style={styles.container}>
       <AppHeader
         title="Server Logs"
-        showBackButton={true}
+        showBackButton
         onBackPress={() => navigation.goBack()}
         rightButtons={
-          <View style={{ flexDirection: 'row', gap: 8 }}>
+          <View style={styles.headerActions}>
             <TouchableOpacity
               style={styles.headerButton}
-              onPress={() => setAutoScroll(!autoScroll)}
+              onPress={() => setAutoScroll((prev) => !prev)}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
               <MaterialCommunityIcons
-                name={autoScroll ? "arrow-down-bold" : "arrow-down-bold-outline"}
+                name={autoScroll ? 'arrow-down-bold' : 'arrow-down-bold-outline'}
                 size={20}
-                color={autoScroll ? themeColors.primary : themeColors.headerText}
+                color={autoScroll ? themeColors.primary : '#FFFFFF'}
               />
             </TouchableOpacity>
             <TouchableOpacity
@@ -134,89 +178,65 @@ export default function ServerLogsScreen() {
               onPress={clearLogs}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <MaterialCommunityIcons
-                name="delete-outline"
-                size={20}
-                color={themeColors.headerText}
-              />
+              <MaterialCommunityIcons name="delete-outline" size={20} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
         }
       />
 
-      <SettingsSection title={`SERVER LOGS (${logs.length})`}>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>{`SERVER LOGS (${logs.length})`}</Text>
         <ScrollView
           ref={scrollViewRef}
-          style={[styles.logsContainer, { backgroundColor: themeColors.cardBackground }]}
+          style={styles.logsContainer}
+          contentContainerStyle={styles.logsContent}
           refreshControl={
             <RefreshControl
               refreshing={isRefreshing}
               onRefresh={handleRefresh}
-              tintColor={themeColors.primary}
+              tintColor="#FFFFFF"
+              colors={['#FFFFFF']}
+              progressBackgroundColor="#101010"
             />
           }
-          showsVerticalScrollIndicator={true}
+          showsVerticalScrollIndicator
+          onContentSizeChange={() => {
+            if (autoScroll && scrollViewRef.current) {
+              scrollViewRef.current.scrollToEnd({ animated: true });
+            }
+          }}
         >
           {logs.length === 0 ? (
             <View style={styles.emptyContainer}>
-              <MaterialCommunityIcons
-                name="text-box-outline"
-                size={48}
-                color={themeColors.secondaryText}
-              />
-              <Text style={[styles.emptyText, { color: themeColors.secondaryText }]}>
-                No logs available
-              </Text>
-              <Text style={[styles.emptySubtext, { color: themeColors.secondaryText }]}>
+              <MaterialCommunityIcons name="text-box-outline" size={48} color="#FFFFFF" />
+              <Text style={styles.emptyText}>No logs available</Text>
+              <Text style={styles.emptySubtext}>
                 Server logs will appear here when generated
               </Text>
             </View>
           ) : (
-            logs.map((log, index) => (
-              <View key={index} style={[styles.logEntry, { borderBottomColor: themeColors.borderColor }]}>
-                <View style={styles.logHeader}>
-                  <View style={styles.logLevelContainer}>
-                    <MaterialCommunityIcons
-                      name={getLevelIcon(log.level)}
-                      size={14}
-                      color={getLevelColor(log.level)}
-                    />
-                    <Text style={[styles.logLevel, { color: getLevelColor(log.level) }]}>
-                      {log.level.toUpperCase()}
-                    </Text>
-                  </View>
-                  <Text style={[styles.logTimestamp, { color: themeColors.secondaryText }]}>
-                    {log.timestamp}
-                  </Text>
-                </View>
-                <Text style={[styles.logMessage, { color: themeColors.text }]}>
-                  {log.message}
+            logs.map((log) => (
+              <View key={log.id} style={[styles.logEntry, { borderLeftColor: getLevelColor(log.level) }]}> 
+                <Text style={styles.logLine}>
+                  <Text style={styles.logTimestamp}>[{log.timestamp}]</Text>
+                  <Text style={[styles.logLevelTag, { color: getLevelColor(log.level) }]}>{` [${log.level}]`}</Text>
+                  {log.category && (
+                    <Text style={styles.logCategoryTag}>{` [${log.category}]`}</Text>
+                  )}
+                  <Text style={styles.logMessage}>{` ${log.message}`}</Text>
                 </Text>
-                {log.category && (
-                  <Text style={[styles.logCategory, { color: themeColors.secondaryText }]}>
-                    [{log.category}]
-                  </Text>
-                )}
               </View>
             ))
           )}
         </ScrollView>
-      </SettingsSection>
+      </View>
 
-      <View style={[styles.footer, { backgroundColor: themeColors.cardBackground, borderTopColor: themeColors.borderColor }]}>
-        <TouchableOpacity
-          style={[styles.footerButton, { backgroundColor: themeColors.primary + '20' }]}
-          onPress={handleRefresh}
-        >
-          <MaterialCommunityIcons name="refresh" size={20} color={themeColors.primary} />
-          <Text style={[styles.footerButtonText, { color: themeColors.primary }]}>
-            Refresh
-          </Text>
+      <View style={styles.footer}>
+        <TouchableOpacity style={styles.footerButton} onPress={handleRefresh}>
+          <MaterialCommunityIcons name="refresh" size={20} color="#FFFFFF" />
+          <Text style={styles.footerButtonText}>Refresh</Text>
         </TouchableOpacity>
-        
-        <Text style={[styles.autoScrollText, { color: themeColors.secondaryText }]}>
-          Auto-scroll: {autoScroll ? 'ON' : 'OFF'}
-        </Text>
+        <Text style={styles.autoScrollText}>Auto-scroll: {autoScroll ? 'ON' : 'OFF'}</Text>
       </View>
     </View>
   );
@@ -225,74 +245,86 @@ export default function ServerLogsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#000000',
   },
-  logsContainer: {
-    flex: 1,
-    maxHeight: 500,
-    marginHorizontal: 16,
-    marginTop: 8,
-    borderRadius: 8,
-    paddingVertical: 8,
+  headerActions: {
+    flexDirection: 'row',
+    gap: 8,
   },
   headerButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  section: {
+    flex: 1,
+    marginHorizontal: 16,
+    marginTop: 12,
+  },
+  sectionTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 1,
+    color: '#5C8DFF',
+    marginBottom: 12,
+  },
+  logsContainer: {
+    flex: 1,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#111111',
+    backgroundColor: '#050505',
+  },
+  logsContent: {
+    flexGrow: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
   },
   emptyContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 60,
+    paddingVertical: 80,
   },
   emptyText: {
     fontSize: 18,
     fontWeight: '600',
+    color: '#FFFFFF',
     marginTop: 16,
     marginBottom: 8,
   },
   emptySubtext: {
     fontSize: 14,
-    textAlign: 'center',
     lineHeight: 20,
+    color: '#A0A0A0',
+    textAlign: 'center',
+    paddingHorizontal: 24,
   },
   logEntry: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-  },
-  logHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    paddingVertical: 6,
+    borderLeftWidth: 2,
     marginBottom: 4,
   },
-  logLevelContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  logLevel: {
+  logLine: {
+    fontFamily: 'monospace',
     fontSize: 12,
-    fontWeight: '600',
-    marginLeft: 6,
-    minWidth: 50,
+    lineHeight: 16,
+    color: '#E4E4E4',
   },
   logTimestamp: {
-    fontSize: 12,
-    fontFamily: 'monospace',
+    color: '#4D7BFF',
+  },
+  logLevelTag: {
+    fontWeight: '700',
+  },
+  logCategoryTag: {
+    color: '#52D273',
   },
   logMessage: {
-    fontSize: 14,
-    lineHeight: 20,
-    fontFamily: 'monospace',
-    marginBottom: 4,
-  },
-  logCategory: {
-    fontSize: 12,
-    fontStyle: 'italic',
+    color: '#E4E4E4',
   },
   footer: {
     flexDirection: 'row',
@@ -301,20 +333,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderTopWidth: 1,
+    borderTopColor: '#1F1F1F',
+    backgroundColor: '#050505',
   },
   footerButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: '#1A1A1A',
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingVertical: 10,
+    borderRadius: 24,
   },
   footerButtonText: {
+    color: '#FFFFFF',
     fontSize: 14,
-    fontWeight: '500',
-    marginLeft: 6,
+    fontWeight: '600',
+    marginLeft: 8,
   },
   autoScrollText: {
+    color: '#A0A0A0',
     fontSize: 12,
     fontWeight: '500',
   },
