@@ -14,7 +14,7 @@
     "preset": "jest-expo"
   },
   "dependencies": {
-    "@dr.pogodin/react-native-fs": "^2.22.0",
+    "@dr.pogodin/react-native-fs": "^2.36.0",
     "@expo/plist": "^0.3.5",
     "@expo/vector-icons": "~14.0.4",
     "@react-native-async-storage/async-storage": "1.23.1",
@@ -52,6 +52,7 @@
     "expo-secure-store": "~14.0.1",
     "expo-sharing": "~13.0.1",
     "expo-splash-screen": "^0.29.22",
+    "expo-sqlite": "~15.1.4",
     "expo-status-bar": "~2.0.1",
     "expo-symbols": "~0.2.2",
     "expo-system-ui": "~4.0.8",

@@ -821,7 +821,7 @@
     deepmerge "^3.2.0"
     hoist-non-react-statics "^3.3.0"
 
-"@dr.pogodin/react-native-fs@^2.22.0":
+"@dr.pogodin/react-native-fs@^2.36.0":
   version "2.36.0"
   resolved "https://registry.yarnpkg.com/@dr.pogodin/react-native-fs/-/react-native-fs-2.36.0.tgz#4a29a3201ec2740a56c6378fc232745c95ad88c2"
   integrity sha512-1pBdtSjIGHs6nJ4JiOc0VzBkLSc7H56yv9P1dqqr1AZSUjarNjXFz+eDLdHig9rUCP2bEkXBmFScHiAc5sF5xg==
@@ -5093,6 +5093,11 @@ expo-splash-screen@^0.29.22:
   integrity sha512-k2rdjbb3Qeg4g104Sdz6+qXXYba8QgiuZRSxHX8IpsSYiiTU48BmCCGy12sN+O1B+sD1/+WPL4duCa1Fy6+Y4g==
   dependencies:
     "@expo/prebuild-config" "~8.2.0"
+
+expo-sqlite@~15.1.4:
+  version "15.1.4"
+  resolved "https://registry.yarnpkg.com/expo-sqlite/-/expo-sqlite-15.1.4.tgz#7827db7e6d376747d9d2a3a4eea9760e5bd41c42"
+  integrity sha512-1SG5Qi6/L2SK/o5EKtvEmlMVGdra/wYYh/intI94/ovsUfZGFrDG31YGtTt4rLpE95M6FwHUVpALO8g9/G9B2Q==
 
 expo-status-bar@~2.0.1:
   version "2.0.1"

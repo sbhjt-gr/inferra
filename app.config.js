@@ -61,7 +61,7 @@ export default {
       },
       package: "com.gorai.ragionare",
       runtimeVersion: "2.6.4",
-      // googleServicesFile: "./android/app/google-services.json",
+      googleServicesFile: "./android/app/google-services.json",
       edgeToEdgeEnabled: true,
       resizeableActivity: true,
       supportsFreeform: true,
@@ -119,6 +119,7 @@ export default {
     },
     plugins: [
       "expo-asset",
+      "expo-sqlite",
       "expo-audio",
       "expo-background-task",
       "expo-router",
