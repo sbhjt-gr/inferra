@@ -170,6 +170,10 @@ class ModelDownloader extends EventEmitter {
     await this.storedModelsManager.refreshStoredModels();
   }
 
+  async reloadStoredModels(): Promise<StoredModel[]> {
+    return await this.storedModelsManager.reloadStoredModels();
+  }
+
   async linkExternalModel(uri: string, fileName: string): Promise<void> {
     await this.storedModelsManager.linkExternalModel(uri, fileName);
   }

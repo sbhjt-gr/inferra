@@ -106,6 +106,11 @@ export class StoredModelsManager extends EventEmitter {
     this.invalidateCache();
   }
 
+  async reloadStoredModels(): Promise<StoredModel[]> {
+    this.invalidateCache();
+    return await this.getStoredModels();
+  }
+
   async refreshStoredModels(): Promise<void> {
     try {
       this.invalidateCache();

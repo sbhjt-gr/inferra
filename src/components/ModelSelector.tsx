@@ -162,6 +162,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     const [projectorSelectorVisible, setProjectorSelectorVisible] = useState(false);
     const [projectorModels, setProjectorModels] = useState<StoredModel[]>([]);
     const [selectedVisionModel, setSelectedVisionModel] = useState<Model | null>(null);
+    const [isRefreshingLocalModels, setIsRefreshingLocalModels] = useState(false);
 
     const hideDialog = () => setDialogVisible(false);
 
@@ -353,6 +354,18 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
       }
     };
 
+    const refreshLocalModels = async () => {
+      setIsRefreshingLocalModels(true);
+      try {
+        await modelDownloader.reloadStoredModels();
+        await loadModels();
+      } catch (error) {
+        
+      } finally {
+        setIsRefreshingLocalModels(false);
+      }
+    };
+
     useEffect(() => {
       loadModels();
     }, []);
@@ -394,8 +407,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
 
     useImperativeHandle(ref, () => ({
       refreshModels: () => {
-        modelDownloader.refresh();
-        loadModels();
+        refreshLocalModels();
       }
     }));
 
@@ -901,33 +913,56 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
       }
       
       return (
-        <TouchableOpacity 
-          onPress={toggleLocalModelsDropdown}
+        <View
           style={[
-            styles.sectionHeader, 
+            styles.sectionHeader,
             { backgroundColor: themeColors.background },
             styles.modelSectionHeader,
+            styles.sectionHeaderWithControls,
             currentTheme === 'dark' && {
               backgroundColor: 'rgba(255, 255, 255, 0.1)',
               borderColor: 'rgba(255, 255, 255, 0.2)'
             }
           ]}
         >
-          <View style={styles.sectionHeaderContent}>
-            <Text style={[
-              styles.sectionHeaderText, 
-              { color: currentTheme === 'dark' ? '#fff' : themeColors.secondaryText },
-              currentTheme === 'dark' && { opacity: 0.9 }
-            ]}>
+          <TouchableOpacity
+            onPress={toggleLocalModelsDropdown}
+            style={styles.sectionHeaderToggle}
+          >
+            <Text
+              style={[
+                styles.sectionHeaderText,
+                { color: currentTheme === 'dark' ? '#fff' : themeColors.secondaryText },
+                currentTheme === 'dark' && { opacity: 0.9 }
+              ]}
+            >
               {section.title}
             </Text>
-            <MaterialCommunityIcons 
-              name={isLocalModelsExpanded ? "chevron-up" : "chevron-down"} 
-              size={24} 
-              color={currentTheme === 'dark' ? '#fff' : themeColors.secondaryText} 
+            <MaterialCommunityIcons
+              name={isLocalModelsExpanded ? "chevron-up" : "chevron-down"}
+              size={24}
+              color={currentTheme === 'dark' ? '#fff' : themeColors.secondaryText}
             />
-          </View>
-        </TouchableOpacity>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={refreshLocalModels}
+            style={[
+              styles.sectionRefreshButton,
+              { backgroundColor: themeColors.borderColor }
+            ]}
+            disabled={isRefreshingLocalModels}
+          >
+            {isRefreshingLocalModels ? (
+              <ActivityIndicator size="small" color={getThemeAwareColor('#4a0660', currentTheme)} />
+            ) : (
+              <MaterialCommunityIcons
+                name="refresh"
+                size={20}
+                color={currentTheme === 'dark' ? '#fff' : themeColors.secondaryText}
+              />
+            )}
+          </TouchableOpacity>
+        </View>
       );
     };
 
@@ -1472,6 +1507,24 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     width: '100%',
+  },
+  sectionHeaderWithControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  sectionHeaderToggle: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  sectionRefreshButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 12,
   },
   sectionHeaderText: {
     fontSize: 14,

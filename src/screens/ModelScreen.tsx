@@ -152,6 +152,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
   const [isDownloadsVisible, setIsDownloadsVisible] = useState(false);
   const buttonScale = useRef(new Animated.Value(1)).current;
   const [isLoading, setIsLoading] = useState(false);
+  const [isRefreshingStoredModels, setIsRefreshingStoredModels] = useState(false);
   const [importingModelName, setImportingModelName] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [isLoadingApiKeys, setIsLoadingApiKeys] = useState(false);
@@ -224,7 +225,9 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
   }, []);
 
     const loadStoredModels = useCallback(async (forceRefresh = false) => {
-    if (loadingRef.current) return;
+    if (loadingRef.current) {
+      if (!forceRefresh) return;
+    }
     loadingRef.current = true;
     
     try {
@@ -242,12 +245,18 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         } catch (cacheError) {
           
         }
+      } else {
+        await clearStoredModelsCache();
       }
       
       try {
         await modelDownloader.checkBackgroundDownloads();
       } catch (checkError) {
         
+      }
+      
+      if (forceRefresh) {
+        await modelDownloader.reloadStoredModels();
       }
       
       const models = await modelDownloader.getStoredModels();
@@ -265,6 +274,17 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       loadingRef.current = false;
     }
   }, []);
+
+  const handleRefreshStoredModels = useCallback(async () => {
+    setIsRefreshingStoredModels(true);
+    try {
+      await loadStoredModels(true);
+    } catch (error) {
+      
+    } finally {
+      setIsRefreshingStoredModels(false);
+    }
+  }, [loadStoredModels]);
 
   useEffect(() => {
     setFilteredModels(DOWNLOADABLE_MODELS);
@@ -798,6 +818,20 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
 
   const StoredModelsHeader = () => (
     <View style={styles.storedModelsHeader}>
+      <View style={styles.storedHeaderActions}>
+        <RNText style={[styles.storedHeaderTitle, { color: themeColors.text }]}>Stored Models</RNText>
+        <TouchableOpacity
+          style={[styles.refreshButton, { backgroundColor: themeColors.borderColor }]}
+          onPress={handleRefreshStoredModels}
+          disabled={isRefreshingStoredModels}
+        >
+          {isRefreshingStoredModels ? (
+            <ActivityIndicator size="small" color={getThemeAwareColor('#4a0660', currentTheme)} />
+          ) : (
+            <MaterialCommunityIcons name="refresh" size={20} color={themeColors.text} />
+          )}
+        </TouchableOpacity>
+      </View>
       <TouchableOpacity
         style={[styles.customUrlButton, { backgroundColor: themeColors.borderColor }]}
         onPress={handleLinkModel}
@@ -807,10 +841,10 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
             <MaterialCommunityIcons name="link" size={24} color={getThemeAwareColor('#4a0660', currentTheme)} />
           </View>
           <View style={styles.customUrlTextContainer}>
-            <RNText style={[styles.customUrlButtonTitle, { color: themeColors.text }]}>
+            <RNText style={[styles.customUrlButtonTitle, { color: themeColors.text }] }>
               Import Model
             </RNText>
-            <RNText style={[styles.customUrlButtonSubtitle, { color: themeColors.secondaryText }]}>
+            <RNText style={[styles.customUrlButtonSubtitle, { color: themeColors.secondaryText }] }>
               Import a GGUF model from the storage
             </RNText>
           </View>
@@ -1157,6 +1191,23 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 2,
     marginTop: 8,
+  },
+  storedHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  storedHeaderTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  refreshButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   segmentButton: {
     flex: 1,
