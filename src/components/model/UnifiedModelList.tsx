@@ -13,6 +13,7 @@ import DownloadableModelList from './DownloadableModelList';
 import DownloadableModelItem, { DownloadableModel } from './DownloadableModelItem';
 import ModelFilter, { FilterOptions } from '../ModelFilter';
 import VisionDownloadDialog from '../VisionDownloadDialog';
+import ModelFilesDialog from '../ModelFilesDialog';
 
 interface UnifiedModelListProps {
   curatedModels: DownloadableModel[];
@@ -780,135 +781,16 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
 
 
   const renderModelDetails = () => {
-    if (!selectedModel) return null;
-
-    const allSelected = selectedFiles.size === selectedModel.files.length;
-    const someSelected = selectedFiles.size > 0;
-
     return (
-      <Portal>
-        <Dialog
-          visible={!!selectedModel}
-          onDismiss={() => {
-            setSelectedModel(null);
-            setSelectedFiles(new Set());
-          }}
-          style={styles.detailDialog}
-        >
-          <Dialog.Title style={[styles.dialogTitle, { color: themeColors.text }]}>
-            {selectedModel.id}
-          </Dialog.Title>
-          
-          <Dialog.ScrollArea style={[styles.dialogScrollArea, { paddingTop: 16 }]}>
-            <ScrollView style={styles.detailContent} showsVerticalScrollIndicator={false} contentContainerStyle={styles.dialogContentContainer}>
-              <View style={styles.filesHeader}>
-                <View style={styles.filesHeaderTop}>
-                  <View>
-                    <Text style={[styles.sectionTitle, { color: themeColors.text }]}>Available Model Files</Text>
-                    <Text style={[styles.sectionSubtitle, { color: themeColors.textSecondary }]}>
-                      {selectedModel.files.length} file{selectedModel.files.length !== 1 ? 's' : ''} available for download
-                    </Text>
-                  </View>
-                  <View style={styles.selectionControls}>
-                    <Button
-                      mode="text"
-                      compact
-                      onPress={allSelected ? deselectAllFiles : selectAllFiles}
-                      style={styles.selectionButton}
-                      textColor={themeColors.primary}
-                    >
-                      {allSelected ? 'Deselect All' : 'Select All'}
-                    </Button>
-                  </View>
-                </View>
-              </View>
-              
-              {selectedModel.files.map((file, index) => {
-                const isSelected = selectedFiles.has(file.filename);
-                return (
-                  <View key={index} style={[styles.fileItem, { backgroundColor: themeColors.cardBackground }]}>
-                    <View style={styles.fileContent}>
-                      <View style={styles.fileCheckbox}>
-                        <Checkbox
-                          status={isSelected ? 'checked' : 'unchecked'}
-                          onPress={() => toggleFileSelection(file.filename)}
-                          color={themeColors.primary}
-                        />
-                      </View>
-                      <View style={styles.fileMainInfo}>
-                        <Text style={[styles.fileName, { color: themeColors.text }]} numberOfLines={1}>
-                          {file.filename}
-                        </Text>
-                        <View style={styles.fileMetaContainer}>
-                          <View style={styles.fileMetaItem}>
-                            <MaterialCommunityIcons name="download" size={14} color={themeColors.textSecondary} />
-                            <Text style={[styles.fileMetaText, { color: themeColors.textSecondary }]}>
-                              {huggingFaceService.formatModelSize(file.size)}
-                            </Text>
-                          </View>
-                          <View style={styles.fileMetaItem}>
-                            <MaterialCommunityIcons name="cog" size={14} color={themeColors.textSecondary} />
-                            <Text style={[styles.fileMetaText, { color: themeColors.textSecondary }]}>
-                              {huggingFaceService.extractQuantization(file.filename)}
-                            </Text>
-                          </View>
-                          {file.filename.toLowerCase().includes('mmproj') && (
-                            <View style={styles.fileMetaItem}>
-                              <MaterialCommunityIcons name="eye-settings" size={14} color="#9C27B0" />
-                              <Text style={[styles.fileMetaText, { color: '#9C27B0' }]}>
-                                Vision
-                              </Text>
-                            </View>
-                          )}
-                        </View>
-                      </View>
-                    </View>
-                    
-                    <Button
-                      mode="contained"
-                      style={[styles.fileDownloadButton, { backgroundColor: themeColors.primary }]}
-                      contentStyle={styles.fileDownloadButtonContent}
-                      onPress={() => handleDownloadFile(file.filename, file.downloadUrl)}
-                      icon="download"
-                      textColor="white"
-                    >
-                      Download
-                    </Button>
-                    
-                    {index < selectedModel.files.length - 1 && (
-                      <View style={[styles.fileDivider, { backgroundColor: themeColors.borderColor + '40' }]} />
-                    )}
-                  </View>
-                );
-              })}
-            </ScrollView>
-          </Dialog.ScrollArea>
-          
-          <Dialog.Actions style={styles.dialogActions}>
-            {someSelected && (
-              <Button 
-                mode="contained"
-                onPress={handleDownloadSelected}
-                style={[styles.batchDownloadButton, { backgroundColor: themeColors.primary }]}
-                icon="download-multiple"
-                textColor="white"
-              >
-                Download Selected ({selectedFiles.size})
-              </Button>
-            )}
-            <Button 
-              onPress={() => {
-                setSelectedModel(null);
-                setSelectedFiles(new Set());
-              }}
-              style={styles.closeButton}
-              labelStyle={[styles.closeButtonText, { color: themeColors.text }]}
-            >
-              Close
-            </Button>
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
+      <ModelFilesDialog
+        visible={!!selectedModel}
+        onClose={() => {
+          setSelectedModel(null);
+          setSelectedFiles(new Set());
+        }}
+        modelDetails={selectedModel}
+        onDownloadFile={handleDownloadFile}
+      />
     );
   };
 
