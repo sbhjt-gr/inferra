@@ -27,8 +27,6 @@ export interface DownloadTaskInfo {
   status?: string;
   nativeDownloadId?: string;
   lastPersistedProgress?: number;
-  isPaused?: boolean;
-  authToken?: string | null;
 }
 
 export interface DownloadProgress {
@@ -62,7 +60,6 @@ export interface StoredModel {
   supportsMultimodal?: boolean;
   compatibleProjectionModels?: string[];
   defaultProjectionModel?: string;
-  authToken?: string | null;
 }
 
 export interface DownloadStatus {

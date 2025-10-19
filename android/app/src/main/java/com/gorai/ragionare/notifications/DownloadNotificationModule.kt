@@ -70,30 +70,6 @@ class DownloadNotificationModule(reactContext: ReactApplicationContext) :
   }
 
   @ReactMethod
-  fun showPausedNotification(
-    downloadId: String,
-    modelName: String,
-    bytesDownloaded: Double,
-    totalBytes: Double,
-    promise: Promise,
-  ) {
-    try {
-      val name = notificationNames[downloadId] ?: modelName
-      notificationNames[downloadId] = name
-      DownloadNotificationHelper.showPausedNotification(
-        appContext,
-        downloadId,
-        name,
-        bytesDownloaded.toLong(),
-        totalBytes.toLong(),
-      )
-      promise.resolve(true)
-    } catch (error: Exception) {
-      promise.reject("notification_error", error.message, error)
-    }
-  }
-
-  @ReactMethod
   fun cancelNotification(downloadId: String, promise: Promise) {
     try {
       DownloadNotificationHelper.cancelNotification(appContext, downloadId)

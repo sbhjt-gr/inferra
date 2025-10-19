@@ -353,7 +353,11 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
             }
           }));
 
-          const { downloadId } = await modelDownloader.downloadModel(file.downloadUrl, fullFilename);
+          const { downloadId } = await modelDownloader.downloadModel(
+            file.downloadUrl,
+            fullFilename,
+            huggingFaceService.getAccessToken(),
+          );
           
           setDownloadProgress((prev: any) => ({
             ...prev,
@@ -480,7 +484,11 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
           }
         }));
 
-        const { downloadId } = await modelDownloader.downloadModel(file.downloadUrl, fullFilename);
+        const { downloadId } = await modelDownloader.downloadModel(
+          file.downloadUrl,
+          fullFilename,
+          huggingFaceService.getAccessToken(),
+        );
         
         setDownloadProgress((prev: any) => ({
           ...prev,
@@ -548,7 +556,11 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
         }
       }));
 
-      const { downloadId } = await modelDownloader.downloadModel(downloadUrl, fullFilename);
+      const { downloadId } = await modelDownloader.downloadModel(
+        downloadUrl,
+        fullFilename,
+        huggingFaceService.getAccessToken(),
+      );
       
       setDownloadProgress((prev: any) => ({
         ...prev,
@@ -615,7 +627,11 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
             }
           }));
 
-          const { downloadId } = await modelDownloader.downloadModel(file.downloadUrl, fullFilename);
+          const { downloadId } = await modelDownloader.downloadModel(
+            file.downloadUrl,
+            fullFilename,
+            huggingFaceService.getAccessToken(),
+          );
           
           setDownloadProgress((prev: any) => ({
             ...prev,
@@ -734,7 +750,11 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
           }
         }));
 
-        const { downloadId } = await modelDownloader.downloadModel(file.downloadUrl, file.filename);
+        const { downloadId } = await modelDownloader.downloadModel(
+          file.downloadUrl,
+          file.filename,
+          huggingFaceService.getAccessToken(),
+        );
         
         setDownloadProgress((prev: any) => ({
           ...prev,

@@ -1,8 +1,10 @@
-import { AppState, AppStateStatus } from 'react-native';
+import { AppState, AppStateStatus, Platform } from 'react-native';
+import * as Device from 'expo-device';
 import { EventEmitter } from './EventEmitter';
 import { FileManager } from './FileManager';
 import { StoredModelsManager } from './StoredModelsManager';
 import { DownloadTaskManager } from './DownloadTaskManager';
+import { downloadNotificationService } from './DownloadNotificationService';
 import { StoredModel } from './ModelDownloaderTypes';
 import { notificationService } from './NotificationService';
 
@@ -11,6 +13,7 @@ class ModelDownloader extends EventEmitter {
   private storedModelsManager: StoredModelsManager;
   private downloadTaskManager: DownloadTaskManager;
   private isInitialized: boolean = false;
+  private hasNotificationPermission: boolean = false;
 
   constructor() {
     super();
@@ -35,6 +38,7 @@ class ModelDownloader extends EventEmitter {
       this.emit('downloadProgress', data);
     });
 
+    // Forward DownloadTaskManager events
     this.downloadTaskManager.on('progress', (data) => {
       notificationService.updateDownloadProgressNotification(
         data.modelName,
@@ -88,29 +92,6 @@ class ModelDownloader extends EventEmitter {
       });
       this.emit('downloadCancelled', data);
     });
-
-    this.downloadTaskManager.on('downloadPaused', (data) => {
-      notificationService.showDownloadPausedNotification(
-        data.modelName,
-        data.downloadId,
-        data.nativeDownloadId,
-        data.bytesDownloaded ?? 0,
-        data.totalBytes ?? 0,
-        data.progress ?? 0,
-      ).catch(() => {
-      });
-      this.emit('downloadPaused', data);
-    });
-
-    this.downloadTaskManager.on('downloadResumed', (data) => {
-      notificationService.showDownloadResumedNotification(
-        data.modelName,
-        data.downloadId,
-        data.nativeDownloadId,
-      ).catch(() => {
-      });
-      this.emit('downloadResumed', data);
-    });
   }
 
   private handleAppStateChange = (nextAppState: AppStateStatus): void => {
@@ -146,17 +127,35 @@ class ModelDownloader extends EventEmitter {
 
 
 
+  private async requestNotificationPermissions(): Promise<boolean> {
+    if (!Device.isDevice) {
+      return false;
+    }
+
+    try {
+      const granted = await downloadNotificationService.requestPermissions();
+      this.hasNotificationPermission = granted;
+      return granted;
+    } catch (error) {
+      return false;
+    }
+  }
+
   async ensureDownloadsAreRunning(): Promise<void> {
     await this.downloadTaskManager.ensureDownloadsAreRunning();
   }
 
-  async downloadModel(url: string, modelName: string): Promise<{ downloadId: number }> {
+  async downloadModel(url: string, modelName: string, authToken?: string): Promise<{ downloadId: number }> {
     if (!this.isInitialized) {
       await this.initialize();
     }
 
     try {
-      return await this.downloadTaskManager.downloadModel(url, modelName);
+      if (!this.hasNotificationPermission) {
+        this.hasNotificationPermission = await this.requestNotificationPermissions();
+      }
+      
+      return await this.downloadTaskManager.downloadModel(url, modelName, authToken);
     } catch (error) {
       throw error;
     }

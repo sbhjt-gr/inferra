@@ -17,14 +17,10 @@ export interface DownloadJob {
     isDownloading: boolean;
     progress?: DownloadProgress;
     isCancelling?: boolean;
-    isPaused?: boolean;
   };
   lastBytesWritten: number;
   lastUpdateTime: number;
   rnfsJobId?: number;
-  pausedBytes?: number;
-  destination: string;
-  authToken?: string | null;
 }
 
 export type DownloadMap = Map<string, DownloadJob>;
@@ -35,7 +31,6 @@ export interface DownloadEventCallbacks {
   onComplete?: (modelId: string) => void;
   onError?: (modelId: string, error: Error) => void;
   onCancelled?: (modelId: string) => void;
-  onPaused?: (modelId: string, payload: { bytesDownloaded: number; totalBytes: number }) => void;
 }
 
 export interface DownloadNativeEvent {

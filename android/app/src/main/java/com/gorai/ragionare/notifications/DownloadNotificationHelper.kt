@@ -179,28 +179,6 @@ object DownloadNotificationHelper {
     NotificationManagerCompat.from(context).notify(transferId.hashCode(), builder.build())
   }
 
-  fun showPausedNotification(
-    context: Context,
-    transferId: String,
-    modelName: String,
-    bytesDownloaded: Long,
-    totalBytes: Long,
-  ) {
-    val progress = if (totalBytes > 0) ((bytesDownloaded * 100) / totalBytes).toInt().coerceIn(0, 100) else 0
-    val progressText = if (totalBytes > 0) {
-      "${progress}% • ${formatBytes(bytesDownloaded)} / ${formatBytes(totalBytes)}"
-    } else {
-      "${progress}%"
-    }
-
-    val builder = createBaseBuilder(context, transferId, modelName)
-      .setContentText("Paused • $progressText")
-      .setProgress(0, 0, false)
-      .setOngoing(false)
-
-    NotificationManagerCompat.from(context).notify(transferId.hashCode(), builder.build())
-  }
-
   fun cancelNotification(context: Context, transferId: String) {
     NotificationManagerCompat.from(context).cancel(transferId.hashCode())
   }

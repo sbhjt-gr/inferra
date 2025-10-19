@@ -52,6 +52,10 @@ class HuggingFaceService {
     }
   }
 
+  getAccessToken(): string | undefined {
+    return this.token;
+  }
+
   private getHeaders() {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -249,7 +253,7 @@ class HuggingFaceService {
   }
 
   private filterGGUFFiles(siblings: ModelFile[]): ModelFile[] {
-    const RE_GGUF_SHARD_FILE = /^(?<prefix>.*?)-(?<shard>\d{5})-of-(?<total>\d{5})\.gguf$/;
+    const RE_GGUF_SHARD_FILE = /^(.*?)-(\d{5})-of-(\d{5})\.gguf$/;
     
     return siblings.filter(sibling => {
       const filename = sibling.rfilename.toLowerCase();

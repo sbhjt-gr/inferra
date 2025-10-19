@@ -137,8 +137,8 @@ export default function ServerDocsScreen() {
   }, [themeColors.primary]);
 
   return (
-    <View style={[styles.container, { backgroundColor: themeColors.background }]}> 
-      <AppHeader title="Server API" showBackButton showLogo={false} />
+    <View style={[styles.container, { backgroundColor: themeColors.background }]}>
+      <AppHeader title="Server API" showBackButton showLogo={false} rightButtons={[]} />
       <ScrollView
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}

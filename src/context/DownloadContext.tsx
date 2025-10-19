@@ -67,7 +67,7 @@ export const DownloadProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           totalBytes: data.totalBytes || 0,
           status: data.status || 'downloading',
           downloadId: data.downloadId || 0,
-          isPaused: data.isPaused ?? false
+          isPaused: false
         }
       }));
     };
@@ -124,48 +124,11 @@ export const DownloadProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       });
     };
 
-    const handleDownloadPaused = (data: any) => {
-      setDownloadProgress(prev => {
-        const existing = prev[data.modelName];
-        return {
-          ...prev,
-          [data.modelName]: {
-            progress: data.progress ?? existing?.progress ?? 0,
-            bytesDownloaded: data.bytesDownloaded ?? existing?.bytesDownloaded ?? 0,
-            totalBytes: data.totalBytes ?? existing?.totalBytes ?? 0,
-            status: 'paused',
-            downloadId: data.downloadId ?? existing?.downloadId ?? 0,
-            isPaused: true,
-          },
-        };
-      });
-    };
-
-    const handleDownloadResumed = (data: any) => {
-      setDownloadProgress(prev => {
-        const existing = prev[data.modelName];
-        if (!existing) {
-          return prev;
-        }
-
-        return {
-          ...prev,
-          [data.modelName]: {
-            ...existing,
-            status: 'downloading',
-            isPaused: false,
-          },
-        };
-      });
-    };
-
     modelDownloader.on('downloadProgress', handleDownloadProgress);
     modelDownloader.on('downloadStarted', handleDownloadStarted);
     modelDownloader.on('downloadCompleted', handleDownloadCompleted);
     modelDownloader.on('downloadFailed', handleDownloadFailed);
     modelDownloader.on('downloadCancelled', handleDownloadCancelled);
-    modelDownloader.on('downloadPaused', handleDownloadPaused);
-    modelDownloader.on('downloadResumed', handleDownloadResumed);
 
     return () => {
       modelDownloader.off('downloadProgress', handleDownloadProgress);
@@ -173,8 +136,6 @@ export const DownloadProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       modelDownloader.off('downloadCompleted', handleDownloadCompleted);
       modelDownloader.off('downloadFailed', handleDownloadFailed);
       modelDownloader.off('downloadCancelled', handleDownloadCancelled);
-      modelDownloader.off('downloadPaused', handleDownloadPaused);
-      modelDownloader.off('downloadResumed', handleDownloadResumed);
     };
   }, []);
 

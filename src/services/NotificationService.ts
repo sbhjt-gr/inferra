@@ -15,7 +15,6 @@ class NotificationService {
   private notificationIds: Record<number, string> = {};
   private isInitialized = false;
   private lastNotifiedProgress: Record<number, number> = {};
-  private lastKnownTotals: Record<number, { bytes: number; total: number }> = {};
 
   constructor() {
     this.initialize();
@@ -119,10 +118,6 @@ class NotificationService {
       return;
     }
     this.lastNotifiedProgress[downloadId] = progress;
-    this.lastKnownTotals[downloadId] = {
-      bytes: bytesDownloaded,
-      total: totalBytes,
-    };
 
     const identifier = this.getNotificationIdentifier(downloadId, nativeDownloadId);
 
@@ -166,7 +161,6 @@ class NotificationService {
     }
     
     delete this.lastNotifiedProgress[downloadId];
-    delete this.lastKnownTotals[downloadId];
     
     await this.storeNotification(
       'Download Complete',
@@ -188,7 +182,8 @@ class NotificationService {
     }
     
     delete this.lastNotifiedProgress[downloadId];
-    delete this.lastKnownTotals[downloadId];
+    
+    delete this.lastNotifiedProgress[downloadId];
     
     await this.storeNotification(
       'Download Failed',
@@ -198,34 +193,10 @@ class NotificationService {
     );
   }
 
-  async showDownloadPausedNotification(
-    modelName: string,
-    downloadId: number,
-    nativeDownloadId?: string,
-    bytesDownloaded: number = 0,
-    totalBytes: number = 0,
-    progress: number = 0,
-  ): Promise<void> {
+  async showDownloadPausedNotification(modelName: string, downloadId: number): Promise<void> {
     await this.initialize();
-
-    const identifier = this.getNotificationIdentifier(downloadId, nativeDownloadId);
-    this.lastNotifiedProgress[downloadId] = progress;
-    this.lastKnownTotals[downloadId] = {
-      bytes: bytesDownloaded,
-      total: totalBytes,
-    };
-
-    if (this.shouldSendNativeNotification(nativeDownloadId)) {
-      if (Platform.OS === 'android' || Platform.OS === 'ios') {
-        await downloadNotificationService.markPaused(
-          identifier,
-          modelName,
-          bytesDownloaded,
-          totalBytes,
-        );
-      }
-    }
-
+    
+    
     await this.storeNotification(
       'Download Paused',
       `${modelName} download has been paused`,
@@ -246,29 +217,10 @@ class NotificationService {
     );
   }
 
-  async showDownloadResumedNotification(
-    modelName: string,
-    downloadId: number,
-    nativeDownloadId?: string,
-  ): Promise<void> {
+  async showDownloadResumedNotification(modelName: string, downloadId: number): Promise<void> {
     await this.initialize();
-
-    const identifier = this.getNotificationIdentifier(downloadId, nativeDownloadId);
-    const progress = this.lastNotifiedProgress[downloadId] ?? 0;
-    const totals = this.lastKnownTotals[downloadId] ?? { bytes: 0, total: 0 };
-
-    if (this.shouldSendNativeNotification(nativeDownloadId)) {
-      if (Platform.OS === 'android' || Platform.OS === 'ios') {
-        await downloadNotificationService.updateProgress(
-          identifier,
-          progress,
-          totals.bytes,
-          totals.total,
-          modelName,
-        );
-      }
-    }
-
+    
+    
     await this.storeNotification(
       'Download Resumed',
       `${modelName} download has been resumed`,
@@ -301,7 +253,6 @@ class NotificationService {
     }
     
     delete this.lastNotifiedProgress[downloadId];
-    delete this.lastKnownTotals[downloadId];
     
     await this.storeNotification(
       'Download Cancelled',
@@ -332,7 +283,6 @@ class NotificationService {
       }
     }
     delete this.lastNotifiedProgress[downloadId];
-    delete this.lastKnownTotals[downloadId];
   }
 
   private async saveNotificationIds(): Promise<void> {

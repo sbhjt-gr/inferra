@@ -47,13 +47,6 @@ export class BackgroundDownloadService {
         return;
       }
 
-      if (event.destination) {
-        transfer.destination = event.destination;
-      }
-      if (event.url) {
-        transfer.model.path = event.url;
-      }
-
       transfer.downloadId = event.downloadId;
 
       const bytesWritten = event.bytesWritten ?? transfer.state.progress?.bytesDownloaded ?? 0;
@@ -88,7 +81,6 @@ export class BackgroundDownloadService {
 
       transfer.lastBytesWritten = bytesWritten;
       transfer.lastUpdateTime = currentTimestamp;
-      transfer.state.isPaused = false;
 
       this.eventCallbacks.onProgress?.(modelName, transfer.state.progress);
     });
@@ -117,18 +109,10 @@ export class BackgroundDownloadService {
         return;
       }
 
-      if (event.destination) {
-        transfer.destination = event.destination;
-      }
-      if (event.url) {
-        transfer.model.path = event.url;
-      }
-
       const modelName = transfer.model.name;
       const totalBytes = event.totalBytes ?? transfer.state.progress?.bytesTotal ?? 0;
 
       transfer.state.isDownloading = false;
-      transfer.state.isPaused = false;
       transfer.state.progress = {
         bytesDownloaded: totalBytes,
         bytesTotal: totalBytes,
@@ -166,15 +150,7 @@ export class BackgroundDownloadService {
         return;
       }
 
-      if (event.destination) {
-        transfer.destination = event.destination;
-      }
-      if (event.url) {
-        transfer.model.path = event.url;
-      }
-
       transfer.state.isDownloading = false;
-      transfer.state.isPaused = false;
       transfer.state.progress = undefined;
       
       const error = new Error(event.error);
@@ -203,13 +179,6 @@ export class BackgroundDownloadService {
         return;
       }
 
-      if (event.destination) {
-        transfer.destination = event.destination;
-      }
-      if (event.url) {
-        transfer.model.path = event.url;
-      }
-
       const bytesWritten = event.bytesWritten ?? transfer.state.progress?.bytesDownloaded ?? 0;
       const totalBytes = event.totalBytes ?? transfer.state.progress?.bytesTotal ?? 0;
 
@@ -229,60 +198,9 @@ export class BackgroundDownloadService {
       }
 
       transfer.state.isDownloading = false;
-      transfer.state.isPaused = false;
       this.activeTransfers.delete(transfer.model.name);
 
       this.eventCallbacks.onCancelled?.(transfer.model.name);
-    });
-
-    this.nativeEventEmitter.addListener('onTransferPaused', event => {
-      const derivedModelName = event.modelName || this.extractModelName(event.destination, event.url);
-
-      let transfer: DownloadJob | undefined = derivedModelName
-        ? this.activeTransfers.get(derivedModelName)
-        : undefined;
-
-      if (!transfer && derivedModelName) {
-        transfer = this.createTransferJobFromNativeEvent(derivedModelName, event, false);
-      }
-
-      if (!transfer) {
-        return;
-      }
-
-      if (event.destination) {
-        transfer.destination = event.destination;
-      }
-      if (event.url) {
-        transfer.model.path = event.url;
-      }
-
-      const bytesWritten = event.bytesWritten ?? transfer.state.progress?.bytesDownloaded ?? 0;
-      const totalBytes = event.totalBytes ?? transfer.state.progress?.bytesTotal ?? 0;
-      const computedProgress = totalBytes > 0
-        ? Math.min(Math.round((bytesWritten / totalBytes) * 100), 100)
-        : Math.round(transfer.state.progress?.progress ?? 0);
-
-      transfer.state.isDownloading = false;
-      transfer.state.isPaused = true;
-      transfer.state.isCancelling = false;
-      transfer.state.progress = {
-        bytesDownloaded: bytesWritten,
-        bytesTotal: totalBytes,
-        progress: computedProgress,
-        speed: '0 B/s',
-        eta: '0 sec',
-        rawSpeed: 0,
-        rawEta: 0,
-      };
-      transfer.pausedBytes = bytesWritten;
-      transfer.lastBytesWritten = bytesWritten;
-      transfer.lastUpdateTime = Date.now();
-
-      this.eventCallbacks.onPaused?.(transfer.model.name, {
-        bytesDownloaded: bytesWritten,
-        totalBytes,
-      });
     });
   }
 
@@ -386,7 +304,6 @@ export class BackgroundDownloadService {
         downloadId: Date.now().toString(),
         state: {
           isDownloading: true,
-          isPaused: false,
           progress: {
             bytesDownloaded: 0,
             bytesTotal: 0,
@@ -399,11 +316,9 @@ export class BackgroundDownloadService {
         },
         lastBytesWritten: 0,
         lastUpdateTime: Date.now(),
-        destination: destinationPath,
-        authToken: authToken ?? null,
       };
 
-    this.activeTransfers.set(model.name, transferJob);
+  this.activeTransfers.set(model.name, transferJob);
 
       const downloadResult = RNFS.downloadFile({
         fromUrl: model.path,
@@ -467,13 +382,44 @@ export class BackgroundDownloadService {
 
       transferJob.downloadId = nativeDownloadId;
       transferJob.rnfsJobId = downloadResult.jobId;
-      transferJob.lastBytesWritten = 0;
-      transferJob.lastUpdateTime = Date.now();
 
       console.log(`${LOG_TAG}: ios_job_created:`, downloadResult.jobId);
 
-      this.eventCallbacks.onStart?.(model.name, nativeDownloadId);
-      this.attachIOSDownloadLifecycle(model.name, downloadResult);
+  this.eventCallbacks.onStart?.(model.name, nativeDownloadId);
+
+      downloadResult.promise
+        .then(() => {
+          console.log(`${LOG_TAG}: ios_transfer_completed:`, model.name);
+
+          const transfer = this.activeTransfers.get(model.name);
+          if (transfer && transfer.state.progress) {
+            transfer.state.isDownloading = false;
+            transfer.state.progress.progress = 100;
+            transfer.state.progress.speed = '0 B/s';
+            transfer.state.progress.eta = '0 sec';
+
+            this.eventCallbacks.onComplete?.(model.name);
+            this.activeTransfers.delete(model.name);
+          }
+        })
+        .catch((error: Error) => {
+          const transfer = this.activeTransfers.get(model.name);
+          const errorMessage = error?.message || '';
+          const wasAborted = errorMessage.includes('aborted') || errorMessage.includes('cancelled');
+
+          if (transfer) {
+            transfer.state.isDownloading = false;
+            transfer.state.progress = undefined;
+
+            if (transfer.state.isCancelling || wasAborted) {
+              this.eventCallbacks.onCancelled?.(model.name);
+              this.activeTransfers.delete(model.name);
+            } else {
+              this.eventCallbacks.onError?.(model.name, error);
+              this.activeTransfers.delete(model.name);
+            }
+          }
+        });
 
       return nativeDownloadId;
     } catch (error) {
@@ -524,7 +470,6 @@ export class BackgroundDownloadService {
         downloadId: result.transferId,
         state: {
           isDownloading: true,
-          isPaused: false,
           progress: {
             bytesDownloaded: 0,
             bytesTotal: 0,
@@ -537,8 +482,6 @@ export class BackgroundDownloadService {
         },
         lastBytesWritten: 0,
         lastUpdateTime: Date.now(),
-        destination: destinationPath,
-        authToken: authToken ?? null,
       };
 
       this.activeTransfers.set(model.name, transferJob);
@@ -589,216 +532,6 @@ export class BackgroundDownloadService {
     }
   }
 
-  async pauseTransfer(modelName: string): Promise<void> {
-    const transfer = this.activeTransfers.get(modelName);
-    if (!transfer) {
-      return;
-    }
-
-    const bytesDownloaded = transfer.state.progress?.bytesDownloaded ?? transfer.lastBytesWritten;
-  const totalBytes = transfer.state.progress?.bytesTotal ?? 0;
-
-    try {
-      if (Platform.OS === 'android' && TransferModule) {
-        await TransferModule.pauseTransfer(transfer.downloadId);
-      } else if (Platform.OS === 'ios') {
-        if (transfer.rnfsJobId) {
-          const RNFS = require('@dr.pogodin/react-native-fs');
-          try {
-            await RNFS.stopDownload(transfer.rnfsJobId);
-          } catch (error) {
-            console.warn(`${LOG_TAG}: ios_pause_failed:`, error);
-          }
-          transfer.rnfsJobId = undefined;
-        }
-      }
-    } finally {
-      transfer.state.isDownloading = false;
-      transfer.state.isPaused = true;
-      transfer.state.isCancelling = false;
-      transfer.pausedBytes = bytesDownloaded;
-      if (Platform.OS !== 'android') {
-        this.eventCallbacks.onPaused?.(modelName, {
-          bytesDownloaded,
-          totalBytes,
-        });
-      }
-    }
-  }
-
-  async resumeTransfer(modelName: string, authToken?: string | null): Promise<void> {
-    const transfer = this.activeTransfers.get(modelName);
-    if (!transfer) {
-      return;
-    }
-
-    try {
-      if (Platform.OS === 'android' && TransferModule) {
-        await TransferModule.resumeTransfer(transfer.downloadId);
-      } else if (Platform.OS === 'ios') {
-        await this.resumeIOSTransfer(transfer, transfer.destination, authToken ?? transfer.authToken ?? null);
-      }
-
-      transfer.state.isPaused = false;
-      transfer.state.isDownloading = true;
-      transfer.state.isCancelling = false;
-      transfer.pausedBytes = undefined;
-    } catch (error) {
-      console.error(`${LOG_TAG}: resume_failed:`, error);
-      throw error;
-    }
-  }
-
-  private attachIOSDownloadLifecycle(modelName: string, downloadResult: any): void {
-    downloadResult.promise
-      .then(() => {
-        console.log(`${LOG_TAG}: ios_transfer_completed:`, modelName);
-
-        const transfer = this.activeTransfers.get(modelName);
-        if (transfer && transfer.state.progress) {
-          transfer.state.isDownloading = false;
-          transfer.state.isPaused = false;
-          transfer.state.progress.progress = 100;
-          transfer.state.progress.speed = '0 B/s';
-          transfer.state.progress.eta = '0 sec';
-
-          this.eventCallbacks.onComplete?.(modelName);
-          this.activeTransfers.delete(modelName);
-        }
-      })
-      .catch((error: Error) => {
-        const transfer = this.activeTransfers.get(modelName);
-        const errorMessage = error?.message || '';
-        const wasAborted = errorMessage.includes('aborted') || errorMessage.includes('cancelled');
-
-        if (transfer) {
-          const wasPaused = transfer.state.isPaused && !transfer.state.isCancelling;
-          if (wasPaused) {
-            transfer.state.isDownloading = false;
-            transfer.pausedBytes = transfer.state.progress?.bytesDownloaded ?? transfer.pausedBytes;
-            return;
-          }
-
-          transfer.state.isDownloading = false;
-          transfer.state.progress = undefined;
-
-          if (transfer.state.isCancelling || wasAborted) {
-            this.eventCallbacks.onCancelled?.(modelName);
-            this.activeTransfers.delete(modelName);
-          } else {
-            this.eventCallbacks.onError?.(modelName, error);
-            this.activeTransfers.delete(modelName);
-          }
-        }
-      });
-  }
-
-  private async resumeIOSTransfer(
-    transfer: DownloadJob,
-    destinationPath: string,
-    authToken: string | null,
-  ): Promise<void> {
-    const RNFS = require('@dr.pogodin/react-native-fs');
-
-    let resumeBytes = transfer.state.progress?.bytesDownloaded ?? transfer.pausedBytes ?? 0;
-
-    try {
-      const stat = await RNFS.stat(destinationPath);
-      if (stat && stat.isFile()) {
-        resumeBytes = Math.max(resumeBytes, Number(stat.size));
-      }
-    } catch (error) {
-    }
-
-    const headers: Record<string, string> = {};
-    if (authToken) {
-      headers.Authorization = `Bearer ${authToken}`;
-    }
-    if (resumeBytes > 0) {
-      headers.Range = `bytes=${resumeBytes}-`;
-    }
-
-    transfer.authToken = authToken;
-    transfer.state.isPaused = false;
-    transfer.state.isDownloading = true;
-    transfer.state.isCancelling = false;
-    transfer.lastBytesWritten = resumeBytes;
-    transfer.lastUpdateTime = Date.now();
-    transfer.destination = destinationPath;
-
-    const downloadResult = RNFS.downloadFile({
-        fromUrl: transfer.model.path,
-        toFile: destinationPath,
-        background: true,
-        discretionary: false,
-        progressInterval: 500,
-        headers,
-        begin: (res: any) => {
-          const totalBytes = resumeBytes + (res.contentLength || 0);
-          if (transfer.state.progress) {
-            transfer.state.progress.bytesTotal = totalBytes;
-          } else {
-            transfer.state.progress = {
-              bytesDownloaded: resumeBytes,
-              bytesTotal: totalBytes,
-              progress: totalBytes > 0 ? (resumeBytes / totalBytes) * 100 : 0,
-              speed: '0 B/s',
-              eta: 'calculating',
-              rawSpeed: 0,
-              rawEta: 0,
-            };
-          }
-
-          this.eventCallbacks.onProgress?.(transfer.model.name, transfer.state.progress!);
-        },
-        progress: (res: any) => {
-          if (!this.activeTransfers.has(transfer.model.name)) {
-            return;
-          }
-
-          if (transfer.state.isCancelling) {
-            return;
-          }
-
-          const absoluteBytes = resumeBytes + res.bytesWritten;
-          const totalBytes = resumeBytes + res.contentLength;
-          const currentTimestamp = Date.now();
-          const timeDelta = (currentTimestamp - transfer.lastUpdateTime) / 1000 || 1;
-          const bytesDelta = absoluteBytes - transfer.lastBytesWritten;
-          const transferSpeedBps = bytesDelta / timeDelta;
-          const progressPercent = totalBytes > 0 ? (absoluteBytes / totalBytes) * 100 : 0;
-          const speedFormatted = this.formatTransferSpeed(transferSpeedBps);
-          const etaFormatted = this.calculateTransferEta(
-            absoluteBytes,
-            totalBytes,
-            transferSpeedBps,
-          );
-
-          transfer.state.progress = {
-            bytesDownloaded: absoluteBytes,
-            bytesTotal: totalBytes,
-            progress: progressPercent,
-            speed: speedFormatted,
-            eta: etaFormatted,
-            rawSpeed: transferSpeedBps,
-            rawEta: totalBytes - absoluteBytes > 0 && transferSpeedBps > 0
-              ? (totalBytes - absoluteBytes) / transferSpeedBps
-              : 0,
-          };
-
-          transfer.lastBytesWritten = absoluteBytes;
-          transfer.lastUpdateTime = currentTimestamp;
-
-          this.eventCallbacks.onProgress?.(transfer.model.name, transfer.state.progress);
-        },
-    });
-
-    transfer.rnfsJobId = downloadResult.jobId;
-    transfer.pausedBytes = undefined;
-
-    this.attachIOSDownloadLifecycle(transfer.model.name, downloadResult);
-  }
-
   private extractModelName(destination?: string, fallbackPath?: string): string | undefined {
     const source = destination || fallbackPath;
     if (!source) {
@@ -828,14 +561,12 @@ export class BackgroundDownloadService {
       size: totalBytes,
       modified: new Date().toISOString(),
     };
-    const destinationPath = event.destination ?? '';
 
     const downloadJob: DownloadJob = {
       model: storedModel,
       downloadId: event.downloadId ?? Date.now().toString(),
       state: {
         isDownloading: true,
-        isPaused: false,
         progress: {
           bytesDownloaded: bytesWritten,
           bytesTotal: totalBytes,
@@ -850,8 +581,6 @@ export class BackgroundDownloadService {
       },
       lastBytesWritten: bytesWritten,
       lastUpdateTime: Date.now(),
-      destination: destinationPath,
-      authToken: undefined,
     };
 
     this.activeTransfers.set(modelName, downloadJob);

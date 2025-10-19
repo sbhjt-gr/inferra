@@ -16,12 +16,6 @@ interface DownloadNotificationModuleInterface {
     totalBytes?: number,
     modelName?: string
   ): Promise<boolean>;
-  showPausedNotification(
-    downloadId: string,
-    modelName: string,
-    bytesDownloaded?: number,
-    totalBytes?: number,
-  ): Promise<boolean>;
   cancelNotification(downloadId: string): Promise<boolean>;
 }
 
@@ -31,7 +25,6 @@ const mockImplementation: DownloadNotificationModuleInterface = {
   requestPermissions: async () => false,
   showDownloadNotification: async () => false,
   updateDownloadProgress: async () => false,
-  showPausedNotification: async () => false,
   cancelNotification: async () => false,
 };
 
@@ -143,32 +136,6 @@ class DownloadNotificationService {
       }
 
       return await nativeModule.cancelNotification(downloadId.toString());
-    } catch (error) {
-      return false;
-    }
-  }
-
-  async markPaused(
-    downloadId: string | number,
-    modelName: string,
-    bytesDownloaded: number = 0,
-    totalBytes: number = 0,
-  ): Promise<boolean> {
-    try {
-      if (!this.hasPermission) {
-        await this.requestPermissions();
-      }
-
-      if (!this.hasPermission) {
-        return false;
-      }
-
-      return await nativeModule.showPausedNotification(
-        downloadId.toString(),
-        modelName,
-        bytesDownloaded,
-        totalBytes,
-      );
     } catch (error) {
       return false;
     }

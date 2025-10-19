@@ -131,7 +131,11 @@ const HuggingFaceModelList: React.FC<HuggingFaceModelListProps> = ({
         }
       }));
 
-      const { downloadId } = await modelDownloader.downloadModel(downloadUrl, fullFilename);
+      const { downloadId } = await modelDownloader.downloadModel(
+        downloadUrl,
+        fullFilename,
+        huggingFaceService.getAccessToken(),
+      );
       
       setDownloadProgress((prev: any) => ({
         ...prev,
