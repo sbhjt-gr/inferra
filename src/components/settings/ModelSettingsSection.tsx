@@ -211,10 +211,7 @@ const ModelSettingsSection = ({
       )}
 
       {enableRemoteModels !== undefined && onToggleRemoteModels && (
-        <TouchableOpacity
-          style={[styles.settingItem, styles.settingItemBottomBorder]}
-          onPress={() => onToggleRemoteModels(!enableRemoteModels)}
-        >
+        <View style={[styles.settingItem, styles.settingItemBottomBorder]}>
           <View style={styles.settingLeft}>
             <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
               <MaterialCommunityIcons 
@@ -232,10 +229,13 @@ const ModelSettingsSection = ({
               </Text>
             </View>
           </View>
-          <View style={[styles.toggleSwitch, { backgroundColor: enableRemoteModels ? '#4CAF50' : '#CCC' }]}>
-            <View style={[styles.toggleThumb, { transform: [{ translateX: enableRemoteModels ? 20 : 0 }] }]} />
-          </View>
-        </TouchableOpacity>
+          <Switch
+            value={enableRemoteModels}
+            onValueChange={onToggleRemoteModels}
+            trackColor={{ false: themeColors.borderColor, true: themeColors.primary + '80' }}
+            thumbColor={enableRemoteModels ? themeColors.primary : themeColors.background}
+          />
+        </View>
       )}
 
       {selectedInferenceEngine !== undefined && onInferenceEngineChange && (
@@ -1814,19 +1814,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
-  },
-  toggleSwitch: {
-    width: 50,
-    height: 28,
-    borderRadius: 14,
-    padding: 2,
-    justifyContent: 'center',
-  },
-  toggleThumb: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#FFFFFF',
   },
   engineListContainer: {
     paddingHorizontal: 4,
