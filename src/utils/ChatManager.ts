@@ -1,6 +1,8 @@
-import { withDatabase } from './ChatDatabase';
+import chatDatabase from './ChatDatabase';
 
-const generateRandomId = () => `${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
+const generateRandomId = () => {
+  return `${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
+};
 
 export type ChatMessage = {
   id: string;
@@ -23,108 +25,145 @@ export type Chat = {
   modelPath?: string;
 };
 
-
-type Provider = 'local' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude' | null;
-
-type ChatRow = {
-  id: string;
-  title: string | null;
-  messages: string;
-  timestamp: number | string;
-  modelPath: string | null;
-};
-
-type MetadataRow = {
-  value: string;
-};
-
-const parseMessages = (value: string): ChatMessage[] => {
-  try {
-    const parsed = JSON.parse(value);
-    if (Array.isArray(parsed)) {
-      return parsed as ChatMessage[];
-    }
-  } catch (error) {}
-  return [];
-};
-
 class ChatManager {
-  private chats: Chat[] = [];
+  private cache: Chat[] = [];
   private currentChatId: string | null = null;
   private listeners: Set<() => void> = new Set();
-  private currentProvider: Provider = null;
+  private currentProvider: 'local' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude' | null = null;
+  private isInitialized = false;
+  private initPromise: Promise<void> | null = null;
   private saveDebounceTimeout: NodeJS.Timeout | null = null;
-  private initializationPromise: Promise<void>;
 
   constructor() {
-    this.initializationPromise = this.loadAllChats();
+    this.initPromise = this.initializeDatabase();
   }
 
-  private async waitForInitialization() {
+  private async initializeDatabase(): Promise<void> {
     try {
-      await this.initializationPromise;
-    } catch (error) {}
+      await chatDatabase.initialize();
+      this.cache = await chatDatabase.getAllChats();
+      this.currentChatId = await chatDatabase.getCurrentChatId();
+      this.isInitialized = true;
+      this.notifyListeners();
+    } catch (error) {
+      this.cache = [];
+      this.isInitialized = true;
+    }
   }
 
-  addListener(listener: () => void) {
+  async ensureInitialized(): Promise<void> {
+    if (this.initPromise) {
+      await this.initPromise;
+    }
+  }
+
+  addListener(listener: () => void): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
   }
 
-  private notifyListeners() {
+  private notifyListeners(): void {
     this.listeners.forEach(listener => listener());
   }
 
-  async loadAllChats() {
-    try {
-      await withDatabase(async db => {
-        const rows = await db.getAllAsync<ChatRow>('SELECT id, title, messages, timestamp, modelPath FROM chats');
-        const sortedRows = rows.sort((a, b) => Number(b.timestamp) - Number(a.timestamp));
-        this.chats = sortedRows.map(row => ({
-          id: row.id,
-          title: row.title ?? 'New Chat',
-          messages: parseMessages(row.messages),
-          timestamp: Number(row.timestamp),
-          modelPath: row.modelPath ?? undefined,
-        }));
-        const current = await db.getFirstAsync<MetadataRow>('SELECT value FROM metadata WHERE key = ?', ['current_chat_id']);
-        this.currentChatId = current?.value ?? null;
-      });
-      this.notifyListeners();
-    } catch (error) {
-      this.chats = [];
-      this.currentChatId = null;
+  private async saveChat(chat: Chat): Promise<void> {
+    await chatDatabase.insertChat(chat);
+    for (const message of chat.messages) {
+      await chatDatabase.insertMessage(chat.id, message);
     }
   }
 
-  private async saveAllChats() {
-    await this.waitForInitialization();
+  private async persistCurrentChat(): Promise<void> {
+    if (this.currentChatId) {
+      await chatDatabase.setCurrentChatId(this.currentChatId);
+    }
+  }
+
+  getAllChats(): Chat[] {
+    const nonEmptyChats = this.cache.filter(chat => chat.messages.length > 0);
+    return nonEmptyChats.sort((a, b) => b.timestamp - a.timestamp);
+  }
+
+  getCurrentChat(): Chat | null {
+    if (!this.currentChatId) return null;
+    return this.getChatById(this.currentChatId);
+  }
+
+  getChatById(id: string): Chat | null {
+    return this.cache.find(chat => chat.id === id) || null;
+  }
+
+  getCurrentChatId(): string | null {
+    return this.currentChatId;
+  }
+
+  async createNewChat(initialMessages: ChatMessage[] = []): Promise<Chat> {
     try {
-      const nonEmptyChats = this.chats.filter(chat => {
-        if (chat.id === this.currentChatId) {
-          return true;
+      await this.ensureInitialized();
+
+      if (this.currentChatId) {
+        const currentChat = this.getChatById(this.currentChatId);
+        if (currentChat && currentChat.messages.length > 0) {
+          currentChat.timestamp = Date.now();
+          await this.saveChat(currentChat);
         }
-        return chat.messages.some(msg => msg.role === 'user' || msg.role === 'assistant');
-      });
-      await withDatabase(async db => {
-        await db.withExclusiveTransactionAsync(async txn => {
-          await txn.execAsync('DELETE FROM chats');
-          for (const chat of nonEmptyChats) {
-            await txn.runAsync(
-              'INSERT OR REPLACE INTO chats (id, title, messages, timestamp, modelPath) VALUES (?, ?, ?, ?, ?)',
-              [chat.id, chat.title, JSON.stringify(chat.messages), chat.timestamp, chat.modelPath ?? null]
-            );
-          }
-          if (this.currentChatId) {
-            await txn.runAsync('INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)', ['current_chat_id', this.currentChatId]);
-          } else {
-            await txn.runAsync('DELETE FROM metadata WHERE key = ?', ['current_chat_id']);
-          }
-        });
-      });
-      this.chats = nonEmptyChats;
-      if (this.currentChatId && !this.getChatById(this.currentChatId)) {
-        this.currentChatId = null;
+      }
+
+      const existingEmptyChat = this.cache.find(chat => chat.messages.length === 0);
+
+      if (existingEmptyChat) {
+        existingEmptyChat.timestamp = Date.now();
+        existingEmptyChat.messages = initialMessages;
+        this.currentChatId = existingEmptyChat.id;
+        await this.persistCurrentChat();
+        if (initialMessages.length > 0) {
+          await this.saveChat(existingEmptyChat);
+        }
+        this.notifyListeners();
+        return existingEmptyChat;
+      }
+
+      const newChat: Chat = {
+        id: generateRandomId(),
+        title: 'New Chat',
+        messages: initialMessages,
+        timestamp: Date.now(),
+      };
+
+      this.cache.unshift(newChat);
+      this.currentChatId = newChat.id;
+      await this.persistCurrentChat();
+      if (initialMessages.length > 0) {
+        await this.saveChat(newChat);
+      }
+      this.notifyListeners();
+      return newChat;
+    } catch (error) {
+      throw new Error(`Failed to create chat: ${error}`);
+    }
+  }
+
+  async setCurrentChat(chatId: string): Promise<boolean> {
+    try {
+      await this.ensureInitialized();
+
+      const chat = this.getChatById(chatId);
+      if (!chat) return false;
+
+      const prevChatId = this.currentChatId;
+      if (prevChatId) {
+        const prevChat = this.getChatById(prevChatId);
+        if (prevChat && prevChat.messages.length > 0) {
+          prevChat.timestamp = Date.now();
+          await this.saveChat(prevChat);
+        }
+      }
+
+      this.currentChatId = chatId;
+      chat.timestamp = Date.now();
+      await this.persistCurrentChat();
+      if (chat.messages.length > 0) {
+        await this.saveChat(chat);
       }
       this.notifyListeners();
       return true;
@@ -133,125 +172,193 @@ class ChatManager {
     }
   }
 
-  private async saveCurrentChatId() {
-    await this.waitForInitialization();
-    await withDatabase(async db => {
-      if (this.currentChatId) {
-        await db.runAsync('INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)', ['current_chat_id', this.currentChatId]);
-      } else {
-        await db.runAsync('DELETE FROM metadata WHERE key = ?', ['current_chat_id']);
-      }
-    });
-  }
-
-  getAllChats(): Chat[] {
-    return [...this.chats].sort((a, b) => b.timestamp - a.timestamp);
-  }
-
-  getCurrentChat(): Chat | null {
-    if (!this.currentChatId) {
-      return null;
-    }
-    return this.getChatById(this.currentChatId);
-  }
-
-  getChatById(id: string): Chat | null {
-    return this.chats.find(chat => chat.id === id) ?? null;
-  }
-
-  async createNewChat(initialMessages: ChatMessage[] = []): Promise<Chat> {
-    await this.waitForInitialization();
-    if (this.currentChatId) {
-      const currentChat = this.getChatById(this.currentChatId);
-      if (currentChat && currentChat.messages.some(msg => msg.role === 'user' || msg.role === 'assistant')) {
-        currentChat.timestamp = Date.now();
-        await this.saveAllChats();
-      }
-    }
-    const existingEmptyChat = this.chats.find(chat => !chat.messages.some(msg => msg.role === 'user' || msg.role === 'assistant'));
-    if (existingEmptyChat) {
-      this.currentChatId = existingEmptyChat.id;
-      existingEmptyChat.timestamp = Date.now();
-      existingEmptyChat.messages = initialMessages;
-      await this.saveAllChats();
-      await this.saveCurrentChatId();
-      return existingEmptyChat;
-    }
-    const newChat: Chat = {
-      id: generateRandomId(),
-      title: 'New Chat',
-      messages: initialMessages,
-      timestamp: Date.now(),
-    };
-    this.chats.unshift(newChat);
-    this.currentChatId = newChat.id;
-    await this.saveAllChats();
-    await this.saveCurrentChatId();
-    return newChat;
-  }
-
-  async setCurrentChat(chatId: string): Promise<boolean> {
-    await this.waitForInitialization();
-    await this.saveCurrentChat();
-    const chat = this.getChatById(chatId);
-    if (!chat) {
-      return false;
-    }
-    this.currentChatId = chatId;
-    await this.saveCurrentChatId();
-    await this.saveAllChats();
-    this.notifyListeners();
-    return true;
-  }
-
-  private async saveCurrentChat() {
-    await this.waitForInitialization();
-    if (!this.currentChatId) {
-      return;
-    }
-    const currentChat = this.getChatById(this.currentChatId);
-    if (currentChat) {
-      currentChat.timestamp = Date.now();
-      await this.saveAllChats();
-    }
-  }
-
   async addMessage(message: Omit<ChatMessage, 'id'>): Promise<boolean> {
-    await this.waitForInitialization();
-    if (!this.currentChatId) {
+    try {
+      await this.ensureInitialized();
+
+      if (!this.currentChatId) return false;
+
+      const chat = this.getChatById(this.currentChatId);
+      if (!chat) return false;
+
+      const newMessage: ChatMessage = {
+        ...message,
+        id: generateRandomId(),
+      };
+
+      chat.messages.push(newMessage);
+      chat.timestamp = Date.now();
+
+      if (message.role === 'user' && chat.messages.filter(m => m.role === 'user').length === 1) {
+        const now = new Date();
+        const dateStr = now.toLocaleDateString();
+        const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        chat.title = `Chat ${dateStr} ${timeStr}`;
+        this.generateTitleForCurrentChat(message.content);
+      }
+
+      await this.saveChat(chat);
+      this.notifyListeners();
+      return true;
+    } catch (error) {
       return false;
     }
-    const currentChat = this.getChatById(this.currentChatId);
-    if (!currentChat) {
+  }
+
+  async updateMessageContent(
+    messageId: string,
+    content: string,
+    thinking?: string,
+    stats?: { duration: number; tokens: number; firstTokenTime?: number; avgTokenTime?: number }
+  ): Promise<boolean> {
+    try {
+      await this.ensureInitialized();
+
+      if (!this.currentChatId) return false;
+
+      const chat = this.getChatById(this.currentChatId);
+      if (!chat) return false;
+
+      const message = chat.messages.find(m => m.id === messageId);
+      if (!message) return false;
+
+      message.content = content;
+      if (thinking !== undefined) message.thinking = thinking;
+      if (stats) message.stats = stats;
+
+      this.debouncedSaveChat();
+      this.notifyListeners();
+      return true;
+    } catch (error) {
       return false;
     }
-    const newMessage: ChatMessage = {
-      ...message,
-      id: generateRandomId(),
-    };
-    currentChat.messages.push(newMessage);
-    currentChat.timestamp = Date.now();
-    if (message.role === 'user' && currentChat.messages.filter(m => m.role === 'user').length === 1) {
-      const now = new Date();
-      const dateStr = now.toLocaleDateString();
-      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      currentChat.title = `Chat ${dateStr} ${timeStr}`;
-      this.generateTitleForCurrentChat(message.content);
+  }
+
+  private debouncedSaveChat(): void {
+    if (this.saveDebounceTimeout) {
+      clearTimeout(this.saveDebounceTimeout);
     }
-    await this.saveAllChats();
-    this.notifyListeners();
-    return true;
+
+    this.saveDebounceTimeout = setTimeout(async () => {
+      if (this.currentChatId) {
+        const chat = this.getChatById(this.currentChatId);
+        if (chat) {
+          await this.saveChat(chat);
+        }
+      }
+      this.saveDebounceTimeout = null;
+    }, 500);
+  }
+
+  async editMessage(messageId: string, newContent: string): Promise<boolean> {
+    try {
+      await this.ensureInitialized();
+
+      if (!this.currentChatId) return false;
+
+      const chat = this.getChatById(this.currentChatId);
+      if (!chat) return false;
+
+      const messageIndex = chat.messages.findIndex(m => m.id === messageId);
+      if (messageIndex === -1) return false;
+
+      const message = chat.messages[messageIndex];
+      if (message.role !== 'user') return false;
+
+      message.content = newContent;
+      chat.messages = chat.messages.slice(0, messageIndex + 1);
+      chat.timestamp = Date.now();
+
+      await this.saveChat(chat);
+      this.notifyListeners();
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  async updateChatMessages(chatId: string, messages: ChatMessage[]): Promise<boolean> {
+    try {
+      await this.ensureInitialized();
+
+      const chat = this.getChatById(chatId);
+      if (!chat) return false;
+
+      chat.messages = messages;
+      chat.timestamp = Date.now();
+
+      await this.saveChat(chat);
+      this.notifyListeners();
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  async updateCurrentChatMessages(messages: ChatMessage[]): Promise<boolean> {
+    if (!this.currentChatId) return false;
+    return this.updateChatMessages(this.currentChatId, messages);
+  }
+
+  async deleteChat(chatId: string): Promise<boolean> {
+    try {
+      await this.ensureInitialized();
+
+      const index = this.cache.findIndex(chat => chat.id === chatId);
+      if (index === -1) return false;
+
+      this.cache.splice(index, 1);
+      await chatDatabase.deleteChat(chatId);
+
+      if (this.currentChatId === chatId) {
+        if (this.cache.length > 0) {
+          this.currentChatId = this.cache[0].id;
+        } else {
+          const newChat = await this.createNewChat();
+          this.currentChatId = newChat.id;
+        }
+        await this.persistCurrentChat();
+      }
+
+      this.notifyListeners();
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  async deleteAllChats(): Promise<boolean> {
+    try {
+      await this.ensureInitialized();
+
+      this.cache = [];
+      await chatDatabase.deleteAllChats();
+
+      const newChat = await this.createNewChat();
+      this.currentChatId = newChat.id;
+      await this.persistCurrentChat();
+
+      this.notifyListeners();
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  setCurrentProvider(provider: 'local' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude' | null): void {
+    this.currentProvider = provider;
+  }
+
+  getCurrentProvider(): 'local' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude' | null {
+    return this.currentProvider;
   }
 
   private async generateTitleForCurrentChat(userMessage: string): Promise<void> {
-    await this.waitForInitialization();
-    if (!this.currentChatId) {
-      return;
-    }
-    const currentChat = this.getChatById(this.currentChatId);
-    if (!currentChat) {
-      return;
-    }
+    if (!this.currentChatId) return;
+
+    const chat = this.getChatById(this.currentChatId);
+    if (!chat) return;
+
     try {
       setTimeout(async () => {
         try {
@@ -259,20 +366,14 @@ class ChatManager {
           const chatToUpdate = this.getChatById(this.currentChatId!);
           if (chatToUpdate && chatToUpdate.messages.filter(m => m.role === 'user').length === 1) {
             chatToUpdate.title = title;
-            await this.saveAllChats();
+            await this.saveChat(chatToUpdate);
             this.notifyListeners();
           }
-        } catch (error) {}
+        } catch (error) {
+        }
       }, 1000);
-    } catch (error) {}
-  }
-
-  setCurrentProvider(provider: Provider) {
-    this.currentProvider = provider;
-  }
-
-  getCurrentProvider(): Provider {
-    return this.currentProvider;
+    } catch (error) {
+    }
   }
 
   private async generateChatTitle(userMessage: string): Promise<string> {
@@ -282,25 +383,33 @@ class ChatManager {
         if (llamaManager.isInitialized()) {
           return await llamaManager.generateChatTitle(userMessage);
         }
-      } else if (this.currentProvider === 'gemini' || this.currentProvider === 'chatgpt' || this.currentProvider === 'deepseek' || this.currentProvider === 'claude') {
+      } else if (
+        this.currentProvider === 'gemini' ||
+        this.currentProvider === 'chatgpt' ||
+        this.currentProvider === 'deepseek' ||
+        this.currentProvider === 'claude'
+      ) {
         const { onlineModelService } = await import('../services/OnlineModelService');
         const hasApiKey = await onlineModelService.hasApiKey(this.currentProvider);
         if (hasApiKey) {
           return await onlineModelService.generateChatTitle(userMessage, this.currentProvider);
         }
       }
+
       const { llamaManager } = await import('./LlamaManager');
       if (llamaManager.isInitialized()) {
         return await llamaManager.generateChatTitle(userMessage);
       }
+
       const { onlineModelService } = await import('../services/OnlineModelService');
-      const providers: Exclude<Provider, 'local' | null>[] = ['gemini', 'chatgpt', 'deepseek', 'claude'];
+      const providers: ('gemini' | 'chatgpt' | 'deepseek' | 'claude')[] = ['gemini', 'chatgpt', 'deepseek', 'claude'];
       for (const provider of providers) {
         const hasApiKey = await onlineModelService.hasApiKey(provider);
         if (hasApiKey) {
           return await onlineModelService.generateChatTitle(userMessage, provider);
         }
       }
+
       const now = new Date();
       const dateStr = now.toLocaleDateString();
       const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -311,134 +420,6 @@ class ChatManager {
       const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       return `Chat ${dateStr} ${timeStr}`;
     }
-  }
-
-  async deleteChat(chatId: string): Promise<boolean> {
-    await this.waitForInitialization();
-    const index = this.chats.findIndex(chat => chat.id === chatId);
-    if (index === -1) {
-      return false;
-    }
-    this.chats.splice(index, 1);
-    if (this.currentChatId === chatId) {
-      if (this.chats.length > 0) {
-        this.currentChatId = this.chats[0].id;
-      } else {
-        const newChat = await this.createNewChat();
-        this.currentChatId = newChat.id;
-      }
-      await this.saveCurrentChatId();
-    }
-    await this.saveAllChats();
-    this.notifyListeners();
-    return true;
-  }
-
-  async deleteAllChats(): Promise<boolean> {
-    await this.waitForInitialization();
-    this.chats = [];
-    await withDatabase(async db => {
-      await db.withExclusiveTransactionAsync(async txn => {
-        await txn.execAsync('DELETE FROM chats');
-        await txn.runAsync('DELETE FROM metadata WHERE key = ?', ['current_chat_id']);
-      });
-    });
-    const newChat = await this.createNewChat();
-    this.currentChatId = newChat.id;
-    await this.saveAllChats();
-    await this.saveCurrentChatId();
-    this.notifyListeners();
-    return true;
-  }
-
-  getCurrentChatId(): string | null {
-    return this.currentChatId;
-  }
-
-  async updateChatMessages(chatId: string, messages: ChatMessage[]): Promise<boolean> {
-    await this.waitForInitialization();
-    const chat = this.getChatById(chatId);
-    if (!chat) {
-      return false;
-    }
-    chat.messages = messages;
-    chat.timestamp = Date.now();
-    await this.saveAllChats();
-    this.notifyListeners();
-    return true;
-  }
-
-  async updateCurrentChatMessages(messages: ChatMessage[]): Promise<boolean> {
-    await this.waitForInitialization();
-    if (!this.currentChatId) {
-      return false;
-    }
-    return this.updateChatMessages(this.currentChatId, messages);
-  }
-
-  async updateMessageContent(
-    messageId: string,
-    content: string,
-    thinking?: string,
-    stats?: { duration: number; tokens: number; firstTokenTime?: number; avgTokenTime?: number }
-  ): Promise<boolean> {
-    await this.waitForInitialization();
-    if (!this.currentChatId) {
-      return false;
-    }
-    const currentChat = this.getChatById(this.currentChatId);
-    if (!currentChat) {
-      return false;
-    }
-    const message = currentChat.messages.find(m => m.id === messageId);
-    if (!message) {
-      return false;
-    }
-    message.content = content;
-    if (thinking !== undefined) {
-      message.thinking = thinking;
-    }
-    if (stats) {
-      message.stats = stats;
-    }
-    this.debouncedSaveAllChats();
-    this.notifyListeners();
-    return true;
-  }
-
-  private async debouncedSaveAllChats() {
-    if (this.saveDebounceTimeout) {
-      clearTimeout(this.saveDebounceTimeout);
-    }
-    this.saveDebounceTimeout = setTimeout(async () => {
-      await this.saveAllChats();
-      this.saveDebounceTimeout = null;
-    }, 500);
-  }
-
-  async editMessage(messageId: string, newContent: string): Promise<boolean> {
-    await this.waitForInitialization();
-    if (!this.currentChatId) {
-      return false;
-    }
-    const currentChat = this.getChatById(this.currentChatId);
-    if (!currentChat) {
-      return false;
-    }
-    const messageIndex = currentChat.messages.findIndex(m => m.id === messageId);
-    if (messageIndex === -1) {
-      return false;
-    }
-    const message = currentChat.messages[messageIndex];
-    if (message.role !== 'user') {
-      return false;
-    }
-    message.content = newContent;
-    currentChat.messages = currentChat.messages.slice(0, messageIndex + 1);
-    currentChat.timestamp = Date.now();
-    await this.saveAllChats();
-    this.notifyListeners();
-    return true;
   }
 }
 

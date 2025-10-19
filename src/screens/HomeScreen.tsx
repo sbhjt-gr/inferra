@@ -213,6 +213,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
       const loadChatId = route.params?.loadChatId || (route.params as any)?.params?.loadChatId;
 
       if (loadChatId) {
+        await chatManager.ensureInitialized();
         const specificChat = chatManager.getChatById(loadChatId);
         if (specificChat) {
           setChat(specificChat);

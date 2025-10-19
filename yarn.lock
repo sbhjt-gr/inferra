@@ -821,7 +821,7 @@
     deepmerge "^3.2.0"
     hoist-non-react-statics "^3.3.0"
 
-"@dr.pogodin/react-native-fs@^2.36.0":
+"@dr.pogodin/react-native-fs@^2.22.0":
   version "2.36.0"
   resolved "https://registry.yarnpkg.com/@dr.pogodin/react-native-fs/-/react-native-fs-2.36.0.tgz#4a29a3201ec2740a56c6378fc232745c95ad88c2"
   integrity sha512-1pBdtSjIGHs6nJ4JiOc0VzBkLSc7H56yv9P1dqqr1AZSUjarNjXFz+eDLdHig9rUCP2bEkXBmFScHiAc5sF5xg==

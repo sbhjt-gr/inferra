@@ -309,8 +309,6 @@ PODS:
     - ExpoModulesCore
   - ExpoSplashScreen (0.29.24):
     - ExpoModulesCore
-  - ExpoSQLite (15.1.4):
-    - ExpoModulesCore
   - ExpoSymbols (0.2.2):
     - ExpoModulesCore
   - ExpoSystemUI (4.0.9):
@@ -2220,6 +2218,27 @@ PODS:
     - Yoga
   - ReactNativePdfRenderer (1.6.0):
     - React-Core
+  - ReactNativeStaticServer (0.24.2):
+    - DoubleConversion
+    - glog
+    - hermes-engine
+    - RCT-Folly (= 2024.10.14.00)
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - Yoga
   - RNCAsyncStorage (1.23.1):
     - DoubleConversion
     - glog
@@ -2430,7 +2449,6 @@ DEPENDENCIES:
   - ExpoSecureStore (from `../node_modules/expo-secure-store/ios`)
   - ExpoSharing (from `../node_modules/expo-sharing/ios`)
   - ExpoSplashScreen (from `../node_modules/expo-splash-screen/ios`)
-  - ExpoSQLite (from `../node_modules/expo-sqlite/ios`)
   - ExpoSymbols (from `../node_modules/expo-symbols/ios`)
   - ExpoSystemUI (from `../node_modules/expo-system-ui/ios`)
   - ExpoWebBrowser (from `../node_modules/expo-web-browser/ios`)
@@ -2513,6 +2531,7 @@ DEPENDENCIES:
   - ReactCommon/turbomodule/core (from `../node_modules/react-native/ReactCommon`)
   - "ReactNativeFs (from `../node_modules/@dr.pogodin/react-native-fs`)"
   - ReactNativePdfRenderer (from `../node_modules/react-native-pdf-renderer`)
+  - "ReactNativeStaticServer (from `../node_modules/@dr.pogodin/react-native-static-server`)"
   - "RNCAsyncStorage (from `../node_modules/@react-native-async-storage/async-storage`)"
   - RNGestureHandler (from `../node_modules/react-native-gesture-handler`)
   - "RNGoogleSignin (from `../node_modules/@react-native-google-signin/google-signin`)"
@@ -2629,8 +2648,6 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-sharing/ios"
   ExpoSplashScreen:
     :path: "../node_modules/expo-splash-screen/ios"
-  ExpoSQLite:
-    :path: "../node_modules/expo-sqlite/ios"
   ExpoSymbols:
     :path: "../node_modules/expo-symbols/ios"
   ExpoSystemUI:
@@ -2792,6 +2809,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/@dr.pogodin/react-native-fs"
   ReactNativePdfRenderer:
     :path: "../node_modules/react-native-pdf-renderer"
+  ReactNativeStaticServer:
+    :path: "../node_modules/@dr.pogodin/react-native-static-server"
   RNCAsyncStorage:
     :path: "../node_modules/@react-native-async-storage/async-storage"
   RNGestureHandler:
@@ -2850,7 +2869,6 @@ SPEC CHECKSUMS:
   ExpoSecureStore: 9a3665d7161dd1031be386e278bffd623658f316
   ExpoSharing: 849a5ce9985c22598c16ec027e32969be8062e8e
   ExpoSplashScreen: 8261985ce9778f904abc7e31bed3538dce67ed4d
-  ExpoSQLite: 10fceac6748e9e8f010c70733e0e704fa67399ab
   ExpoSymbols: f3002db15156cd4e505c77b6ea1df5c984db9965
   ExpoSystemUI: b82a45cf0f6a4fa18d07c46deba8725dd27688b4
   ExpoWebBrowser: a212e6b480d8857d3e441fba51e0c968333803b3
@@ -2953,6 +2971,7 @@ SPEC CHECKSUMS:
   ReactCommon: 300d8d9c5cb1a6cd79a67cf5d8f91e4d477195f9
   ReactNativeFs: b90fcf3ead37ce69ed05ecd2f71b1e77e2fbe69f
   ReactNativePdfRenderer: 89dc7a4f14601fd3e7d2fb4cc17a0f2042b7f856
+  ReactNativeStaticServer: 77b18eadf7451cbfc1d1c9f21081f206faebbce5
   RNCAsyncStorage: 66991bb6672ed988a8c56289a08bf4fc3a29d4b3
   RNGestureHandler: fffddeb8af59709c6d8de11b6461a6af63cad532
   RNGoogleSignin: 8125d9993a8a0f7f33ff6e33686e34fee1175f4c

@@ -119,11 +119,11 @@ export default {
     },
     plugins: [
       "expo-asset",
-      "expo-sqlite",
       "expo-audio",
       "expo-background-task",
       "expo-router",
       "expo-secure-store",
+      "expo-sqlite",
       [
         "expo-build-properties",
         {

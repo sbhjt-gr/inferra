@@ -41,19 +41,24 @@ export class ChatLifecycleService {
   }
 
   static async loadCurrentChat(callbacks: ChatLifecycleCallbacks) {
-    const currentChat = chatManager.getCurrentChat();
-    if (currentChat) {
-      callbacks.setChat(currentChat);
-      callbacks.setMessages(currentChat.messages);
-    } else {
-      const newChat = await chatManager.createNewChat();
-      callbacks.setChat(newChat);
-      callbacks.setMessages(newChat.messages);
+    try {
+      await chatManager.ensureInitialized();
+      const currentChat = chatManager.getCurrentChat();
+      if (currentChat) {
+        callbacks.setChat(currentChat);
+        callbacks.setMessages(currentChat.messages);
+      } else {
+        const newChat = await chatManager.createNewChat();
+        callbacks.setChat(newChat);
+        callbacks.setMessages(newChat.messages);
+      }
+    } catch (error) {
     }
   }
 
   static async startNewChat(callbacks: ChatLifecycleCallbacks) {
     try {
+      await chatManager.ensureInitialized();
       const newChat = await chatManager.createNewChat();
       callbacks.setChat(newChat);
       callbacks.setMessages(newChat.messages);
