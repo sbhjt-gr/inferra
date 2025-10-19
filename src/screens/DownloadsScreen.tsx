@@ -37,6 +37,7 @@ interface DownloadItem {
   bytesDownloaded: number;
   totalBytes: number;
   status: string;
+  isPaused?: boolean;
 }
 
 interface DownloadState {
@@ -51,17 +52,6 @@ interface StoredDownloadProgress {
   bytesDownloaded: number;
   totalBytes: number;
   status: string;
-}
-
-interface DownloadTaskInfo {
-  task: DownloadTask;
-  downloadId: number;
-  modelName: string;
-  progress?: number;
-  bytesDownloaded?: number;
-  totalBytes?: number;
-  destination?: string;
-  url?: string;
 }
 
 export default function DownloadsScreen() {
@@ -100,8 +90,14 @@ export default function DownloadsScreen() {
       progress: data.progress || 0,
       bytesDownloaded: data.bytesDownloaded || 0,
       totalBytes: data.totalBytes || 0,
-      status: data.status || 'unknown'
+      status: data.status || 'unknown',
+      isPaused: data.isPaused ?? data.status === 'paused'
     }));
+
+  useEffect(() => {
+    modelDownloader.ensureDownloadsAreRunning().catch(() => {
+    });
+  }, []);
 
   useEffect(() => {
     const handleAppStateChange = async (nextAppState: AppStateStatus) => {
@@ -269,6 +265,22 @@ export default function DownloadsScreen() {
     );
   };
 
+  const handlePauseResume = async (item: DownloadItem) => {
+    try {
+      if (item.isPaused) {
+        await modelDownloader.resumeDownload(item.id);
+      } else {
+        await modelDownloader.pauseDownload(item.id);
+      }
+    } catch (error) {
+      showDialog(
+        'Download Error',
+        `Failed to ${item.isPaused ? 'resume' : 'pause'} download`,
+        [<Button key="ok" onPress={hideDialog}>OK</Button>],
+      );
+    }
+  };
+
   const renderItem = ({ item }: { item: DownloadItem }) => (
     <View style={[styles.downloadItem, { backgroundColor: themeColors.borderColor }]}>
       <View style={styles.downloadHeader}>
@@ -276,6 +288,16 @@ export default function DownloadsScreen() {
           {item.name}
         </Text>
         <View style={styles.downloadActions}>
+          <TouchableOpacity
+            style={styles.pauseButton}
+            onPress={() => handlePauseResume(item)}
+          >
+            <MaterialCommunityIcons
+              name={item.isPaused ? 'play-circle' : 'pause-circle'}
+              size={24}
+              color={getThemeAwareColor('#4a0660', currentTheme)}
+            />
+          </TouchableOpacity>
           <TouchableOpacity
             style={styles.cancelButton}
             onPress={() => handleCancel(item.id, item.name)}
@@ -286,14 +308,14 @@ export default function DownloadsScreen() {
       </View>
       
       <Text style={[styles.downloadProgress, { color: themeColors.secondaryText }]}>
-        {`${Math.floor(item.progress || 0)}% • ${formatBytes(item.bytesDownloaded || 0)} / ${formatBytes(item.totalBytes || 0)}`}
+        {`${item.isPaused ? 'Paused • ' : ''}${Math.floor(item.progress || 0)}% • ${formatBytes(item.bytesDownloaded || 0)} / ${formatBytes(item.totalBytes || 0)}`}
       </Text>
       
       <View style={[styles.progressBar, { backgroundColor: themeColors.background }]}>
         <View 
           style={[
             styles.progressFill, 
-            { width: `${item.progress}%`, backgroundColor: '#4a0660' }
+            { width: `${item.progress}%`, backgroundColor: item.isPaused ? '#999999' : '#4a0660' }
           ]} 
         />
       </View>
@@ -313,7 +335,7 @@ export default function DownloadsScreen() {
         <FlatList
           data={downloads}
           renderItem={renderItem}
-          keyExtractor={item => `download-${item.id || item.name}`}
+          keyExtractor={item => `download-${item.name}-${item.id ?? 'unknown'}`}
           contentContainerStyle={styles.listContent}
           ListEmptyComponent={() => (
             <View style={styles.emptyContainer}>
@@ -391,6 +413,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   cancelButton: {
+    padding: 4,
+  },
+  pauseButton: {
     padding: 4,
   },
 }); 

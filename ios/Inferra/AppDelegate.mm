@@ -2,6 +2,10 @@
 
 #import <React/RCTBundleURLProvider.h>
 #import <React/RCTLinkingManager.h>
+#import <UserNotifications/UserNotifications.h>
+
+@interface AppDelegate () <UNUserNotificationCenterDelegate>
+@end
 
 @implementation AppDelegate
 
@@ -12,6 +16,17 @@
   // You can add your custom initial props in the dictionary below.
   // They will be passed down to the ViewController used by React Native.
   self.initialProps = @{};
+
+  if (@available(iOS 10.0, *)) {
+    UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
+    center.delegate = self;
+    UNAuthorizationOptions options = UNAuthorizationOptionAlert | UNAuthorizationOptionSound | UNAuthorizationOptionBadge;
+    [center requestAuthorizationWithOptions:options completionHandler:^(BOOL granted, NSError * _Nullable error) {
+      if (!granted) {
+        NSLog(@"Download notifications permission not granted");
+      }
+    }];
+  }
 
   return [super application:application didFinishLaunchingWithOptions:launchOptions];
 }
@@ -57,6 +72,13 @@
 - (void)application:(UIApplication *)application didReceiveRemoteNotification:(NSDictionary *)userInfo fetchCompletionHandler:(void (^)(UIBackgroundFetchResult))completionHandler
 {
   return [super application:application didReceiveRemoteNotification:userInfo fetchCompletionHandler:completionHandler];
+}
+
+- (void)userNotificationCenter:(UNUserNotificationCenter *)center
+       willPresentNotification:(UNNotification *)notification
+         withCompletionHandler:(void (^)(UNNotificationPresentationOptions options))completionHandler API_AVAILABLE(ios(10.0))
+{
+  completionHandler(UNNotificationPresentationOptionAlert | UNNotificationPresentationOptionBadge | UNNotificationPresentationOptionSound);
 }
 
 @end

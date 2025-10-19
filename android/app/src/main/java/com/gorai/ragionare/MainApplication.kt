@@ -17,6 +17,7 @@ import expo.modules.ApplicationLifecycleDispatcher
 import expo.modules.ReactNativeHostWrapper
 
 import com.inferra.transfer.TransferPackage
+import com.gorai.ragionare.notifications.DownloadNotificationPackage
 
 class MainApplication : Application(), ReactApplication {
 
@@ -26,6 +27,7 @@ class MainApplication : Application(), ReactApplication {
           override fun getPackages(): List<ReactPackage> {
             val packages = PackageList(this).packages.toMutableList()
             packages.add(TransferPackage())
+            packages.add(DownloadNotificationPackage())
             return packages
           }
 

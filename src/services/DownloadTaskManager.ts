@@ -20,27 +20,61 @@ export class DownloadTaskManager extends EventEmitter {
 
   private setupBackgroundServiceIntegration() {
     backgroundDownloadService.setEventCallbacks({
-      onStart: (modelName: string) => {
+      onStart: (modelName: string, nativeDownloadId?: string) => {
+        const downloadInfo = this.activeDownloads.get(modelName);
+        if (nativeDownloadId && downloadInfo) {
+          downloadInfo.nativeDownloadId = nativeDownloadId;
+          downloadInfo.isPaused = false;
+          void this.saveDownloadProgress();
+        }
+
+        const resolvedNativeId = nativeDownloadId ?? downloadInfo?.nativeDownloadId;
         this.emit('downloadStarted', {
           modelName,
-          downloadId: this.getDownloadIdForModel(modelName)
+          downloadId: this.getDownloadIdForModel(modelName),
+          nativeDownloadId: resolvedNativeId,
         });
       },
       onProgress: (modelName: string, progress) => {
         const downloadId = this.getDownloadIdForModel(modelName);
+        const downloadInfo = this.activeDownloads.get(modelName);
         const progressEvent: DownloadProgressEvent = {
           progress: progress.progress,
           bytesDownloaded: progress.bytesDownloaded,
           totalBytes: progress.bytesTotal,
           status: 'downloading',
           modelName,
-          downloadId
+          downloadId,
+          isPaused: false,
+          nativeDownloadId: downloadInfo?.nativeDownloadId,
         };
-        
+        if (downloadInfo) {
+          downloadInfo.progress = progress.progress;
+          downloadInfo.bytesDownloaded = progress.bytesDownloaded;
+          downloadInfo.totalBytes = progress.bytesTotal;
+          downloadInfo.status = 'downloading';
+          downloadInfo.isPaused = false;
+
+          const prevPersisted = downloadInfo.lastPersistedProgress ?? -1;
+          if (
+            progress.progress >= 100 ||
+            progress.progress - prevPersisted >= 5 ||
+            prevPersisted === -1
+          ) {
+            downloadInfo.lastPersistedProgress = progress.progress;
+            this.saveDownloadProgress();
+          }
+        }
+
         this.emit('progress', progressEvent);
       },
       onComplete: async (modelName: string) => {
-        
+        const downloadInfo = this.activeDownloads.get(modelName);
+        if (downloadInfo) {
+          downloadInfo.status = 'completed';
+          downloadInfo.progress = 100;
+          downloadInfo.isPaused = false;
+        }
         try {
           const tempPath = `${this.fileManager.getDownloadDir()}/${modelName}`;
           const modelPath = `${this.fileManager.getBaseDir()}/${modelName}`;
@@ -58,14 +92,17 @@ export class DownloadTaskManager extends EventEmitter {
               totalBytes: tempSize,
               status: 'completed',
               modelName,
-              downloadId: this.getDownloadIdForModel(modelName)
+              downloadId: this.getDownloadIdForModel(modelName),
+              isPaused: false,
+              nativeDownloadId: downloadInfo?.nativeDownloadId,
             };
             
             this.emit('progress', progressData);
             this.emit('downloadCompleted', {
               modelName,
               downloadId: this.getDownloadIdForModel(modelName),
-              finalPath: modelPath
+              finalPath: modelPath,
+              nativeDownloadId: downloadInfo?.nativeDownloadId,
             });
             
             this.activeDownloads.delete(modelName);
@@ -76,31 +113,80 @@ export class DownloadTaskManager extends EventEmitter {
           this.emit('downloadFailed', {
             modelName,
             downloadId: this.getDownloadIdForModel(modelName),
-            error: error instanceof Error ? error.message : 'Unknown error'
+            error: error instanceof Error ? error.message : 'Unknown error',
+            nativeDownloadId: downloadInfo?.nativeDownloadId,
           });
         }
       },
       onError: (modelName: string, error: Error) => {
-
+        const downloadInfo = this.activeDownloads.get(modelName);
+        if (downloadInfo) {
+          downloadInfo.status = 'failed';
+          downloadInfo.isPaused = false;
+        }
         this.emit('downloadFailed', {
           modelName,
           downloadId: this.getDownloadIdForModel(modelName),
-          error: error.message
+          error: error.message,
+          nativeDownloadId: downloadInfo?.nativeDownloadId,
         });
 
         this.activeDownloads.delete(modelName);
         this.saveDownloadProgress();
       },
       onCancelled: (modelName: string) => {
-
+        const downloadInfo = this.activeDownloads.get(modelName);
+        if (downloadInfo) {
+          downloadInfo.status = 'cancelled';
+          downloadInfo.isPaused = false;
+        }
         this.emit('downloadCancelled', {
           modelName,
-          downloadId: this.getDownloadIdForModel(modelName)
+          downloadId: this.getDownloadIdForModel(modelName),
+          nativeDownloadId: downloadInfo?.nativeDownloadId,
         });
 
         this.activeDownloads.delete(modelName);
         this.saveDownloadProgress();
-      }
+      },
+      onPaused: (modelName: string, payload) => {
+        const downloadInfo = this.activeDownloads.get(modelName);
+        const downloadId = this.getDownloadIdForModel(modelName);
+        const progressValue = payload.totalBytes
+          ? Math.min(Math.round((payload.bytesDownloaded / payload.totalBytes) * 100), 100)
+          : downloadInfo?.progress ?? 0;
+
+        if (downloadInfo) {
+          downloadInfo.bytesDownloaded = payload.bytesDownloaded;
+          downloadInfo.totalBytes = payload.totalBytes;
+          downloadInfo.status = 'paused';
+          downloadInfo.isPaused = true;
+          downloadInfo.progress = progressValue;
+          downloadInfo.lastPersistedProgress = progressValue;
+          this.saveDownloadProgress();
+        }
+
+        const progressEvent: DownloadProgressEvent = {
+          modelName,
+          progress: progressValue,
+          bytesDownloaded: payload.bytesDownloaded,
+          totalBytes: payload.totalBytes,
+          status: 'paused',
+          downloadId,
+          isPaused: true,
+          nativeDownloadId: downloadInfo?.nativeDownloadId,
+        };
+
+        this.emit('progress', progressEvent);
+        this.emit('downloadPaused', {
+          modelName,
+          downloadId,
+          bytesDownloaded: payload.bytesDownloaded,
+          totalBytes: payload.totalBytes,
+          progress: progressValue,
+          nativeDownloadId: downloadInfo?.nativeDownloadId,
+        });
+      },
     });
   }
 
@@ -144,10 +230,18 @@ export class DownloadTaskManager extends EventEmitter {
     const destinationPath = `${this.fileManager.getDownloadDir()}/${modelName}`;
 
     const downloadInfo: DownloadTaskInfo = {
-      task: null, 
+      task: null,
       downloadId,
       modelName,
       destination: destinationPath,
+      url: downloadUrl,
+      status: 'downloading',
+      progress: 0,
+      bytesDownloaded: 0,
+      totalBytes: 0,
+      lastPersistedProgress: 0,
+      isPaused: false,
+      authToken: authToken ?? null,
     };
 
     this.activeDownloads.set(modelName, downloadInfo);
@@ -157,14 +251,19 @@ export class DownloadTaskManager extends EventEmitter {
         name: modelName,
         path: downloadUrl,
         size: 0,
-        modified: new Date().toISOString()
+        modified: new Date().toISOString(),
+        authToken: authToken ?? null,
       };
 
-      await backgroundDownloadService.initiateTransfer(
+      const nativeTransferId = await backgroundDownloadService.initiateTransfer(
         storedModel,
         destinationPath,
         authToken
       );
+
+      if (nativeTransferId) {
+        downloadInfo.nativeDownloadId = nativeTransferId;
+      }
 
       await this.saveDownloadProgress();
       await this.saveNextDownloadId();
@@ -213,7 +312,11 @@ export class DownloadTaskManager extends EventEmitter {
     }
     
     const modelName = download[0];
-    // Pause functionality not implemented
+    try {
+      await backgroundDownloadService.pauseTransfer(modelName);
+    } catch (error) {
+      throw error;
+    }
   }
 
   async resumeDownload(downloadId: number): Promise<void> {
@@ -223,15 +326,43 @@ export class DownloadTaskManager extends EventEmitter {
     }
     
     const modelName = download[0];
-    // Resume functionality not implemented
+    const downloadInfo = download[1];
+    try {
+      await backgroundDownloadService.resumeTransfer(modelName, downloadInfo.authToken ?? null);
+      downloadInfo.isPaused = false;
+      downloadInfo.status = 'downloading';
+      this.saveDownloadProgress();
+      this.emit('downloadResumed', {
+        modelName,
+        downloadId,
+        nativeDownloadId: downloadInfo.nativeDownloadId,
+      });
+    } catch (error) {
+      throw error;
+    }
   }
 
   async ensureDownloadsAreRunning(): Promise<void> {
-    // not implemented
+    try {
+      const storedModels: StoredModel[] = Array.from(this.activeDownloads.values()).map(info => ({
+        name: info.modelName,
+        path: info.url || '',
+        size: info.totalBytes || 0,
+        modified: new Date().toISOString(),
+        authToken: info.authToken ?? null,
+      }));
+
+      await backgroundDownloadService.synchronizeWithActiveTransfers(storedModels);
+    } catch (error) {}
   }
 
   async processCompletedDownloads(): Promise<void> {
-    // not implemented
+    for (const [modelName, info] of this.activeDownloads.entries()) {
+      if (info.status === 'completed') {
+        this.activeDownloads.delete(modelName);
+      }
+    }
+    await this.saveDownloadProgress();
   }
 
   isDownloading(modelName: string): boolean {
@@ -255,6 +386,15 @@ export class DownloadTaskManager extends EventEmitter {
             downloadId: value.downloadId,
             modelName: value.modelName,
             destination: value.destination,
+            nativeDownloadId: value.nativeDownloadId,
+            url: value.url,
+            progress: value.progress,
+            bytesDownloaded: value.bytesDownloaded,
+            totalBytes: value.totalBytes,
+            status: value.status,
+            lastPersistedProgress: value.lastPersistedProgress,
+            isPaused: value.isPaused,
+            authToken: value.authToken ?? null,
           }
         }))
       };
@@ -263,9 +403,7 @@ export class DownloadTaskManager extends EventEmitter {
         this.DOWNLOAD_PROGRESS_KEY,
         JSON.stringify(progressState)
       );
-    } catch (error) {
-      // Failed to save download progress
-    }
+    } catch (error) {}
   }
 
   private async loadDownloadProgress(): Promise<void> {
@@ -280,22 +418,27 @@ export class DownloadTaskManager extends EventEmitter {
             downloadId: item.downloadInfo.downloadId,
             modelName: item.downloadInfo.modelName,
             destination: item.downloadInfo.destination,
+            nativeDownloadId: item.downloadInfo.nativeDownloadId,
+            url: item.downloadInfo.url,
+            progress: item.downloadInfo.progress,
+            bytesDownloaded: item.downloadInfo.bytesDownloaded,
+            totalBytes: item.downloadInfo.totalBytes,
+            status: item.downloadInfo.status,
+            lastPersistedProgress: item.downloadInfo.lastPersistedProgress ?? item.downloadInfo.progress ?? 0,
+            isPaused: item.downloadInfo.isPaused ?? false,
+            authToken: item.downloadInfo.authToken ?? null,
           };
           
           this.activeDownloads.set(item.modelName, downloadInfo);
         }
       }
-    } catch (error) {
-      // Failed to load download progress
-    }
+    } catch (error) {}
   }
 
   private async saveNextDownloadId(): Promise<void> {
     try {
       await AsyncStorage.setItem('next_download_id', this.nextDownloadId.toString());
-    } catch (error) {
-      // Failed to save next download ID
-    }
+    } catch (error) {}
   }
 
   async cleanup(): Promise<void> {

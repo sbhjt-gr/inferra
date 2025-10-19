@@ -6,6 +6,7 @@ import { StoredModelsManager } from './StoredModelsManager';
 import { DownloadTaskManager } from './DownloadTaskManager';
 import { downloadNotificationService } from './DownloadNotificationService';
 import { StoredModel } from './ModelDownloaderTypes';
+import { notificationService } from './NotificationService';
 
 class ModelDownloader extends EventEmitter {
   private fileManager: FileManager;
@@ -37,26 +38,81 @@ class ModelDownloader extends EventEmitter {
       this.emit('downloadProgress', data);
     });
 
-    // Forward DownloadTaskManager events
     this.downloadTaskManager.on('progress', (data) => {
+      notificationService.updateDownloadProgressNotification(
+        data.modelName,
+        data.downloadId,
+        Math.floor(data.progress || 0),
+        data.bytesDownloaded || 0,
+        data.totalBytes || 0,
+        data.nativeDownloadId,
+      ).catch(() => {
+      });
       this.emit('downloadProgress', data);
     });
     
     this.downloadTaskManager.on('downloadStarted', (data) => {
+      notificationService.showDownloadStartedNotification(
+        data.modelName,
+        data.downloadId,
+        data.nativeDownloadId,
+      ).catch(() => {
+      });
       this.emit('downloadStarted', data);
     });
     
     this.downloadTaskManager.on('downloadCompleted', (data) => {
       this.storedModelsManager.refresh();
+      notificationService.showDownloadCompletedNotification(
+        data.modelName,
+        data.downloadId,
+        data.nativeDownloadId,
+      ).catch(() => {
+      });
       this.emit('downloadCompleted', data);
     });
     
     this.downloadTaskManager.on('downloadFailed', (data) => {
+      notificationService.showDownloadFailedNotification(
+        data.modelName,
+        data.downloadId,
+        data.nativeDownloadId,
+      ).catch(() => {
+      });
       this.emit('downloadFailed', data);
     });
 
     this.downloadTaskManager.on('downloadCancelled', (data) => {
+      notificationService.showDownloadCancelledNotification(
+        data.modelName,
+        data.downloadId,
+        data.nativeDownloadId,
+      ).catch(() => {
+      });
       this.emit('downloadCancelled', data);
+    });
+
+    this.downloadTaskManager.on('downloadPaused', (data) => {
+      notificationService.showDownloadPausedNotification(
+        data.modelName,
+        data.downloadId,
+        data.nativeDownloadId,
+        data.bytesDownloaded ?? 0,
+        data.totalBytes ?? 0,
+        data.progress ?? 0,
+      ).catch(() => {
+      });
+      this.emit('downloadPaused', data);
+    });
+
+    this.downloadTaskManager.on('downloadResumed', (data) => {
+      notificationService.showDownloadResumedNotification(
+        data.modelName,
+        data.downloadId,
+        data.nativeDownloadId,
+      ).catch(() => {
+      });
+      this.emit('downloadResumed', data);
     });
   }
 
@@ -74,6 +130,8 @@ class ModelDownloader extends EventEmitter {
       await this.storedModelsManager.initialize();
 
       await this.downloadTaskManager.initialize();
+
+      await this.downloadTaskManager.ensureDownloadsAreRunning();
       
       try {
         AppState.addEventListener('change', this.handleAppStateChange);
@@ -92,14 +150,17 @@ class ModelDownloader extends EventEmitter {
 
 
   private async requestNotificationPermissions(): Promise<boolean> {
-    if (Device.isDevice) {
-      if (Platform.OS === 'android') {
-        const granted = await downloadNotificationService.requestPermissions();
-        this.hasNotificationPermission = granted;
-        return granted;
-      }
+    if (!Device.isDevice) {
+      return false;
     }
-    return false;
+
+    try {
+      const granted = await downloadNotificationService.requestPermissions();
+      this.hasNotificationPermission = granted;
+      return granted;
+    } catch (error) {
+      return false;
+    }
   }
 
   async ensureDownloadsAreRunning(): Promise<void> {
@@ -113,11 +174,7 @@ class ModelDownloader extends EventEmitter {
 
     try {
       if (!this.hasNotificationPermission) {
-        if (Platform.OS === 'android') {
-          this.hasNotificationPermission = await downloadNotificationService.requestPermissions();
-        } else {
-          this.hasNotificationPermission = await this.requestNotificationPermissions();
-        }
+        this.hasNotificationPermission = await this.requestNotificationPermissions();
       }
       
       return await this.downloadTaskManager.downloadModel(url, modelName);

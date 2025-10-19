@@ -555,14 +555,13 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       const progressValue = typeof progress.progress === 'number' ? progress.progress : 0;
 
       if (progress.status === 'completed') {
-        
-        if (Platform.OS === 'android') {
-          await downloadNotificationService.showNotification(
-            filename,
-            progress.downloadId,
-            100
-          );
-        }
+        await downloadNotificationService.showNotification(
+          filename,
+          progress.downloadId,
+          100,
+          bytesDownloaded,
+          totalBytes
+        );
         
         setDownloadProgress(prev => ({
           ...prev,
@@ -586,9 +585,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         }, 1000);
       } else if (progress.status === 'failed') {
         
-        if (Platform.OS === 'android') {
-          await downloadNotificationService.cancelNotification(progress.downloadId);
-        }
+        await downloadNotificationService.cancelNotification(progress.downloadId);
         
         setDownloadProgress(prev => ({
           ...prev,
@@ -610,12 +607,13 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
           });
         }, 1000);
       } else {
-        if (Platform.OS === 'android') {
-          await downloadNotificationService.updateProgress(
-            progress.downloadId,
-            progressValue
-          );
-        }
+        await downloadNotificationService.updateProgress(
+          progress.downloadId,
+          progressValue,
+          bytesDownloaded,
+          totalBytes,
+          filename
+        );
 
         setDownloadProgress(prev => ({
           ...prev,

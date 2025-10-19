@@ -1,21 +1,42 @@
 import { NativeModules, Platform, PermissionsAndroid } from 'react-native';
 
 interface DownloadNotificationModuleInterface {
-  showDownloadNotification(modelName: string, downloadId: string, progress: number): Promise<boolean>;
-  updateDownloadProgress(downloadId: string, progress: number): Promise<boolean>;
+  requestPermissions?(): Promise<boolean>;
+  showDownloadNotification(
+    modelName: string,
+    downloadId: string,
+    progress: number,
+    bytesDownloaded?: number,
+    totalBytes?: number
+  ): Promise<boolean>;
+  updateDownloadProgress(
+    downloadId: string,
+    progress: number,
+    bytesDownloaded?: number,
+    totalBytes?: number,
+    modelName?: string
+  ): Promise<boolean>;
+  showPausedNotification(
+    downloadId: string,
+    modelName: string,
+    bytesDownloaded?: number,
+    totalBytes?: number,
+  ): Promise<boolean>;
   cancelNotification(downloadId: string): Promise<boolean>;
 }
 
 const { DownloadNotificationModule } = NativeModules;
 
 const mockImplementation: DownloadNotificationModuleInterface = {
+  requestPermissions: async () => false,
   showDownloadNotification: async () => false,
   updateDownloadProgress: async () => false,
+  showPausedNotification: async () => false,
   cancelNotification: async () => false,
 };
 
 const nativeModule: DownloadNotificationModuleInterface = 
-  Platform.OS === 'android' && DownloadNotificationModule 
+  DownloadNotificationModule 
     ? DownloadNotificationModule 
     : mockImplementation;
 
@@ -24,7 +45,16 @@ class DownloadNotificationService {
 
   async requestPermissions(): Promise<boolean> {
     try {
-      if (Platform.OS !== 'android') return false;
+      if (Platform.OS === 'ios') {
+        const granted = await nativeModule.requestPermissions?.();
+        this.hasPermission = granted ?? false;
+        return this.hasPermission;
+      }
+
+      if (Platform.OS !== 'android') {
+        this.hasPermission = true;
+        return this.hasPermission;
+      }
 
       if (Platform.OS === 'android' && Platform.Version >= 33) {
         const granted = await PermissionsAndroid.request(
@@ -49,18 +79,28 @@ class DownloadNotificationService {
     }
   }
 
-  async showNotification(modelName: string, downloadId: string | number, progress: number): Promise<boolean> {
+  async showNotification(
+    modelName: string,
+    downloadId: string | number,
+    progress: number,
+    bytesDownloaded: number = 0,
+    totalBytes: number = 0
+  ): Promise<boolean> {
     try {
-      if (Platform.OS !== 'android') return false;
-      
       if (!this.hasPermission) {
         await this.requestPermissions();
       }
-      
+
+      if (!this.hasPermission) {
+        return false;
+      }
+
       return await nativeModule.showDownloadNotification(
         modelName, 
         downloadId.toString(), 
-        Math.round(progress)
+        Math.round(progress),
+        bytesDownloaded,
+        totalBytes
       );
     } catch (error) {
       return false;
@@ -68,13 +108,28 @@ class DownloadNotificationService {
   }
 
 
-  async updateProgress(downloadId: string | number, progress: number): Promise<boolean> {
+  async updateProgress(
+    downloadId: string | number,
+    progress: number,
+    bytesDownloaded: number = 0,
+    totalBytes: number = 0,
+    modelName?: string
+  ): Promise<boolean> {
     try {
-      if (Platform.OS !== 'android') return false;
-      
+      if (!this.hasPermission) {
+        await this.requestPermissions();
+      }
+
+      if (!this.hasPermission) {
+        return false;
+      }
+
       return await nativeModule.updateDownloadProgress(
         downloadId.toString(), 
-        Math.round(progress)
+        Math.round(progress),
+        bytesDownloaded,
+        totalBytes,
+        modelName || downloadId.toString()
       );
     } catch (error) {
       return false;
@@ -83,9 +138,37 @@ class DownloadNotificationService {
 
   async cancelNotification(downloadId: string | number): Promise<boolean> {
     try {
-      if (Platform.OS !== 'android') return false;
-      
+      if (!this.hasPermission) {
+        await this.requestPermissions();
+      }
+
       return await nativeModule.cancelNotification(downloadId.toString());
+    } catch (error) {
+      return false;
+    }
+  }
+
+  async markPaused(
+    downloadId: string | number,
+    modelName: string,
+    bytesDownloaded: number = 0,
+    totalBytes: number = 0,
+  ): Promise<boolean> {
+    try {
+      if (!this.hasPermission) {
+        await this.requestPermissions();
+      }
+
+      if (!this.hasPermission) {
+        return false;
+      }
+
+      return await nativeModule.showPausedNotification(
+        downloadId.toString(),
+        modelName,
+        bytesDownloaded,
+        totalBytes,
+      );
     } catch (error) {
       return false;
     }

@@ -10,16 +10,20 @@ import android.content.Intent
 import android.content.BroadcastReceiver
 import android.content.IntentFilter
 import android.util.Log
+import android.os.Build
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import kotlinx.coroutines.*
 import java.util.concurrent.ConcurrentHashMap
 import java.io.*
 import java.net.HttpURLConnection
 import java.net.URL
+import com.gorai.ragionare.notifications.DownloadNotificationHelper
 
 class TransferModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
     
-    private val ongoingTransfers = ConcurrentHashMap<String, String>()
+    data class OngoingTransfer(val destination: String, val modelName: String, val url: String?, val headers: String?)
+
+    private val ongoingTransfers = ConcurrentHashMap<String, OngoingTransfer>()
     private val transferScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var progressReceiver: BroadcastReceiver? = null
     
@@ -30,6 +34,62 @@ class TransferModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
         const val ACTION_TRANSFER_COMPLETE = "com.inferra.transfer.COMPLETE" 
         const val ACTION_TRANSFER_ERROR = "com.inferra.transfer.ERROR"
         const val ACTION_TRANSFER_CANCELLED = "com.inferra.transfer.CANCELLED"
+        const val ACTION_TRANSFER_PAUSED = "com.inferra.transfer.PAUSED"
+        private val pausedTransfers = ConcurrentHashMap<String, Boolean>()
+        restoreOngoingTransfers()
+
+        fun markPaused(transferId: String) {
+            pausedTransfers[transferId] = true
+        }
+
+        fun isPaused(transferId: String): Boolean {
+            return pausedTransfers[transferId] == true
+        }
+
+        fun clearPaused(transferId: String) {
+            pausedTransfers.remove(transferId)
+        }
+    }
+
+    private fun extractModelName(path: String?): String? {
+        if (path.isNullOrEmpty()) {
+            return null
+        }
+
+        val normalised = if (path.startsWith("file://")) {
+            path.substring(7)
+        } else {
+            path
+        }
+
+        val segments = normalised.split('/').filter { it.isNotEmpty() }
+        return segments.lastOrNull()
+    }
+
+    private fun restoreOngoingTransfers() {
+        transferScope.launch(Dispatchers.IO) {
+            try {
+                val workInfos = WorkManager.getInstance(reactApplicationContext)
+                    .getWorkInfosByTag(FileTransferWorker.WORK_TAG)
+                    .get()
+
+                for (info in workInfos) {
+                    if (info.state.isFinished) continue
+
+                    val transferId = info.inputData.getString(FileTransferWorker.KEY_TRANSFER_ID) ?: continue
+                    val destination = info.inputData.getString(FileTransferWorker.KEY_DESTINATION) ?: ""
+                    val modelName = info.inputData.getString(FileTransferWorker.KEY_MODEL_NAME)
+                        ?: extractModelName(destination)
+                        ?: transferId
+                    val url = info.inputData.getString(FileTransferWorker.KEY_URL)
+                    val headers = info.inputData.getString(FileTransferWorker.KEY_HEADERS)
+
+                    ongoingTransfers[transferId] = OngoingTransfer(destination, modelName, url, headers)
+                }
+            } catch (e: Exception) {
+                Log.w(LOG_TAG, "Failed to restore transfers", e)
+            }
+        }
     }
 
     class TransferCancelledException : Exception("Transfer was cancelled")
@@ -47,21 +107,58 @@ class TransferModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
                         val bytesWritten = intent.getLongExtra("bytesWritten", 0)
                         val totalBytes = intent.getLongExtra("totalBytes", 0)
                         val speed = intent.getLongExtra("speed", 0)
-                        
-                        onTransferProgress(transferId, bytesWritten, totalBytes, speed)
+                        val progress = intent.getIntExtra("progress", 0)
+                        val modelName = intent.getStringExtra("modelName")
+                        val destination = intent.getStringExtra("destination")
+                        val url = intent.getStringExtra("url")
+
+                        onTransferProgress(
+                            transferId,
+                            bytesWritten,
+                            totalBytes,
+                            speed,
+                            progress,
+                            modelName,
+                            destination,
+                            url
+                        )
                     }
                     ACTION_TRANSFER_COMPLETE -> {
                         val transferId = intent.getStringExtra("transferId") ?: return
-                        onTransferComplete(transferId)
+                        val modelName = intent.getStringExtra("modelName")
+                        val destination = intent.getStringExtra("destination")
+                        val url = intent.getStringExtra("url")
+                        val bytesWritten = intent.getLongExtra("bytesWritten", 0)
+                        val totalBytes = intent.getLongExtra("totalBytes", bytesWritten)
+                        onTransferComplete(transferId, modelName, destination, url, bytesWritten, totalBytes)
                     }
                     ACTION_TRANSFER_ERROR -> {
                         val transferId = intent.getStringExtra("transferId") ?: return
                         val error = intent.getStringExtra("error") ?: "Unknown error"
-                        onTransferError(transferId, error)
+                        val modelName = intent.getStringExtra("modelName")
+                        val destination = intent.getStringExtra("destination")
+                        val url = intent.getStringExtra("url")
+                        val bytesWritten = intent.getLongExtra("bytesWritten", 0)
+                        val totalBytes = intent.getLongExtra("totalBytes", 0)
+                        onTransferError(transferId, error, modelName, destination, url, bytesWritten, totalBytes)
                     }
                     ACTION_TRANSFER_CANCELLED -> {
                         val transferId = intent.getStringExtra("transferId") ?: return
-                        onTransferCancelled(transferId)
+                        val modelName = intent.getStringExtra("modelName")
+                        val destination = intent.getStringExtra("destination")
+                        val url = intent.getStringExtra("url")
+                        val bytesWritten = intent.getLongExtra("bytesWritten", 0)
+                        val totalBytes = intent.getLongExtra("totalBytes", 0)
+                        onTransferCancelled(transferId, modelName, destination, url, bytesWritten, totalBytes)
+                    }
+                    ACTION_TRANSFER_PAUSED -> {
+                        val transferId = intent.getStringExtra("transferId") ?: return
+                        val modelName = intent.getStringExtra("modelName")
+                        val destination = intent.getStringExtra("destination")
+                        val url = intent.getStringExtra("url")
+                        val bytesWritten = intent.getLongExtra("bytesWritten", 0)
+                        val totalBytes = intent.getLongExtra("totalBytes", 0)
+                        onTransferPaused(transferId, modelName, destination, url, bytesWritten, totalBytes)
                     }
                 }
             }
@@ -72,6 +169,7 @@ class TransferModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
             addAction(ACTION_TRANSFER_COMPLETE)
             addAction(ACTION_TRANSFER_ERROR)
             addAction(ACTION_TRANSFER_CANCELLED)
+            addAction(ACTION_TRANSFER_PAUSED)
         }
 
         LocalBroadcastManager.getInstance(reactApplicationContext)
@@ -121,23 +219,28 @@ class TransferModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
                     }
                 }
             }
+            val headersString = headersMap.toString()
+
+            val modelName = extractModelName(destination) ?: transferId
 
             val inputData = workDataOf(
                 FileTransferWorker.KEY_URL to url,
                 FileTransferWorker.KEY_DESTINATION to destination,
                 FileTransferWorker.KEY_TRANSFER_ID to transferId,
-                FileTransferWorker.KEY_HEADERS to headersMap.toString()
+                FileTransferWorker.KEY_HEADERS to headersString,
+                FileTransferWorker.KEY_MODEL_NAME to modelName
             )
 
             val transferRequest = OneTimeWorkRequestBuilder<FileTransferWorker>()
                 .setInputData(inputData)
                 .addTag(transferId)
+                .addTag(FileTransferWorker.WORK_TAG)
                 .build()
 
             WorkManager.getInstance(reactApplicationContext)
                 .enqueue(transferRequest)
 
-            ongoingTransfers[transferId] = destination
+            ongoingTransfers[transferId] = OngoingTransfer(destination, modelName, url, headersString)
 
             val result = Arguments.createMap().apply {
                 putString("transferId", transferId)
@@ -158,6 +261,7 @@ class TransferModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
                 .cancelAllWorkByTag(transferId)
             
             ongoingTransfers.remove(transferId)
+            clearPaused(transferId)
             promise.resolve(null)
             
         } catch (e: Exception) {
@@ -167,23 +271,115 @@ class TransferModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
     }
 
     @ReactMethod
+    fun pauseTransfer(transferId: String, promise: Promise) {
+        try {
+            val transferInfo = ongoingTransfers[transferId]
+            if (transferInfo == null) {
+                promise.resolve(false)
+                return
+            }
+
+            markPaused(transferId)
+            WorkManager.getInstance(reactApplicationContext)
+                .cancelAllWorkByTag(transferId)
+            promise.resolve(true)
+        } catch (e: Exception) {
+            Log.e(LOG_TAG, "Failed to pause transfer", e)
+            promise.reject("TRANSFER_PAUSE_FAILED", e.message, e)
+        }
+    }
+
+    @ReactMethod
+    fun resumeTransfer(transferId: String, promise: Promise) {
+        try {
+            val transferInfo = ongoingTransfers[transferId]
+            val destination = transferInfo?.destination
+            val url = transferInfo?.url
+            if (transferInfo == null || destination.isNullOrEmpty() || url.isNullOrEmpty()) {
+                promise.reject("TRANSFER_RESUME_FAILED", "Missing transfer metadata", null)
+                return
+            }
+
+            val destinationPath = destination
+            val destinationFile = if (destinationPath.startsWith("file://")) {
+                java.io.File(destinationPath.substring(7))
+            } else {
+                java.io.File(destinationPath)
+            }
+            val resumeBytes = if (destinationFile.exists()) destinationFile.length() else 0L
+
+            clearPaused(transferId)
+
+            val inputData = workDataOf(
+                FileTransferWorker.KEY_URL to url,
+                FileTransferWorker.KEY_DESTINATION to destinationPath,
+                FileTransferWorker.KEY_TRANSFER_ID to transferId,
+                FileTransferWorker.KEY_HEADERS to (transferInfo.headers ?: "{}"),
+                FileTransferWorker.KEY_MODEL_NAME to transferInfo.modelName,
+                FileTransferWorker.KEY_RESUME_BYTES to resumeBytes
+            )
+
+            val transferRequest = OneTimeWorkRequestBuilder<FileTransferWorker>()
+                .setInputData(inputData)
+                .addTag(transferId)
+                .addTag(FileTransferWorker.WORK_TAG)
+                .build()
+
+            WorkManager.getInstance(reactApplicationContext)
+                .enqueue(transferRequest)
+
+            promise.resolve(true)
+        } catch (e: Exception) {
+            Log.e(LOG_TAG, "Failed to resume transfer", e)
+            promise.reject("TRANSFER_RESUME_FAILED", e.message, e)
+        }
+    }
+
+    @ReactMethod
     fun getOngoingTransfers(promise: Promise) {
         try {
             transferScope.launch {
                 try {
-                    val ongoingTransfersList = Arguments.createArray()
-                    
-                    for ((transferId, destination) in ongoingTransfers) {
-                        val transferInfo = Arguments.createMap().apply {
-                            putString("id", transferId)
-                            putString("destination", destination)
-                            putInt("bytesWritten", 0)
-                            putInt("totalBytes", 0)
-                            putInt("progress", 0)
-                        }
-                        ongoingTransfersList.pushMap(transferInfo)
+                    val workInfos = withContext(Dispatchers.IO) {
+                        WorkManager.getInstance(reactApplicationContext)
+                            .getWorkInfosByTag(FileTransferWorker.WORK_TAG)
+                            .get()
                     }
-                    
+
+                    val ongoingTransfersList = Arguments.createArray()
+
+                    workInfos
+                        .filter { !it.state.isFinished }
+                        .forEach { workInfo ->
+                            val transferId = workInfo.inputData.getString(FileTransferWorker.KEY_TRANSFER_ID) ?: return@forEach
+                            val destination = workInfo.inputData.getString(FileTransferWorker.KEY_DESTINATION) ?: ""
+                            val modelName = workInfo.inputData.getString(FileTransferWorker.KEY_MODEL_NAME)
+                                ?: extractModelName(destination)
+                                ?: transferId
+                            val url = workInfo.inputData.getString(FileTransferWorker.KEY_URL)
+                            val headers = workInfo.inputData.getString(FileTransferWorker.KEY_HEADERS)
+
+                            val progressData = workInfo.progress
+                            val bytesWritten = progressData.getLong(FileTransferWorker.KEY_PROGRESS_BYTES, 0L)
+                            val totalBytes = progressData.getLong(FileTransferWorker.KEY_PROGRESS_TOTAL, 0L)
+                            val progressPercent = progressData.getInt(FileTransferWorker.KEY_PROGRESS_PERCENT, 0)
+
+                            val transferInfo = Arguments.createMap().apply {
+                                putString("id", transferId)
+                                putString("destination", destination)
+                                putString("modelName", modelName)
+                                if (!url.isNullOrEmpty()) {
+                                    putString("url", url)
+                                }
+                                putDouble("bytesWritten", bytesWritten.toDouble())
+                                putDouble("totalBytes", totalBytes.toDouble())
+                                putInt("progress", progressPercent)
+                            }
+
+                            ongoingTransfers[transferId] = OngoingTransfer(destination, modelName, url, headers)
+                            ongoingTransfersList.pushMap(transferInfo)
+                        }
+
                     withContext(Dispatchers.Main) {
                         promise.resolve(ongoingTransfersList)
                     }
@@ -200,41 +396,157 @@ class TransferModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
         }
     }
 
-    fun onTransferProgress(transferId: String, bytesWritten: Long, totalBytes: Long, speed: Long) {
+    fun onTransferProgress(
+        transferId: String,
+        bytesWritten: Long,
+        totalBytes: Long,
+        speed: Long,
+        progress: Int,
+        modelName: String?,
+        destination: String?,
+        url: String?,
+    ) {
+        val transferInfo = ongoingTransfers[transferId]
+        val resolvedModelName = modelName
+            ?: transferInfo?.modelName
+            ?: extractModelName(destination)
+            ?: transferId
+        val resolvedDestination = destination ?: transferInfo?.destination ?: ""
+        val resolvedUrl = url ?: transferInfo?.url
+    val resolvedHeaders = transferInfo?.headers
+
+    ongoingTransfers[transferId] = OngoingTransfer(resolvedDestination, resolvedModelName, resolvedUrl, resolvedHeaders)
+
         val params = Arguments.createMap().apply {
             putString("downloadId", transferId)
+            putString("modelName", resolvedModelName)
+            putString("destination", resolvedDestination)
+            resolvedUrl?.let { putString("url", it) }
             putDouble("bytesWritten", bytesWritten.toDouble())
             putDouble("totalBytes", totalBytes.toDouble())
             putDouble("speed", speed.toDouble())
-            putDouble("eta", if (speed > 0) (totalBytes - bytesWritten).toDouble() / speed else 0.0)
+            putDouble(
+                "eta",
+                if (speed > 0) (totalBytes - bytesWritten).toDouble() / speed else 0.0,
+            )
+            putInt("progress", progress)
         }
-        
+
         emitEvent("onTransferProgress", params)
     }
 
-    fun onTransferComplete(transferId: String) {
-        ongoingTransfers.remove(transferId)
+    fun onTransferComplete(
+        transferId: String,
+        modelName: String?,
+        destination: String?,
+        url: String?,
+        bytesWritten: Long,
+        totalBytes: Long,
+    ) {
+        val transferInfo = ongoingTransfers.remove(transferId)
+        val resolvedModelName = modelName
+            ?: transferInfo?.modelName
+            ?: extractModelName(destination)
+            ?: transferId
+        val resolvedDestination = destination ?: transferInfo?.destination
+        val resolvedUrl = url ?: transferInfo?.url
+
         val params = Arguments.createMap().apply {
             putString("downloadId", transferId)
+            putString("modelName", resolvedModelName)
+            resolvedDestination?.let { putString("destination", it) }
+            resolvedUrl?.let { putString("url", it) }
+            putDouble("bytesWritten", bytesWritten.toDouble())
+            putDouble("totalBytes", totalBytes.toDouble())
         }
+
         emitEvent("onTransferComplete", params)
     }
 
-    fun onTransferError(transferId: String, error: String) {
-        ongoingTransfers.remove(transferId)
+    fun onTransferError(
+        transferId: String,
+        error: String,
+        modelName: String?,
+        destination: String?,
+        url: String?,
+        bytesWritten: Long,
+        totalBytes: Long,
+    ) {
+        val transferInfo = ongoingTransfers.remove(transferId)
+        val resolvedModelName = modelName
+            ?: transferInfo?.modelName
+            ?: extractModelName(destination)
+            ?: transferId
+        val resolvedDestination = destination ?: transferInfo?.destination
+        val resolvedUrl = url ?: transferInfo?.url
+
         val params = Arguments.createMap().apply {
             putString("downloadId", transferId)
             putString("error", error)
+            putString("modelName", resolvedModelName)
+            resolvedDestination?.let { putString("destination", it) }
+            resolvedUrl?.let { putString("url", it) }
+            putDouble("bytesWritten", bytesWritten.toDouble())
+            putDouble("totalBytes", totalBytes.toDouble())
         }
         emitEvent("onTransferError", params)
     }
     
-    fun onTransferCancelled(transferId: String) {
-        ongoingTransfers.remove(transferId)
+    fun onTransferCancelled(
+        transferId: String,
+        modelName: String?,
+        destination: String?,
+        url: String?,
+        bytesWritten: Long,
+        totalBytes: Long,
+    ) {
+        val transferInfo = ongoingTransfers.remove(transferId)
+        val resolvedModelName = modelName
+            ?: transferInfo?.modelName
+            ?: extractModelName(destination)
+            ?: transferId
+        val resolvedDestination = destination ?: transferInfo?.destination
+        val resolvedUrl = url ?: transferInfo?.url
+
         val params = Arguments.createMap().apply {
             putString("downloadId", transferId)
+            putString("modelName", resolvedModelName)
+            resolvedDestination?.let { putString("destination", it) }
+            resolvedUrl?.let { putString("url", it) }
+            putDouble("bytesWritten", bytesWritten.toDouble())
+            putDouble("totalBytes", totalBytes.toDouble())
         }
         emitEvent("onTransferCancelled", params)
+    }
+
+    fun onTransferPaused(
+        transferId: String,
+        modelName: String?,
+        destination: String?,
+        url: String?,
+        bytesWritten: Long,
+        totalBytes: Long,
+    ) {
+        val transferInfo = ongoingTransfers[transferId]
+        val resolvedModelName = modelName
+            ?: transferInfo?.modelName
+            ?: extractModelName(destination)
+            ?: transferId
+        val resolvedDestination = destination ?: transferInfo?.destination
+        val resolvedUrl = url ?: transferInfo?.url
+
+    val headers = transferInfo?.headers
+    ongoingTransfers[transferId] = OngoingTransfer(resolvedDestination ?: "", resolvedModelName, resolvedUrl, headers)
+
+        val params = Arguments.createMap().apply {
+            putString("downloadId", transferId)
+            putString("modelName", resolvedModelName)
+            resolvedDestination?.let { putString("destination", it) }
+            resolvedUrl?.let { putString("url", it) }
+            putDouble("bytesWritten", bytesWritten.toDouble())
+            putDouble("totalBytes", totalBytes.toDouble())
+        }
+        emitEvent("onTransferPaused", params)
     }
 
     override fun onCatalystInstanceDestroy() {
@@ -259,69 +571,223 @@ class FileTransferWorker(
         const val KEY_DESTINATION = "destination"
         const val KEY_TRANSFER_ID = "transferId"
         const val KEY_HEADERS = "headers"
+        const val KEY_MODEL_NAME = "modelName"
+        const val KEY_PROGRESS_BYTES = "progressBytes"
+        const val KEY_PROGRESS_TOTAL = "progressTotal"
+        const val KEY_PROGRESS_PERCENT = "progressPercent"
+        const val KEY_RESUME_BYTES = "resumeBytes"
+        const val WORK_TAG = "inferra_file_transfer"
         private const val BUFFER_SIZE = 8192
         private const val PROGRESS_UPDATE_INTERVAL = 500L
     }
 
-    private fun broadcastProgress(transferId: String, bytesWritten: Long, totalBytes: Long, speed: Long) {
+    class TransferPausedException : Exception("Transfer was paused")
+
+        private fun extractModelName(path: String?): String? {
+            if (path.isNullOrEmpty()) {
+                return null
+            }
+
+            val normalised = if (path.startsWith("file://")) {
+                path.substring(7)
+            } else {
+                path
+            }
+
+            val segments = normalised.split('/').filter { it.isNotEmpty() }
+            return segments.lastOrNull()
+        }
+
+    private fun broadcastProgress(
+        transferId: String,
+        modelName: String,
+        destination: String,
+        url: String?,
+        bytesWritten: Long,
+        totalBytes: Long,
+        speed: Long,
+        progress: Int,
+    ) {
         val intent = Intent(TransferModule.ACTION_TRANSFER_PROGRESS).apply {
             putExtra("transferId", transferId)
             putExtra("bytesWritten", bytesWritten)
             putExtra("totalBytes", totalBytes)
             putExtra("speed", speed)
+            putExtra("progress", progress)
+            putExtra("modelName", modelName)
+            putExtra("destination", destination)
+            url?.let { putExtra("url", it) }
         }
         
         LocalBroadcastManager.getInstance(applicationContext)
             .sendBroadcast(intent)
     }
 
-    private fun broadcastComplete(transferId: String) {
+    private fun broadcastComplete(
+        transferId: String,
+        modelName: String,
+        destination: String,
+        url: String?,
+        bytesWritten: Long,
+        totalBytes: Long,
+    ) {
         val intent = Intent(TransferModule.ACTION_TRANSFER_COMPLETE).apply {
             putExtra("transferId", transferId)
+            putExtra("modelName", modelName)
+            putExtra("destination", destination)
+            url?.let { putExtra("url", it) }
+            putExtra("bytesWritten", bytesWritten)
+            putExtra("totalBytes", totalBytes)
         }
         
         LocalBroadcastManager.getInstance(applicationContext)
             .sendBroadcast(intent)
     }
 
-    private fun broadcastError(transferId: String, error: String) {
+    private fun broadcastError(
+        transferId: String,
+        error: String,
+        modelName: String,
+        destination: String,
+        url: String?,
+        bytesWritten: Long,
+        totalBytes: Long,
+    ) {
         val intent = Intent(TransferModule.ACTION_TRANSFER_ERROR).apply {
             putExtra("transferId", transferId)
             putExtra("error", error)
+            putExtra("modelName", modelName)
+            putExtra("destination", destination)
+            url?.let { putExtra("url", it) }
+            putExtra("bytesWritten", bytesWritten)
+            putExtra("totalBytes", totalBytes)
         }
         
         LocalBroadcastManager.getInstance(applicationContext)
             .sendBroadcast(intent)
     }
     
-    private fun broadcastCancelled(transferId: String) {
+    private fun broadcastCancelled(
+        transferId: String,
+        modelName: String,
+        destination: String,
+        url: String?,
+        bytesWritten: Long,
+        totalBytes: Long,
+    ) {
         val intent = Intent(TransferModule.ACTION_TRANSFER_CANCELLED).apply {
             putExtra("transferId", transferId)
+            putExtra("modelName", modelName)
+            putExtra("destination", destination)
+            url?.let { putExtra("url", it) }
+            putExtra("bytesWritten", bytesWritten)
+            putExtra("totalBytes", totalBytes)
         }
         
         LocalBroadcastManager.getInstance(applicationContext)
             .sendBroadcast(intent)
     }
 
+    private fun broadcastPaused(
+        transferId: String,
+        modelName: String,
+        destination: String,
+        url: String?,
+        bytesWritten: Long,
+        totalBytes: Long,
+    ) {
+        val intent = Intent(TransferModule.ACTION_TRANSFER_PAUSED).apply {
+            putExtra("transferId", transferId)
+            putExtra("modelName", modelName)
+            putExtra("destination", destination)
+            url?.let { putExtra("url", it) }
+            putExtra("bytesWritten", bytesWritten)
+            putExtra("totalBytes", totalBytes)
+        }
+
+        LocalBroadcastManager.getInstance(applicationContext)
+            .sendBroadcast(intent)
+    }
+
+    private var lastBytesTransferred: Long = 0L
+    private var lastTotalBytes: Long = 0L
+
     override suspend fun doWork(): Result {
         val url = inputData.getString(KEY_URL)
-        val destination = inputData.getString(KEY_DESTINATION) 
+        val destination = inputData.getString(KEY_DESTINATION)
         val transferId = inputData.getString(KEY_TRANSFER_ID)
         val headersString = inputData.getString(KEY_HEADERS)
+        val modelNameInput = inputData.getString(KEY_MODEL_NAME)
+        val resumeBytesInput = inputData.getLong(KEY_RESUME_BYTES, 0L)
 
         if (url == null || destination == null || transferId == null) {
             return Result.failure()
         }
 
+        val modelName = modelNameInput ?: extractModelName(destination) ?: transferId
+
+        lastBytesTransferred = resumeBytesInput
+        lastTotalBytes = 0L
+
+        try {
+            setForeground(
+                DownloadNotificationHelper.createForegroundInfo(
+                    applicationContext,
+                    transferId,
+                    modelName,
+                    if (resumeBytesInput > 0) 1 else 0,
+                    resumeBytesInput,
+                    0,
+                ),
+            )
+        } catch (e: Exception) {
+            Log.w(LOG_TAG, "Failed to set initial foreground notification", e)
+        }
+
         return try {
-            performFileTransfer(url, destination, transferId, headersString)
-            broadcastComplete(transferId)
+            val (bytesWritten, totalBytes) = performFileTransfer(
+                url,
+                destination,
+                transferId,
+                headersString,
+                modelName,
+                resumeBytesInput,
+            )
+
+            broadcastComplete(transferId, modelName, destination, url, bytesWritten, totalBytes)
+            DownloadNotificationHelper.showCompletionNotification(applicationContext, transferId, modelName)
+            Result.success()
+        } catch (e: TransferPausedException) {
+            broadcastPaused(transferId, modelName, destination, url, lastBytesTransferred, lastTotalBytes)
+            DownloadNotificationHelper.showPausedNotification(
+                applicationContext,
+                transferId,
+                modelName,
+                lastBytesTransferred,
+                lastTotalBytes,
+            )
             Result.success()
         } catch (e: TransferModule.TransferCancelledException) {
-            broadcastCancelled(transferId)
+            broadcastCancelled(transferId, modelName, destination, url, lastBytesTransferred, lastTotalBytes)
+            DownloadNotificationHelper.cancelNotification(applicationContext, transferId)
             Result.success()
         } catch (e: Exception) {
-            broadcastError(transferId, e.message ?: "Unknown error")
+            Log.e(LOG_TAG, "Transfer failed", e)
+            broadcastError(
+                transferId,
+                e.message ?: "Unknown error",
+                modelName,
+                destination,
+                url,
+                lastBytesTransferred,
+                lastTotalBytes,
+            )
+            DownloadNotificationHelper.showFailureNotification(
+                applicationContext,
+                transferId,
+                modelName,
+                e.message,
+            )
             Result.failure()
         }
     }
@@ -330,8 +796,10 @@ class FileTransferWorker(
         urlString: String,
         destinationPath: String,
         transferId: String,
-        headersString: String?
-    ) = withContext(Dispatchers.IO) {
+        headersString: String?,
+        modelName: String,
+        resumeBytes: Long,
+    ): Pair<Long, Long> = withContext(Dispatchers.IO) {
         
         var httpConnection: HttpURLConnection? = null
         var dataInputStream: InputStream? = null
@@ -352,36 +820,70 @@ class FileTransferWorker(
                 }
             }
 
+            var effectiveResumeBytes = if (resumeBytes > 0) resumeBytes else 0L
+            if (effectiveResumeBytes > 0) {
+                httpConnection.setRequestProperty("Range", "bytes=$effectiveResumeBytes-")
+            }
+
             httpConnection.connectTimeout = 30000
             httpConnection.readTimeout = 30000
             
             httpConnection.connect()
-            
-            if (httpConnection.responseCode != HttpURLConnection.HTTP_OK) {
-                throw IOException("HTTP error: ${httpConnection.responseCode} ${httpConnection.responseMessage}")
-            }
 
-            val totalFileSize = httpConnection.contentLength.toLong()
-            dataInputStream = httpConnection.inputStream
-
+            val responseCode = httpConnection.responseCode
             val actualDestinationPath = if (destinationPath.startsWith("file://")) {
-                destinationPath.substring(7) // Remove "file://" prefix
+                destinationPath.substring(7)
             } else {
                 destinationPath
             }
-
             val destinationFile = File(actualDestinationPath)
+
+            if (effectiveResumeBytes > 0 && responseCode == HttpURLConnection.HTTP_OK) {
+                if (destinationFile.exists()) {
+                    destinationFile.delete()
+                }
+                effectiveResumeBytes = 0L
+            }
+
+            if (responseCode != HttpURLConnection.HTTP_OK && responseCode != HttpURLConnection.HTTP_PARTIAL) {
+                throw IOException("HTTP error: ${httpConnection.responseCode} ${httpConnection.responseMessage}")
+            }
+
+            val contentRange = httpConnection.getHeaderField("Content-Range")
+            val parsedTotal = contentRange?.substringAfterLast("/")?.toLongOrNull()
+            val contentLength = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                httpConnection.contentLengthLong
+            } else {
+                httpConnection.contentLength.toLong()
+            }
+
+            val totalFileSize = when {
+                parsedTotal != null -> parsedTotal
+                contentLength > 0 -> if (effectiveResumeBytes > 0) effectiveResumeBytes + contentLength else contentLength
+                else -> 0L
+            }
+
+            dataInputStream = httpConnection.inputStream
+
             destinationFile.parentFile?.mkdirs()
-            fileOutputStream = FileOutputStream(destinationFile)
+            val append = effectiveResumeBytes > 0 && destinationFile.exists()
+            fileOutputStream = FileOutputStream(destinationFile, append)
 
             val dataBuffer = ByteArray(BUFFER_SIZE)
-            var totalBytesTransferred = 0L
+            var totalBytesTransferred = effectiveResumeBytes
             var bytesRead: Int
             var lastProgressTimestamp = 0L
             val transferStartTime = System.currentTimeMillis()
+            var lastNotificationTimestamp = 0L
+
+            lastBytesTransferred = effectiveResumeBytes
+            lastTotalBytes = totalFileSize
 
             while (dataInputStream.read(dataBuffer).also { bytesRead = it } != -1) {
                 if (isStopped) {
+                    if (TransferModule.isPaused(transferId)) {
+                        throw TransferPausedException()
+                    }
                     break
                 }
 
@@ -397,32 +899,67 @@ class FileTransferWorker(
                     try {
                         setProgress(
                             workDataOf(
-                                "bytesWritten" to totalBytesTransferred.toInt(),
-                                "totalBytes" to totalFileSize.toInt(),
-                                "progress" to progressPercent
+                                KEY_PROGRESS_BYTES to totalBytesTransferred,
+                                KEY_PROGRESS_TOTAL to totalFileSize,
+                                KEY_PROGRESS_PERCENT to progressPercent
                             )
                         )
                     } catch (e: Exception) {
                         Log.w(LOG_TAG, "Failed to set progress", e)
                     }
 
-                    broadcastProgress(transferId, totalBytesTransferred, totalFileSize, transferSpeed)
+                    lastBytesTransferred = totalBytesTransferred
+                    lastTotalBytes = totalFileSize
+
+                    broadcastProgress(
+                        transferId,
+                        modelName,
+                        destinationPath,
+                        urlString,
+                        totalBytesTransferred,
+                        totalFileSize,
+                        transferSpeed,
+                        progressPercent,
+                    )
                     lastProgressTimestamp = currentTimestamp
+                    if (currentTimestamp - lastNotificationTimestamp >= PROGRESS_UPDATE_INTERVAL) {
+                        try {
+                            setForeground(
+                                DownloadNotificationHelper.createForegroundInfo(
+                                    applicationContext,
+                                    transferId,
+                                    modelName,
+                                    progressPercent,
+                                    totalBytesTransferred,
+                                    totalFileSize,
+                                ),
+                            )
+                        } catch (e: Exception) {
+                            Log.w(LOG_TAG, "Failed to update foreground notification", e)
+                        }
+                        lastNotificationTimestamp = currentTimestamp
+                    }
                 }
             }
 
             if (isStopped) {
+                if (TransferModule.isPaused(transferId)) {
+                    throw TransferPausedException()
+                }
                 destinationFile.delete()
                 throw TransferModule.TransferCancelledException()
             }
 
             fileOutputStream.flush()
-
+            lastBytesTransferred = totalBytesTransferred
+            lastTotalBytes = totalFileSize
         } finally {
             dataInputStream?.close()
             fileOutputStream?.close()
             httpConnection?.disconnect()
         }
+
+        Pair(lastBytesTransferred, lastTotalBytes)
     }
 
     private fun parseHeaderString(headersString: String): Map<String, String> {
