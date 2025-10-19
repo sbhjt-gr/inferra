@@ -5,6 +5,7 @@ export {
   registerWithEmail,
   loginWithEmail,
   signInWithGoogle,
+  signInWithApple,
   logoutUser,
   getCurrentUser,
   isAuthenticated,

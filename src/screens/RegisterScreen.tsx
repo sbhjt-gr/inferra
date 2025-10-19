@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -27,7 +27,8 @@ import {
   Portal,
   Checkbox,
 } from 'react-native-paper';
-import { registerWithEmail, signInWithGoogle, isEmailFromTrustedProvider } from '../services/FirebaseService';
+import { registerWithEmail, signInWithGoogle, isEmailFromTrustedProvider, signInWithApple } from '../services/FirebaseService';
+import * as AppleAuthentication from 'expo-apple-authentication';
 
 type RegisterScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList>;
@@ -54,6 +55,7 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
   const [emailTouched, setEmailTouched] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [termsError, setTermsError] = useState<string | null>(null);
+  const [isAppleSignInAvailable, setIsAppleSignInAvailable] = useState(false);
 
   const redirectAfterRegister = route.params?.redirectTo || 'MainTabs';
   const redirectParams = route.params?.redirectParams || { screen: 'HomeTab' };
@@ -73,6 +75,29 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
       setError('Failed to open Privacy Policy. Please try again.');
     }
   };
+
+  useEffect(() => {
+    let active = true;
+    if (Platform.OS !== 'ios') {
+      return () => {
+        active = false;
+      };
+    }
+    AppleAuthentication.isAvailableAsync()
+      .then((available: boolean) => {
+        if (active) {
+          setIsAppleSignInAvailable(available);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setIsAppleSignInAvailable(false);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const validateEmail = (email: string) => {
     const emailRegex = /^[a-zA-Z0-9.!#$%&'*=?^_`{|}~-]+@[^\s@]+\.[^\s@]+$/;
@@ -165,6 +190,39 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
       }
     } catch (err) {
       setError('Google sign-in failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleAppleSignIn = async () => {
+    try {
+      if (!termsAccepted) {
+        setTermsError('You must accept the Terms & Conditions and Privacy Policy to continue');
+        return;
+      }
+      if (isLoading) {
+        return;
+      }
+      setIsLoading(true);
+      setError(null);
+      setTermsError(null);
+
+      const result = await signInWithApple();
+
+      if (result.success) {
+        await checkLoginStatus();
+
+        if (redirectAfterRegister === 'MainTabs') {
+          navigation.replace('MainTabs', redirectParams as any);
+        } else {
+          navigation.replace(redirectAfterRegister as any);
+        }
+      } else {
+        setError(result.error || 'Apple sign-in failed. Please try again.');
+      }
+    } catch (err) {
+      setError('Apple sign-in failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -337,25 +395,32 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
               <View style={styles.socialContainer}>
                 <Text variant="bodySmall" style={styles.dividerText}>Or sign up with</Text>
                 
-                <View style={styles.socialButtonsRow}>
-                  <Button
-                    key={`google-button-${isLoading}`}
-                    mode="outlined"
-                    icon="google"
-                    style={[styles.socialButton, { marginHorizontal: 0 }]}
-                    contentStyle={styles.socialButtonContent}
-                    onPress={() => {
-                      if (typeof handleGoogleSignIn === 'function') {
-                        handleGoogleSignIn();
-                      } else {
-                        setError('Google sign-in is not available');
-                      }
-                    }}
-                    disabled={isLoading}
-                  >
-                    Google
-                  </Button>
-                </View>
+                <Button
+                  key={`google-button-${isLoading}`}
+                  mode="outlined"
+                  icon="google"
+                  style={styles.socialButton}
+                  contentStyle={styles.socialButtonContent}
+                  onPress={() => {
+                    if (typeof handleGoogleSignIn === 'function') {
+                      handleGoogleSignIn();
+                    } else {
+                      setError('Google sign-in is not available');
+                    }
+                  }}
+                  disabled={isLoading}
+                >
+                  Google
+                </Button>
+                {isAppleSignInAvailable && (
+                  <AppleAuthentication.AppleAuthenticationButton
+                    buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+                    buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+                    cornerRadius={8}
+                    style={styles.appleButton}
+                    onPress={handleAppleSignIn}
+                  />
+                )}
               </View>
               
               <Divider style={styles.divider} />
@@ -494,18 +559,18 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     opacity: 0.7,
   },
-  socialButtonsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '100%',
-  },
   socialButton: {
-    flex: 1,
-    marginHorizontal: 6,
+    width: '100%',
+    marginBottom: 12,
     borderColor: '#8A2BE2',
+    borderRadius: 8,
   },
   socialButtonContent: {
-    height: 40,
+    height: 43,
+  },
+  appleButton: {
+    width: '100%',
+    height: 48,
   },
   warningText: {
     marginBottom: 16,

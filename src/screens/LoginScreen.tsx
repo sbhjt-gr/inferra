@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -23,7 +23,8 @@ import {
   HelperText, 
   Divider,
 } from 'react-native-paper';
-import { loginWithEmail, signInWithGoogle } from '../services/FirebaseService';
+import { loginWithEmail, signInWithGoogle, signInWithApple } from '../services/FirebaseService';
+import * as AppleAuthentication from 'expo-apple-authentication';
 
 type LoginScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList>;
@@ -40,6 +41,7 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [isAppleSignInAvailable, setIsAppleSignInAvailable] = useState(false);
 
   const redirectAfterLogin = route.params?.redirectTo || 'MainTabs';
   const redirectParams = route.params?.redirectParams || { screen: 'HomeTab' };
@@ -50,6 +52,29 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps) {
       redirectParams: route.params?.redirectParams
     });
   };
+
+  useEffect(() => {
+    let active = true;
+    if (Platform.OS !== 'ios') {
+      return () => {
+        active = false;
+      };
+    }
+    AppleAuthentication.isAvailableAsync()
+      .then((available: boolean) => {
+        if (active) {
+          setIsAppleSignInAvailable(available);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setIsAppleSignInAvailable(false);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
 
   const handleLogin = async () => {
@@ -107,6 +132,34 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps) {
       }
     } catch (err) {
       setError('Google sign-in failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleAppleSignIn = async () => {
+    try {
+      if (isLoading) {
+        return;
+      }
+      setIsLoading(true);
+      setError(null);
+
+      const result = await signInWithApple();
+
+      if (result.success) {
+        await checkLoginStatus();
+
+        if (redirectAfterLogin === 'MainTabs') {
+          navigation.replace('MainTabs', redirectParams as any);
+        } else {
+          navigation.replace(redirectAfterLogin as any);
+        }
+      } else {
+        setError(result.error || 'Apple sign-in failed. Please try again.');
+      }
+    } catch (err) {
+      setError('Apple sign-in failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -200,18 +253,25 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps) {
               <View style={styles.socialContainer}>
                 <Text variant="bodySmall" style={styles.dividerText}>Or sign in with</Text>
                 
-                <View style={styles.socialButtonsRow}>
-                  <Button
-                    mode="outlined"
-                    icon="google"
-                    style={[styles.socialButton, { marginHorizontal: 0 }]}
-                    contentStyle={styles.socialButtonContent}
-                    onPress={handleGoogleSignIn}
-                    disabled={isLoading}
-                  >
-                    Google
-                  </Button>
-                </View>
+                <Button
+                  mode="outlined"
+                  icon="google"
+                  style={styles.socialButton}
+                  contentStyle={styles.socialButtonContent}
+                  onPress={handleGoogleSignIn}
+                  disabled={isLoading}
+                >
+                  Google
+                </Button>
+                {isAppleSignInAvailable && (
+                  <AppleAuthentication.AppleAuthenticationButton
+                    buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+                    buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+                    cornerRadius={8}
+                    style={styles.appleButton}
+                    onPress={handleAppleSignIn}
+                  />
+                )}
               </View>
               
               <Divider style={styles.divider} />
@@ -318,17 +378,17 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     opacity: 0.7,
   },
-  socialButtonsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '100%',
-  },
   socialButton: {
-    flex: 1,
-    marginHorizontal: 6,
+    width: '100%',
+    marginBottom: 12,
     borderColor: '#8A2BE2',
+    borderRadius: 8,
   },
   socialButtonContent: {
-    height: 40,
+    height: 43,
+  },
+  appleButton: {
+    width: '100%',
+    height: 48,
   },
 }); 

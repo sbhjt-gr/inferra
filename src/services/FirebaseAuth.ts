@@ -2,6 +2,7 @@ import Constants from 'expo-constants';
 import {
   signInWithCredential,
   GoogleAuthProvider,
+  OAuthProvider,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
@@ -21,6 +22,8 @@ import {
 } from 'firebase/firestore';
 import { auth, firestore } from '../config/firebase';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import * as AppleAuthentication from 'expo-apple-authentication';
+import * as Crypto from 'expo-crypto';
 import { 
   checkRateLimiting, 
   incrementAuthAttempts, 
@@ -239,6 +242,122 @@ export const signInWithGoogle = async (): Promise<{ success: boolean; error?: st
       errorMessage = 'Google Play Services not available';
     } else if (error.code === 'auth/network-request-failed') {
       errorMessage = AUTH_ERROR_MESSAGES['auth/network-request-failed'];
+    } else if (typeof error?.code === 'string' && AUTH_ERROR_MESSAGES[error.code]) {
+      errorMessage = AUTH_ERROR_MESSAGES[error.code];
+    }
+
+    return {
+      success: false,
+      error: errorMessage
+    };
+  }
+};
+
+const generateSecureRandomString = async (length = 32) => {
+  const size = Math.ceil(length / 2);
+  const bytes = await Crypto.getRandomBytesAsync(size);
+  let result = '';
+  for (let i = 0; i < bytes.length; i += 1) {
+    result += bytes[i].toString(16).padStart(2, '0');
+  }
+  return result.slice(0, length);
+};
+
+export const signInWithApple = async (): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const available = await AppleAuthentication.isAvailableAsync();
+    if (!available) {
+      return {
+        success: false,
+        error: 'Apple Sign-In is not available on this device'
+      };
+    }
+
+    if (__DEV__) {
+      console.log('apple_sign_in_start');
+    }
+
+    const rawNonce = await generateSecureRandomString(32);
+    const hashedNonce = await Crypto.digestStringAsync(
+      Crypto.CryptoDigestAlgorithm.SHA256,
+      rawNonce
+    );
+
+    if (__DEV__) {
+      console.log('apple_sign_in_nonce_generated', {
+        rawNonceLength: rawNonce.length,
+        hashedNonceLength: hashedNonce.length
+      });
+    }
+
+    const appleCredential = await AppleAuthentication.signInAsync({
+      requestedScopes: [
+        AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+        AppleAuthentication.AppleAuthenticationScope.EMAIL
+      ],
+      nonce: hashedNonce
+    });
+
+    if (__DEV__) {
+      console.log('apple_sign_in_credential_received', {
+        hasIdentityToken: !!appleCredential.identityToken,
+        hasEmail: !!appleCredential.email,
+        hasFullName: !!appleCredential.fullName
+      });
+    }
+
+    if (!appleCredential.identityToken) {
+      return {
+        success: false,
+        error: 'Apple did not return an identity token'
+      };
+    }
+
+    const provider = new OAuthProvider('apple.com');
+    const firebaseCredential = provider.credential({
+      idToken: appleCredential.identityToken,
+      rawNonce
+    });
+
+    if (__DEV__) {
+      console.log('apple_sign_in_firebase_credential_created');
+    }
+
+    const userCredential = await signInWithCredential(auth, firebaseCredential);
+    const user = userCredential.user;
+
+    if (__DEV__) {
+      console.log('apple_sign_in_firebase_success', { uid: user.uid });
+    }
+
+    if (appleCredential.fullName) {
+      const given = appleCredential.fullName.givenName || '';
+      const family = appleCredential.fullName.familyName || '';
+      const displayName = `${given} ${family}`.trim();
+      if (displayName && user.displayName !== displayName) {
+        await updateProfile(user, { displayName });
+      }
+    }
+
+    await storeAuthState(user);
+
+    return { success: true };
+  } catch (error: any) {
+    if (__DEV__) {
+      console.error('native_apple_sign_in_error', error);
+      console.error('apple_sign_in_error_details', {
+        code: error?.code,
+        message: error?.message,
+        name: error?.name
+      });
+    }
+
+    let errorMessage = 'Apple sign-in failed. Please try again.';
+
+    if (error?.code === 'ERR_REQUEST_CANCELED' || error?.code === 'ERR_CANCELED') {
+      errorMessage = 'Sign-in was cancelled';
+    } else if (error?.message?.includes('authorization attempt failed')) {
+      errorMessage = 'Apple Sign-In is not properly configured. Please ensure Apple Sign-In capability is enabled in your Apple Developer account.';
     } else if (typeof error?.code === 'string' && AUTH_ERROR_MESSAGES[error.code]) {
       errorMessage = AUTH_ERROR_MESSAGES[error.code];
     }

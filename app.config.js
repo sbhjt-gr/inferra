@@ -51,6 +51,9 @@ export default {
           }
         ]
       },
+      entitlements: {
+        "com.apple.developer.applesignin": ["Default"]
+      },
       scheme: "com.gorai.ragionare"
     },
     android: {
