@@ -1,10 +1,8 @@
-import { AppState, AppStateStatus, Platform } from 'react-native';
-import * as Device from 'expo-device';
+import { AppState, AppStateStatus } from 'react-native';
 import { EventEmitter } from './EventEmitter';
 import { FileManager } from './FileManager';
 import { StoredModelsManager } from './StoredModelsManager';
 import { DownloadTaskManager } from './DownloadTaskManager';
-import { downloadNotificationService } from './DownloadNotificationService';
 import { StoredModel } from './ModelDownloaderTypes';
 import { notificationService } from './NotificationService';
 
@@ -13,7 +11,6 @@ class ModelDownloader extends EventEmitter {
   private storedModelsManager: StoredModelsManager;
   private downloadTaskManager: DownloadTaskManager;
   private isInitialized: boolean = false;
-  private hasNotificationPermission: boolean = false;
 
   constructor() {
     super();
@@ -149,20 +146,6 @@ class ModelDownloader extends EventEmitter {
 
 
 
-  private async requestNotificationPermissions(): Promise<boolean> {
-    if (!Device.isDevice) {
-      return false;
-    }
-
-    try {
-      const granted = await downloadNotificationService.requestPermissions();
-      this.hasNotificationPermission = granted;
-      return granted;
-    } catch (error) {
-      return false;
-    }
-  }
-
   async ensureDownloadsAreRunning(): Promise<void> {
     await this.downloadTaskManager.ensureDownloadsAreRunning();
   }
@@ -173,10 +156,6 @@ class ModelDownloader extends EventEmitter {
     }
 
     try {
-      if (!this.hasNotificationPermission) {
-        this.hasNotificationPermission = await this.requestNotificationPermissions();
-      }
-      
       return await this.downloadTaskManager.downloadModel(url, modelName);
     } catch (error) {
       throw error;

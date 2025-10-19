@@ -20,12 +20,6 @@
   if (@available(iOS 10.0, *)) {
     UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
     center.delegate = self;
-    UNAuthorizationOptions options = UNAuthorizationOptionAlert | UNAuthorizationOptionSound | UNAuthorizationOptionBadge;
-    [center requestAuthorizationWithOptions:options completionHandler:^(BOOL granted, NSError * _Nullable error) {
-      if (!granted) {
-        NSLog(@"Download notifications permission not granted");
-      }
-    }];
   }
 
   return [super application:application didFinishLaunchingWithOptions:launchOptions];
