@@ -169,8 +169,12 @@ class ModelDownloader extends EventEmitter {
     await this.downloadTaskManager.resumeDownload(downloadId);
   }
 
-  async cancelDownload(downloadId: number): Promise<void> {
-    await this.downloadTaskManager.cancelDownload(downloadId);
+  async cancelDownload(identifier: number | string): Promise<void> {
+    if (typeof identifier === 'number') {
+      await this.downloadTaskManager.cancelDownload(identifier);
+    } else {
+      await this.downloadTaskManager.cancelDownload(identifier);
+    }
   }
 
   async getStoredModels(): Promise<StoredModel[]> {

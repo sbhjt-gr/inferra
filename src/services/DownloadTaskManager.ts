@@ -132,6 +132,10 @@ export class DownloadTaskManager extends EventEmitter {
         const downloadInfo = this.activeDownloads.get(modelName);
         if (downloadInfo) {
           downloadInfo.status = 'cancelled';
+          if (downloadInfo.destination) {
+            void this.fileManager.deleteFile(downloadInfo.destination).catch(() => {
+            });
+          }
         }
         this.emit('downloadCancelled', {
           modelName,

@@ -501,7 +501,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         throw new Error('Download information not found');
       }
       
-      await modelDownloader.cancelDownload(downloadInfo.downloadId);
+      await modelDownloader.cancelDownload(modelName);
       
       setDownloadProgress(prev => {
         const newProgress = { ...prev };
@@ -509,6 +509,22 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         return newProgress;
       });
       
+      try {
+        const savedStates = await AsyncStorage.getItem('active_downloads');
+        if (savedStates) {
+          const parsedStates = JSON.parse(savedStates);
+          if (parsedStates[modelName]) {
+            delete parsedStates[modelName];
+            if (Object.keys(parsedStates).length > 0) {
+              await AsyncStorage.setItem('active_downloads', JSON.stringify(parsedStates));
+            } else {
+              await AsyncStorage.removeItem('active_downloads');
+            }
+          }
+        }
+      } catch (storageError) {
+      }
+
       await loadStoredModels(true);
     } catch (error) {
       showDialog('Error', 'Failed to cancel download', [

@@ -102,13 +102,36 @@ const DownloadsDialog = ({ visible, onClose, downloads, setDownloadProgress }: D
 
   const handleCancel = async (modelName: string) => {
     try {
-      const downloadInfo = downloads[modelName];
-      await modelDownloader.cancelDownload(downloadInfo.downloadId);
-      setDownloadProgress(prev => {
+      await modelDownloader.cancelDownload(modelName);
+
+      setDownloadProgress((prev: Record<string, {
+        progress: number;
+        bytesDownloaded: number;
+        totalBytes: number;
+        status: string;
+        downloadId: number;
+        isPaused?: boolean;
+      }>) => {
         const newProgress = { ...prev };
         delete newProgress[modelName];
         return newProgress;
       });
+
+      try {
+        const savedStates = await AsyncStorage.getItem('active_downloads');
+        if (savedStates) {
+          const parsedStates = JSON.parse(savedStates);
+          if (parsedStates[modelName]) {
+            delete parsedStates[modelName];
+            if (Object.keys(parsedStates).length > 0) {
+              await AsyncStorage.setItem('active_downloads', JSON.stringify(parsedStates));
+            } else {
+              await AsyncStorage.removeItem('active_downloads');
+            }
+          }
+        }
+      } catch (error) {
+      }
     } catch (error) {
     }
   };
