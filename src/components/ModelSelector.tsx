@@ -18,6 +18,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getThemeAwareColor } from '../utils/ColorUtils';
 import { onlineModelService } from '../services/OnlineModelService';
 import { Dialog, Portal, Text, Button } from 'react-native-paper';
+import { appleIntelligenceManager } from '../utils/AppleIntelligenceManager';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import { useNavigation } from '@react-navigation/native';
@@ -51,7 +52,7 @@ interface ModelSelectorProps {
   onClose?: () => void;
   preselectedModelPath?: string | null;
   isGenerating?: boolean;
-  onModelSelect?: (provider: 'local' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude', modelPath?: string, projectorPath?: string) => void;
+  onModelSelect?: (provider: 'local' | 'apple' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude', modelPath?: string, projectorPath?: string) => void;
   navigation?: NativeStackNavigationProp<RootStackParamList>;
 }
 
@@ -126,6 +127,8 @@ const ONLINE_MODELS: OnlineModel[] = [
   { id: 'claude', name: 'Claude', provider: 'Anthropic', isOnline: true },
 ];
 
+const APPLE_MODEL: OnlineModel = { id: 'apple', name: 'Apple Foundation', provider: 'Apple', isOnline: true };
+
 interface SectionData {
   title: string;
   data: Model[];
@@ -146,8 +149,10 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
       gemini: false,
       chatgpt: false,
       deepseek: false,
-      claude: false
+      claude: false,
+      apple: false
     });
+    const [isAppleAvailable, setIsAppleAvailable] = useState(false);
     const [isOnlineModelsExpanded, setIsOnlineModelsExpanded] = useState(false);
     const [isLocalModelsExpanded, setIsLocalModelsExpanded] = useState(true);
     const [isLoadingFromStorage, setIsLoadingFromStorage] = useState(false);
@@ -173,8 +178,30 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
       setDialogVisible(true);
     };
 
+    useEffect(() => {
+      let active = true;
+      const checkAvailability = async () => {
+        try {
+          const supported = await appleIntelligenceManager.isSupported();
+          if (active) {
+            setIsAppleAvailable(supported);
+            setOnlineModelStatuses(prev => ({ ...prev, apple: supported }));
+          }
+        } catch (error) {
+          if (active) {
+            setIsAppleAvailable(false);
+            setOnlineModelStatuses(prev => ({ ...prev, apple: false }));
+          }
+        }
+      };
+      checkAvailability();
+      return () => {
+        active = false;
+      };
+    }, []);
+
     const hasAnyApiKey = () => {
-      return Object.values(onlineModelStatuses).some(status => status);
+      return Object.entries(onlineModelStatuses).some(([key, status]) => key !== 'apple' && status);
     };
 
     const toggleOnlineModelsDropdown = () => {
@@ -348,7 +375,8 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
           setIsLocalModelsExpanded(false);
         }
 
-        sections.push({ title: 'Remote Models', data: ONLINE_MODELS });
+    const remoteModels = isAppleAvailable ? [...ONLINE_MODELS, APPLE_MODEL] : ONLINE_MODELS;
+    sections.push({ title: 'Remote Models', data: remoteModels });
         setSections(sections);
       } catch (error) {
       }
@@ -369,6 +397,10 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     useEffect(() => {
       loadModels();
     }, []);
+
+    useEffect(() => {
+      loadModels();
+    }, [isAppleAvailable]);
 
 
     useEffect(() => {
@@ -413,7 +445,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
 
     useEffect(() => {
       checkOnlineModelApiKeys();
-    }, []);
+    }, [isAppleAvailable]);
 
     const checkOnlineModelApiKeys = async () => {
       try {
@@ -426,12 +458,13 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
           gemini: hasGeminiKey,
           chatgpt: hasOpenAIKey,
           deepseek: hasDeepSeekKey,
-          claude: hasClaudeKey
+          claude: hasClaudeKey,
+          apple: isAppleAvailable
         };
         
         setOnlineModelStatuses(newStatuses);
         
-        if (Object.values(newStatuses).some(status => status)) {
+        if (Object.entries(newStatuses).some(([key, status]) => key !== 'apple' && status)) {
           setIsOnlineModelsExpanded(true);
         }
       } catch (error) {
@@ -451,6 +484,21 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
       }
       
       if ('isOnline' in model) {
+        if (model.id === 'apple') {
+          if (!isAppleAvailable) {
+            showDialog(
+              'Unavailable',
+              'Apple Intelligence is not available on this device.',
+              [<Button key="ok" onPress={hideDialog}>OK</Button>]
+            );
+            return;
+          }
+          if (onModelSelect) {
+            onModelSelect('apple');
+          }
+          return;
+        }
+
         if (!enableRemoteModels || !isLoggedIn) {
           setTimeout(() => {
             showDialog(
@@ -693,40 +741,40 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     };
 
     const handleApiKeyRequired = (model: OnlineModel) => {
-      showDialog(
-        'API Key Required',
-        `${model.name} by ${model.provider} requires an API key. Please configure it in Settings.`,
-        [<Button key="ok" onPress={hideDialog}>OK</Button>]
-      );
+      const title = model.id === 'apple' ? 'Apple Intelligence Unavailable' : 'API Key Required';
+      const message = model.id === 'apple'
+        ? 'Apple Intelligence requires compatible hardware and the latest software. Please ensure your device supports Apple Intelligence.'
+        : `${model.name} by ${model.provider} requires an API key. Please configure it in Settings.`;
+
+      showDialog(title, message, [<Button key="ok" onPress={hideDialog}>OK</Button>]);
     };
 
     const formatBytes = (bytes: number) => {
       if (bytes === 0) return '0 B';
       const k = 1024;
-      const sizes = ['B ', 'KB ', 'MB ', 'GB '];
+      const sizes = ['B', 'KB', 'MB', 'GB'];
       const i = Math.floor(Math.log(bytes) / Math.log(k));
       return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
     };
 
-    const getDisplayName = (filename: string) => {
-      return filename.split('.')[0];
-    };
+    const getDisplayName = (filename: string) => filename.split('.')[0];
 
     const getModelNameFromPath = (path: string | null, models: StoredModel[]): string => {
       if (!path) return 'Select a Model';
-      
+
       if (path === 'gemini') return 'Gemini';
       if (path === 'chatgpt') return 'ChatGPT';
       if (path === 'deepseek') return 'DeepSeek';
       if (path === 'claude') return 'Claude';
-      
+      if (path === 'apple') return 'Apple Foundation';
+
       const model = models.find(m => m.path === path);
       return model ? getDisplayName(model.name) : getDisplayName(path.split('/').pop() || '');
     };
 
     const getProjectorNameFromPath = (path: string | null, models: StoredModel[]): string => {
       if (!path) return '';
-      
+
       const model = models.find(m => m.path === path);
       return model ? getDisplayName(model.name) : getDisplayName(path.split('/').pop() || '');
     };
@@ -743,30 +791,34 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
         disabled={isGenerating}
       >
         <View style={styles.modelIconContainer}>
-          <MaterialCommunityIcons 
-            name={selectedModelPath === item.path ? "cube" : "cube-outline"} 
-            size={28} 
-            color={selectedModelPath === item.path ? 
-              currentTheme === 'dark' ? '#fff' : getThemeAwareColor('#4a0660', currentTheme) : 
-              currentTheme === 'dark' ? '#fff' : themeColors.text} 
+          <MaterialCommunityIcons
+            name={selectedModelPath === item.path ? 'cube' : 'cube-outline'}
+            size={28}
+            color={
+              selectedModelPath === item.path
+                ? currentTheme === 'dark' ? '#fff' : getThemeAwareColor('#4a0660', currentTheme)
+                : currentTheme === 'dark' ? '#fff' : themeColors.text
+            }
           />
         </View>
         <View style={styles.modelInfo}>
           <View style={styles.modelNameRow}>
-            <Text style={[
-              styles.modelName, 
-              { color: currentTheme === 'dark' ? '#fff' : themeColors.text },
-              selectedModelPath === item.path && { color: currentTheme === 'dark' ? '#fff' : getThemeAwareColor('#4a0660', currentTheme) }
-            ]}>
+            <Text
+              style={[
+                styles.modelName,
+                { color: currentTheme === 'dark' ? '#fff' : themeColors.text },
+                selectedModelPath === item.path && { color: currentTheme === 'dark' ? '#fff' : getThemeAwareColor('#4a0660', currentTheme) }
+              ]}
+            >
               {getDisplayName(item.name)}
             </Text>
-            <View style={[
-              styles.connectionTypeBadge,
-              { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.15)' : 'rgba(74, 6, 96, 0.1)' }
-            ]}>
-              <Text style={[styles.connectionTypeText, { color: currentTheme === 'dark' ? '#fff' : '#4a0660' }]}>
-                LOCAL
-              </Text>
+            <View
+              style={[
+                styles.connectionTypeBadge,
+                { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.15)' : 'rgba(74, 6, 96, 0.1)' }
+              ]}
+            >
+              <Text style={[styles.connectionTypeText, { color: currentTheme === 'dark' ? '#fff' : '#4a0660' }]}>LOCAL</Text>
             </View>
           </View>
           <View style={styles.modelMetaInfo}>
@@ -777,20 +829,21 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
         </View>
         {selectedModelPath === item.path && (
           <View style={styles.selectedIndicator}>
-            <MaterialCommunityIcons 
-              name="check-circle" 
-              size={24} 
-              color={currentTheme === 'dark' ? '#fff' : getThemeAwareColor('#4a0660', currentTheme)} 
+            <MaterialCommunityIcons
+              name="check-circle"
+              size={24}
+              color={currentTheme === 'dark' ? '#fff' : getThemeAwareColor('#4a0660', currentTheme)}
             />
           </View>
         )}
       </TouchableOpacity>
     );
-    
+
     const renderOnlineModelItem = ({ item }: { item: OnlineModel }) => {
+      const isAppleModel = item.id === 'apple';
       const isSelected = selectedModelPath === item.id;
-      const hasApiKey = onlineModelStatuses[item.id];
-      const isRemoteModelsDisabled = !enableRemoteModels || !isLoggedIn;
+      const hasAccess = isAppleModel ? isAppleAvailable : onlineModelStatuses[item.id];
+      const isRemoteModelsDisabled = isAppleModel ? false : !enableRemoteModels || !isLoggedIn;
 
       return (
         <TouchableOpacity
@@ -804,54 +857,80 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
           disabled={isGenerating}
         >
           <View style={styles.modelIconContainer}>
-            <MaterialCommunityIcons 
-              name={isSelected ? "cloud" : "cloud-outline"} 
-              size={28} 
-              color={isSelected || hasApiKey ? 
-                currentTheme === 'dark' ? '#fff' : getThemeAwareColor('#4a0660', currentTheme) : 
-                currentTheme === 'dark' ? '#fff' : themeColors.secondaryText} 
+            <MaterialCommunityIcons
+              name={isAppleModel ? 'apple' : isSelected ? 'cloud' : 'cloud-outline'}
+              size={28}
+              color={
+                isSelected || hasAccess
+                  ? currentTheme === 'dark' ? '#fff' : getThemeAwareColor('#4a0660', currentTheme)
+                  : currentTheme === 'dark' ? '#fff' : themeColors.secondaryText
+              }
             />
           </View>
           <View style={styles.modelInfo}>
             <View style={styles.modelNameRow}>
-              <Text style={[
-                styles.modelName, 
-                { color: currentTheme === 'dark' ? '#fff' : themeColors.text },
-                isSelected && { color: currentTheme === 'dark' ? '#fff' : getThemeAwareColor('#4a0660', currentTheme) }
-              ]}>
+              <Text
+                style={[
+                  styles.modelName,
+                  { color: currentTheme === 'dark' ? '#fff' : themeColors.text },
+                  isSelected && { color: currentTheme === 'dark' ? '#fff' : getThemeAwareColor('#4a0660', currentTheme) }
+                ]}
+              >
                 {item.name}
               </Text>
-              <View style={[
-                styles.connectionTypeBadge,
-                { backgroundColor: currentTheme === 'dark' ? 'rgba(74, 180, 96, 0.25)' : 'rgba(74, 180, 96, 0.15)' }
-              ]}>
-                <Text style={[styles.connectionTypeText, { color: currentTheme === 'dark' ? '#5FD584' : '#2a8c42' }]}>
-                  REMOTE
+              <View
+                style={[
+                  styles.connectionTypeBadge,
+                  isAppleModel
+                    ? { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)' }
+                    : { backgroundColor: currentTheme === 'dark' ? 'rgba(74, 180, 96, 0.25)' : 'rgba(74, 180, 96, 0.15)' }
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.connectionTypeText,
+                    isAppleModel
+                      ? { color: currentTheme === 'dark' ? '#fff' : themeColors.text }
+                      : { color: currentTheme === 'dark' ? '#5FD584' : '#2a8c42' }
+                  ]}
+                >
+                  {isAppleModel ? 'SYSTEM' : 'REMOTE'}
                 </Text>
               </View>
             </View>
             <View style={styles.modelMetaInfo}>
-              <View style={[
-                styles.modelTypeBadge,
-                { 
-                  backgroundColor: (isSelected || hasApiKey) ? 
-                    currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.15)' : 'rgba(74, 6, 96, 0.1)' : 
-                    'rgba(150, 150, 150, 0.1)' 
-                }
-              ]}>
-                <Text style={[
-                  styles.modelTypeText, 
-                  { 
-                    color: (isSelected || hasApiKey) ? 
-                      currentTheme === 'dark' ? '#fff' : '#4a0660' : 
-                      currentTheme === 'dark' ? '#fff' : themeColors.secondaryText 
-                  }
-                ]}>
+              <View
+                style={[
+                  styles.modelTypeBadge,
+                  isAppleModel
+                    ? { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.12)' : 'rgba(74, 6, 96, 0.1)' }
+                    : {
+                        backgroundColor:
+                          isSelected || hasAccess
+                            ? currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.15)' : 'rgba(74, 6, 96, 0.1)'
+                            : 'rgba(150, 150, 150, 0.1)'
+                      }
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.modelTypeText,
+                    isAppleModel
+                      ? { color: currentTheme === 'dark' ? '#fff' : '#4a0660' }
+                      : {
+                          color:
+                            isSelected || hasAccess
+                              ? currentTheme === 'dark' ? '#fff' : '#4a0660'
+                              : currentTheme === 'dark' ? '#fff' : themeColors.secondaryText
+                        }
+                  ]}
+                >
                   {item.provider}
                 </Text>
               </View>
               {isRemoteModelsDisabled && (
-                <Text style={[styles.modelApiKeyMissing, { color: currentTheme === 'dark' ? '#FF9494' : '#d32f2f' }]}>
+                <Text style={[styles.modelApiKeyMissing, { color: currentTheme === 'dark' ? '#FF9494' : '#d32f2f' }]}
+                >
                   Remote models disabled
                 </Text>
               )}
@@ -859,17 +938,16 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
           </View>
           {isSelected && (
             <View style={styles.selectedIndicator}>
-              <MaterialCommunityIcons 
-                name="check-circle" 
-                size={24} 
-                color={currentTheme === 'dark' ? '#fff' : getThemeAwareColor('#4a0660', currentTheme)} 
+              <MaterialCommunityIcons
+                name="check-circle"
+                size={24}
+                color={currentTheme === 'dark' ? '#fff' : getThemeAwareColor('#4a0660', currentTheme)}
               />
             </View>
           )}
         </TouchableOpacity>
       );
     };
-
     const toggleLocalModelsDropdown = () => {
       setIsLocalModelsExpanded(!isLocalModelsExpanded);
     };

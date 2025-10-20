@@ -3,15 +3,17 @@ import { llamaManager } from '../utils/LlamaManager';
 import chatManager from '../utils/ChatManager';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
+export type OnlineProvider = 'apple' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude';
+
 export interface ModelSelectorOptions {
-  model: string;
+  model: 'local' | OnlineProvider;
   modelPath?: string;
   projectorPath?: string;
   isLoading: boolean;
   isRegenerating: boolean;
   enableRemoteModels: boolean;
   isLoggedIn: boolean;
-  loadModel: (path: string, projectorPath?: string) => Promise<void>;
+  loadModel: (path: string, projectorPath?: string) => Promise<boolean>;
   unloadModel: () => Promise<void>;
 }
 
@@ -25,7 +27,7 @@ export class ModelManagementService {
   
   static async handleModelSelect(
     options: ModelSelectorOptions,
-    setActiveProvider: (provider: string | null) => void,
+    setActiveProvider: (provider: 'local' | OnlineProvider | null) => void,
     setSelectedModelPath: (path: string | null) => void,
     showDialog: (title: string, message: string, actions: any[]) => void,
     hideDialog: () => void,
@@ -42,7 +44,7 @@ export class ModelManagementService {
       return;
     }
 
-    if (model !== 'local' && (!enableRemoteModels || !isLoggedIn)) {
+    if (model !== 'local' && model !== 'apple' && (!enableRemoteModels || !isLoggedIn)) {
       showDialog(
         'Remote Models Disabled',
         'Remote models require the "Enable Remote Models" setting to be turned on and you need to be signed in. Would you like to go to Settings to configure this?',
@@ -67,6 +69,11 @@ export class ModelManagementService {
       }
       setActiveProvider('local');
       chatManager.setCurrentProvider('local');
+    } else if (model === 'apple') {
+      await unloadModel();
+      setActiveProvider('apple');
+      setSelectedModelPath('apple');
+      chatManager.setCurrentProvider('apple');
     } else {
       if (model === 'gemini') {
         const hasApiKey = await onlineModelService.hasApiKey('gemini');
@@ -101,7 +108,7 @@ export class ModelManagementService {
     }
   }
 
-  static getModelInfo(activeProvider: string | null): ModelInfo {
+  static getModelInfo(activeProvider: ('local' | OnlineProvider | null)): ModelInfo {
     let modelName = 'Select a Model';
     let iconName: keyof typeof MaterialCommunityIcons.glyphMap = "cube-outline";
     let currentModelPath = activeProvider === 'local' ? llamaManager.getModelPath() : activeProvider;
@@ -113,6 +120,9 @@ export class ModelManagementService {
         modelName = modelFileName.split('.')[0];
         iconName = "cube";
       }
+    } else if (activeProvider === 'apple') {
+      modelName = 'Apple Foundation';
+      iconName = 'apple';
     } else if (activeProvider === 'gemini') {
       modelName = 'Gemini';
       iconName = "cloud";
@@ -131,8 +141,8 @@ export class ModelManagementService {
   }
 
   static setupModelChangeListeners(
-    activeProvider: string | null,
-    setActiveProvider: (provider: string | null) => void
+    activeProvider: 'local' | OnlineProvider | null,
+    setActiveProvider: (provider: 'local' | OnlineProvider | null) => void
   ) {
     const handleModelChange = () => {
       const modelPath = llamaManager.getModelPath();

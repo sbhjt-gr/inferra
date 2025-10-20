@@ -3,14 +3,16 @@ import { View } from 'react-native';
 import ModelSelector from '../ModelSelector';
 import { ModelManagementService } from '../../services/ModelManagementService';
 
+type ProviderOption = 'local' | 'apple' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude';
+
 interface ModelSelectorComponentProps {
   modelSelectorRef: React.RefObject<any>;
   shouldOpenModelSelector: boolean;
   onClose: () => void;
-  activeProvider: string | null;
+  activeProvider: ProviderOption | null;
   isLoading: boolean;
   isRegenerating: boolean;
-  onModelSelect: (model: string, modelPath?: string, projectorPath?: string) => void;
+  onModelSelect: (model: ProviderOption, modelPath?: string, projectorPath?: string) => Promise<void> | void;
   style?: any;
 }
 

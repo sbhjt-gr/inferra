@@ -29,7 +29,7 @@ class ChatManager {
   private cache: Chat[] = [];
   private currentChatId: string | null = null;
   private listeners: Set<() => void> = new Set();
-  private currentProvider: 'local' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude' | null = null;
+  private currentProvider: 'local' | 'apple' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude' | null = null;
   private isInitialized = false;
   private initPromise: Promise<void> | null = null;
   private saveDebounceTimeout: NodeJS.Timeout | null = null;
@@ -345,11 +345,11 @@ class ChatManager {
     }
   }
 
-  setCurrentProvider(provider: 'local' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude' | null): void {
+  setCurrentProvider(provider: 'local' | 'apple' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude' | null): void {
     this.currentProvider = provider;
   }
 
-  getCurrentProvider(): 'local' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude' | null {
+  getCurrentProvider(): 'local' | 'apple' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude' | null {
     return this.currentProvider;
   }
 

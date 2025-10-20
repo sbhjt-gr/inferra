@@ -65,7 +65,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   const [onlineModelProvider, setOnlineModelProvider] = useState<string | null>(null);
   const appStateRef = useRef(AppState.currentState);
   const isFirstLaunchRef = useRef(true);
-  const [activeProvider, setActiveProvider] = useState<'local' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude' | null>(null);
+  const [activeProvider, setActiveProvider] = useState<'local' | 'apple' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude' | null>(null);
   const { loadModel, unloadModel, setSelectedModelPath, isModelLoading, selectedModelPath } = useModel();
   const flatListRef = useRef<FlatList>(null);
 
@@ -395,7 +395,16 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     }
   }, [isLoading, isRegenerating, isStreaming, activeProvider]);
 
-  const handleApiError = (error: unknown, provider: 'Gemini' | 'OpenAI' | 'DeepSeek' | 'Claude') => {
+  const handleApiError = (error: unknown, provider: 'Gemini' | 'OpenAI' | 'DeepSeek' | 'Claude' | 'Apple') => {
+
+    if (provider === 'Apple') {
+      showDialog(
+        'Apple Intelligence Error',
+        'Apple Intelligence encountered an issue. Please verify your device supports Apple Intelligence and try again.',
+        [<Button key="ok" onPress={hideDialog}>OK</Button>]
+      );
+      return;
+    }
     
     if (error instanceof Error) {
       if (error.message.startsWith('QUOTA_EXCEEDED:')) {
@@ -577,7 +586,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     }
   };
 
-  const handleModelSelect = async (model: 'local' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude', modelPath?: string, projectorPath?: string) => {
+  const handleModelSelect = async (model: 'local' | 'apple' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude', modelPath?: string, projectorPath?: string) => {
     await ModelManagementService.handleModelSelect(
       {
         model,
@@ -590,7 +599,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         loadModel,
         unloadModel
       },
-      setActiveProvider,
+      (provider) => setActiveProvider(provider),
       setSelectedModelPath,
       showDialog,
       hideDialog,
@@ -601,7 +610,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   useEffect(() => {
     const cleanup = ModelManagementService.setupModelChangeListeners(
       activeProvider,
-      setActiveProvider
+      (provider) => setActiveProvider(provider)
     );
     return cleanup;
   }, [activeProvider]);

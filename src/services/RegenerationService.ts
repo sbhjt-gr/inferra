@@ -3,6 +3,7 @@ import { llamaManager } from '../utils/LlamaManager';
 import { onlineModelService } from './OnlineModelService';
 import chatManager from '../utils/ChatManager';
 import { generateRandomId } from '../utils/homeScreenUtils';
+import { appleIntelligenceManager } from '../utils/AppleIntelligenceManager';
 
 interface RegenerationCallbacks {
   setMessages: (messages: ChatMessage[]) => void;
@@ -15,7 +16,7 @@ interface RegenerationCallbacks {
   saveMessagesImmediate: (messages: ChatMessage[]) => Promise<void>;
   saveMessages: (messages: ChatMessage[]) => void;
   saveMessagesDebounced: { cancel: () => void };
-  handleApiError: (error: unknown, provider: 'Gemini' | 'OpenAI' | 'DeepSeek' | 'Claude') => void;
+  handleApiError: (error: unknown, provider: 'Gemini' | 'OpenAI' | 'DeepSeek' | 'Claude' | 'Apple') => void;
 }
 
 export class RegenerationService {
@@ -29,7 +30,7 @@ export class RegenerationService {
 
   async handleRegenerate(
     messages: ChatMessage[],
-    activeProvider: 'local' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude' | null,
+  activeProvider: 'local' | 'apple' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude' | null,
     settings: any
   ): Promise<void> {
     if (messages.length < 2) return;
@@ -44,6 +45,11 @@ export class RegenerationService {
       validProvider = null;
     } else if (activeProvider === 'local') {
       hasValidModel = hasLocalModel;
+    } else if (activeProvider === 'apple') {
+      hasValidModel = await appleIntelligenceManager.isSupported();
+      if (!hasValidModel) {
+        validProvider = null;
+      }
     } else {
       try {
         const hasApiKey = await onlineModelService.hasApiKey(activeProvider);
@@ -99,9 +105,19 @@ export class RegenerationService {
     let firstTokenTime: number | null = null;
     
     try {
-      const isOnlineModel = validProvider && validProvider !== 'local';
+    const isOnlineModel = validProvider && validProvider !== 'local' && validProvider !== 'apple';
       
-      if (isOnlineModel) {
+      if (validProvider === 'apple') {
+        await this.processAppleRegeneration(
+          newMessages,
+          settings,
+          assistantMessage,
+          startTime,
+          tokenCount,
+          fullResponse,
+          firstTokenTime
+        );
+      } else if (isOnlineModel) {
         await this.processOnlineRegeneration(
           validProvider as 'gemini' | 'chatgpt' | 'deepseek' | 'claude',
           newMessages,
@@ -136,6 +152,116 @@ export class RegenerationService {
       this.callbacks.setStreamingStats(null);
       
       this.callbacks.saveMessagesDebounced.cancel();
+    }
+  }
+
+  private async processAppleRegeneration(
+    newMessages: ChatMessage[],
+    settings: any,
+    assistantMessage: ChatMessage,
+    startTime: number,
+    tokenCount: number,
+    fullResponse: string,
+    firstTokenTime: number | null
+  ): Promise<void> {
+    try {
+      const messagesForApple = newMessages.map(msg => ({
+        id: msg.id,
+        role: msg.role,
+        content: msg.content,
+      }));
+
+      await appleIntelligenceManager.streamResponse(
+        messagesForApple,
+        {
+          temperature: settings.temperature,
+          topP: settings.topP,
+          topK: settings.topK,
+          maxTokens: settings.maxTokens,
+        },
+        (chunk) => {
+          if (this.cancelGenerationRef.current) {
+            return false;
+          }
+
+          const currentTime = Date.now();
+
+          if (firstTokenTime === null && chunk.trim().length > 0) {
+            firstTokenTime = currentTime - startTime;
+          }
+
+          fullResponse += chunk;
+
+          const wordCount = fullResponse.trim().split(/\s+/).filter(word => word.length > 0).length;
+          tokenCount = Math.max(1, Math.ceil(wordCount * 1.33));
+
+          const duration = (currentTime - startTime) / 1000;
+          let avgTokenTime = undefined;
+
+          if (firstTokenTime !== null && tokenCount > 0) {
+            const timeAfterFirstToken = currentTime - (startTime + firstTokenTime);
+            avgTokenTime = timeAfterFirstToken / tokenCount;
+          }
+
+          this.callbacks.setStreamingMessage(fullResponse);
+          this.callbacks.setStreamingStats({
+            tokens: tokenCount,
+            duration,
+            firstTokenTime: firstTokenTime || undefined,
+            avgTokenTime: avgTokenTime && avgTokenTime > 0 ? avgTokenTime : undefined,
+          });
+
+          const finalMessage: ChatMessage = {
+            ...assistantMessage,
+            content: fullResponse,
+            stats: {
+              duration,
+              tokens: tokenCount,
+              firstTokenTime: firstTokenTime || undefined,
+              avgTokenTime: avgTokenTime && avgTokenTime > 0 ? avgTokenTime : undefined,
+            },
+          };
+
+          const finalMessages = [...newMessages, finalMessage];
+          this.callbacks.setMessages(finalMessages);
+
+          return !this.cancelGenerationRef.current;
+        }
+      );
+
+      if (!this.cancelGenerationRef.current) {
+        let finalAvgTokenTime = undefined;
+        if (firstTokenTime !== null && tokenCount > 0) {
+          const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
+          finalAvgTokenTime = timeAfterFirstToken / tokenCount;
+        }
+
+        const finalMessage: ChatMessage = {
+          ...assistantMessage,
+          content: fullResponse,
+          stats: {
+            duration: (Date.now() - startTime) / 1000,
+            tokens: tokenCount,
+            firstTokenTime: firstTokenTime || undefined,
+            avgTokenTime: finalAvgTokenTime && finalAvgTokenTime > 0 ? finalAvgTokenTime : undefined,
+          },
+        };
+
+        const finalMessages = [...newMessages, finalMessage];
+        this.callbacks.setMessages(finalMessages);
+        await this.callbacks.saveMessagesImmediate(finalMessages);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Apple Intelligence request failed.';
+      const finalMessage: ChatMessage = {
+        ...assistantMessage,
+        content: message,
+        stats: { duration: 0, tokens: 0 },
+      };
+      const finalMessages = [...newMessages, finalMessage];
+      this.callbacks.setMessages(finalMessages);
+      await this.callbacks.saveMessagesImmediate(finalMessages);
+      this.callbacks.handleApiError(error, 'Apple');
     }
   }
 
@@ -378,12 +504,13 @@ export class RegenerationService {
     }
   }
 
-  private getProviderDisplayName(provider: string): 'Gemini' | 'OpenAI' | 'DeepSeek' | 'Claude' {
+  private getProviderDisplayName(provider: string): 'Gemini' | 'OpenAI' | 'DeepSeek' | 'Claude' | 'Apple' {
     switch (provider) {
       case 'gemini': return 'Gemini';
       case 'chatgpt': return 'OpenAI';
       case 'deepseek': return 'DeepSeek';
       case 'claude': return 'Claude';
+      case 'apple': return 'Apple';
       default: return 'OpenAI';
     }
   }

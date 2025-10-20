@@ -2,7 +2,6 @@
 
 #import <React/RCTBundleURLProvider.h>
 #import <React/RCTLinkingManager.h>
-#import <UserNotifications/UserNotifications.h>
 
 @implementation AppDelegate
 
@@ -13,16 +12,6 @@
   // You can add your custom initial props in the dictionary below.
   // They will be passed down to the ViewController used by React Native.
   self.initialProps = @{};
-
-  if (@available(iOS 10.0, *)) {
-    UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
-    UNAuthorizationOptions options = UNAuthorizationOptionAlert | UNAuthorizationOptionSound | UNAuthorizationOptionBadge;
-    [center requestAuthorizationWithOptions:options completionHandler:^(BOOL granted, NSError * _Nullable error) {
-      if (!granted) {
-        NSLog(@"Download notifications permission not granted");
-      }
-    }];
-  }
 
   return [super application:application didFinishLaunchingWithOptions:launchOptions];
 }
