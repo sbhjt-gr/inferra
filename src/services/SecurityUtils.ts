@@ -281,7 +281,7 @@ export const validateProvider = (provider: string): { valid: boolean; sanitized?
     return { valid: false, error: 'Provider is required' };
   }
 
-  const allowedProviders = ['openai', 'gemini', 'deepseek', 'claude', 'local', 'apple'];
+  const allowedProviders = ['openai', 'gemini', 'deepseek', 'claude', 'local'];
   const sanitized = sanitizeInput(provider.toLowerCase());
 
   if (!allowedProviders.includes(sanitized)) {

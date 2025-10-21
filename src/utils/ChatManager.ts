@@ -1,4 +1,5 @@
 import chatDatabase from './ChatDatabase';
+import type { ProviderType } from '../services/ModelManagementService';
 
 const generateRandomId = () => {
   return `${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
@@ -29,7 +30,7 @@ class ChatManager {
   private cache: Chat[] = [];
   private currentChatId: string | null = null;
   private listeners: Set<() => void> = new Set();
-  private currentProvider: 'local' | 'apple' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude' | null = null;
+  private currentProvider: ProviderType | null = null;
   private isInitialized = false;
   private initPromise: Promise<void> | null = null;
   private saveDebounceTimeout: NodeJS.Timeout | null = null;
@@ -345,11 +346,11 @@ class ChatManager {
     }
   }
 
-  setCurrentProvider(provider: 'local' | 'apple' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude' | null): void {
+  setCurrentProvider(provider: ProviderType | null): void {
     this.currentProvider = provider;
   }
 
-  getCurrentProvider(): 'local' | 'apple' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude' | null {
+  getCurrentProvider(): ProviderType | null {
     return this.currentProvider;
   }
 

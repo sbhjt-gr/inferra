@@ -44,7 +44,9 @@ import ModelSelectorComponent from '../components/chat/ModelSelectorComponent';
 import { MessageProcessingService } from '../services/MessageProcessingService';
 import { RegenerationService } from '../services/RegenerationService';
 import { ModelManagementService } from '../services/ModelManagementService';
+import type { ProviderType } from '../services/ModelManagementService';
 import { ChatLifecycleService } from '../services/ChatLifecycleService';
+import { appleFoundationService } from '../services/AppleFoundationService';
 import { homeScreenStyles } from './homeScreenStyles';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 
@@ -65,7 +67,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   const [onlineModelProvider, setOnlineModelProvider] = useState<string | null>(null);
   const appStateRef = useRef(AppState.currentState);
   const isFirstLaunchRef = useRef(true);
-  const [activeProvider, setActiveProvider] = useState<'local' | 'apple' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude' | null>(null);
+  const [activeProvider, setActiveProvider] = useState<ProviderType | null>(null);
   const { loadModel, unloadModel, setSelectedModelPath, isModelLoading, selectedModelPath } = useModel();
   const flatListRef = useRef<FlatList>(null);
 
@@ -234,7 +236,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         enableRemoteModels,
         isLoggedIn,
         onlineModelService,
-        setActiveProvider
+        (provider) => setActiveProvider(provider)
       );
       
       return () => {
@@ -342,6 +344,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         } catch (fallbackError) {
         }
       }
+    } else if (activeProvider === 'apple-foundation') {
+      appleFoundationService.cancel();
     } else {
     }
     
@@ -382,6 +386,8 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
           await llamaManager.stopCompletion();
         } catch (error) {
         }
+      } else if (activeProvider === 'apple-foundation') {
+        appleFoundationService.cancel();
       } else {
       }
       
@@ -395,16 +401,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     }
   }, [isLoading, isRegenerating, isStreaming, activeProvider]);
 
-  const handleApiError = (error: unknown, provider: 'Gemini' | 'OpenAI' | 'DeepSeek' | 'Claude' | 'Apple') => {
-
-    if (provider === 'Apple') {
-      showDialog(
-        'Apple Intelligence Error',
-        'Apple Intelligence encountered an issue. Please verify your device supports Apple Intelligence and try again.',
-        [<Button key="ok" onPress={hideDialog}>OK</Button>]
-      );
-      return;
-    }
+  const handleApiError = (error: unknown, provider: 'Gemini' | 'OpenAI' | 'DeepSeek' | 'Claude') => {
     
     if (error instanceof Error) {
       if (error.message.startsWith('QUOTA_EXCEEDED:')) {
@@ -586,7 +583,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
     }
   };
 
-  const handleModelSelect = async (model: 'local' | 'apple' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude', modelPath?: string, projectorPath?: string) => {
+  const handleModelSelect = async (model: ProviderType, modelPath?: string, projectorPath?: string) => {
     await ModelManagementService.handleModelSelect(
       {
         model,
@@ -599,7 +596,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
         loadModel,
         unloadModel
       },
-      (provider) => setActiveProvider(provider),
+      setActiveProvider,
       setSelectedModelPath,
       showDialog,
       hideDialog,
@@ -610,7 +607,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
   useEffect(() => {
     const cleanup = ModelManagementService.setupModelChangeListeners(
       activeProvider,
-      (provider) => setActiveProvider(provider)
+      setActiveProvider
     );
     return cleanup;
   }, [activeProvider]);

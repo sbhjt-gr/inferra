@@ -4,6 +4,7 @@ import { llamaManager } from '../utils/LlamaManager';
 import { modelSettingsService } from '../services/ModelSettingsService';
 import { usageTrackingService } from '../services/UsageTrackingService';
 import { inAppReviewService } from '../services/InAppReviewService';
+import type { ProviderType } from './ModelManagementService';
 
 export interface ChatLifecycleCallbacks {
   setChat: (chat: any) => void;
@@ -12,7 +13,7 @@ export interface ChatLifecycleCallbacks {
 
 export class ChatLifecycleService {
   
-  static async getEffectiveSettings(activeProvider: string | null) {
+  static async getEffectiveSettings(activeProvider: ProviderType | null) {
     const rawModelPath = activeProvider === 'local' ? llamaManager.getModelPath() : null;
     const currentModelPath = rawModelPath && !rawModelPath.startsWith('file://') 
       ? `file://${rawModelPath}` 
@@ -98,13 +99,13 @@ export class ChatLifecycleService {
   }
 
   static async recheckApiKeys(
-    activeProvider: string | null,
+  activeProvider: ProviderType | null,
     enableRemoteModels: boolean,
     isLoggedIn: boolean,
     onlineModelService: any,
-    setActiveProvider: (provider: string | null) => void
+    setActiveProvider: (provider: ProviderType | null) => void
   ) {
-    if (activeProvider && activeProvider !== 'local') {
+    if (activeProvider && activeProvider !== 'local' && activeProvider !== 'apple-foundation') {
       if (!enableRemoteModels || !isLoggedIn) {
         setActiveProvider(null);
         return;

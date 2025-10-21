@@ -1,15 +1,11 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View, Switch, Modal, TextInput, ScrollView, Dimensions, Platform, Alert } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View, Switch, Modal, TextInput, ScrollView, Dimensions, Platform } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../constants/theme';
 import SettingsSection from './SettingsSection';
 import SettingSlider from '../SettingSlider';
 import * as Device from 'expo-device';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { appleIntelligenceManager } from '../../utils/AppleIntelligenceManager';
-
-const APPLE_FOUNDATION_PREF_KEY = 'apple_foundation_enabled';
 
 type ModelSettings = {
   maxTokens: number;
@@ -79,6 +75,9 @@ type ModelSettingsSectionProps = {
   gpuConfig?: GpuConfig;
   onToggleGpu?: (enabled: boolean) => void | Promise<void>;
   onGpuLayersChange?: (layers: number) => void | Promise<void>;
+  showAppleFoundationToggle?: boolean;
+  appleFoundationEnabled?: boolean;
+  onToggleAppleFoundation?: (enabled: boolean) => void;
 };
 
 const ModelSettingsSection = ({
@@ -104,6 +103,9 @@ const ModelSettingsSection = ({
   gpuConfig,
   onToggleGpu,
   onGpuLayersChange,
+  showAppleFoundationToggle,
+  appleFoundationEnabled,
+  onToggleAppleFoundation,
 }: ModelSettingsSectionProps) => {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme];
@@ -122,96 +124,6 @@ const ModelSettingsSection = ({
   const [tempNProbs, setTempNProbs] = useState('');
   const [tempLogitBias, setTempLogitBias] = useState('');
   const [tempDrySequenceBreakers, setTempDrySequenceBreakers] = useState('');
-
-  const isAppleDevice = Platform.OS === 'ios' || Platform.OS === 'macos';
-  const [appleSupportState, setAppleSupportState] = useState<'unknown' | 'supported' | 'unsupported'>(isAppleDevice ? 'unknown' : 'unsupported');
-  const [isAppleFoundationEnabled, setIsAppleFoundationEnabled] = useState(false);
-
-  React.useEffect(() => {
-    if (!isAppleDevice) {
-      setAppleSupportState('unsupported');
-      setIsAppleFoundationEnabled(false);
-      return;
-    }
-
-    let cancelled = false;
-
-    const checkSupport = async () => {
-      try {
-        const supported = await appleIntelligenceManager.isSupported();
-        if (cancelled) {
-          return;
-        }
-
-        setAppleSupportState(supported ? 'supported' : 'unsupported');
-
-        if (!supported) {
-          setIsAppleFoundationEnabled(false);
-          try {
-            await AsyncStorage.setItem(APPLE_FOUNDATION_PREF_KEY, 'false');
-          } catch {
-          }
-          return;
-        }
-
-        try {
-          const stored = await AsyncStorage.getItem(APPLE_FOUNDATION_PREF_KEY);
-          if (cancelled) {
-            return;
-          }
-          if (stored === null) {
-            setIsAppleFoundationEnabled(true);
-            try {
-              await AsyncStorage.setItem(APPLE_FOUNDATION_PREF_KEY, 'true');
-            } catch {
-            }
-          } else {
-            setIsAppleFoundationEnabled(stored === 'true');
-          }
-        } catch {
-          if (!cancelled) {
-            setIsAppleFoundationEnabled(true);
-          }
-        }
-      } catch {
-        if (!cancelled) {
-          setAppleSupportState('unsupported');
-          setIsAppleFoundationEnabled(false);
-        }
-      }
-    };
-
-    checkSupport();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [isAppleDevice]);
-
-  const isAppleFoundationSupported = appleSupportState === 'supported';
-  const isCheckingAppleSupport = appleSupportState === 'unknown';
-
-  const handleAppleFoundationToggle = React.useCallback(async (value: boolean) => {
-    if (!isAppleDevice || isCheckingAppleSupport) {
-      return;
-    }
-
-    if (value && !isAppleFoundationSupported) {
-      Alert.alert('Apple Intelligence Not Supported', 'Apple Intelligence is not supported on this device.');
-      setIsAppleFoundationEnabled(false);
-      try {
-        await AsyncStorage.setItem(APPLE_FOUNDATION_PREF_KEY, 'false');
-      } catch {
-      }
-      return;
-    }
-
-    setIsAppleFoundationEnabled(value);
-    try {
-      await AsyncStorage.setItem(APPLE_FOUNDATION_PREF_KEY, value ? 'true' : 'false');
-    } catch {
-    }
-  }, [isAppleDevice, isCheckingAppleSupport, isAppleFoundationSupported]);
 
   const isStringDifferent = (current: string, defaultValue: string): boolean => {
     return (current || '') !== (defaultValue || '');
@@ -332,35 +244,30 @@ const ModelSettingsSection = ({
         </View>
       )}
 
-      {isAppleDevice && (
-        <View style={[styles.settingItem, styles.settingItemBottomBorder]}>
+      {showAppleFoundationToggle && onToggleAppleFoundation && (
+        <View style={[styles.settingItem, styles.settingItemBottomBorder]}> 
           <View style={styles.settingLeft}>
             <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
-              <MaterialCommunityIcons 
+              <MaterialCommunityIcons
                 name="apple"
-                size={22} 
-                color={iconColor} 
+                size={22}
+                color={iconColor}
               />
             </View>
             <View style={styles.settingTextContainer}>
-              <Text style={[styles.settingText, { color: themeColors.text }]}>
+              <Text style={[styles.settingText, { color: themeColors.text }]}> 
                 Enable Apple Foundation
               </Text>
-              <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
-                {isCheckingAppleSupport
-                  ? 'Checking Apple Intelligence availability...'
-                  : isAppleFoundationSupported
-                    ? 'Use Apple Intelligence for on-device responses when supported.'
-                    : 'Apple Intelligence requires a supported device and the latest software.'}
+              <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}> 
+                Use Apple Intelligence models when available
               </Text>
             </View>
           </View>
           <Switch
-            value={isAppleFoundationEnabled}
-            onValueChange={handleAppleFoundationToggle}
+            value={Boolean(appleFoundationEnabled)}
+            onValueChange={onToggleAppleFoundation}
             trackColor={{ false: themeColors.borderColor, true: themeColors.primary + '80' }}
-            thumbColor={isAppleFoundationEnabled ? themeColors.primary : themeColors.background}
-            disabled={isCheckingAppleSupport}
+            thumbColor={appleFoundationEnabled ? themeColors.primary : themeColors.background}
           />
         </View>
       )}

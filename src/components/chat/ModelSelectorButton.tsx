@@ -5,11 +5,10 @@ import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../constants/theme';
 import { llamaManager } from '../../utils/LlamaManager';
 import path from 'path';
-
-type ProviderOption = 'local' | 'apple' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude';
+import type { ProviderType } from '../../services/ModelManagementService';
 
 interface ModelSelectorButtonProps {
-  activeProvider: ProviderOption | null;
+  activeProvider: ProviderType | null;
   onPress: () => void;
   disabled?: boolean;
 }
@@ -39,9 +38,6 @@ const ModelSelectorButton: React.FC<ModelSelectorButtonProps> = ({
         modelName = 'Local Model';
         iconName = 'cube-outline';
       }
-    } else if (activeProvider === 'apple') {
-      modelName = 'Apple Foundation';
-      iconName = 'apple';
     } else if (activeProvider === 'gemini') {
       modelName = 'Gemini';
       iconName = 'google';
@@ -54,6 +50,9 @@ const ModelSelectorButton: React.FC<ModelSelectorButtonProps> = ({
     } else if (activeProvider === 'claude') {
       modelName = 'Claude';
       iconName = 'account-tie';
+    } else if (activeProvider === 'apple-foundation') {
+      modelName = 'Apple Foundation';
+      iconName = 'apple';
     }
     
     return { modelName, iconName };

@@ -36,6 +36,7 @@ import {
   type GpuSettings,
 } from '../services/GpuSettingsService';
 import { checkGpuSupport, type GpuSupport } from '../utils/gpuCapabilities';
+import { appleFoundationService } from '../services/AppleFoundationService';
 
 type SettingsScreenProps = {
   navigation: CompositeNavigationProp<
@@ -101,6 +102,10 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     gpuSettingsService.getSettingsSync()
   );
   const [gpuSupport, setGpuSupport] = useState<GpuSupport | null>(null);
+  const isAppleDevice = Platform.OS === 'ios';
+  const [appleFoundationEnabled, setAppleFoundationEnabled] = useState(false);
+  const [appleFoundationSupported, setAppleFoundationSupported] = useState(false);
+  const [showAppleFoundationDialog, setShowAppleFoundationDialog] = useState(false);
 
   const [dialogVisible, setDialogVisible] = useState(false);
   const [dialogTitle, setDialogTitle] = useState('');
@@ -164,6 +169,39 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
       isActive = false;
     };
   }, []);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const initializeAppleFoundation = async () => {
+      if (!isAppleDevice) {
+        if (isActive) {
+          setAppleFoundationEnabled(false);
+          setAppleFoundationSupported(false);
+        }
+        return;
+      }
+      try {
+        const available = appleFoundationService.isAvailable();
+        const enabled = await appleFoundationService.isEnabled();
+        if (isActive) {
+          setAppleFoundationSupported(available);
+          setAppleFoundationEnabled(enabled);
+        }
+      } catch (error) {
+        if (isActive) {
+          setAppleFoundationSupported(false);
+          setAppleFoundationEnabled(false);
+        }
+      }
+    };
+
+    initializeAppleFoundation();
+
+    return () => {
+      isActive = false;
+    };
+  }, [isAppleDevice]);
 
   useEffect(() => {
     if (gpuSupport && !gpuSupport.isSupported && gpuSettings.enabled) {
@@ -601,6 +639,29 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     }
   };
 
+  const handleAppleFoundationToggle = async (value: boolean) => {
+    if (!isAppleDevice) {
+      return;
+    }
+    if (value) {
+      const available = appleFoundationService.isAvailable();
+      setAppleFoundationSupported(available);
+      if (!available) {
+        setShowAppleFoundationDialog(true);
+        setAppleFoundationEnabled(false);
+        await appleFoundationService.setEnabled(false);
+        return;
+      }
+    }
+    try {
+      await appleFoundationService.setEnabled(value);
+      setAppleFoundationEnabled(value);
+    } catch (error) {
+      const current = await appleFoundationService.isEnabled();
+      setAppleFoundationEnabled(current);
+    }
+  };
+
   const ProfileButton = () => {
     return (
       <TouchableOpacity
@@ -660,6 +721,9 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           gpuConfig={gpuConfig}
           onToggleGpu={handleGpuToggle}
           onGpuLayersChange={handleGpuLayersChange}
+          showAppleFoundationToggle={isAppleDevice}
+          appleFoundationEnabled={appleFoundationEnabled}
+          onToggleAppleFoundation={handleAppleFoundationToggle}
         />
 
         <StorageSection
@@ -741,6 +805,21 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
         />
 
       </ScrollView>
+
+      <Portal>
+        <Dialog
+          visible={showAppleFoundationDialog}
+          onDismiss={() => setShowAppleFoundationDialog(false)}
+        >
+          <Dialog.Title>Apple Intelligence</Dialog.Title>
+          <Dialog.Content>
+            <PaperText>Apple Intelligence not supported on this device.</PaperText>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setShowAppleFoundationDialog(false)}>OK</Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
 
       <Portal>
         <Dialog visible={dialogVisible} onDismiss={hideDialog}>
