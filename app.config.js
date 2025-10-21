@@ -121,6 +121,8 @@ export default {
       typedRoutes: true
     },
     plugins: [
+      "expo-font",
+      "expo-web-browser",
       "expo-asset",
       "expo-audio",
       "expo-background-task",
