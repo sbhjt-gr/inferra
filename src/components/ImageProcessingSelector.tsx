@@ -65,7 +65,7 @@ export default function ImageProcessingSelector({
         return;
       }
       
-      const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude'].includes(selectedModelPath);
+      const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude', 'apple-foundation'].includes(selectedModelPath);
       
       if (isOnlineModel) {
         onModeChange('multimodal');
@@ -118,7 +118,7 @@ export default function ImageProcessingSelector({
       case 'ocr':
         return 'Extract text from the image';
       case 'multimodal':
-        const isOnlineModel = selectedModelPath && ['gemini', 'chatgpt', 'deepseek', 'claude'].includes(selectedModelPath);
+        const isOnlineModel = selectedModelPath && ['gemini', 'chatgpt', 'deepseek', 'claude', 'apple-foundation'].includes(selectedModelPath);
         return isOnlineModel ? 'Analyze image content with AI' : 'Analyze image content with AI vision';
       case null:
       default:
@@ -129,7 +129,7 @@ export default function ImageProcessingSelector({
   const canUseMultimodal = (): boolean => {
     if (!selectedModelPath) return false;
     
-    const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude'].includes(selectedModelPath);
+    const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude', 'apple-foundation'].includes(selectedModelPath);
     if (isOnlineModel) {
       return selectedModelPath !== 'deepseek';
     }
@@ -140,7 +140,7 @@ export default function ImageProcessingSelector({
   const getMultimodalTitle = (): string => {
     if (!selectedModelPath) return 'Vision Analysis';
     
-    const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude'].includes(selectedModelPath);
+    const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude', 'apple-foundation'].includes(selectedModelPath);
     return isOnlineModel ? 'Vision Analysis' : 'Multimodal (AI Vision)';
   };
 

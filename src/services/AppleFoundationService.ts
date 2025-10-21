@@ -65,12 +65,9 @@ class AppleFoundationService {
       content: message.content,
     }));
 
-    const response = await AppleFoundationModels.generateText(mappedMessages, {
-      temperature: options.temperature,
-      maxTokens: options.maxTokens,
-      topP: options.topP,
-      topK: options.topK,
-    });
+    const resolvedOptions = this.resolveGenerationOptions(options);
+
+    const response = await AppleFoundationModels.generateText(mappedMessages, resolvedOptions);
 
     return response
       .map(part => {
@@ -99,12 +96,8 @@ class AppleFoundationService {
       role: message.role,
       content: message.content,
     }));
-    const streamId = AppleFoundationModels.generateStream(mappedMessages, {
-      temperature: options.temperature,
-      maxTokens: options.maxTokens,
-      topP: options.topP,
-      topK: options.topK,
-    });
+    const resolvedOptions = this.resolveGenerationOptions(options);
+    const streamId = AppleFoundationModels.generateStream(mappedMessages, resolvedOptions);
 
     const wake = () => {
       if (state.waitingResolve) {
@@ -232,6 +225,25 @@ class AppleFoundationService {
     if (!enabled) {
       throw new Error('Apple Foundation is disabled');
     }
+  }
+
+  private resolveGenerationOptions(options: AppleFoundationOptions): AppleFoundationOptions {
+    const topP = typeof options.topP === 'number' ? options.topP : undefined;
+    const topK = typeof options.topK === 'number' ? options.topK : undefined;
+
+    const result: AppleFoundationOptions = {
+      temperature: options.temperature,
+      maxTokens: options.maxTokens,
+    };
+
+    const hasTopP = typeof topP === 'number' && topP > 0 && topP < 1;
+    if (hasTopP) {
+      result.topP = topP;
+    } else if (typeof topK === 'number' && topK > 0) {
+      result.topK = Math.round(topK);
+    }
+
+    return result;
   }
 }
 

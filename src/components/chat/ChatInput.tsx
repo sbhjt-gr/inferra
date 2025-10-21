@@ -241,12 +241,12 @@ export default function ChatInput({
 
   const checkMultimodalSupport = (): boolean => {
     if (!selectedModelPath) return false;
-    
-    const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude'].includes(selectedModelPath);
+
+    const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude', 'apple-foundation'].includes(selectedModelPath);
     if (isOnlineModel) {
       return true;
     }
-    
+
     return isMultimodalEnabled;
   };
 
@@ -343,7 +343,7 @@ export default function ChatInput({
       return;
     }
 
-    const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude'].includes(selectedModelPath);
+    const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude', 'apple-foundation'].includes(selectedModelPath);
     if (!isOnlineModel && (!llamaManager.isInitialized() || isModelLoading)) {
       showDialog(
         'Model Not Ready',
@@ -434,7 +434,7 @@ export default function ChatInput({
         return;
       }
 
-      const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude'].includes(selectedModelPath);
+      const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude', 'apple-foundation'].includes(selectedModelPath);
       if (!isOnlineModel && !checkMultimodalSupport()) {
         showDialog(
           'Multimodal Support Required',
@@ -535,7 +535,7 @@ export default function ChatInput({
     }
 
     if (!checkMultimodalSupport()) {
-      const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude'].includes(selectedModelPath);
+      const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude', 'apple-foundation'].includes(selectedModelPath);
       if (!isOnlineModel) {
         showMmProjSelector('camera');
         return;
@@ -569,7 +569,7 @@ export default function ChatInput({
         const file = result.assets[0];
         
         if (isImageFile(file.name) && !checkMultimodalSupport()) {
-          const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude'].includes(selectedModelPath);
+          const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude', 'apple-foundation'].includes(selectedModelPath);
           if (!isOnlineModel) {
             setPendingFileForMultimodal({
               uri: file.uri,

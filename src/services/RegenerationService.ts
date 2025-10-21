@@ -375,12 +375,21 @@ export class RegenerationService {
       }
 
     } catch (error) {
+      appleFoundationService.cancel();
       const duration = (Date.now() - startTime) / 1000;
       this.callbacks.setStreamingMessage('');
       this.callbacks.setStreamingStats(null);
+      const message = error instanceof Error ? error.message : String(error);
+      const normalized = message.toLowerCase();
+      let displayMessage = 'Apple Intelligence not available on this device.';
+      if (normalized.includes('disabled')) {
+        displayMessage = 'Apple Intelligence is disabled. Enable it in Settings to continue.';
+      } else if (!normalized.includes('not available')) {
+        displayMessage = `Apple Intelligence error: ${message}`;
+      }
       const errorMessage: ChatMessage = {
         ...assistantMessage,
-        content: 'Apple Intelligence not available on this device.',
+        content: displayMessage,
         stats: {
           duration,
           tokens: 0,

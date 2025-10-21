@@ -368,9 +368,18 @@ export class MessageProcessingService {
         );
       }
     } catch (error) {
+      appleFoundationService.cancel();
+      const message = error instanceof Error ? error.message : String(error);
+      const normalized = message.toLowerCase();
+      let displayMessage = 'Apple Intelligence not available on this device.';
+      if (normalized.includes('disabled')) {
+        displayMessage = 'Apple Intelligence is disabled. Enable it in Settings to continue.';
+      } else if (!normalized.includes('not available')) {
+        displayMessage = `Apple Intelligence error: ${message}`;
+      }
       await chatManager.updateMessageContent(
         messageId,
-        'Apple Intelligence not available on this device.',
+        displayMessage,
         '',
         { duration: 0, tokens: 0 }
       );
