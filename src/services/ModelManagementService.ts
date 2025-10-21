@@ -13,7 +13,7 @@ export interface ModelSelectorOptions {
   enableRemoteModels: boolean;
   isLoggedIn: boolean;
   loadModel: (path: string, projectorPath?: string) => Promise<boolean>;
-  unloadModel: () => Promise<void>;
+  unloadModel: (silent?: boolean) => Promise<void>;
 }
 
 export interface ModelInfo {
@@ -71,7 +71,7 @@ export class ModelManagementService {
       setActiveProvider('local');
       chatManager.setCurrentProvider('local');
     } else if (model === 'apple-foundation') {
-      await unloadModel();
+      await unloadModel(true);
       setActiveProvider('apple-foundation');
       setSelectedModelPath('apple-foundation');
       chatManager.setCurrentProvider('apple-foundation');
@@ -96,12 +96,12 @@ export class ModelManagementService {
           );
           return;
         }
-        await unloadModel();
+        await unloadModel(true);
         setActiveProvider('gemini');
         setSelectedModelPath('gemini');
         chatManager.setCurrentProvider('gemini');
       } else if (model === 'chatgpt' || model === 'deepseek' || model === 'claude') {
-        await unloadModel();
+        await unloadModel(true);
         setActiveProvider(model);
         setSelectedModelPath(model);
         chatManager.setCurrentProvider(model);

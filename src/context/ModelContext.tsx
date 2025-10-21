@@ -9,7 +9,7 @@ interface ModelContextType {
   selectedProjectorPath: string | null;
   isModelLoading: boolean;
   loadModel: (modelPath: string, mmProjectorPath?: string) => Promise<boolean>;
-  unloadModel: () => Promise<void>;
+  unloadModel: (silent?: boolean) => Promise<void>;
   unloadProjector: () => Promise<void>;
   setSelectedModelPath: (path: string | null) => void;
   isMultimodalEnabled: boolean;
@@ -84,7 +84,7 @@ export const ModelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  const unloadModel = async (): Promise<void> => {
+  const unloadModel = async (silent: boolean = false): Promise<void> => {
     try {
       await llamaManager.unloadModel();
     } catch (error) {
@@ -93,7 +93,9 @@ export const ModelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setSelectedModelPath(null);
       setSelectedProjectorPath(null);
       setIsMultimodalEnabled(false);
-      showSnackbar('Model unloaded');
+      if (!silent) {
+        showSnackbar('Model unloaded');
+      }
     }
   };
 

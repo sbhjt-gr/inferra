@@ -40,6 +40,7 @@ export default {
           "fetch",
           "remote-notification"
         ],
+        NSCameraUsageDescription: "Camera access enables direct file capture uploads and OCR analysis features inside Inferra.",
         UIStatusBarStyle: "UIStatusBarStyleDefault",
         UIViewControllerBasedStatusBarAppearance: false,
         UIGestureRecognizerShouldBegin: false,
