@@ -8,28 +8,28 @@
 
 /* Begin PBXBuildFile section */
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
+		2A11FCB4F6FA898AEEB7FD73 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE282D714FE4E007CEFA619F /* ExpoModulesProvider.swift */; };
+		3E1DF3AD05C42DE2293A3238 /* libPods-Inferra.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 3BBE38F7EE8191C908675C38 /* libPods-Inferra.a */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
-		9DF4CE23953A541C4CE6C796 /* libPods-Inferra.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 584BBF95F3138D14E95CBE28 /* libPods-Inferra.a */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
-		D3D34635A1AEE0A1B523BE98 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 505545B0C77750C929078368 /* PrivacyInfo.xcprivacy */; };
+		EE5B1EF1C45DE6AF88E29C34 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 494B73B6A30B8765B7F16E1B /* PrivacyInfo.xcprivacy */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
-		F7F7DFE17487804EA37F4818 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F33DE180E2CCDA0F2EAF559E /* ExpoModulesProvider.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		13B07F961A680F5B00A75B9A /* Inferra.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Inferra.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = Inferra/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = Inferra/Info.plist; sourceTree = "<group>"; };
-		505545B0C77750C929078368 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = Inferra/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		5354AEA3FE9DA6B6A09F9604 /* Pods-Inferra.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Inferra.debug.xcconfig"; path = "Target Support Files/Pods-Inferra/Pods-Inferra.debug.xcconfig"; sourceTree = "<group>"; };
-		584BBF95F3138D14E95CBE28 /* libPods-Inferra.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-Inferra.a"; sourceTree = BUILT_PRODUCTS_DIR; };
-		7970BCCE710EB89C28B02D9E /* Pods-Inferra.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Inferra.release.xcconfig"; path = "Target Support Files/Pods-Inferra/Pods-Inferra.release.xcconfig"; sourceTree = "<group>"; };
+		3BBE38F7EE8191C908675C38 /* libPods-Inferra.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-Inferra.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		494B73B6A30B8765B7F16E1B /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = Inferra/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		917799D70ADC7D94FBF6F0FA /* Pods-Inferra.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Inferra.release.xcconfig"; path = "Target Support Files/Pods-Inferra/Pods-Inferra.release.xcconfig"; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = Inferra/SplashScreen.storyboard; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
+		CBA7A95A5BFF2F81D468EB41 /* Pods-Inferra.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Inferra.debug.xcconfig"; path = "Target Support Files/Pods-Inferra/Pods-Inferra.debug.xcconfig"; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = Inferra/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* Inferra-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "Inferra-Bridging-Header.h"; path = "Inferra/Inferra-Bridging-Header.h"; sourceTree = "<group>"; };
-		F33DE180E2CCDA0F2EAF559E /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-Inferra/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
+		FE282D714FE4E007CEFA619F /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-Inferra/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -37,7 +37,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				9DF4CE23953A541C4CE6C796 /* libPods-Inferra.a in Frameworks */,
+				3E1DF3AD05C42DE2293A3238 /* libPods-Inferra.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -53,7 +53,7 @@
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
-				505545B0C77750C929078368 /* PrivacyInfo.xcprivacy */,
+				494B73B6A30B8765B7F16E1B /* PrivacyInfo.xcprivacy */,
 			);
 			name = Inferra;
 			sourceTree = "<group>";
@@ -62,19 +62,27 @@
 			isa = PBXGroup;
 			children = (
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
-				584BBF95F3138D14E95CBE28 /* libPods-Inferra.a */,
+				3BBE38F7EE8191C908675C38 /* libPods-Inferra.a */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
-		5522E5F9EB69A2B85CF6CD33 /* Pods */ = {
+		735545870A816BCDD1F27514 /* Pods */ = {
 			isa = PBXGroup;
 			children = (
-				5354AEA3FE9DA6B6A09F9604 /* Pods-Inferra.debug.xcconfig */,
-				7970BCCE710EB89C28B02D9E /* Pods-Inferra.release.xcconfig */,
+				CBA7A95A5BFF2F81D468EB41 /* Pods-Inferra.debug.xcconfig */,
+				917799D70ADC7D94FBF6F0FA /* Pods-Inferra.release.xcconfig */,
 			);
 			name = Pods;
 			path = Pods;
+			sourceTree = "<group>";
+		};
+		78C8A94D5CC5D2527D7D29C4 /* Inferra */ = {
+			isa = PBXGroup;
+			children = (
+				FE282D714FE4E007CEFA619F /* ExpoModulesProvider.swift */,
+			);
+			name = Inferra;
 			sourceTree = "<group>";
 		};
 		832341AE1AAA6A7D00B99B32 /* Libraries */ = {
@@ -91,8 +99,8 @@
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
-				5522E5F9EB69A2B85CF6CD33 /* Pods */,
-				F1A9F4A6A4A6FEA9CCEE83FC /* ExpoModulesProviders */,
+				735545870A816BCDD1F27514 /* Pods */,
+				C139A399804F011B07F0CE45 /* ExpoModulesProviders */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -116,18 +124,10 @@
 			path = Inferra/Supporting;
 			sourceTree = "<group>";
 		};
-		D92CA9D5E04C64211EC3D545 /* Inferra */ = {
+		C139A399804F011B07F0CE45 /* ExpoModulesProviders */ = {
 			isa = PBXGroup;
 			children = (
-				F33DE180E2CCDA0F2EAF559E /* ExpoModulesProvider.swift */,
-			);
-			name = Inferra;
-			sourceTree = "<group>";
-		};
-		F1A9F4A6A4A6FEA9CCEE83FC /* ExpoModulesProviders */ = {
-			isa = PBXGroup;
-			children = (
-				D92CA9D5E04C64211EC3D545 /* Inferra */,
+				78C8A94D5CC5D2527D7D29C4 /* Inferra */,
 			);
 			name = ExpoModulesProviders;
 			sourceTree = "<group>";
@@ -140,13 +140,13 @@
 			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "Inferra" */;
 			buildPhases = (
 				08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */,
-				810A56F1D5CA923A82EA764D /* [Expo] Configure project */,
+				2D916EE256B9679FEAD9AA81 /* [Expo] Configure project */,
 				13B07F871A680F5B00A75B9A /* Sources */,
 				13B07F8C1A680F5B00A75B9A /* Frameworks */,
 				13B07F8E1A680F5B00A75B9A /* Resources */,
 				00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */,
 				800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */,
-				DF061E7443BEBA61F12E806F /* [CP] Embed Pods Frameworks */,
+				7659C9D046254625B6925815 /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -198,7 +198,7 @@
 				BB2F792D24A3F905000567C9 /* Expo.plist in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
-				D3D34635A1AEE0A1B523BE98 /* PrivacyInfo.xcprivacy in Resources */,
+				EE5B1EF1C45DE6AF88E29C34 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -240,6 +240,47 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+			showEnvVarsInLog = 0;
+		};
+		2D916EE256B9679FEAD9AA81 /* [Expo] Configure project */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "[Expo] Configure project";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-Inferra/expo-configure-project.sh\"\n";
+		};
+		7659C9D046254625B6925815 /* [CP] Embed Pods Frameworks */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-Inferra/Pods-Inferra-frameworks.sh",
+				"${PODS_XCFRAMEWORKS_BUILD_DIR}/JitsiWebRTC/WebRTC.framework/WebRTC",
+				"${PODS_XCFRAMEWORKS_BUILD_DIR}/hermes-engine/Pre-built/hermes.framework/hermes",
+				"${PODS_XCFRAMEWORKS_BUILD_DIR}/llama-rn/rnllama.framework/rnllama",
+			);
+			name = "[CP] Embed Pods Frameworks";
+			outputPaths = (
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/WebRTC.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/hermes.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/rnllama.framework",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Inferra/Pods-Inferra-frameworks.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
 		800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */ = {
@@ -332,47 +373,6 @@
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Inferra/Pods-Inferra-resources.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
-		810A56F1D5CA923A82EA764D /* [Expo] Configure project */ = {
-			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-			);
-			name = "[Expo] Configure project";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-Inferra/expo-configure-project.sh\"\n";
-		};
-		DF061E7443BEBA61F12E806F /* [CP] Embed Pods Frameworks */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-Inferra/Pods-Inferra-frameworks.sh",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/JitsiWebRTC/WebRTC.framework/WebRTC",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/hermes-engine/Pre-built/hermes.framework/hermes",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/llama-rn/rnllama.framework/rnllama",
-			);
-			name = "[CP] Embed Pods Frameworks";
-			outputPaths = (
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/WebRTC.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/hermes.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/rnllama.framework",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Inferra/Pods-Inferra-frameworks.sh\"\n";
-			showEnvVarsInLog = 0;
-		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -381,7 +381,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
-				F7F7DFE17487804EA37F4818 /* ExpoModulesProvider.swift in Sources */,
+				2A11FCB4F6FA898AEEB7FD73 /* ExpoModulesProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -390,7 +390,7 @@
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 5354AEA3FE9DA6B6A09F9604 /* Pods-Inferra.debug.xcconfig */;
+			baseConfigurationReference = CBA7A95A5BFF2F81D468EB41 /* Pods-Inferra.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
@@ -429,7 +429,7 @@
 		};
 		13B07F951A680F5B00A75B9A /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 7970BCCE710EB89C28B02D9E /* Pods-Inferra.release.xcconfig */;
+			baseConfigurationReference = 917799D70ADC7D94FBF6F0FA /* Pods-Inferra.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;

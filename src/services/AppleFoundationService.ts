@@ -1,5 +1,4 @@
-import { apple } from '@react-native-ai/apple';
-import { streamText } from 'ai';
+import { AppleFoundationModels } from '@react-native-ai/apple';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
@@ -18,14 +17,21 @@ type AppleFoundationOptions = {
 };
 
 class AppleFoundationService {
-  private abortController: AbortController | null = null;
+  private activeStream:
+    | {
+        id: string;
+        listeners: { remove(): void }[];
+        wake: () => void;
+        markCancelled: () => void;
+      }
+    | null = null;
 
   isAvailable(): boolean {
     if (Platform.OS !== 'ios') {
       return false;
     }
     try {
-      return apple.isAvailable();
+      return AppleFoundationModels.isAvailable();
     } catch (error) {
       return false;
     }
@@ -52,58 +58,149 @@ class AppleFoundationService {
   }
 
   async generateResponse(messages: AppleFoundationMessage[], options: AppleFoundationOptions = {}): Promise<string> {
-    let fullText = '';
-    for await (const chunk of this.streamResponse(messages, options)) {
-      fullText += chunk;
-    }
-    return fullText;
+    await this.ensureAvailable();
+
+    const mappedMessages = messages.map(message => ({
+      role: message.role,
+      content: message.content,
+    }));
+
+    const response = await AppleFoundationModels.generateText(mappedMessages, {
+      temperature: options.temperature,
+      maxTokens: options.maxTokens,
+      topP: options.topP,
+      topK: options.topK,
+    });
+
+    return response
+      .map(part => {
+        switch (part.type) {
+          case 'text':
+            return part.text;
+          default:
+            return '';
+        }
+      })
+      .join('');
   }
 
   async *streamResponse(messages: AppleFoundationMessage[], options: AppleFoundationOptions = {}): AsyncGenerator<string, void, unknown> {
     await this.ensureAvailable();
     this.cancel();
-    const controller = new AbortController();
-    this.abortController = controller;
+    const state = {
+      currentContent: '',
+      queue: [] as string[],
+      done: false,
+      error: null as Error | null,
+      waitingResolve: null as (() => void) | null,
+      cancelled: false,
+    };
     const mappedMessages = messages.map(message => ({
       role: message.role,
       content: message.content,
     }));
-    const params: Record<string, unknown> = {
-      model: apple(),
-      messages: mappedMessages,
+    const streamId = AppleFoundationModels.generateStream(mappedMessages, {
+      temperature: options.temperature,
+      maxTokens: options.maxTokens,
+      topP: options.topP,
+      topK: options.topK,
+    });
+
+    const wake = () => {
+      if (state.waitingResolve) {
+        const resolve = state.waitingResolve;
+        state.waitingResolve = null;
+        resolve();
+      }
     };
-    if (options.temperature !== undefined) {
-      params.temperature = options.temperature;
-    }
-    if (options.maxTokens !== undefined) {
-      params.maxTokens = options.maxTokens;
-    }
-    if (options.topP !== undefined) {
-      params.topP = options.topP;
-    }
-    if (options.topK !== undefined) {
-      params.topK = options.topK;
-    }
-    params.abortSignal = controller.signal;
-    const { textStream } = await streamText(params as any);
+
+    const listeners = [
+      AppleFoundationModels.onStreamUpdate(data => {
+        if (data.streamId !== streamId) {
+          return;
+        }
+        const delta = data.content.slice(state.currentContent.length);
+        state.currentContent = data.content;
+        if (delta.length > 0) {
+          state.queue.push(delta);
+          wake();
+        }
+      }),
+      AppleFoundationModels.onStreamComplete(data => {
+        if (data.streamId !== streamId) {
+          return;
+        }
+        state.done = true;
+        wake();
+      }),
+      AppleFoundationModels.onStreamError(data => {
+        if (data.streamId !== streamId) {
+          return;
+        }
+        if (state.cancelled) {
+          state.done = true;
+          wake();
+          return;
+        }
+        state.error = new Error(data.error || 'Apple Intelligence stream error');
+        state.done = true;
+        wake();
+      }),
+    ];
+
+    this.activeStream = {
+      id: streamId,
+      listeners,
+      wake,
+      markCancelled: () => {
+        if (!state.done) {
+          state.cancelled = true;
+          state.done = true;
+          wake();
+        }
+      },
+    };
+
     try {
-      for await (const chunk of textStream) {
-        if (controller.signal.aborted) {
+      while (true) {
+        if (state.queue.length > 0) {
+          yield state.queue.shift() as string;
+          continue;
+        }
+
+        if (state.error) {
+          throw state.error;
+        }
+
+        if (state.done) {
           break;
         }
-        yield chunk;
+
+        await new Promise<void>(resolve => {
+          state.waitingResolve = resolve;
+        });
+      }
+
+      if (state.error) {
+        throw state.error;
       }
     } finally {
-      if (this.abortController === controller) {
-        this.abortController = null;
+      listeners.forEach(listener => listener.remove());
+      if (this.activeStream && this.activeStream.id === streamId) {
+        this.activeStream = null;
       }
+      wake();
     }
   }
 
   cancel(): void {
-    if (this.abortController) {
-      this.abortController.abort();
-      this.abortController = null;
+    if (this.activeStream) {
+      try {
+        AppleFoundationModels.cancelStream(this.activeStream.id);
+      } catch (error) {
+      }
+      this.activeStream.markCancelled();
+      this.activeStream = null;
     }
   }
 
