@@ -6,8 +6,6 @@ import { theme } from '../../constants/theme';
 import SettingsSection from './SettingsSection';
 import SettingSlider from '../SettingSlider';
 import * as Device from 'expo-device';
-import { getThemeAwareColor } from '../../utils/ColorUtils';
-import type { RAGStorageType } from '../../services/rag/RAGService';
 
 type ModelSettings = {
   maxTokens: number;
@@ -81,11 +79,11 @@ type ModelSettingsSectionProps = {
   appleFoundationEnabled?: boolean;
   onToggleAppleFoundation?: (enabled: boolean) => void;
   ragEnabled?: boolean;
-  ragStorageType?: RAGStorageType;
+  ragStorageType?: 'memory' | 'persistent';
   ragBusy?: boolean;
-  onToggleRAG?: (enabled: boolean) => void | Promise<void>;
-  onToggleRAGStorage?: () => void | Promise<void>;
-  onClearRAG?: () => void | Promise<void>;
+  onToggleRAG?: (enabled: boolean) => void;
+  onStorageToggle?: () => void;
+  onClearRAG?: () => void;
 };
 
 const ModelSettingsSection = ({
@@ -118,7 +116,7 @@ const ModelSettingsSection = ({
   ragStorageType,
   ragBusy,
   onToggleRAG,
-  onToggleRAGStorage,
+  onStorageToggle,
   onClearRAG,
 }: ModelSettingsSectionProps) => {
   const { theme: currentTheme } = useTheme();
@@ -156,12 +154,6 @@ const ModelSettingsSection = ({
       onGpuLayersChange &&
       typeof onDialogOpen === 'function'
   );
-  const showRagSettings = typeof onToggleRAG === 'function' && typeof ragEnabled === 'boolean';
-  const ragAccent = getThemeAwareColor('#4a0660', currentTheme);
-  const ragStorageLabel = ragStorageType === 'persistent' ? 'Persistent storage' : 'Memory storage';
-  const ragIsEnabled = Boolean(ragEnabled);
-  const ragStorageDisabled = !onToggleRAGStorage || ragBusy;
-  const ragClearDisabled = !onClearRAG || ragBusy;
 
   const gpuSupportMessage = React.useMemo(() => {
     if (!gpuConfig) {
@@ -290,66 +282,6 @@ const ModelSettingsSection = ({
             thumbColor={appleFoundationEnabled ? themeColors.primary : themeColors.background}
           />
         </View>
-      )}
-
-      {showRagSettings && (
-        <>
-          <View style={[styles.settingItem, styles.settingItemBottomBorder]}>
-            <View style={styles.settingLeft}>
-              <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : ragAccent + '20' }]}> 
-                <MaterialCommunityIcons name="database-search" size={22} color={ragAccent} />
-              </View>
-              <View style={styles.settingTextContainer}>
-                <Text style={[styles.settingText, { color: themeColors.text }]}> 
-                  Retrieval Augmented Generation
-                </Text>
-                <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}> 
-                  Use stored documents to enrich answers
-                </Text>
-              </View>
-            </View>
-            <Switch
-              value={ragIsEnabled}
-              onValueChange={value => onToggleRAG?.(value)}
-              disabled={ragBusy}
-              trackColor={{ false: themeColors.secondaryText + '40', true: ragAccent + '80' }}
-              thumbColor={ragIsEnabled ? ragAccent : themeColors.secondaryText}
-            />
-          </View>
-
-          {ragIsEnabled && (
-            <>
-              <View style={[styles.ragActions, { borderTopColor: themeColors.borderColor }]}> 
-                <TouchableOpacity
-                  style={[styles.ragButton, { backgroundColor: ragAccent }, ragStorageDisabled ? styles.ragButtonDisabled : null]}
-                  onPress={() => onToggleRAGStorage?.()}
-                  disabled={ragStorageDisabled}
-                  activeOpacity={0.8}
-                >
-                  <MaterialCommunityIcons name="database" size={18} color="#FFFFFF" />
-                  <Text style={styles.ragButtonText}>{ragStorageLabel}</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.ragButtonSecondary, { borderColor: ragAccent }, ragClearDisabled ? styles.ragButtonDisabled : null]}
-                  onPress={() => onClearRAG?.()}
-                  disabled={ragClearDisabled}
-                  activeOpacity={0.8}
-                >
-                  <MaterialCommunityIcons name="trash-can-outline" size={18} color={ragAccent} />
-                  <Text style={[styles.ragButtonTextSecondary, { color: ragAccent }]}>Clear data</Text>
-                </TouchableOpacity>
-              </View>
-
-              {ragBusy && (
-                <View style={[styles.ragLoadingRow, { borderTopColor: themeColors.borderColor }]}> 
-                  <ActivityIndicator size="small" color={ragAccent} />
-                  <Text style={[styles.ragLoadingText, { color: themeColors.secondaryText }]}>Updating retrieval...</Text>
-                </View>
-              )}
-            </>
-          )}
-        </>
       )}
 
       {selectedInferenceEngine !== undefined && onInferenceEngineChange && (
@@ -512,6 +444,65 @@ const ModelSettingsSection = ({
             <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
           </TouchableOpacity>
         </>
+      )}
+
+      {ragEnabled !== undefined && onToggleRAG && (
+        <View style={[styles.settingItem, styles.settingItemBottomBorder]}>
+          <View style={styles.settingLeft}>
+            <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
+              <MaterialCommunityIcons name="database-search" size={22} color={iconColor} />
+            </View>
+            <View style={styles.settingTextContainer}>
+              <Text style={[styles.settingText, { color: themeColors.text }]}>
+                Enable RAG
+              </Text>
+              <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
+                Use stored documents to enrich answers
+              </Text>
+              {ragEnabled && ragStorageType && onStorageToggle && onClearRAG && (
+                <View style={styles.ragActions}>
+                  <TouchableOpacity
+                    style={[styles.ragButton, { backgroundColor: themeColors.primary }]}
+                    onPress={onStorageToggle}
+                    disabled={ragBusy}
+                    activeOpacity={0.8}
+                  >
+                    <MaterialCommunityIcons name="database" size={16} color="#FFFFFF" />
+                    <Text style={styles.ragButtonText}>
+                      {ragStorageType === 'memory' ? 'Memory' : 'Persistent'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.ragButtonSecondary, { borderColor: themeColors.primary }]}
+                    onPress={onClearRAG}
+                    disabled={ragBusy}
+                    activeOpacity={0.8}
+                  >
+                    <MaterialCommunityIcons name="trash-can-outline" size={16} color={themeColors.primary} />
+                    <Text style={[styles.ragButtonTextSecondary, { color: themeColors.primary }]}>Clear</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+              {ragBusy && (
+                <View style={styles.ragLoadingRow}>
+                  <ActivityIndicator size="small" color={themeColors.primary} />
+                  <Text style={[styles.ragLoadingText, { color: themeColors.secondaryText }]}>Updating...</Text>
+                </View>
+              )}
+            </View>
+          </View>
+          <Switch
+            value={ragEnabled}
+            onValueChange={onToggleRAG}
+            disabled={ragBusy}
+            trackColor={{
+              false: themeColors.borderColor,
+              true: themeColors.primary + '80',
+            }}
+            thumbColor={ragEnabled ? themeColors.primary : themeColors.background}
+          />
+        </View>
       )}
 
       <TouchableOpacity 
@@ -1976,52 +1967,47 @@ const styles = StyleSheet.create({
   },
   ragActions: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderTopWidth: 1,
+    gap: 8,
+    marginTop: 12,
   },
   ragButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-  },
-  ragButtonSecondary: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderWidth: 1,
-  },
-  ragButtonDisabled: {
-    opacity: 0.6,
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    gap: 4,
   },
   ragButtonText: {
     color: '#FFFFFF',
+    fontSize: 13,
     fontWeight: '600',
-    fontSize: 14,
+  },
+  ragButtonSecondary: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    gap: 4,
   },
   ragButtonTextSecondary: {
+    fontSize: 13,
     fontWeight: '600',
-    fontSize: 14,
   },
   ragLoadingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderTopWidth: 1,
+    gap: 8,
+    marginTop: 12,
   },
   ragLoadingText: {
-    fontSize: 13,
-    fontWeight: '500',
+    fontSize: 12,
   },
 });
 
