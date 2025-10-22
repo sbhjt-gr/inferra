@@ -77,13 +77,40 @@ class RAGServiceClass {
     this.embeddings = new LlamaRnEmbeddings();
     this.llm = new LlamaRnLLM();
 
-    const vectorStore = this.storage === 'persistent'
-      ? new OPSQLiteVectorStore({ name: PERSISTENT_DB_NAME, embeddings: this.embeddings })
-      : new MemoryVectorStore({ embeddings: this.embeddings });
+    let vectorStore: MemoryVectorStore | OPSQLiteVectorStore;
+    const createMemoryStore = () => new MemoryVectorStore({ embeddings: this.embeddings! });
+
+    if (this.storage === 'persistent') {
+      vectorStore = new OPSQLiteVectorStore({ name: PERSISTENT_DB_NAME, embeddings: this.embeddings });
+    } else {
+      vectorStore = createMemoryStore();
+    }
 
     this.rag = new RAG({ vectorStore, llm: this.llm });
     console.log('rag_loading_vectorstore');
-    await this.rag.load();
+
+    try {
+      await this.rag.load();
+    } catch (error) {
+      if (this.storage !== 'persistent') {
+        throw error;
+      }
+
+      console.log('rag_persistent_error', error instanceof Error ? error.message : 'unknown');
+
+      const unloadable = vectorStore as unknown as { unload?: () => Promise<void> };
+      if (typeof unloadable.unload === 'function') {
+        await unloadable.unload();
+      }
+
+      vectorStore = createMemoryStore();
+      this.rag = new RAG({ vectorStore, llm: this.llm });
+      await AsyncStorage.setItem(RAG_STORAGE_KEY, 'memory');
+      this.storage = 'memory';
+      console.log('rag_storage_fallback', this.storage);
+      await this.rag.load();
+    }
+
     this.initialized = true;
     console.log('rag_init_complete');
   }
