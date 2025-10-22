@@ -10,6 +10,7 @@ import {
   Dimensions,
   SafeAreaView,
   ActivityIndicator,
+  Switch,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Button, Text } from 'react-native-paper';
@@ -29,8 +30,10 @@ type ImageViewerModalProps = {
   onClose: () => void;
   imagePath: string;
   fileName?: string;
-  onUpload?: (content: string, fileName: string, userPrompt: string) => void;
+  onUpload?: (content: string, fileName: string, userPrompt: string, useRag: boolean) => void;
   onImageUpload?: (messageContent: string) => void;
+  useRag: boolean;
+  onToggleRag: (value: boolean) => void;
 };
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
@@ -42,6 +45,8 @@ export default function ImageViewerModal({
   fileName,
   onUpload,
   onImageUpload,
+  useRag,
+  onToggleRag,
 }: ImageViewerModalProps) {
   const [userPrompt, setUserPrompt] = useState('Describe this image in detail.');
   const [processingMode, setProcessingMode] = useState<ImageProcessingMode>(null);
@@ -63,14 +68,14 @@ export default function ImageViewerModal({
         if (onImageUpload) {
           onImageUpload(ocrMessage);
         } else {
-          onUpload?.(ocrMessage, fileName || 'image', userPrompt);
+          onUpload?.(ocrMessage, fileName || 'image', userPrompt, useRag);
         }
       } else if (processingMode === 'multimodal') {
         const multimodalMessage = createMultimodalMessage(imagePath, userPrompt);
         if (onImageUpload) {
           onImageUpload(multimodalMessage);
         } else {
-          onUpload?.(multimodalMessage, fileName || 'image', userPrompt);
+          onUpload?.(multimodalMessage, fileName || 'image', userPrompt, useRag);
         }
       }
       
@@ -151,7 +156,27 @@ export default function ImageViewerModal({
           </View>
         </ScrollView>
 
-        <View style={[styles.inputSection, { backgroundColor: themeColors.background, borderTopColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)' }]}>
+        <View style={[styles.inputSection, { backgroundColor: themeColors.background, borderTopColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)' }]}> 
+          <View
+            style={[
+              styles.ragRow,
+              {
+                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.02)',
+                borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
+              },
+            ]}
+          >
+            <View style={styles.ragTextContainer}>
+              <Text style={[styles.ragTitle, { color: themeColors.text }]}>Use RAG</Text>
+              <Text style={[styles.ragDescription, { color: isDark ? '#bbbbbb' : '#666666' }]}>Store this file for smarter answers in this chat.</Text>
+            </View>
+            <Switch
+              value={useRag}
+              onValueChange={onToggleRag}
+              trackColor={{ false: isDark ? '#444444' : '#dddddd', true: '#66088080' }}
+              thumbColor={useRag ? '#660880' : isDark ? '#222222' : '#f2f2f2'}
+            />
+          </View>
           <ImageProcessingSelector
             selectedMode={processingMode}
             onModeChange={setProcessingMode}
@@ -281,6 +306,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 16,
     borderTopWidth: 1,
+  },
+  ragRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 16,
+    gap: 16,
+  },
+  ragTextContainer: {
+    flex: 1,
+  },
+  ragTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  ragDescription: {
+    fontSize: 13,
+    lineHeight: 18,
   },
   inputLabel: {
     fontSize: 16,

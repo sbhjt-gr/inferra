@@ -11,6 +11,7 @@ import {
   ScrollView,
   TextInput,
   KeyboardAvoidingView,
+  Switch,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system';
@@ -22,7 +23,9 @@ type TextFileViewerModalProps = {
   onClose: () => void;
   filePath: string;
   fileName?: string;
-  onUpload?: (content: string, fileName: string, userPrompt: string) => void;
+  onUpload?: (content: string, fileName: string, userPrompt: string, useRag: boolean) => void;
+  useRag: boolean;
+  onToggleRag: (value: boolean) => void;
 };
 
 export default function TextFileViewerModal({
@@ -31,6 +34,8 @@ export default function TextFileViewerModal({
   filePath,
   fileName = "Document",
   onUpload,
+  useRag,
+  onToggleRag,
 }: TextFileViewerModalProps) {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
@@ -70,7 +75,7 @@ export default function TextFileViewerModal({
     setPromptError(false);
     
     if (onUpload && fileContent) {
-      onUpload(fileContent, displayFileName, userPrompt.trim());
+      onUpload(fileContent, displayFileName, userPrompt.trim(), useRag);
       onClose();
     }
   };
@@ -188,6 +193,18 @@ export default function TextFileViewerModal({
                   backgroundColor: isDark ? '#1a1a1a' : '#ffffff',
                   borderTopColor: isDark ? '#333333' : '#e0e0e0'
                 }]}>
+                  <View style={styles.ragRow}>
+                    <View style={styles.ragTextContainer}>
+                      <Text style={[styles.ragTitle, { color: isDark ? '#ffffff' : '#333333' }]}>Use RAG</Text>
+                      <Text style={[styles.ragDescription, { color: isDark ? '#bbbbbb' : '#666666' }]}>Store this file for smarter answers in this chat.</Text>
+                    </View>
+                    <Switch
+                      value={useRag}
+                      onValueChange={onToggleRag}
+                      trackColor={{ false: isDark ? '#444444' : '#dddddd', true: '#66088080' }}
+                      thumbColor={useRag ? '#660880' : isDark ? '#222222' : '#f2f2f2'}
+                    />
+                  </View>
                   <View style={styles.promptContainer}>
                     <Text style={[styles.promptLabel, { color: isDark ? '#ffffff' : '#333333' }]}>
                       Add your prompt:
@@ -332,6 +349,25 @@ const styles = StyleSheet.create({
     fontSize: 16,
     minHeight: 100,
     textAlignVertical: 'top',
+  },
+  ragRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  ragTextContainer: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  ragTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  ragDescription: {
+    fontSize: 12,
+    marginTop: 2,
+    lineHeight: 16,
   },
   errorPromptText: {
     color: '#ff6b6b',

@@ -37,8 +37,6 @@ import {
 } from '../services/GpuSettingsService';
 import { checkGpuSupport, type GpuSupport } from '../utils/gpuCapabilities';
 import { appleFoundationService } from '../services/AppleFoundationService';
-import { RAGService, type RAGStorageType } from '../services/rag/RAGService';
-import { Alert } from 'react-native';
 
 type SettingsScreenProps = {
   navigation: CompositeNavigationProp<
@@ -108,10 +106,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
   const [appleFoundationEnabled, setAppleFoundationEnabled] = useState(false);
   const [appleFoundationSupported, setAppleFoundationSupported] = useState(false);
   const [showAppleFoundationDialog, setShowAppleFoundationDialog] = useState(false);
-
-  const [ragEnabled, setRagEnabled] = useState(false);
-  const [ragStorageType, setRagStorageType] = useState<RAGStorageType>('memory');
-  const [ragBusy, setRagBusy] = useState(false);
 
   const [dialogVisible, setDialogVisible] = useState(false);
   const [dialogTitle, setDialogTitle] = useState('');
@@ -215,39 +209,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
       gpuSettingsService.setEnabled(false).catch(() => {});
     }
   }, [gpuSupport, gpuSettings.enabled]);
-
-  useEffect(() => {
-    let isActive = true;
-
-    const loadRAGPreferences = async () => {
-      try {
-        const [enabled, storage] = await Promise.all([
-          RAGService.isEnabled(),
-          RAGService.getStorageType(),
-        ]);
-        if (isActive) {
-          setRagEnabled(enabled);
-          setRagStorageType(storage);
-          if (enabled) {
-            try {
-              await RAGService.initialize();
-            } catch (error) {
-              setRagEnabled(false);
-              await RAGService.setEnabled(false);
-            }
-          }
-        }
-      } catch (error) {
-        // Ignore RAG errors
-      }
-    };
-
-    loadRAGPreferences();
-
-    return () => {
-      isActive = false;
-    };
-  }, []);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -701,78 +662,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     }
   };
 
-  const handleToggleRAG = async (value: boolean) => {
-    if (value && !llamaManager.isInitialized()) {
-      Alert.alert('Model not ready', 'Load a local model before enabling retrieval.');
-      return;
-    }
-
-    setRagBusy(true);
-    try {
-      await RAGService.setEnabled(value);
-      if (value) {
-        try {
-          await RAGService.initialize();
-        } catch (error) {
-          await RAGService.setEnabled(false);
-          setRagEnabled(false);
-          const message = error instanceof Error && error.message ? error.message : 'Retrieval could not be enabled.';
-          Alert.alert('RAG error', message);
-          setRagBusy(false);
-          return;
-        }
-      }
-      setRagEnabled(value);
-    } catch (error) {
-      const message = error instanceof Error && error.message ? error.message : value ? 'Retrieval could not be enabled.' : 'Retrieval could not be disabled.';
-      Alert.alert('RAG error', message);
-    } finally {
-      setRagBusy(false);
-    }
-  };
-
-  const handleStorageToggle = async () => {
-    const nextType: RAGStorageType = ragStorageType === 'memory' ? 'persistent' : 'memory';
-    setRagBusy(true);
-    try {
-      await RAGService.setStorageType(nextType);
-      setRagStorageType(nextType);
-    } catch (error) {
-      Alert.alert('RAG error', 'Storage could not be updated.');
-    } finally {
-      setRagBusy(false);
-    }
-  };
-
-  const handleClearRAG = () => {
-    if (!ragEnabled) {
-      return;
-    }
-
-    Alert.alert(
-      'Clear RAG data',
-      'Remove all stored documents?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Clear',
-          style: 'destructive',
-          onPress: async () => {
-            setRagBusy(true);
-            try {
-              await RAGService.clear();
-            } catch (error) {
-              Alert.alert('RAG error', 'Unable to clear data.');
-            } finally {
-              setRagBusy(false);
-            }
-          },
-        },
-      ],
-      { cancelable: true }
-    );
-  };
-
   const ProfileButton = () => {
     return (
       <TouchableOpacity
@@ -835,12 +724,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           showAppleFoundationToggle={isAppleDevice}
           appleFoundationEnabled={appleFoundationEnabled}
           onToggleAppleFoundation={handleAppleFoundationToggle}
-          ragEnabled={ragEnabled}
-          ragStorageType={ragStorageType}
-          ragBusy={ragBusy}
-          onToggleRAG={handleToggleRAG}
-          onStorageToggle={handleStorageToggle}
-          onClearRAG={handleClearRAG}
         />
 
         <StorageSection

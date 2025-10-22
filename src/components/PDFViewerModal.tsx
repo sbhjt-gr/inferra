@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   TextInput,
   KeyboardAvoidingView,
+  Switch,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import PdfRendererView from 'react-native-pdf-renderer';
@@ -33,7 +34,9 @@ type PdfViewerModalProps = {
   onClose: () => void;
   pdfSource: string;
   fileName?: string;
-  onUpload?: (content: string, fileName: string, userPrompt: string) => void;
+  onUpload?: (content: string, fileName: string, userPrompt: string, useRag: boolean) => void;
+  useRag: boolean;
+  onToggleRag: (value: boolean) => void;
 };
 
 export default function PDFViewerModal({
@@ -42,6 +45,8 @@ export default function PDFViewerModal({
   pdfSource,
   fileName = "Document",
   onUpload,
+  useRag,
+  onToggleRag,
 }: PdfViewerModalProps) {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
@@ -118,7 +123,7 @@ export default function PDFViewerModal({
     try {
       
       if (onUpload && typeof onUpload === 'function') {
-        onUpload(extractedText || '', fileName, userPromptText);
+        onUpload(extractedText || '', fileName, userPromptText, useRag);
         return true;
       } else {
         
@@ -554,7 +559,7 @@ export default function PDFViewerModal({
         </KeyboardAvoidingView>
       </Modal>
       
-      <PDFGridView 
+      <PDFGridView
         visible={showGridView}
         onClose={() => {
           isCancelledRef.current = true;
@@ -577,6 +582,8 @@ export default function PDFViewerModal({
         promptError={promptError}
         setPromptError={setPromptError}
         handleStartOCR={handleStartOCR}
+        useRag={useRag}
+        onToggleRag={onToggleRag}
       />
 
       <Portal>
