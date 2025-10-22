@@ -401,12 +401,12 @@ export default function ChatInput({
 
               const messageObject = {
                 type: 'file_upload',
-                internalInstruction: `You're reading a file named: ${displayName}\n\n--- FILE START ---\nDocument stored for retrieval.\n--- FILE END ---`,
+                internalInstruction: `You're reading a file named: ${displayName}\n\n--- FILE START ---\nDocument stored for retrieval.\n--- FILE END ---\n\nUser request: ${acknowledgement}`,
                 userContent: acknowledgement,
                 metadata: { ragDocumentId: documentId },
               };
 
-              console.log('file_upload_rag', displayName, documentId, content.length, messageObject.internalInstruction, content);
+              console.log('file_upload_rag', displayName, documentId, content.length, messageObject.internalInstruction, messageObject.userContent, content);
               onSend(JSON.stringify(messageObject));
             }
           }
@@ -422,10 +422,10 @@ export default function ChatInput({
       if (!handledByRAG) {
         const fallbackObject = {
           type: 'file_upload',
-          internalInstruction: `You're reading a file named: ${displayName}\n\n--- FILE START ---\n${content}\n--- FILE END ---`,
+          internalInstruction: `You're reading a file named: ${displayName}\n\n--- FILE START ---\n${content}\n--- FILE END ---${userPrompt && userPrompt.trim() ? `\n\nUser request: ${userPrompt}` : ''}`,
           userContent: userPrompt || '',
         };
-        console.log('file_upload_fallback', displayName, content.length, fallbackObject.internalInstruction);
+        console.log('file_upload_fallback', displayName, content.length, fallbackObject.internalInstruction, fallbackObject.userContent);
         onSend(JSON.stringify(fallbackObject));
       }
 
