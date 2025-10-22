@@ -80,7 +80,7 @@ export const extractPdfPages = async (
     const pageCount = pdfInfo.pageCount;
     const pagesToProcess = pageCount;
     
-    setExtractionProgress(`Extracting ${pagesToProcess} pages as images...`);
+    setExtractionProgress(`Processing ${pagesToProcess} pages...`);
     
     let extractedPageImages: PageImage[] = [];
     let copiedImageUris: string[] = [];

@@ -6,6 +6,8 @@ import {
   ScrollView,
   Switch,
   ActivityIndicator,
+  TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
@@ -22,8 +24,65 @@ import ModelSettingDialog from '../components/ModelSettingDialog';
 import AppHeader from '../components/AppHeader';
 import { useRoute, RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../types/navigation';
+import { RAGService, type RAGStorageType } from '../services/rag/RAGService';
 
 type ModelSettingsScreenRouteProp = RouteProp<RootStackParamList, 'ModelSettings'>;
+
+type DialogConfig = {
+  key?: keyof ModelSettings;
+  label: string;
+  ragActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  ragButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  ragButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  ragButtonSecondary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderWidth: 1,
+  },
+  ragButtonTextSecondary: {
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  ragLoadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  ragLoadingText: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  value: number;
+  defaultValue?: number;
+  minimumValue: number;
+  maximumValue: number;
+  step: number;
+  description: string;
+  onSave?: (value: number) => void | Promise<void>;
+};
 
 export default function ModelSettingsScreen() {
   const { theme: currentTheme } = useTheme();
@@ -33,49 +92,71 @@ export default function ModelSettingsScreen() {
   const { modelName, modelPath } = route.params;
   
   const [modelSettingsConfig, setModelSettingsConfig] = useState<ModelSettingsConfig>({
-    useGlobalSettings: true
+    useGlobalSettings: true,
   });
-  const [globalSettings, setGlobalSettings] = useState<ModelSettings | null>(null);
-  const [customSettings, setCustomSettings] = useState<ModelSettings | null>(null);
+  const [globalSettings, setGlobalSettings] = useState<ModelSettings | undefined>(undefined);
+  const [customSettings, setCustomSettings] = useState<ModelSettings | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
-  
+  const [ragEnabled, setRagEnabled] = useState(false);
+  const [ragStorageType, setRagStorageType] = useState<RAGStorageType>('memory');
+  const [ragBusy, setRagBusy] = useState(false);
   const [systemPromptDialogVisible, setSystemPromptDialogVisible] = useState(false);
   const [maxTokensDialogVisible, setMaxTokensDialogVisible] = useState(false);
   const [stopWordsDialogVisible, setStopWordsDialogVisible] = useState(false);
-  const [dialogConfig, setDialogConfig] = useState<any>(null);
+  const [dialogConfig, setDialogConfig] = useState<DialogConfig | null>(null);
 
   useEffect(() => {
     loadSettings();
+    loadRAGPreferences();
   }, [modelPath]);
 
   const loadSettings = async () => {
     setIsLoading(true);
     try {
       const modelSettings = await modelSettingsService.getModelSettings(modelPath);
-      const globalSettings = llamaManager.getSettings();
-      
+      const settings = llamaManager.getSettings();
+
       setModelSettingsConfig(modelSettings);
-      setGlobalSettings(globalSettings);
-      
-      if (modelSettings.customSettings) {
-        setCustomSettings(modelSettings.customSettings);
-      } else {
-        setCustomSettings({ ...globalSettings });
-      }
+      setGlobalSettings(settings);
+      const computedCustom = modelSettings.customSettings
+        ? modelSettings.customSettings
+        : { ...settings };
+      setCustomSettings(computedCustom);
     } catch (error) {
     } finally {
       setIsLoading(false);
     }
   };
 
+  const loadRAGPreferences = async () => {
+    try {
+      const [enabled, storage] = await Promise.all([
+        RAGService.isEnabled(),
+        RAGService.getStorageType(),
+      ]);
+      setRagEnabled(enabled);
+      setRagStorageType(storage);
+      if (enabled) {
+        try {
+          await RAGService.initialize();
+        } catch (error) {
+          setRagEnabled(false);
+          await RAGService.setEnabled(false);
+        }
+      }
+    } catch (error) {
+    }
+  };
+
   const handleToggleUseGlobal = async (useGlobal: boolean) => {
     try {
-      const newModelSettings = {
+      const nextCustom = !useGlobal ? customSettings ?? globalSettings : undefined;
+      const newModelSettings: ModelSettingsConfig = {
         ...modelSettingsConfig,
         useGlobalSettings: useGlobal,
-        customSettings: customSettings || globalSettings
+        customSettings: nextCustom,
       };
-      
+
       await modelSettingsService.setModelSettings(modelPath, newModelSettings);
       setModelSettingsConfig(newModelSettings);
     } catch (error) {
@@ -120,15 +201,114 @@ export default function ModelSettingsScreen() {
     setStopWordsDialogVisible(false);
   };
 
-  const handleDialogOpen = (config: any) => {
-    setDialogConfig(config);
+  const handleDialogOpen = (config: DialogConfig) => {
+    let defaultValue = config.defaultValue;
+    if (defaultValue === undefined) {
+      if (config.key && globalSettings) {
+        defaultValue = globalSettings[config.key] as unknown as number;
+      } else {
+        defaultValue = config.value;
+      }
+    }
+
+    let source: ModelSettings | undefined;
+    if (modelSettingsConfig.useGlobalSettings) {
+      source = globalSettings ?? llamaManager.getSettings();
+    } else {
+      source = customSettings ?? globalSettings ?? llamaManager.getSettings();
+    }
+
+    let value = config.value;
+    if (config.key && source) {
+      value = source[config.key] as unknown as number;
+    }
+
+    setDialogConfig({ ...config, defaultValue, value });
   };
 
   const handleDialogSave = (value: number) => {
     if (dialogConfig) {
-      handleCustomSettingsChange({ [dialogConfig.key]: value });
+      if (dialogConfig.key) {
+        handleCustomSettingsChange({ [dialogConfig.key]: value } as Partial<ModelSettings>);
+      }
+      if (dialogConfig.onSave) {
+        const result = dialogConfig.onSave(value);
+        if (result && typeof (result as Promise<void>).then === 'function') {
+          (result as Promise<void>).catch(() => {});
+        }
+      }
     }
     setDialogConfig(null);
+  };
+
+  const handleToggleRAG = async (value: boolean) => {
+    if (value && !llamaManager.isInitialized()) {
+      Alert.alert('Model not ready', 'Load this model before enabling retrieval.');
+      return;
+    }
+
+    setRagBusy(true);
+    try {
+      await RAGService.setEnabled(value);
+      if (value) {
+        try {
+          await RAGService.initialize();
+        } catch (error) {
+          await RAGService.setEnabled(false);
+          setRagEnabled(false);
+          Alert.alert('RAG error', 'Retrieval could not be enabled.');
+          setRagBusy(false);
+          return;
+        }
+      }
+      setRagEnabled(value);
+    } catch (error) {
+      Alert.alert('RAG error', value ? 'Retrieval could not be enabled.' : 'Retrieval could not be disabled.');
+    } finally {
+      setRagBusy(false);
+    }
+  };
+
+  const handleStorageToggle = async () => {
+    const nextType: RAGStorageType = ragStorageType === 'memory' ? 'persistent' : 'memory';
+    setRagBusy(true);
+    try {
+      await RAGService.setStorageType(nextType);
+      setRagStorageType(nextType);
+    } catch (error) {
+      Alert.alert('RAG error', 'Storage could not be updated.');
+    } finally {
+      setRagBusy(false);
+    }
+  };
+
+  const handleClearRAG = () => {
+    if (!ragEnabled) {
+      return;
+    }
+
+    Alert.alert(
+      'Clear RAG data',
+      'Remove all stored documents?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear',
+          style: 'destructive',
+          onPress: async () => {
+            setRagBusy(true);
+            try {
+              await RAGService.clear();
+            } catch (error) {
+              Alert.alert('RAG error', 'Unable to clear data.');
+            } finally {
+              setRagBusy(false);
+            }
+          },
+        },
+      ],
+      { cancelable: true }
+    );
   };
 
   if (isLoading || !globalSettings) {
@@ -196,6 +376,63 @@ export default function ModelSettingsScreen() {
               }
             />
           </View>
+        </View>
+
+        <View style={[styles.settingCard, { backgroundColor: themeColors.borderColor }]}> 
+          <View style={styles.settingItem}>
+            <View style={styles.settingLeft}>
+              <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : getThemeAwareColor('#4a0660', currentTheme) + '20' }]}> 
+                <MaterialCommunityIcons name="database-search" size={22} color={currentTheme === 'dark' ? '#FFFFFF' : getThemeAwareColor('#4a0660', currentTheme)} />
+              </View>
+              <View style={styles.settingTextContainer}>
+                <Text style={[styles.settingText, { color: themeColors.text }]}>Retrieval Augmented Generation</Text>
+                <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>Use stored documents to enrich answers</Text>
+              </View>
+            </View>
+            <Switch
+              value={ragEnabled}
+              onValueChange={handleToggleRAG}
+              disabled={ragBusy}
+              trackColor={{
+                false: themeColors.secondaryText + '40',
+                true: getThemeAwareColor('#4a0660', currentTheme) + '80',
+              }}
+              thumbColor={ragEnabled ? getThemeAwareColor('#4a0660', currentTheme) : themeColors.secondaryText}
+            />
+          </View>
+
+          {ragEnabled && (
+            <View style={styles.ragActions}>
+              <TouchableOpacity
+                style={[styles.ragButton, { backgroundColor: themeColors.primary }]}
+                onPress={handleStorageToggle}
+                disabled={ragBusy}
+                activeOpacity={0.8}
+              >
+                <MaterialCommunityIcons name="database" size={18} color="#FFFFFF" />
+                <Text style={styles.ragButtonText}>
+                  {ragStorageType === 'memory' ? 'Memory storage' : 'Persistent storage'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.ragButtonSecondary, { borderColor: themeColors.primary }]}
+                onPress={handleClearRAG}
+                disabled={ragBusy}
+                activeOpacity={0.8}
+              >
+                <MaterialCommunityIcons name="trash-can-outline" size={18} color={themeColors.primary} />
+                <Text style={[styles.ragButtonTextSecondary, { color: themeColors.primary }]}>Clear data</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {ragBusy && (
+            <View style={styles.ragLoadingRow}>
+              <ActivityIndicator size="small" color={themeColors.primary} />
+              <Text style={[styles.ragLoadingText, { color: themeColors.secondaryText }]}>Updating retrieval...</Text>
+            </View>
+          )}
         </View>
 
         {!modelSettingsConfig.useGlobalSettings && (
@@ -287,12 +524,12 @@ export default function ModelSettingsScreen() {
 
       {dialogConfig && (
         <ModelSettingDialog
-          visible={!!dialogConfig}
+          visible
           onClose={() => setDialogConfig(null)}
           onSave={handleDialogSave}
           label={dialogConfig.label}
           value={dialogConfig.value}
-          defaultValue={displaySettings[dialogConfig.key]}
+          defaultValue={dialogConfig.defaultValue ?? dialogConfig.value}
           minimumValue={dialogConfig.minimumValue}
           maximumValue={dialogConfig.maximumValue}
           step={dialogConfig.step}
@@ -419,5 +656,49 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
     letterSpacing: 0.2,
+  },
+  ragActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  ragButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  ragButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  ragButtonSecondary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderWidth: 1,
+  },
+  ragButtonTextSecondary: {
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  ragLoadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  ragLoadingText: {
+    fontSize: 13,
+    fontWeight: '500',
   },
 });

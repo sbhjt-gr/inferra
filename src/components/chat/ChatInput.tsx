@@ -8,6 +8,7 @@ import {
   Keyboard,
   Animated,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
@@ -25,6 +26,8 @@ import { modelDownloader } from '../../services/ModelDownloader';
 import AITermsDialog from './AITermsDialog';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import StopButton from '../StopButton';
+import { RAGService, type RAGDocument } from '../../services/rag/RAGService';
+import { uuidv4 } from 'react-native-rag';
 
 type ChatInputProps = {
   onSend: (text: string) => void;
@@ -90,6 +93,7 @@ export default function ChatInput({
   const [dialogMessage, setDialogMessage] = useState('');
   const [showAITermsDialog, setShowAITermsDialog] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [isProcessingWithRAG, setIsProcessingWithRAG] = useState(false);
 
   const isGenerating = isLoading || isRegenerating;
   const hasText = text.trim().length > 0;
@@ -201,11 +205,11 @@ export default function ChatInput({
     }
   };
 
-  const showDialog = (title: string, message: string) => {
+  const showDialog = useCallback((title: string, message: string) => {
     setDialogTitle(title);
     setDialogMessage(message);
     setDialogVisible(true);
-  };
+  }, []);
 
   const hideDialog = () => setDialogVisible(false);
 
@@ -363,18 +367,70 @@ export default function ChatInput({
     setInputHeight(height);
   }, []);
 
-  const handleFileUpload = useCallback((content: string, fileName?: string, userPrompt?: string) => {
-    const displayName = fileName || "unnamed file";
-    
-    const messageObject = {
-      type: 'file_upload',
-      internalInstruction: `You're reading a file named: ${displayName}\n\n--- FILE START ---\n${content}\n--- FILE END ---`,
-      userContent: userPrompt || ''
-    };
-    
-    onSend(JSON.stringify(messageObject));
-    setShowAttachmentMenu(false);
-  }, [onSend]);
+  const handleFileUpload = useCallback(
+    async (content: string, fileName?: string, userPrompt?: string) => {
+      const displayName = fileName || 'unnamed file';
+      let handledByRAG = false;
+
+      try {
+        const enabled = await RAGService.isEnabled();
+        if (enabled) {
+          if (!llamaManager.isInitialized()) {
+            showDialog('Model not ready', 'Load a local model before using retrieval.');
+          } else {
+            setIsProcessingWithRAG(true);
+            if (!RAGService.isReady()) {
+              await RAGService.initialize();
+            }
+            if (RAGService.isReady()) {
+              const documentId = uuidv4();
+              const ragDocument: RAGDocument = {
+                id: documentId,
+                content,
+                fileName: displayName,
+                fileType: displayName.split('.').pop()?.toLowerCase(),
+                timestamp: Date.now(),
+              };
+
+              await RAGService.addDocument(ragDocument);
+              handledByRAG = true;
+
+              const acknowledgement = userPrompt && userPrompt.trim().length > 0
+                ? userPrompt
+                : `Document "${displayName}" stored for retrieval.`;
+
+              const messageObject = {
+                type: 'file_upload',
+                internalInstruction: `You're reading a file named: ${displayName}\n\n--- FILE START ---\nDocument stored for retrieval.\n--- FILE END ---`,
+                userContent: acknowledgement,
+                metadata: { ragDocumentId: documentId },
+              };
+
+              onSend(JSON.stringify(messageObject));
+            }
+          }
+        }
+      } catch (error) {
+        if (!handledByRAG) {
+          showDialog('Retrieval error', 'Document could not be stored for retrieval. Sending full content instead.');
+        }
+      } finally {
+        setIsProcessingWithRAG(false);
+      }
+
+      if (!handledByRAG) {
+        const fallbackObject = {
+          type: 'file_upload',
+          internalInstruction: `You're reading a file named: ${displayName}\n\n--- FILE START ---\n${content}\n--- FILE END ---`,
+          userContent: userPrompt || '',
+        };
+        onSend(JSON.stringify(fallbackObject));
+      }
+
+      setShowAttachmentMenu(false);
+    },
+    [onSend, showDialog]
+  );
 
   const handleImageUpload = useCallback((messageContent: string) => {
     onSend(messageContent);
@@ -675,6 +731,19 @@ export default function ChatInput({
 
   return (
     <View style={styles.wrapper}>
+      {isProcessingWithRAG && (
+        <View
+          style={[
+            styles.ragBanner,
+            {
+              backgroundColor: isDark ? 'rgba(74, 6, 96, 0.25)' : 'rgba(74, 6, 96, 0.08)',
+            },
+          ]}
+        >
+          <ActivityIndicator size="small" color={getThemeAwareColor('#4a0660', currentTheme)} />
+          <Text style={[styles.ragBannerText, { color: isDark ? '#ffffff' : getThemeAwareColor('#4a0660', currentTheme) }]}>Storing document for retrieval</Text>
+        </View>
+      )}
       <TouchableWithoutFeedback onPress={() => {
         Keyboard.dismiss();
         setShowAttachmentMenu(false);
@@ -974,6 +1043,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 0,
     paddingTop: 8,
+  },
+  ragBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    marginBottom: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+  },
+  ragBannerText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   container: {
     position: 'relative',

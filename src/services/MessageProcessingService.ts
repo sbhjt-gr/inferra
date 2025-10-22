@@ -5,6 +5,8 @@ import chatManager from '../utils/ChatManager';
 import { generateRandomId } from '../utils/homeScreenUtils';
 import { appleFoundationService } from './AppleFoundationService';
 import type { ProviderType } from './ModelManagementService';
+import { RAGService } from './rag/RAGService';
+import type { Message as RAGMessage } from 'react-native-rag';
 
 export interface MessageProcessingCallbacks {
   setMessages: (messages: ChatMessage[]) => void;
@@ -398,75 +400,97 @@ export class MessageProcessingService {
     firstTokenTime: number | null,
     updateCounter: number
   ): Promise<void> {
-    await llamaManager.generateResponse(
-      processedMessages.map(msg => ({ role: msg.role, content: msg.content })),
-      (token) => {
-        if (this.cancelGenerationRef.current) {
-          return false;
-        }
-        
-        if (firstTokenTime === null && !isThinking && token.trim().length > 0 && !token.includes('<think>') && !token.includes('</think>')) {
-          firstTokenTime = Date.now() - startTime;
-        }
-        
-        if (token.includes('<think>')) {
-          isThinking = true;
-          return true;
-        }
-        if (token.includes('</think>')) {
-          isThinking = false;
-          return true;
-        }
-        
-        tokenCount++;
-        if (isThinking) {
-          thinking += token;
-          this.callbacks.setStreamingThinking(thinking.trim());
-        } else {
-          fullResponse += token;
-          this.callbacks.setStreamingMessage(fullResponse);
-        }
-        
-        const duration = (Date.now() - startTime) / 1000;
-        let avgTokenTime = undefined;
-        
+    const streamCallback = (token: string) => {
+      if (this.cancelGenerationRef.current) {
+        return false;
+      }
+
+      if (firstTokenTime === null && !isThinking && token.trim().length > 0 && !token.includes('<think>') && !token.includes('</think>')) {
+        firstTokenTime = Date.now() - startTime;
+      }
+
+      if (token.includes('<think>')) {
+        isThinking = true;
+        return true;
+      }
+      if (token.includes('</think>')) {
+        isThinking = false;
+        return true;
+      }
+
+      tokenCount++;
+      if (isThinking) {
+        thinking += token;
+        this.callbacks.setStreamingThinking(thinking.trim());
+      } else {
+        fullResponse += token;
+        this.callbacks.setStreamingMessage(fullResponse);
+      }
+
+      const duration = (Date.now() - startTime) / 1000;
+      let avgTokenTime = undefined;
+
+      if (firstTokenTime !== null && tokenCount > 0) {
+        const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
+        avgTokenTime = timeAfterFirstToken / tokenCount;
+      }
+
+      this.callbacks.setStreamingStats({
+        tokens: tokenCount,
+        duration: duration,
+        firstTokenTime: firstTokenTime || undefined,
+        avgTokenTime: avgTokenTime && avgTokenTime > 0 ? avgTokenTime : undefined
+      });
+
+      updateCounter++;
+      if (updateCounter % 20 === 0) {
+        let debouncedAvgTokenTime = undefined;
         if (firstTokenTime !== null && tokenCount > 0) {
           const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
-          avgTokenTime = timeAfterFirstToken / tokenCount;
+          debouncedAvgTokenTime = timeAfterFirstToken / tokenCount;
         }
-        
-        this.callbacks.setStreamingStats({
-          tokens: tokenCount,
-          duration: duration,
-          firstTokenTime: firstTokenTime || undefined,
-          avgTokenTime: avgTokenTime && avgTokenTime > 0 ? avgTokenTime : undefined
-        });
-        
-        updateCounter++;
-        if (updateCounter % 20 === 0) {
-          let debouncedAvgTokenTime = undefined;
-          if (firstTokenTime !== null && tokenCount > 0) {
-            const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
-            debouncedAvgTokenTime = timeAfterFirstToken / tokenCount;
+
+        this.callbacks.updateMessageContentDebounced(
+          messageId,
+          fullResponse,
+          thinking.trim(),
+          {
+            duration: (Date.now() - startTime) / 1000,
+            tokens: tokenCount,
+            firstTokenTime: firstTokenTime || undefined,
+            avgTokenTime: debouncedAvgTokenTime && debouncedAvgTokenTime > 0 ? debouncedAvgTokenTime : undefined
           }
-          
-          this.callbacks.updateMessageContentDebounced(
-            messageId,
-            fullResponse,
-            thinking.trim(),
-            {
-              duration: (Date.now() - startTime) / 1000,
-              tokens: tokenCount,
-              firstTokenTime: firstTokenTime || undefined,
-              avgTokenTime: debouncedAvgTokenTime && debouncedAvgTokenTime > 0 ? debouncedAvgTokenTime : undefined
-            }
-          );
+        );
+      }
+
+      return !this.cancelGenerationRef.current;
+    };
+
+  const baseMessages = processedMessages.map(msg => ({ role: msg.role, content: msg.content })) as RAGMessage[];
+    let usedRAG = false;
+
+    try {
+      const ragEnabled = await RAGService.isEnabled();
+      if (ragEnabled && llamaManager.isInitialized()) {
+        if (!RAGService.isReady()) {
+          await RAGService.initialize();
         }
-        
-        return !this.cancelGenerationRef.current;
-      },
-      settings
-    );
+        if (RAGService.isReady()) {
+          await RAGService.generate({ input: baseMessages, settings, callback: streamCallback });
+          usedRAG = true;
+        }
+      }
+    } catch {
+      usedRAG = false;
+    }
+
+    if (!usedRAG) {
+      await llamaManager.generateResponse(
+        baseMessages,
+        streamCallback,
+        settings
+      );
+    }
 
     if (!this.cancelGenerationRef.current) {
       let finalAvgTokenTime = undefined;
