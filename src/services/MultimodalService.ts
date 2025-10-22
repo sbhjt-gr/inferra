@@ -79,7 +79,7 @@ export class MultimodalService {
     try {
       if (projectorPathToRelease) {
         try {
-          await withTimeout(context.releaseMultimodal(), 5000);
+          await withTimeout(context.releaseMultimodal(), 3000);
         } catch (contextReleaseError) {
           console.error('mmproj_context_release_error', contextReleaseError);
         }

@@ -60,11 +60,32 @@ class LlamaManager {
 
       if (this.context) {
         const contextToRelease = this.context;
-        this.context = null;
+        const wasMultimodal = this.multimodalService.isMultimodalInitialized();
         
-        this.multimodalService.releaseMultimodal(contextToRelease).catch(error => {
-          console.error('mmproj_release_error', error);
-        });
+        this.context = null;
+        this.modelPath = null;
+        this.multimodalService.clearMultimodalState();
+        
+        try {
+          if (typeof contextToRelease.stopCompletion === 'function') {
+            await withTimeout(contextToRelease.stopCompletion(), 2000).catch(() => {});
+          }
+        } catch {}
+        
+        Promise.all([
+          wasMultimodal ? withTimeout(
+            this.multimodalService.releaseMultimodal(contextToRelease),
+            3000
+          ).catch(error => {
+            console.error('mmproj_release_error', error);
+          }) : Promise.resolve(),
+          withTimeout(
+            contextToRelease.release(),
+            5000
+          ).catch(error => {
+            console.error('context_release_error', error);
+          })
+        ]).catch(() => {});
       }
 
       this.modelPath = finalModelPath;
@@ -95,9 +116,12 @@ class LlamaManager {
         }
       }
 
+      this.isCancelled = false;
+
       return this.context;
     } catch (error) {
-      throw new Error(`Failed to initialize model: ${error}`);
+      this.emergencyCleanup();
+      throw new Error(`model_init_failed: ${error}`);
     }
   }
 
@@ -430,12 +454,31 @@ class LlamaManager {
         const currentModelPath = this.modelPath;
         const currentMmProjectorPath = this.multimodalService.getMultimodalProjectorPath();
         const contextToRelease = this.context;
+        const wasMultimodal = this.multimodalService.isMultimodalInitialized();
         
         this.context = null;
+        this.multimodalService.clearMultimodalState();
         
-        this.multimodalService.releaseMultimodal(contextToRelease).catch(error => {
-          console.error('mmproj_release_on_cancel_error', error);
-        });
+        try {
+          if (typeof contextToRelease.stopCompletion === 'function') {
+            await withTimeout(contextToRelease.stopCompletion(), 2000).catch(() => {});
+          }
+        } catch {}
+        
+        Promise.all([
+          wasMultimodal ? withTimeout(
+            this.multimodalService.releaseMultimodal(contextToRelease),
+            3000
+          ).catch(error => {
+            console.error('mmproj_release_on_cancel_error', error);
+          }) : Promise.resolve(),
+          withTimeout(
+            contextToRelease.release(),
+            5000
+          ).catch(error => {
+            console.error('context_release_on_cancel_error', error);
+          })
+        ]).catch(() => {});
         
         this.context = await initLlama({
           model: currentModelPath,
@@ -462,20 +505,39 @@ class LlamaManager {
     
     this.context = null;
     this.modelPath = null;
+    this.isCancelled = true;
+    this.tokenProcessingService.clearTokenQueue();
+    this.multimodalService.clearMultimodalState();
     
     try {
-      this.isCancelled = true;
-      this.tokenProcessingService.clearTokenQueue();
-      
-      if (wasMultimodalEnabled) {
-        this.multimodalService.releaseMultimodal(contextToRelease).catch(multimodalError => {
-          console.error('mmproj_release_error', multimodalError);
-        });
+      if (typeof contextToRelease.stopCompletion === 'function') {
+        await withTimeout(contextToRelease.stopCompletion(), 2000).catch(() => {});
       }
-      
-    } catch (error) {
-      console.error('context_release_error', error);
+    } catch {}
+    
+    const releasePromises: Promise<void>[] = [];
+    
+    if (wasMultimodalEnabled) {
+      releasePromises.push(
+        withTimeout(
+          this.multimodalService.releaseMultimodal(contextToRelease),
+          3000
+        ).catch(multimodalError => {
+          console.error('mmproj_release_error', multimodalError);
+        })
+      );
     }
+    
+    releasePromises.push(
+      withTimeout(
+        contextToRelease.release(),
+        5000
+      ).catch(contextError => {
+        console.error('context_release_error', contextError);
+      })
+    );
+    
+    Promise.all(releasePromises).catch(() => {});
   }
 
   emergencyCleanup() {
@@ -576,29 +638,39 @@ class LlamaManager {
 
   async loadModel(modelPath: string, mmProjectorPath?: string) {
     try {
-      console.log(`[LlamaManager] Starting model load: ${modelPath}`);
-      await this.release();
-      console.log(`[LlamaManager] Released previous model, initializing new one`);
+      console.log('model_load_start', modelPath);
+      
+      this.isCancelled = true;
+      this.tokenProcessingService.clearTokenQueue();
+      
+      await withTimeout(this.release(), 8000).catch(error => {
+        console.error('model_release_timeout', error);
+        this.emergencyCleanup();
+      });
+      
+      console.log('model_load_init');
       await this.initializeModel(modelPath, mmProjectorPath);
-      console.log(`[LlamaManager] Model initialized successfully`);
+      console.log('model_load_success');
       this.events.emit('model-loaded', modelPath);
       return true;
     } catch (error) {
-      console.error(`[LlamaManager] Model load failed:`, error);
+      console.error('model_load_failed', error);
       throw error;
     }
   }
 
   async unloadModel() {
     if (this.isUnloading) {
-      throw new Error('Model unload already in progress');
+      throw new Error('model_unload_in_progress');
     }
 
     this.isUnloading = true;
+    
     try {
-      await this.release();
+      await withTimeout(this.release(), 8000);
     } catch (error) {
-      console.error('Error during model release:', error);
+      console.error('model_release_error', error);
+      this.emergencyCleanup();
     } finally {
       this.events.emit('model-unloaded');
       this.isUnloading = false;
