@@ -9,17 +9,16 @@ export const useMemoryWarning = () => {
   const checkSystemMemory = useCallback(async () => {
     try {
       const totalMemoryBytes = Device.totalMemory;
-      if (totalMemoryBytes && totalMemoryBytes < 4 * 1024 * 1024 * 1024) {
-        const hasShownLowMemoryWarning = await AsyncStorage.getItem('hasShownLowMemoryWarning');
-        if (!hasShownLowMemoryWarning) {
-          setMemoryWarningType('low_memory');
-          setShowMemoryWarning(true);
-        }
-      }
       if (totalMemoryBytes && totalMemoryBytes < 2 * 1024 * 1024 * 1024) {
         const hasShownVeryLowMemoryWarning = await AsyncStorage.getItem('hasShownVeryLowMemoryWarning');
         if (!hasShownVeryLowMemoryWarning) {
           setMemoryWarningType('very_low_memory');
+          setShowMemoryWarning(true);
+        }
+      } else if (totalMemoryBytes && totalMemoryBytes < 4 * 1024 * 1024 * 1024) {
+        const hasShownLowMemoryWarning = await AsyncStorage.getItem('hasShownLowMemoryWarning');
+        if (!hasShownLowMemoryWarning) {
+          setMemoryWarningType('low_memory');
           setShowMemoryWarning(true);
         }
       }
