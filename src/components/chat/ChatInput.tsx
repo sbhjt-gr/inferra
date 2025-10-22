@@ -175,10 +175,10 @@ export default function ChatInput({
           }
           const stored = await AsyncStorage.getItem('@rag_upload_pref');
           if (!isActive) return;
-          setUseRagForUpload(stored === 'true');
+          setUseRagForUpload(stored === 'true' || stored === null);
         } catch (error) {
           if (!isActive) return;
-          setUseRagForUpload(false);
+          setUseRagForUpload(true);
         }
       })();
     }
