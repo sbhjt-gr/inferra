@@ -162,17 +162,23 @@ export default function ChatInput({
   useEffect(() => {
     let isActive = true;
     if (fileModalVisible) {
-      RAGService.isEnabled()
-        .then(enabled => {
-          if (isActive) {
-            setUseRagForUpload(enabled);
-          }
-        })
-        .catch(() => {
-          if (isActive) {
+      (async () => {
+        try {
+          const enabled = await RAGService.isEnabled();
+          if (!isActive) return;
+          if (!enabled) {
             setUseRagForUpload(false);
+            await AsyncStorage.setItem('@rag_upload_pref', 'false');
+            return;
           }
-        });
+          const stored = await AsyncStorage.getItem('@rag_upload_pref');
+          if (!isActive) return;
+          setUseRagForUpload(stored === 'true');
+        } catch (error) {
+          if (!isActive) return;
+          setUseRagForUpload(false);
+        }
+      })();
     }
     return () => {
       isActive = false;
@@ -348,6 +354,7 @@ export default function ChatInput({
 
   const handleToggleRagForUpload = useCallback((value: boolean) => {
     setUseRagForUpload(value);
+    AsyncStorage.setItem('@rag_upload_pref', value ? 'true' : 'false');
   }, []);
 
   const toggleAttachmentMenu = () => {
