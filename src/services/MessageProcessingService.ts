@@ -466,7 +466,24 @@ export class MessageProcessingService {
       return !this.cancelGenerationRef.current;
     };
 
-  const baseMessages = processedMessages.map(msg => ({ role: msg.role, content: msg.content })) as RAGMessage[];
+  const baseMessages = processedMessages.map(msg => {
+      let content = msg.content;
+      
+      try {
+        const parsed = JSON.parse(msg.content);
+        
+        if (parsed && parsed.type === 'ocr_result') {
+          const instruction = parsed.internalInstruction || '';
+          const userPrompt = parsed.userPrompt || '';
+          content = `${instruction}\n\nUser request: ${userPrompt}`;
+        } else if (parsed && parsed.type === 'file_upload') {
+          content = parsed.internalInstruction || msg.content;
+        }
+      } catch {
+      }
+      
+      return { role: msg.role, content };
+    }) as RAGMessage[];
     let usedRAG = false;
 
     try {
