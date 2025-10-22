@@ -44,6 +44,7 @@ import { Dialog, Portal, Button, Text as PaperText } from 'react-native-paper';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { logoutUser, getUserFromSecureStorage } from '../services/FirebaseService';
 import { modelSettingsService } from '../services/ModelSettingsService';
+import { useStoredModels } from '../hooks/useStoredModels';
 
 interface StorageWarningDialogProps {
   visible: boolean;
@@ -146,13 +147,12 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
   const { enableRemoteModels, isLoggedIn, checkLoginStatus } = useRemoteModel();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
   const [activeTab, setActiveTab] = useState<'stored' | 'downloadable' | 'remote'>('stored');
-  const [storedModels, setStoredModels] = useState<StoredModel[]>([]);
+  const { storedModels, isRefreshing: isRefreshingStoredModels, refreshStoredModels } = useStoredModels();
   const { downloadProgress, setDownloadProgress } = useDownloads();
   const [customUrlDialogVisible, setCustomUrlDialogVisible] = useState(false);
   const [isDownloadsVisible, setIsDownloadsVisible] = useState(false);
   const buttonScale = useRef(new Animated.Value(1)).current;
   const [isLoading, setIsLoading] = useState(false);
-  const [isRefreshingStoredModels, setIsRefreshingStoredModels] = useState(false);
   const [importingModelName, setImportingModelName] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [isLoadingApiKeys, setIsLoadingApiKeys] = useState(false);
@@ -177,17 +177,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
   const [showStorageWarningDialog, setShowStorageWarningDialog] = useState(false);
   
   const isInitializedRef = useRef(false);
-  const loadingRef = useRef(false);
-
-  const STORED_MODELS_CACHE_KEY = 'cached_stored_models';
-
-  const clearStoredModelsCache = async () => {
-    try {
-      await AsyncStorage.removeItem(STORED_MODELS_CACHE_KEY);
-    } catch (error) {
-      
-    }
-  };
 
   const hideDialog = () => setDialogVisible(false);
 
@@ -224,102 +213,9 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     setFilteredModels(filtered);
   }, []);
 
-    const loadStoredModels = useCallback(async (forceRefresh = false) => {
-    if (loadingRef.current) {
-      if (!forceRefresh) return;
-    }
-    loadingRef.current = true;
-    
-    try {
-      if (!forceRefresh) {
-        try {
-          const cachedData = await AsyncStorage.getItem(STORED_MODELS_CACHE_KEY);
-          if (cachedData) {
-            const cachedModels = JSON.parse(cachedData);
-            setStoredModels(cachedModels);
-            
-            if (cachedModels && cachedModels.length > 0) {
-              return;
-            }
-          }
-        } catch (cacheError) {
-          
-        }
-      } else {
-        await clearStoredModelsCache();
-      }
-      
-      try {
-        await modelDownloader.checkBackgroundDownloads();
-      } catch (checkError) {
-        
-      }
-      
-      if (forceRefresh) {
-        await modelDownloader.reloadStoredModels();
-      }
-      
-      const models = await modelDownloader.getStoredModels();
-      
-      try {
-        await AsyncStorage.setItem(STORED_MODELS_CACHE_KEY, JSON.stringify(models));
-      } catch (cacheError) {
-        
-      }
-      
-      setStoredModels(models);
-    } catch (error) {
-      
-    } finally {
-      loadingRef.current = false;
-    }
-  }, []);
-
-  const handleRefreshStoredModels = useCallback(async () => {
-    setIsRefreshingStoredModels(true);
-    try {
-      await loadStoredModels(true);
-    } catch (error) {
-      
-    } finally {
-      setIsRefreshingStoredModels(false);
-    }
-  }, [loadStoredModels]);
-
   useEffect(() => {
     setFilteredModels(DOWNLOADABLE_MODELS);
   }, []);
-
-  useEffect(() => {
-    loadStoredModels();
-  }, [loadStoredModels]);
-
-  useFocusEffect(
-    useCallback(() => {
-      if (activeTab === 'stored' && storedModels.length === 0) {
-        loadStoredModels();
-      }
-    }, [activeTab, storedModels.length, loadStoredModels])
-  );
-
-  useEffect(() => {
-    let appStateTimeout: NodeJS.Timeout;
-    
-    const handleAppStateChange = (nextAppState: AppStateStatus) => {
-      if (nextAppState === 'active' && activeTab === 'stored') {
-        clearTimeout(appStateTimeout);
-        appStateTimeout = setTimeout(() => {
-          loadStoredModels(true);
-        }, 500);
-      }
-    };
-
-    const subscription = AppState.addEventListener('change', handleAppStateChange);
-    return () => {
-      subscription?.remove();
-      clearTimeout(appStateTimeout);
-    };
-  }, [activeTab, loadStoredModels]);
 
   const getAvailableFilterOptions = () => {
     const allTags = [...new Set(DOWNLOADABLE_MODELS.flatMap(model => model.tags || []))];
@@ -457,7 +353,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
           'The model has been successfully imported to the app.',
           [<Button key="ok" onPress={hideDialog}>OK</Button>]
         );
-        await loadStoredModels(true);
+        await refreshStoredModels();
       } catch (error) {
         setIsLoading(false);
         setImportingModelName(null);
@@ -525,7 +421,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       } catch (storageError) {
       }
 
-      await loadStoredModels(true);
+      await refreshStoredModels();
     } catch (error) {
       showDialog('Error', 'Failed to cancel download', [
         <Button key="ok" onPress={hideDialog}>OK</Button>
@@ -590,7 +486,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
           }
         }));
         
-        await loadStoredModels(true);
+        await refreshStoredModels();
         
         setTimeout(() => {
           setDownloadProgress(prev => {
@@ -644,10 +540,6 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       }
     };
 
-    const handleModelsChanged = () => {
-      loadStoredModels(true);
-    };
-
     const setupBackgroundTask = async () => {
       await registerBackgroundTask();
     };
@@ -656,13 +548,10 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     
     modelDownloader.on('downloadProgress', handleProgress);
     
-    modelDownloader.on('modelsChanged', handleModelsChanged);
-    
     return () => {
       modelDownloader.off('downloadProgress', handleProgress);
-      modelDownloader.off('modelsChanged', handleModelsChanged);
     };
-  }, [loadStoredModels]);
+  }, []);
 
   useEffect(() => {
     const activeCount = getActiveDownloadsCount(downloadProgress);
@@ -695,7 +584,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
             try {
               await modelDownloader.deleteModel(model.path);
               await modelSettingsService.deleteModelSettings(model.path);
-              await loadStoredModels(true);
+              await refreshStoredModels();
             } catch (error) {
               showDialog('Error', 'Failed to delete model', [
                 <Button key="ok" onPress={hideDialog}>OK</Button>
@@ -836,7 +725,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
         <RNText style={[styles.storedHeaderTitle, { color: themeColors.text }]}>Stored Models</RNText>
         <TouchableOpacity
           style={[styles.refreshButton, { backgroundColor: themeColors.borderColor }]}
-          onPress={handleRefreshStoredModels}
+          onPress={refreshStoredModels}
           disabled={isRefreshingStoredModels}
         >
           {isRefreshingStoredModels ? (

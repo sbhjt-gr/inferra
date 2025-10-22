@@ -1,4 +1,4 @@
-import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
+import React, { useState, useEffect, forwardRef, useImperativeHandle, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -26,6 +26,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import { appleFoundationService } from '../services/AppleFoundationService';
 import type { ProviderType } from '../services/ModelManagementService';
+import { useStoredModels } from '../hooks/useStoredModels';
 
 interface StoredModel {
   name: string;
@@ -149,8 +150,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     const defaultNavigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
     const navigation = propNavigation || defaultNavigation;
     const [modalVisible, setModalVisible] = useState(false);
-    const [models, setModels] = useState<StoredModel[]>([]);
-    const [sections, setSections] = useState<SectionData[]>([]);
+    const { storedModels: models, isRefreshing: isRefreshingLocalModels, refreshStoredModels } = useStoredModels();
     const { selectedModelPath, selectedProjectorPath, isModelLoading, loadModel, unloadModel, unloadProjector, isMultimodalEnabled } = useModel();
     const [onlineModelStatuses, setOnlineModelStatuses] = useState<{[key: string]: boolean}>({
       gemini: false,
@@ -172,7 +172,6 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     const [projectorSelectorVisible, setProjectorSelectorVisible] = useState(false);
     const [projectorModels, setProjectorModels] = useState<StoredModel[]>([]);
     const [selectedVisionModel, setSelectedVisionModel] = useState<Model | null>(null);
-    const [isRefreshingLocalModels, setIsRefreshingLocalModels] = useState(false);
   const [appleFoundationEnabled, setAppleFoundationEnabled] = useState(false);
   const [appleFoundationAvailable, setAppleFoundationAvailable] = useState(false);
 
@@ -355,104 +354,51 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
       }
     };
 
-    const loadModels = async () => {
-      try {
-        const storedModels = await modelDownloader.getStoredModels();
+    const sections = useMemo(() => {
+      const completedModels = models.filter(model => {
+        const isProjectorModel = model.name.toLowerCase().includes('mmproj') ||
+                                 model.name.toLowerCase().includes('.proj');
 
-        const completedModels = storedModels.filter(model => {
-          const isProjectorModel = model.name.toLowerCase().includes('mmproj') ||
-                                   model.name.toLowerCase().includes('.proj');
+        return !isProjectorModel;
+      });
 
-          return !isProjectorModel;
+      const sectionsData: SectionData[] = [];
+      const localModels: Model[] = [];
+
+      if (Platform.OS === 'ios' && appleFoundationEnabled && appleFoundationAvailable) {
+        localModels.push({
+          id: 'apple-foundation',
+          name: 'Apple Foundation',
+          provider: 'Apple Intelligence',
+          isAppleFoundation: true,
         });
-
-        setModels(completedModels);
-
-        const sections: SectionData[] = [];
-        const localModels: Model[] = [];
-
-        if (Platform.OS === 'ios' && appleFoundationEnabled && appleFoundationAvailable) {
-          localModels.push({
-            id: 'apple-foundation',
-            name: 'Apple Foundation',
-            provider: 'Apple Intelligence',
-            isAppleFoundation: true,
-          });
-        }
-
-        localModels.push(...completedModels);
-
-        if (localModels.length > 0) {
-          sections.push({ title: 'Local Models', data: localModels });
-          setIsLocalModelsExpanded(true);
-        } else {
-          setIsLocalModelsExpanded(false);
-        }
-
-        sections.push({ title: 'Remote Models', data: ONLINE_MODELS });
-        setSections(sections);
-      } catch (error) {
       }
-    };
 
-    const refreshLocalModels = async () => {
-      setIsRefreshingLocalModels(true);
-      try {
-        await modelDownloader.reloadStoredModels();
-        await loadModels();
-      } catch (error) {
-        
-      } finally {
-        setIsRefreshingLocalModels(false);
+      localModels.push(...completedModels);
+
+      if (localModels.length > 0) {
+        sectionsData.push({ title: 'Local Models', data: localModels });
       }
-    };
+
+      sectionsData.push({ title: 'Remote Models', data: ONLINE_MODELS });
+      return sectionsData;
+    }, [models, appleFoundationEnabled, appleFoundationAvailable]);
+
+    useEffect(() => {
+      if (sections.length > 0 && sections[0]?.data?.length > 0) {
+        setIsLocalModelsExpanded(true);
+      } else if (sections.length > 0 && sections[0]?.data?.length === 0) {
+        setIsLocalModelsExpanded(false);
+      }
+    }, [sections]);
 
     useEffect(() => {
       refreshAppleFoundationState();
     }, []);
 
-    useEffect(() => {
-      loadModels();
-    }, [appleFoundationEnabled, appleFoundationAvailable]);
-
-
-    useEffect(() => {
-      const setupModelListener = () => {
-        const handleModelsChanged = () => {
-          modelDownloader.refresh();
-          loadModels();
-        };
-
-        if (modelDownloader.on) {
-          modelDownloader.on('modelsChanged', handleModelsChanged);
-          modelDownloader.on('modelDeleted', handleModelsChanged);
-          modelDownloader.on('modelAdded', handleModelsChanged);
-          modelDownloader.on('downloadCompleted', handleModelsChanged);
-          modelDownloader.on('importProgress', (data) => {
-            if (data.status === 'completed') {
-              handleModelsChanged();
-            }
-          });
-        }
-
-        return () => {
-          if (modelDownloader.off) {
-            modelDownloader.off('modelsChanged', handleModelsChanged);
-            modelDownloader.off('modelDeleted', handleModelsChanged);
-            modelDownloader.off('modelAdded', handleModelsChanged);
-            modelDownloader.off('downloadCompleted', handleModelsChanged);
-            modelDownloader.off('importProgress', handleModelsChanged);
-          }
-        };
-      };
-
-      const cleanup = setupModelListener();
-      return cleanup;
-    }, []);
-
     useImperativeHandle(ref, () => ({
       refreshModels: () => {
-        refreshLocalModels();
+        refreshStoredModels();
       }
     }));
 
@@ -1128,7 +1074,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
             />
           </TouchableOpacity>
           <TouchableOpacity
-            onPress={refreshLocalModels}
+            onPress={refreshStoredModels}
             style={[
               styles.sectionRefreshButton,
               { backgroundColor: themeColors.borderColor }
