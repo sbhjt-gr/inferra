@@ -27,6 +27,7 @@ import AITermsDialog from './AITermsDialog';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import StopButton from '../StopButton';
 import { RAGService, type RAGDocument } from '../../services/rag/RAGService';
+import type { ProviderType } from '../../services/ModelManagementService';
 import { uuidv4 } from 'react-native-rag';
 
 type ChatInputProps = {
@@ -423,14 +424,10 @@ export default function ChatInput({
         ragCancelRef.current.cancelled = false;
         setRagProgress({ completed: 0, total: 0 });
 
-        if (!RAGService.isReady()) {
-          console.log('rag_init_trigger', selectedModelPath);
-          await RAGService.initialize(selectedModelPath as any);
-          console.log('rag_init_done', RAGService.isReady());
-        }
+        const provider: ProviderType = isRemoteOrApple ? (selectedModelPath as ProviderType) : 'local';
+        await RAGService.initialize(provider);
 
         if (!RAGService.isReady()) {
-          console.log('rag_not_ready_after_init', selectedModelPath);
           return { handled, cancelled, documentId };
         }
 
