@@ -406,6 +406,7 @@ export default function ChatInput({
                 metadata: { ragDocumentId: documentId },
               };
 
+              console.log('file_upload_rag', displayName, documentId, content.length, messageObject.internalInstruction, content);
               onSend(JSON.stringify(messageObject));
             }
           }
@@ -424,6 +425,7 @@ export default function ChatInput({
           internalInstruction: `You're reading a file named: ${displayName}\n\n--- FILE START ---\n${content}\n--- FILE END ---`,
           userContent: userPrompt || '',
         };
+        console.log('file_upload_fallback', displayName, content.length, fallbackObject.internalInstruction);
         onSend(JSON.stringify(fallbackObject));
       }
 
