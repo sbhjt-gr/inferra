@@ -10,6 +10,7 @@ export class LlamaRnLLM implements LLM {
     if (!llamaManager.isInitialized()) {
       throw new Error('Model not initialized');
     }
+    console.log('rag_llm_load');
     this.loaded = true;
     return this;
   }
@@ -23,6 +24,7 @@ export class LlamaRnLLM implements LLM {
   }
 
   async unload(): Promise<void> {
+    console.log('rag_llm_unload');
     this.loaded = false;
   }
 
@@ -31,6 +33,7 @@ export class LlamaRnLLM implements LLM {
       throw new Error('LLM not loaded');
     }
 
+    console.log('rag_llm_generate_start');
     const transformed = messages.map((message) => ({
       role: message.role,
       content: message.content,
@@ -49,6 +52,7 @@ export class LlamaRnLLM implements LLM {
     );
 
     this.pendingSettings = undefined;
+    console.log('rag_llm_generate_complete');
 
     return result;
   }

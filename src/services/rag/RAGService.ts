@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { RAG, MemoryVectorStore, type Message } from 'react-native-rag';
+import { RAG, MemoryVectorStore, RecursiveCharacterTextSplitter, type Message } from 'react-native-rag';
 import { OPSQLiteVectorStore } from '@react-native-rag/op-sqlite';
 import { LlamaRnEmbeddings } from './LlamaRnEmbeddings';
 import { LlamaRnLLM } from './LlamaRnLLM';
@@ -19,6 +19,10 @@ type RAGDocument = {
   fileType?: string;
   timestamp?: number;
 };
+
+const CONTROL_CHARS_REGEX = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g;
+
+const sanitizeChunk = (value: string): string => value.replace(CONTROL_CHARS_REGEX, ' ');
 
 class RAGServiceClass {
   private rag: RAG | null = null;
@@ -54,15 +58,22 @@ class RAGServiceClass {
 
   async initialize(): Promise<void> {
     if (this.initialized) {
+      console.log('rag_already_initialized');
       return;
     }
 
     if (!(await this.isEnabled())) {
+      console.log('rag_disabled');
       return;
     }
 
+    console.log('rag_init_start');
     await this.ensureEmbeddingSupport();
+    console.log('rag_embeddings_verified');
+    
     this.storage = await this.getStorageType();
+    console.log('rag_storage_type', this.storage);
+    
     this.embeddings = new LlamaRnEmbeddings();
     this.llm = new LlamaRnLLM();
 
@@ -71,11 +82,14 @@ class RAGServiceClass {
       : new MemoryVectorStore({ embeddings: this.embeddings });
 
     this.rag = new RAG({ vectorStore, llm: this.llm });
+    console.log('rag_loading_vectorstore');
     await this.rag.load();
     this.initialized = true;
+    console.log('rag_init_complete');
   }
 
   async cleanup(): Promise<void> {
+    console.log('rag_cleanup_start');
     if (this.rag) {
       await this.rag.unload();
     }
@@ -92,6 +106,7 @@ class RAGServiceClass {
     this.embeddings = null;
     this.llm = null;
     this.initialized = false;
+    console.log('rag_cleanup_complete');
   }
 
   isReady(): boolean {
@@ -100,23 +115,71 @@ class RAGServiceClass {
 
   async addDocument(document: RAGDocument): Promise<void> {
     this.ensureReady();
+    console.log('rag_add_doc', document.id);
 
     const timestamp = document.timestamp ?? Date.now();
+    const splitter = new RecursiveCharacterTextSplitter({
+      chunkSize: 500,
+      chunkOverlap: 100,
+    });
+    const rawChunks = await splitter.splitText(document.content);
+    const sanitized = rawChunks
+      .map((chunk, index) => ({
+        chunk: sanitizeChunk(chunk),
+        rawIndex: index,
+      }))
+      .filter((entry) => entry.chunk.trim().length > 0);
 
-    const metadataGenerator = (chunks: string[]) =>
-      chunks.map((_, index) => ({
+    const total = sanitized.length;
+
+    const prepared = sanitized.map((entry, position) => ({
+      chunk: entry.chunk.trim(),
+      metadata: {
         documentId: document.id,
         fileName: document.fileName,
         fileType: document.fileType,
         timestamp,
-        chunkIndex: index,
-        chunkTotal: chunks.length,
-      }));
+        chunkIndex: position,
+        chunkTotal: total,
+      },
+      sourceIndex: entry.rawIndex,
+    }));
 
-    await this.rag!.splitAddDocument({
-      document: document.content,
-      metadataGenerator,
-    });
+    if (prepared.length === 0) {
+      throw new Error('Document has no embeddable content');
+    }
+
+    console.log('rag_chunks_total', document.id, prepared.length);
+
+    let added = 0;
+    let lastError: unknown = null;
+
+    for (const entry of prepared) {
+      try {
+        await this.rag!.addDocument({
+          document: entry.chunk,
+          metadata: entry.metadata,
+        });
+        added += 1;
+      } catch (error) {
+        lastError = error;
+        console.log(
+          'rag_chunk_failed',
+          document.id,
+          entry.sourceIndex,
+          error instanceof Error ? error.message : 'unknown'
+        );
+      }
+    }
+
+    if (added === 0) {
+      if (lastError instanceof Error) {
+        throw lastError;
+      }
+      throw new Error('Document chunks could not be embedded');
+    }
+
+    console.log('rag_doc_added', document.id, added);
   }
 
   async generate(params: {
@@ -127,6 +190,7 @@ class RAGServiceClass {
     nResults?: number;
   }): Promise<string> {
     this.ensureReady();
+    console.log('rag_generate_start');
 
     const { input, callback, settings, augmentedGeneration = true, nResults = 3 } = params;
 
@@ -141,26 +205,32 @@ class RAGServiceClass {
       callback: callback ?? (() => {}),
     });
 
+    console.log('rag_generate_complete');
     return result;
   }
 
   async deleteDocument(documentId: string): Promise<void> {
     this.ensureReady();
+    console.log('rag_delete_doc', documentId);
 
     await this.rag!.deleteDocument({
       predicate: (value) => value.metadata?.documentId === documentId,
     });
+    console.log('rag_doc_deleted', documentId);
   }
 
   async clear(): Promise<void> {
+    console.log('rag_clear_start');
     const enabled = await this.isEnabled();
     if (!enabled) {
       await this.cleanup();
+      console.log('rag_clear_disabled');
       return;
     }
 
     await this.cleanup();
     await this.initialize();
+    console.log('rag_clear_complete');
   }
 
   private async reinitialize(): Promise<void> {
@@ -182,20 +252,26 @@ class RAGServiceClass {
       throw new Error('Model not initialized');
     }
 
+    console.log('rag_verify_embeddings');
     try {
       await llamaManager.generateEmbedding('__rag_probe__');
+      console.log('rag_embeddings_ok');
       return;
     } catch (error) {
+      console.log('rag_embeddings_failed', error instanceof Error ? error.message : 'unknown');
       const modelPath = llamaManager.getModelPath();
       if (!modelPath) {
         throw error instanceof Error ? error : new Error('Unable to generate embeddings');
       }
 
+      console.log('rag_reload_model');
       const projectorPath = llamaManager.getMultimodalProjectorPath();
       await llamaManager.loadModel(modelPath, projectorPath ?? undefined);
       try {
         await llamaManager.generateEmbedding('__rag_probe__');
+        console.log('rag_embeddings_ok_after_reload');
       } catch (finalError) {
+        console.log('rag_embeddings_unsupported');
         throw finalError instanceof Error && finalError.message
           ? finalError
           : new Error('Current model does not support embeddings');
