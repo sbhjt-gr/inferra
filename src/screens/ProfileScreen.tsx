@@ -4,7 +4,7 @@ import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import AppHeader from '../components/AppHeader';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation, useFocusEffect, CommonActions } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import { getCurrentUser, logoutUser, waitForAuthReady, onAuthStateChange, sendVerificationEmail, getUserProfile, initializeFirebase } from '../services/FirebaseAuth';
@@ -342,7 +342,17 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
         const result = await logoutUser();
         if (result.success) {
           await checkLoginStatus();
-          navigation.navigate('MainTabs', { screen: 'SettingsTab' });
+          navigation.dispatch(
+            CommonActions.reset({
+              index: 0,
+              routes: [
+                {
+                  name: 'MainTabs',
+                  params: { screen: 'SettingsTab' }
+                }
+              ]
+            })
+          );
         } else {
           showDialog({
             title: 'Error',
