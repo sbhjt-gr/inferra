@@ -233,6 +233,13 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
     checkLoginStatusAndUpdateUsername();
   }, []);
 
+  useFocusEffect(
+    useCallback(() => {
+      console.log('screen_focus');
+      refreshStoredModels();
+    }, [refreshStoredModels])
+  );
+
   const checkLoginStatusAndUpdateUsername = async () => {
     try {
       const userData = await getUserFromSecureStorage();

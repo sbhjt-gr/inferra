@@ -10,6 +10,9 @@ import { ModelType } from '../types/models';
 export class StoredModelsManager extends EventEmitter {
   private fileManager: FileManager;
   private readonly STORAGE_KEY = 'stored_models_list';
+  private isInitialized: boolean = false;
+  private isInitializing: boolean = false;
+  private initializationPromise: Promise<void> | null = null;
 
   constructor(fileManager: FileManager) {
     super();
@@ -17,37 +20,73 @@ export class StoredModelsManager extends EventEmitter {
   }
 
   async initialize(): Promise<void> {
-    await this.syncStorageWithFileSystem();
+    if (this.isInitialized) {
+      console.log('manager_already_initialized');
+      return;
+    }
+
+    if (this.isInitializing) {
+      console.log('manager_init_in_progress');
+      await this.initializationPromise;
+      return;
+    }
+
+    this.isInitializing = true;
+    this.initializationPromise = (async () => {
+      console.log('manager_init_start');
+      try {
+        await this.syncStorageWithFileSystem();
+        this.isInitialized = true;
+        console.log('manager_init_complete');
+      } catch (error) {
+        console.log('manager_init_error', error);
+        throw error;
+      } finally {
+        this.isInitializing = false;
+      }
+    })();
+
+    await this.initializationPromise;
   }
 
   async getStoredModels(): Promise<StoredModel[]> {
+    console.log('get_models_start');
     try {
       const storedData = await AsyncStorage.getItem(this.STORAGE_KEY);
       if (storedData) {
+        console.log('models_from_storage');
         return JSON.parse(storedData);
       }
     } catch (error) {
+      console.log('storage_read_error', error);
     }
 
-    return await this.scanFileSystemAndUpdateStorage();
+    console.log('no_cached_models');
+    return [];
   }
 
   private async scanFileSystemAndUpdateStorage(): Promise<StoredModel[]> {
+    console.log('scan_filesystem_start');
     try {
       const baseDir = this.fileManager.getBaseDir();
+      console.log('base_dir', baseDir);
 
       const dirInfo = await FileSystem.getInfoAsync(baseDir);
       if (!dirInfo.exists) {
+        console.log('dir_not_exists');
         await FileSystem.makeDirectoryAsync(baseDir, { intermediates: true });
         const emptyModels: StoredModel[] = [];
         await this.saveModelsToStorage(emptyModels);
         return emptyModels;
       }
 
+      console.log('reading_directory');
       const dir = await FileSystem.readDirectoryAsync(baseDir);
+      console.log('files_found', dir.length);
 
       let models: StoredModel[] = [];
       if (dir.length > 0) {
+        console.log('processing_files');
         models = await Promise.all(
           dir.map(async (name) => {
             const path = `${baseDir}/${name}`;
@@ -83,9 +122,12 @@ export class StoredModelsManager extends EventEmitter {
         );
       }
 
+      console.log('saving_to_storage', models.length);
       await this.saveModelsToStorage(models);
+      console.log('scan_complete');
       return models;
     } catch (error) {
+      console.log('scan_error', error);
       const emptyModels: StoredModel[] = [];
       await this.saveModelsToStorage(emptyModels);
       return emptyModels;
@@ -93,16 +135,29 @@ export class StoredModelsManager extends EventEmitter {
   }
 
   private async syncStorageWithFileSystem(): Promise<void> {
+    console.log('sync_start');
     try {
+      const storedData = await AsyncStorage.getItem(this.STORAGE_KEY);
+      if (storedData) {
+        console.log('storage_exists_skip_sync');
+        return;
+      }
+      
+      console.log('no_storage_scanning_filesystem');
       await this.scanFileSystemAndUpdateStorage();
+      console.log('sync_complete');
     } catch (error) {
+      console.log('sync_error', error);
     }
   }
 
   private async saveModelsToStorage(models: StoredModel[]): Promise<void> {
+    console.log('save_storage_start', models.length);
     try {
       await AsyncStorage.setItem(this.STORAGE_KEY, JSON.stringify(models));
+      console.log('save_storage_complete');
     } catch (error) {
+      console.log('save_storage_error', error);
     }
   }
 

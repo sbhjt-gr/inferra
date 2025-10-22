@@ -13,6 +13,8 @@ class ModelDownloader extends EventEmitter {
   private storedModelsManager: StoredModelsManager;
   private downloadTaskManager: DownloadTaskManager;
   private isInitialized: boolean = false;
+  private isInitializing: boolean = false;
+  private initializationPromise: Promise<void> | null = null;
   private hasNotificationPermission: boolean = false;
 
   constructor() {
@@ -23,7 +25,7 @@ class ModelDownloader extends EventEmitter {
     
     this.setupEventForwarding();
     
-    this.initialize();
+    this.initializationPromise = this.initialize();
   }
 
   private setupEventForwarding(): void {
@@ -101,12 +103,29 @@ class ModelDownloader extends EventEmitter {
     }
   }
 
-  private async initialize() {
+  private async initialize(): Promise<void> {
+    if (this.isInitialized) {
+      console.log('already_initialized');
+      return;
+    }
+
+    if (this.isInitializing) {
+      console.log('init_in_progress_waiting');
+      await this.initializationPromise;
+      return;
+    }
+
+    this.isInitializing = true;
+    console.log('downloader_init_start');
+    
     try {
+      console.log('init_file_manager');
       await this.fileManager.initializeDirectories();
       
+      console.log('init_models_manager');
       await this.storedModelsManager.initialize();
 
+      console.log('init_download_manager');
       await this.downloadTaskManager.initialize();
 
       await this.downloadTaskManager.ensureDownloadsAreRunning();
@@ -114,6 +133,7 @@ class ModelDownloader extends EventEmitter {
       try {
         AppState.addEventListener('change', this.handleAppStateChange);
       } catch (error) {
+        console.log('appstate_listener_error', error);
       }
       
       await this.downloadTaskManager.processCompletedDownloads();
@@ -121,7 +141,12 @@ class ModelDownloader extends EventEmitter {
       await this.fileManager.cleanupTempDirectory();
       
       this.isInitialized = true;
+      console.log('downloader_init_complete');
     } catch (error) {
+      console.log('downloader_init_error', error);
+      throw error;
+    } finally {
+      this.isInitializing = false;
     }
   }
 
@@ -147,7 +172,7 @@ class ModelDownloader extends EventEmitter {
 
   async downloadModel(url: string, modelName: string, authToken?: string): Promise<{ downloadId: number }> {
     if (!this.isInitialized) {
-      await this.initialize();
+      await this.initializationPromise;
     }
 
     try {
@@ -178,8 +203,10 @@ class ModelDownloader extends EventEmitter {
   }
 
   async getStoredModels(): Promise<StoredModel[]> {
+    console.log('get_stored_models_call', this.isInitialized);
     if (!this.isInitialized) {
-      await this.initialize();
+      console.log('lazy_init');
+      await this.initializationPromise;
     }
     return await this.storedModelsManager.getStoredModels();
   }
@@ -210,6 +237,7 @@ class ModelDownloader extends EventEmitter {
   }
 
   async reloadStoredModels(): Promise<StoredModel[]> {
+    console.log('reload_stored_models');
     return await this.storedModelsManager.reloadStoredModels();
   }
 
