@@ -147,7 +147,7 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
   const { enableRemoteModels, isLoggedIn, checkLoginStatus } = useRemoteModel();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
   const [activeTab, setActiveTab] = useState<'stored' | 'downloadable' | 'remote'>('stored');
-  const { storedModels, isRefreshing: isRefreshingStoredModels, refreshStoredModels } = useStoredModels();
+  const { storedModels, isLoading: isLoadingStoredModels, isRefreshing: isRefreshingStoredModels, refreshStoredModels } = useStoredModels();
   const { downloadProgress, setDownloadProgress } = useDownloads();
   const [customUrlDialogVisible, setCustomUrlDialogVisible] = useState(false);
   const [isDownloadsVisible, setIsDownloadsVisible] = useState(false);
@@ -1012,16 +1012,25 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
               contentContainerStyle={styles.list}
               ListHeaderComponent={StoredModelsHeader}
               ListEmptyComponent={
-                <View style={styles.emptyContainer}>
-                  <MaterialCommunityIcons 
-                    name="folder-open" 
-                    size={48} 
-                    color={themeColors.secondaryText}
-                  />
-                  <RNText style={[styles.emptyText, { color: themeColors.secondaryText }]}>
-                    No models downloaded yet. Go to the "Download Models" tab to get started.
-                  </RNText>
-                </View>
+                isLoadingStoredModels ? (
+                  <View style={styles.emptyContainer}>
+                    <ActivityIndicator size="large" color={getThemeAwareColor('#4a0660', currentTheme)} />
+                    <RNText style={[styles.emptyText, { color: themeColors.secondaryText, marginTop: 16 }]}>
+                      Loading models...
+                    </RNText>
+                  </View>
+                ) : (
+                  <View style={styles.emptyContainer}>
+                    <MaterialCommunityIcons 
+                      name="folder-open" 
+                      size={48} 
+                      color={themeColors.secondaryText}
+                    />
+                    <RNText style={[styles.emptyText, { color: themeColors.secondaryText }]}>
+                      No models downloaded yet. Go to the "Download Models" tab to get started.
+                    </RNText>
+                  </View>
+                )
               }
             />
           ) : activeTab === 'downloadable' ? (

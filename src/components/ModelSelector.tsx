@@ -150,7 +150,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     const defaultNavigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
     const navigation = propNavigation || defaultNavigation;
     const [modalVisible, setModalVisible] = useState(false);
-    const { storedModels: models, isRefreshing: isRefreshingLocalModels, refreshStoredModels } = useStoredModels();
+    const { storedModels: models, isLoading: isLoadingLocalModels, isRefreshing: isRefreshingLocalModels, refreshStoredModels } = useStoredModels();
     const { selectedModelPath, selectedProjectorPath, isModelLoading, loadModel, unloadModel, unloadProjector, isMultimodalEnabled } = useModel();
     const [onlineModelStatuses, setOnlineModelStatuses] = useState<{[key: string]: boolean}>({
       gemini: false,
@@ -1354,14 +1354,21 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                         </View>
                       </View>
                     </TouchableOpacity>
-                    {models.length === 0 && (
+                    {isLoadingLocalModels ? (
+                      <View style={styles.emptyContainer}>
+                        <ActivityIndicator size="large" color={getThemeAwareColor('#4a0660', currentTheme)} />
+                        <Text style={[styles.emptyText, { color: currentTheme === 'dark' ? '#fff' : themeColors.text, marginTop: 16 }]}>
+                          Loading models...
+                        </Text>
+                      </View>
+                    ) : models.length === 0 ? (
                       <View style={styles.emptyContainer}>
                         <MaterialCommunityIcons name="cube-outline" size={48} color={currentTheme === 'dark' ? '#fff' : themeColors.secondaryText} />
                         <Text style={[styles.emptyText, { color: currentTheme === 'dark' ? '#fff' : themeColors.text }]}>
                           No local models found. Download from Models tab.
                         </Text>
                       </View>
-                    )}
+                    ) : null}
                   </View>
                 }
                 ListEmptyComponent={
