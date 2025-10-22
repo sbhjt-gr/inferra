@@ -77,6 +77,7 @@ export default function ChatInput({
   const [pendingMultimodalAction, setPendingMultimodalAction] = useState<'camera' | 'file' | null>(null);
   const [pendingFileForMultimodal, setPendingFileForMultimodal] = useState<{uri: string, name?: string} | null>(null);
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
+  const [useRagForUpload, setUseRagForUpload] = useState(false);
   
   const inputRef = useRef<TextInput>(null);
   const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
@@ -157,6 +158,26 @@ export default function ChatInput({
       }).start();
     }
   }, [showAttachmentMenu]);
+
+  useEffect(() => {
+    let isActive = true;
+    if (fileModalVisible) {
+      RAGService.isEnabled()
+        .then(enabled => {
+          if (isActive) {
+            setUseRagForUpload(enabled);
+          }
+        })
+        .catch(() => {
+          if (isActive) {
+            setUseRagForUpload(false);
+          }
+        });
+    }
+    return () => {
+      isActive = false;
+    };
+  }, [fileModalVisible]);
 
   const startPulseAnimation = () => {
     Animated.loop(
@@ -325,6 +346,10 @@ export default function ChatInput({
     setPendingFileForMultimodal(null);
   };
 
+  const handleToggleRagForUpload = useCallback((value: boolean) => {
+    setUseRagForUpload(value);
+  }, []);
+
   const toggleAttachmentMenu = () => {
     setShowAttachmentMenu(!showAttachmentMenu);
   };
@@ -368,64 +393,83 @@ export default function ChatInput({
   }, []);
 
   const handleFileUpload = useCallback(
-    async (content: string, fileName?: string, userPrompt?: string) => {
+    async (content: string, fileName?: string, userPrompt?: string, useRagFlag = false) => {
       const displayName = fileName || 'unnamed file';
-      let handledByRAG = false;
+      const sanitizedPrompt = userPrompt ? userPrompt.trim() : '';
+      const userMessage = sanitizedPrompt || `File uploaded: ${displayName}`;
+      const buildInternalInstruction = (fileBody?: string) => {
+        const sections: string[] = [`You're reading a file named: ${displayName}`];
+        if (sanitizedPrompt) {
+          sections.push(`User request: ${sanitizedPrompt}`);
+        }
+        if (!sanitizedPrompt && userMessage) {
+          sections.push(`User request: ${userMessage}`);
+        }
+        const fileSection = fileBody && fileBody.length > 0
+          ? `--- FILE START ---\n${fileBody}\n--- FILE END ---`
+          : `--- FILE START ---\n--- FILE END ---`;
+        sections.push(fileSection);
+        return sections.join('\n\n');
+      };
 
-      try {
-        const enabled = await RAGService.isEnabled();
-        if (enabled) {
-          if (!llamaManager.isInitialized()) {
-            showDialog('Model not ready', 'Load a local model before using retrieval.');
-          } else {
-            setIsProcessingWithRAG(true);
-            if (!RAGService.isReady()) {
-              await RAGService.initialize();
-            }
-            if (RAGService.isReady()) {
-              const documentId = uuidv4();
-              const ragDocument: RAGDocument = {
-                id: documentId,
-                content,
-                fileName: displayName,
-                fileType: displayName.split('.').pop()?.toLowerCase(),
-                timestamp: Date.now(),
-              };
+      let ragHandled = false;
+      let ragIndicatorActive = false;
 
-              await RAGService.addDocument(ragDocument);
-              handledByRAG = true;
+      if (useRagFlag) {
+        try {
+          const enabled = await RAGService.isEnabled();
+          if (enabled) {
+            if (!llamaManager.isInitialized()) {
+              showDialog('Model not ready', 'Load a local model before using retrieval.');
+            } else {
+              ragIndicatorActive = true;
+              setIsProcessingWithRAG(true);
+              if (!RAGService.isReady()) {
+                await RAGService.initialize();
+              }
+              if (RAGService.isReady()) {
+                const documentId = uuidv4();
+                const ragDocument: RAGDocument = {
+                  id: documentId,
+                  content,
+                  fileName: displayName,
+                  fileType: displayName.split('.').pop()?.toLowerCase(),
+                  timestamp: Date.now(),
+                };
 
-              const acknowledgement = userPrompt && userPrompt.trim().length > 0
-                ? userPrompt
-                : `Document "${displayName}" stored for retrieval.`;
+                await RAGService.addDocument(ragDocument);
+                ragHandled = true;
 
-              const messageObject = {
-                type: 'file_upload',
-                internalInstruction: `You're reading a file named: ${displayName}\n\n--- FILE START ---\nDocument stored for retrieval.\n--- FILE END ---\n\nUser request: ${acknowledgement}`,
-                userContent: acknowledgement,
-                metadata: { ragDocumentId: documentId },
-              };
+                const messageObject = {
+                  type: 'file_upload',
+                  internalInstruction: buildInternalInstruction(),
+                  userContent: userMessage,
+                  metadata: { ragDocumentId: documentId },
+                };
 
-              console.log('file_upload_rag', displayName, documentId, content.length, messageObject.internalInstruction, messageObject.userContent, content);
-              onSend(JSON.stringify(messageObject));
+                console.log('file_upload_rag', displayName, documentId, content.length);
+                onSend(JSON.stringify(messageObject));
+              }
             }
           }
+        } catch (error) {
+          if (!ragHandled) {
+            showDialog('Retrieval error', 'Document could not be stored for retrieval. Sending full content instead.');
+          }
+        } finally {
+          if (ragIndicatorActive) {
+            setIsProcessingWithRAG(false);
+          }
         }
-      } catch (error) {
-        if (!handledByRAG) {
-          showDialog('Retrieval error', 'Document could not be stored for retrieval. Sending full content instead.');
-        }
-      } finally {
-        setIsProcessingWithRAG(false);
       }
 
-      if (!handledByRAG) {
+      if (!ragHandled) {
         const fallbackObject = {
           type: 'file_upload',
-          internalInstruction: `You're reading a file named: ${displayName}\n\n--- FILE START ---\n${content}\n--- FILE END ---${userPrompt && userPrompt.trim() ? `\n\nUser request: ${userPrompt}` : ''}`,
-          userContent: userPrompt || '',
+          internalInstruction: buildInternalInstruction(content),
+          userContent: userMessage,
         };
-        console.log('file_upload_fallback', displayName, content.length, fallbackObject.internalInstruction, fallbackObject.userContent);
+        console.log('file_upload_fallback', displayName, content.length);
         onSend(JSON.stringify(fallbackObject));
       }
 
@@ -925,6 +969,8 @@ export default function ChatInput({
         fileName={selectedFile?.name}
         onUpload={handleFileUpload}
         onImageUpload={handleImageUpload}
+        useRag={useRagForUpload}
+        onToggleRag={handleToggleRagForUpload}
       />
 
       <CameraOverlay
