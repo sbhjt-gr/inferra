@@ -34,7 +34,6 @@ export class BackgroundDownloadService {
       const modelName = event.modelName || this.extractModelName(event.destination, event.url);
 
       if (!modelName) {
-        console.warn(`${LOG_TAG}: progress_event_missing_model`, event);
         return;
       }
 
@@ -103,9 +102,6 @@ export class BackgroundDownloadService {
       }
 
       if (!transfer) {
-        console.warn(
-          `${LOG_TAG}: Completion event received for non-existent transfer: ${event.downloadId}`,
-        );
         return;
       }
 
@@ -125,11 +121,9 @@ export class BackgroundDownloadService {
 
       this.eventCallbacks.onComplete?.(modelName);
       this.activeTransfers.delete(modelName);
-      console.log(`${LOG_TAG}: transfer_removed:`, modelName);
     });
 
     this.nativeEventEmitter.addListener('onTransferError', event => {
-      console.error(`${LOG_TAG}: Transfer error for ID: ${event.downloadId}`, event.error);
       const derivedModelName = event.modelName || this.extractModelName(event.destination, event.url);
 
       let transfer: DownloadJob | undefined = derivedModelName
@@ -239,7 +233,6 @@ export class BackgroundDownloadService {
   }
 
   setEventHandlers(callbacks: DownloadEventCallbacks) {
-    console.log(`${LOG_TAG}: event_handlers_set:`, Object.keys(callbacks));
     this.eventCallbacks = callbacks;
   }
 
@@ -258,14 +251,7 @@ export class BackgroundDownloadService {
     destinationPath: string,
     authToken?: string | null,
   ): Promise<string | undefined> {
-    console.log(`${LOG_TAG}: transfer_starting:`, model.name);
-    console.log(`${LOG_TAG}: model_details:`, JSON.stringify(model, null, 2));
-    console.log(`${LOG_TAG}: destination_path:`, destinationPath);
-    console.log(`${LOG_TAG}: auth_token_provided:`, !!authToken);
-    console.log(`${LOG_TAG}: platform:`, Platform.OS);
-    
     if (this.isTransferActive(model.name)) {
-      console.log(`${LOG_TAG}: transfer_already_active:`, model.name);
       return this.activeTransfers.get(model.name)?.downloadId;
     }
 
@@ -274,20 +260,15 @@ export class BackgroundDownloadService {
       destinationPath.lastIndexOf('/'),
     );
     try {
-      console.log(`${LOG_TAG}: creating_directory:`, directoryPath);
       await FileSystem.makeDirectoryAsync(directoryPath, { intermediates: true });
-      console.log(`${LOG_TAG}: directory_created_successfully:`, directoryPath);
     } catch (err) {
-      console.error(`${LOG_TAG}: Failed to create directory:`, err);
       throw err;
     }
 
     if (Platform.OS === 'ios') {
-      console.log(`${LOG_TAG}: starting_ios_transfer`);
       return await this.startIOSTransfer(model, destinationPath, authToken);
     }
 
-    console.log(`${LOG_TAG}: starting_android_transfer`);
     return await this.startAndroidTransfer(model, destinationPath, authToken);
   }
 
@@ -328,7 +309,6 @@ export class BackgroundDownloadService {
         progressInterval: 500,
         headers: authToken ? {Authorization: `Bearer ${authToken}`} : {},
         begin: (res: any) => {
-          console.log(`${LOG_TAG}: ios_transfer_started:`, model.name);
           if (transferJob.state.progress) {
             transferJob.state.progress.bytesTotal = res.contentLength;
             this.eventCallbacks.onProgress?.(model.name, transferJob.state.progress);
@@ -383,14 +363,10 @@ export class BackgroundDownloadService {
       transferJob.downloadId = nativeDownloadId;
       transferJob.rnfsJobId = downloadResult.jobId;
 
-      console.log(`${LOG_TAG}: ios_job_created:`, downloadResult.jobId);
-
   this.eventCallbacks.onStart?.(model.name, nativeDownloadId);
 
       downloadResult.promise
         .then(() => {
-          console.log(`${LOG_TAG}: ios_transfer_completed:`, model.name);
-
           const transfer = this.activeTransfers.get(model.name);
           if (transfer && transfer.state.progress) {
             transfer.state.isDownloading = false;
@@ -423,7 +399,6 @@ export class BackgroundDownloadService {
 
       return nativeDownloadId;
     } catch (error) {
-      console.error(`${LOG_TAG}: ios_start_failed:`, error);
       this.activeTransfers.delete(model.name);
       throw error;
     }

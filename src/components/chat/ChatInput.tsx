@@ -161,30 +161,26 @@ export default function ChatInput({
     }
   }, [showAttachmentMenu]);
 
-  const refreshRagPreference = useCallback(async () => {
+  const ensureRagToggleDefault = useCallback(async () => {
     try {
       const enabled = await RAGService.isEnabled();
       if (!enabled) {
-        setUseRagForUpload(false);
-        await AsyncStorage.setItem('@rag_upload_pref', 'false');
-        return;
+        await RAGService.setEnabled(true);
       }
-      const stored = await AsyncStorage.getItem('@rag_upload_pref');
-      setUseRagForUpload(stored === 'true' || stored === null);
     } catch (error) {
-      setUseRagForUpload(true);
     }
+    setUseRagForUpload(true);
   }, []);
 
   useEffect(() => {
-    refreshRagPreference();
-  }, [refreshRagPreference]);
+    ensureRagToggleDefault();
+  }, [ensureRagToggleDefault]);
 
   useEffect(() => {
     if (fileModalVisible || cameraVisible) {
-      refreshRagPreference();
+      ensureRagToggleDefault();
     }
-  }, [fileModalVisible, cameraVisible, refreshRagPreference]);
+  }, [fileModalVisible, cameraVisible, ensureRagToggleDefault]);
 
   const startPulseAnimation = () => {
     Animated.loop(
@@ -355,7 +351,6 @@ export default function ChatInput({
 
   const handleToggleRagForUpload = useCallback((value: boolean) => {
     setUseRagForUpload(value);
-    AsyncStorage.setItem('@rag_upload_pref', value ? 'true' : 'false');
   }, []);
 
   const toggleAttachmentMenu = () => {
@@ -417,7 +412,8 @@ export default function ChatInput({
           return { handled, cancelled, documentId };
         }
 
-        if (!llamaManager.isInitialized()) {
+        const isRemoteOrApple = selectedModelPath && ['gemini', 'chatgpt', 'deepseek', 'claude', 'apple-foundation'].includes(selectedModelPath);
+        if (!isRemoteOrApple && !llamaManager.isInitialized()) {
           showDialog('Model not ready', 'Load a local model before using retrieval.');
           return { handled, cancelled, documentId };
         }

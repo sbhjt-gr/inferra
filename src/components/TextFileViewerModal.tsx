@@ -82,6 +82,7 @@ export default function TextFileViewerModal({
 
   useEffect(() => {
     if (visible) {
+      onToggleRag(true);
       setLoading(true);
       setError(null);
       setFileContent('');
@@ -116,7 +117,7 @@ export default function TextFileViewerModal({
 
       readFile();
     }
-  }, [visible, filePath]);
+  }, [visible, filePath, onToggleRag]);
 
   return (
     <Modal

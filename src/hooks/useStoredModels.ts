@@ -16,8 +16,6 @@ export const useStoredModels = (): UseStoredModelsReturn => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const loadingRef = useRef(false);
 
-  console.log('hook_init');
-
   const loadStoredModels = useCallback(async (forceRefresh = false) => {
     console.log('load_models_start', forceRefresh);
     if (loadingRef.current && !forceRefresh) {

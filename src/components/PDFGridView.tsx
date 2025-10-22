@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -60,6 +60,12 @@ export default function PDFGridView({
   const screenWidth = Dimensions.get('window').width;
   const numColumns = 3;
   const itemWidth = (screenWidth - 40) / numColumns;
+
+  useEffect(() => {
+    if (visible) {
+      onToggleRag(true);
+    }
+  }, [visible, onToggleRag]);
 
   return (
     <Modal

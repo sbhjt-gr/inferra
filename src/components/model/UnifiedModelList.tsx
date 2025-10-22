@@ -51,7 +51,7 @@ const ModelWarningDialog: React.FC<ModelWarningDialogProps> = ({
         
         <Dialog.Content>
           <Text style={{ color: themeColors.text, marginBottom: 16 }}>
-            I do not own these models. They may generate harmful, biased, or inappropriate content. Use responsibly and at your own discretion.
+            We do not own these models. They may generate harmful, biased, or inappropriate content. Use responsibly and at your own discretion.
           </Text>
           
           <TouchableOpacity 
@@ -894,7 +894,7 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
               <View style={styles.guidanceButtonContent}>
                 <MaterialCommunityIcons name="help-circle-outline" size={24} color={getThemeAwareColor('#4a0660', currentTheme)} />
                 <Text style={[styles.guidanceButtonText, { color: themeColors.text }]}>
-                  I don't know what to download
+                  We don't know what to download
                 </Text>
               </View>
             </TouchableOpacity>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -47,6 +47,12 @@ export default function ImageProcessingSelector({
   const { selectedModelPath, loadModel, isMultimodalEnabled } = useModel();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
   const isDark = currentTheme === 'dark';
+
+  useEffect(() => {
+    if (onToggleRag) {
+      onToggleRag(true);
+    }
+  }, [onToggleRag]);
 
   const loadStoredModels = async () => {
     try {

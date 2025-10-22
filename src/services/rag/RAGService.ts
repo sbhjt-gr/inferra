@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { RAG, MemoryVectorStore, RecursiveCharacterTextSplitter, type Message, type LLM } from 'react-native-rag';
 import { OPSQLiteVectorStore } from '@react-native-rag/op-sqlite';
 import { LlamaRnEmbeddings } from './LlamaRnEmbeddings';
+import { UniversalEmbeddings } from './UniversalEmbeddings';
 import { LlamaRnLLM } from './LlamaRnLLM';
 import { OnlineModelLLM } from './OnlineModelLLM';
 import { AppleFoundationLLM } from './AppleFoundationLLM';
@@ -29,7 +30,7 @@ const sanitizeChunk = (value: string): string => value.replace(CONTROL_CHARS_REG
 
 class RAGServiceClass {
   private rag: RAG | null = null;
-  private embeddings: LlamaRnEmbeddings | null = null;
+  private embeddings: LlamaRnEmbeddings | UniversalEmbeddings | null = null;
   private llm: LLM | null = null;
   private storage: RAGStorageType = 'memory';
   private initialized = false;
@@ -37,6 +38,10 @@ class RAGServiceClass {
 
   async isEnabled(): Promise<boolean> {
     const value = await AsyncStorage.getItem(RAG_ENABLED_KEY);
+    if (value === null) {
+      await AsyncStorage.setItem(RAG_ENABLED_KEY, 'true');
+      return true;
+    }
     return value === 'true';
   }
 
@@ -76,13 +81,22 @@ class RAGServiceClass {
     }
 
     console.log('rag_init_start', provider || 'local');
-    await this.ensureEmbeddingSupport();
-    console.log('rag_embeddings_verified');
+    
+    const isRemoteOrApple = provider === 'apple-foundation' || provider === 'gemini' || provider === 'chatgpt' || provider === 'deepseek' || provider === 'claude';
+    
+    if (!isRemoteOrApple) {
+      await this.ensureEmbeddingSupport();
+      console.log('rag_embeddings_verified');
+    }
     
     this.storage = await this.getStorageType();
     console.log('rag_storage_type', this.storage);
     
-    this.embeddings = new LlamaRnEmbeddings();
+    if (isRemoteOrApple) {
+      this.embeddings = new UniversalEmbeddings();
+    } else {
+      this.embeddings = new LlamaRnEmbeddings();
+    }
     
     if (provider === 'apple-foundation') {
       this.llm = new AppleFoundationLLM();

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -55,6 +55,12 @@ export default function ImageViewerModal({
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
   const isDark = currentTheme === 'dark';
+
+  useEffect(() => {
+    if (visible) {
+      onToggleRag(true);
+    }
+  }, [visible, onToggleRag]);
 
   const handleSend = async () => {
     if ((!onUpload && !onImageUpload) || !imagePath || isProcessing || !processingMode) return;
