@@ -59,8 +59,12 @@ class LlamaManager {
       const modelInfo = await loadLlamaModelInfo(finalModelPath);
 
       if (this.context) {
-        await this.multimodalService.releaseMultimodal(this.context);
+        const contextToRelease = this.context;
         this.context = null;
+        
+        this.multimodalService.releaseMultimodal(contextToRelease).catch(error => {
+          console.error('mmproj_release_error', error);
+        });
       }
 
       this.modelPath = finalModelPath;
@@ -425,9 +429,13 @@ class LlamaManager {
       try {
         const currentModelPath = this.modelPath;
         const currentMmProjectorPath = this.multimodalService.getMultimodalProjectorPath();
+        const contextToRelease = this.context;
         
-        await this.multimodalService.releaseMultimodal(this.context);
         this.context = null;
+        
+        this.multimodalService.releaseMultimodal(contextToRelease).catch(error => {
+          console.error('mmproj_release_on_cancel_error', error);
+        });
         
         this.context = await initLlama({
           model: currentModelPath,
@@ -452,29 +460,28 @@ class LlamaManager {
     const contextToRelease = this.context;
     const wasMultimodalEnabled = this.multimodalService.isMultimodalInitialized();
     
+    this.context = null;
+    this.modelPath = null;
+    
     try {
       this.isCancelled = true;
       this.tokenProcessingService.clearTokenQueue();
       
       if (wasMultimodalEnabled) {
-        try {
-          await withTimeout(this.multimodalService.releaseMultimodal(contextToRelease), 10000);
-        } catch (multimodalError) {
-          console.error('Error releasing multimodal context:', multimodalError);
-        }
+        this.multimodalService.releaseMultimodal(contextToRelease).catch(multimodalError => {
+          console.error('mmproj_release_error', multimodalError);
+        });
       }
       
     } catch (error) {
-      console.error('Error during context release:', error);
-    } finally {
-      this.context = null;
-      this.modelPath = null;
+      console.error('context_release_error', error);
     }
   }
 
   emergencyCleanup() {
     this.isCancelled = true;
     this.tokenProcessingService.clearTokenQueue();
+    this.multimodalService.clearMultimodalState();
     this.context = null;
     this.modelPath = null;
     this.isUnloading = false;
@@ -497,12 +504,11 @@ class LlamaManager {
   }
 
   async releaseMultimodal(): Promise<void> {
-    try {
-      if (this.context) {
-        await withTimeout(this.multimodalService.releaseMultimodal(this.context), 8000);
-      }
-    } catch (error) {
-      console.error('Error releasing multimodal context:', error);
+    if (this.context) {
+      const contextToRelease = this.context;
+      this.multimodalService.releaseMultimodal(contextToRelease).catch(error => {
+        console.error('mmproj_manual_release_error', error);
+      });
     }
   }
 

@@ -65,22 +65,27 @@ export class MultimodalService {
 
   async releaseMultimodal(context: LlamaContext): Promise<void> {
     if (!context) {
+      this.isMultimodalEnabled = false;
+      this.multimodalSupport = { vision: false, audio: false };
+      this.mmProjectorPath = null;
       return;
     }
 
+    this.isMultimodalEnabled = false;
+    this.multimodalSupport = { vision: false, audio: false };
+    const projectorPathToRelease = this.mmProjectorPath;
+    this.mmProjectorPath = null;
+
     try {
-      if (this.isMultimodalEnabled) {
+      if (projectorPathToRelease) {
         try {
           await withTimeout(context.releaseMultimodal(), 5000);
         } catch (contextReleaseError) {
-          console.error('Error releasing multimodal context:', contextReleaseError);
+          console.error('mmproj_context_release_error', contextReleaseError);
         }
       }
     } catch (error) {
-      console.error('Error during multimodal release:', error);
-    } finally {
-      this.isMultimodalEnabled = false;
-      this.multimodalSupport = { vision: false, audio: false };
+      console.error('mmproj_release_error', error);
     }
   }
 
@@ -241,5 +246,11 @@ export class MultimodalService {
 
   hasAudioSupport(): boolean {
     return this.isMultimodalEnabled && this.multimodalSupport.audio;
+  }
+
+  clearMultimodalState(): void {
+    this.isMultimodalEnabled = false;
+    this.multimodalSupport = { vision: false, audio: false };
+    this.mmProjectorPath = null;
   }
 }
