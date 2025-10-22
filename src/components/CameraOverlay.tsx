@@ -39,7 +39,7 @@ type CameraOverlayProps = {
   onToggleRag?: (value: boolean) => void;
 };
 
-export default function CameraOverlay({ visible, onClose, onPhotoTaken, useRag = false, onToggleRag }: CameraOverlayProps) {
+export default function CameraOverlay({ visible, onClose, onPhotoTaken, useRag = true, onToggleRag }: CameraOverlayProps) {
   const [facing, setFacing] = useState<CameraType>('back');
   const [permission, requestPermission] = useCameraPermissions();
   const [mediaLibraryPermission, requestMediaLibraryPermission] = MediaLibrary.usePermissions();

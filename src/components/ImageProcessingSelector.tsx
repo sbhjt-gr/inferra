@@ -36,7 +36,7 @@ export default function ImageProcessingSelector({
   onModeChange,
   onMultimodalReady,
   disabled = false,
-  useRag = false,
+  useRag = true,
   onToggleRag,
 }: ImageProcessingSelectorProps) {
   const [mmProjSelectorVisible, setMmProjSelectorVisible] = useState(false);

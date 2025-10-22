@@ -474,7 +474,7 @@ export default function ChatInput({
   );
 
   const handleFileUpload = useCallback(
-    async (content: string, fileName?: string, userPrompt?: string, useRagFlag = false) => {
+    async (content: string, fileName?: string, userPrompt?: string, useRagFlag = true) => {
       const displayName = fileName || 'unnamed file';
       const sanitizedPrompt = userPrompt ? userPrompt.trim() : '';
       const userMessage = sanitizedPrompt || `File uploaded: ${displayName}`;
