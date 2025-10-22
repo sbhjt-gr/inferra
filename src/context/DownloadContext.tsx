@@ -57,21 +57,6 @@ export const DownloadProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     
     loadSavedStates();
 
-    const handleDownloadProgress = (data: any) => {
-      console.log('DownloadContext: received_progress_event:', data);
-      setDownloadProgress(prev => ({
-        ...prev,
-        [data.modelName]: {
-          progress: data.progress || 0,
-          bytesDownloaded: data.bytesDownloaded || 0,
-          totalBytes: data.totalBytes || 0,
-          status: data.status || 'downloading',
-          downloadId: data.downloadId || 0,
-          isPaused: false
-        }
-      }));
-    };
-
     const handleDownloadStarted = (data: any) => {
       console.log('DownloadContext: download_started:', data);
       setDownloadProgress(prev => ({
@@ -124,14 +109,12 @@ export const DownloadProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       });
     };
 
-    modelDownloader.on('downloadProgress', handleDownloadProgress);
     modelDownloader.on('downloadStarted', handleDownloadStarted);
     modelDownloader.on('downloadCompleted', handleDownloadCompleted);
     modelDownloader.on('downloadFailed', handleDownloadFailed);
     modelDownloader.on('downloadCancelled', handleDownloadCancelled);
 
     return () => {
-      modelDownloader.off('downloadProgress', handleDownloadProgress);
       modelDownloader.off('downloadStarted', handleDownloadStarted);
       modelDownloader.off('downloadCompleted', handleDownloadCompleted);
       modelDownloader.off('downloadFailed', handleDownloadFailed);
