@@ -1,10 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { RAG, MemoryVectorStore, RecursiveCharacterTextSplitter, type Message } from 'react-native-rag';
+import { RAG, MemoryVectorStore, RecursiveCharacterTextSplitter, type Message, type LLM } from 'react-native-rag';
 import { OPSQLiteVectorStore } from '@react-native-rag/op-sqlite';
 import { LlamaRnEmbeddings } from './LlamaRnEmbeddings';
 import { LlamaRnLLM } from './LlamaRnLLM';
+import { OnlineModelLLM } from './OnlineModelLLM';
+import { AppleFoundationLLM } from './AppleFoundationLLM';
 import type { ModelSettings } from '../ModelSettingsService';
 import { llamaManager } from '../../utils/LlamaManager';
+import type { ProviderType } from '../ModelManagementService';
 
 const RAG_ENABLED_KEY = '@inferra/rag/enabled';
 const RAG_STORAGE_KEY = '@inferra/rag/storage';
@@ -27,9 +30,10 @@ const sanitizeChunk = (value: string): string => value.replace(CONTROL_CHARS_REG
 class RAGServiceClass {
   private rag: RAG | null = null;
   private embeddings: LlamaRnEmbeddings | null = null;
-  private llm: LlamaRnLLM | null = null;
+  private llm: LLM | null = null;
   private storage: RAGStorageType = 'memory';
   private initialized = false;
+  private currentProvider: ProviderType | null = null;
 
   async isEnabled(): Promise<boolean> {
     const value = await AsyncStorage.getItem(RAG_ENABLED_KEY);
@@ -56,10 +60,14 @@ class RAGServiceClass {
     }
   }
 
-  async initialize(): Promise<void> {
-    if (this.initialized) {
-      console.log('rag_already_initialized');
+  async initialize(provider?: ProviderType): Promise<void> {
+    if (this.initialized && provider === this.currentProvider) {
+      console.log('rag_already_initialized', provider || 'local');
       return;
+    }
+
+    if (this.initialized && provider !== this.currentProvider) {
+      await this.cleanup();
     }
 
     if (!(await this.isEnabled())) {
@@ -67,7 +75,7 @@ class RAGServiceClass {
       return;
     }
 
-    console.log('rag_init_start');
+    console.log('rag_init_start', provider || 'local');
     await this.ensureEmbeddingSupport();
     console.log('rag_embeddings_verified');
     
@@ -75,7 +83,16 @@ class RAGServiceClass {
     console.log('rag_storage_type', this.storage);
     
     this.embeddings = new LlamaRnEmbeddings();
-    this.llm = new LlamaRnLLM();
+    
+    if (provider === 'apple-foundation') {
+      this.llm = new AppleFoundationLLM();
+    } else if (provider === 'gemini' || provider === 'chatgpt' || provider === 'deepseek' || provider === 'claude') {
+      this.llm = new OnlineModelLLM(provider);
+    } else {
+      this.llm = new LlamaRnLLM();
+    }
+    
+    this.currentProvider = provider || null;
 
     let vectorStore: MemoryVectorStore | OPSQLiteVectorStore;
     const createMemoryStore = () => new MemoryVectorStore({ embeddings: this.embeddings! });
@@ -112,7 +129,7 @@ class RAGServiceClass {
     }
 
     this.initialized = true;
-    console.log('rag_init_complete');
+    console.log('rag_init_complete', provider || 'local');
   }
 
   async cleanup(): Promise<void> {
@@ -133,6 +150,7 @@ class RAGServiceClass {
     this.embeddings = null;
     this.llm = null;
     this.initialized = false;
+    this.currentProvider = null;
     console.log('rag_cleanup_complete');
   }
 
@@ -237,8 +255,8 @@ class RAGServiceClass {
 
     const { input, callback, settings, augmentedGeneration = true, nResults = 3 } = params;
 
-    if (this.llm) {
-      this.llm.setCustomSettings(settings);
+    if (this.llm && 'setCustomSettings' in this.llm) {
+      (this.llm as any).setCustomSettings(settings);
     }
 
     const result = await this.rag!.generate({

@@ -142,20 +142,19 @@ export class MessageProcessingService {
     firstTokenTime: number | null,
     updateCounter: number
   ): Promise<void> {
-    const streamCallback = (partialResponse: string) => {
+    const streamCallback = (token: string) => {
       if (this.cancelGenerationRef.current) {
         return false;
       }
       
       const currentTime = Date.now();
       
-      if (firstTokenTime === null && partialResponse.trim().length > 0) {
+      if (firstTokenTime === null && token.trim().length > 0) {
         firstTokenTime = currentTime - startTime;
       }
       
-      const wordCount = partialResponse.trim().split(/\s+/).filter(word => word.length > 0).length;
-      tokenCount = Math.max(1, Math.ceil(wordCount * 1.33));
-      fullResponse = partialResponse;
+      tokenCount++;
+      fullResponse += token;
       
       const duration = (currentTime - startTime) / 1000;
       let avgTokenTime = undefined;
@@ -165,7 +164,7 @@ export class MessageProcessingService {
         avgTokenTime = timeAfterFirstToken / tokenCount;
       }
       
-      this.callbacks.setStreamingMessage(partialResponse);
+      this.callbacks.setStreamingMessage(fullResponse);
       this.callbacks.setStreamingStats({
         tokens: tokenCount,
         duration: duration,
@@ -175,9 +174,9 @@ export class MessageProcessingService {
       
       updateCounter++;
       if (updateCounter % 10 === 0 || 
-          partialResponse.endsWith('.') || 
-          partialResponse.endsWith('!') || 
-          partialResponse.endsWith('?')) {
+          fullResponse.endsWith('.') || 
+          fullResponse.endsWith('!') || 
+          fullResponse.endsWith('?')) {
         let debouncedAvgTokenTime = undefined;
         if (firstTokenTime !== null && tokenCount > 0) {
           const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
@@ -186,7 +185,7 @@ export class MessageProcessingService {
         
         this.callbacks.updateMessageContentDebounced(
           messageId,
-          partialResponse,
+          fullResponse,
           '',
           {
             duration: (Date.now() - startTime) / 1000,
@@ -200,73 +199,171 @@ export class MessageProcessingService {
       return !this.cancelGenerationRef.current;
     };
 
-    const messageParams = [...processedMessages]
-      .filter(msg => msg.content.trim() !== '')
-      .map(msg => ({ 
-        id: generateRandomId(), 
-        role: msg.role as 'system' | 'user' | 'assistant', 
-        content: msg.content 
-      }));
-
-    const apiParams = {
-      temperature: settings.temperature,
-      maxTokens: settings.maxTokens,
-      topP: settings.topP,
-      stream: true,
-      streamTokens: true
-    };
-
-    try {
-      switch (activeProvider) {
-        case 'gemini':
-          await onlineModelService.sendMessageToGemini(messageParams, apiParams, streamCallback);
-          break;
-        case 'chatgpt':
-          await onlineModelService.sendMessageToOpenAI(messageParams, apiParams, streamCallback);
-          break;
-        case 'deepseek':
-          await onlineModelService.sendMessageToDeepSeek(messageParams, apiParams, streamCallback);
-          break;
-        case 'claude':
-          await onlineModelService.sendMessageToClaude(messageParams, apiParams, streamCallback);
-          break;
-        default:
-          await chatManager.updateMessageContent(
-            messageId,
-            `This model provider (${activeProvider}) is not yet implemented.`,
-            '',
-            { duration: 0, tokens: 0 }
-          );
-          return;
+    const baseMessages = processedMessages.map(msg => {
+      let content = msg.content;
+      
+      try {
+        const parsed = JSON.parse(msg.content);
+        
+        if (parsed && parsed.type === 'ocr_result') {
+          const instruction = parsed.internalInstruction || '';
+          const userPrompt = parsed.userPrompt || '';
+          content = `${instruction}\n\nUser request: ${userPrompt}`;
+        } else if (parsed && parsed.type === 'file_upload') {
+          content = parsed.internalInstruction || msg.content;
+        }
+      } catch {
       }
       
-      if (!this.cancelGenerationRef.current) {
-        let finalAvgTokenTime = undefined;
-        if (firstTokenTime !== null && tokenCount > 0) {
-          const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
-          finalAvgTokenTime = timeAfterFirstToken / tokenCount;
+      return { role: msg.role, content };
+    }) as RAGMessage[];
+
+    let usedRAG = false;
+
+    try {
+      const ragEnabled = await RAGService.isEnabled();
+      if (ragEnabled) {
+        if (!RAGService.isReady()) {
+          await RAGService.initialize(activeProvider);
         }
+        if (RAGService.isReady()) {
+          await RAGService.generate({ input: baseMessages, settings, callback: streamCallback });
+          usedRAG = true;
+        }
+      }
+    } catch (error) {
+      console.log('online_rag_error', activeProvider, error instanceof Error ? error.message : 'unknown');
+      usedRAG = false;
+    }
+
+    if (!usedRAG) {
+      const legacyStreamCallback = (partialResponse: string) => {
+        if (this.cancelGenerationRef.current) {
+          return false;
+        }
+        
+        const currentTime = Date.now();
+        
+        if (firstTokenTime === null && partialResponse.trim().length > 0) {
+          firstTokenTime = currentTime - startTime;
+        }
+        
+        const wordCount = partialResponse.trim().split(/\s+/).filter(word => word.length > 0).length;
+        tokenCount = Math.max(1, Math.ceil(wordCount * 1.33));
+        fullResponse = partialResponse;
+        
+        const duration = (currentTime - startTime) / 1000;
+        let avgTokenTime = undefined;
+        
+        if (firstTokenTime !== null && tokenCount > 0) {
+          const timeAfterFirstToken = currentTime - (startTime + firstTokenTime);
+          avgTokenTime = timeAfterFirstToken / tokenCount;
+        }
+        
+        this.callbacks.setStreamingMessage(partialResponse);
+        this.callbacks.setStreamingStats({
+          tokens: tokenCount,
+          duration: duration,
+          firstTokenTime: firstTokenTime || undefined,
+          avgTokenTime: avgTokenTime && avgTokenTime > 0 ? avgTokenTime : undefined
+        });
+        
+        updateCounter++;
+        if (updateCounter % 10 === 0 || 
+            partialResponse.endsWith('.') || 
+            partialResponse.endsWith('!') || 
+            partialResponse.endsWith('?')) {
+          let debouncedAvgTokenTime = undefined;
+          if (firstTokenTime !== null && tokenCount > 0) {
+            const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
+            debouncedAvgTokenTime = timeAfterFirstToken / tokenCount;
+          }
+          
+          this.callbacks.updateMessageContentDebounced(
+            messageId,
+            partialResponse,
+            '',
+            {
+              duration: (Date.now() - startTime) / 1000,
+              tokens: tokenCount,
+              firstTokenTime: firstTokenTime || undefined,
+              avgTokenTime: debouncedAvgTokenTime && debouncedAvgTokenTime > 0 ? debouncedAvgTokenTime : undefined
+            }
+          );
+        }
+        
+        return !this.cancelGenerationRef.current;
+      };
+
+      const messageParams = [...baseMessages]
+        .filter(msg => msg.content.trim() !== '')
+        .map(msg => ({ 
+          id: generateRandomId(), 
+          role: msg.role as 'system' | 'user' | 'assistant', 
+          content: msg.content 
+        }));
+
+      const apiParams = {
+        temperature: settings.temperature,
+        maxTokens: settings.maxTokens,
+        topP: settings.topP,
+        stream: true,
+        streamTokens: true
+      };
+
+      try {
+        switch (activeProvider) {
+          case 'gemini':
+            await onlineModelService.sendMessageToGemini(messageParams, apiParams, legacyStreamCallback);
+            break;
+          case 'chatgpt':
+            await onlineModelService.sendMessageToOpenAI(messageParams, apiParams, legacyStreamCallback);
+            break;
+          case 'deepseek':
+            await onlineModelService.sendMessageToDeepSeek(messageParams, apiParams, legacyStreamCallback);
+            break;
+          case 'claude':
+            await onlineModelService.sendMessageToClaude(messageParams, apiParams, legacyStreamCallback);
+            break;
+          default:
+            await chatManager.updateMessageContent(
+              messageId,
+              `This model provider (${activeProvider}) is not yet implemented.`,
+              '',
+              { duration: 0, tokens: 0 }
+            );
+            return;
+        }
+      } catch (error) {
+        this.callbacks.handleApiError(error, this.getProviderDisplayName(activeProvider));
         
         await chatManager.updateMessageContent(
           messageId,
-          fullResponse,
+          'Sorry, an error occurred while generating a response. Please try again.',
           '',
-          {
-            duration: (Date.now() - startTime) / 1000,
-            tokens: tokenCount,
-            firstTokenTime: firstTokenTime || undefined,
-            avgTokenTime: finalAvgTokenTime && finalAvgTokenTime > 0 ? finalAvgTokenTime : undefined
-          }
+          { duration: 0, tokens: 0 }
         );
+        return;
       }
-    } catch (error) {
-      this.callbacks.handleApiError(error, this.getProviderDisplayName(activeProvider));
+    }
+    
+    if (!this.cancelGenerationRef.current) {
+      let finalAvgTokenTime = undefined;
+      if (firstTokenTime !== null && tokenCount > 0) {
+        const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
+        finalAvgTokenTime = timeAfterFirstToken / tokenCount;
+      }
       
       await chatManager.updateMessageContent(
         messageId,
-        'Sorry, an error occurred while generating a response. Please try again.',
+        fullResponse,
         '',
-        { duration: 0, tokens: 0 }
+        {
+          duration: (Date.now() - startTime) / 1000,
+          tokens: tokenCount,
+          firstTokenTime: firstTokenTime || undefined,
+          avgTokenTime: finalAvgTokenTime && finalAvgTokenTime > 0 ? finalAvgTokenTime : undefined
+        }
       );
     }
   }
@@ -282,108 +379,206 @@ export class MessageProcessingService {
     let firstTokenTime: number | null = null;
     let updateCounter = 0;
 
-    try {
-      const stream = appleFoundationService.streamResponse(
-        processedMessages.map(msg => ({ role: msg.role, content: msg.content })),
-        {
-          temperature: settings.temperature,
-          maxTokens: settings.maxTokens,
-          topP: settings.topP,
-          topK: settings.topK,
-        }
-      );
-
-      for await (const chunk of stream) {
-        if (this.cancelGenerationRef.current) {
-          appleFoundationService.cancel();
-          break;
-        }
-
-        if (firstTokenTime === null && chunk.trim().length > 0) {
-          firstTokenTime = Date.now() - startTime;
-        }
-
-        fullResponse += chunk;
-        const wordCount = fullResponse.trim().split(/\s+/).filter(word => word.length > 0).length;
-        tokenCount = Math.max(1, Math.ceil(wordCount * 1.33));
-
-        const duration = (Date.now() - startTime) / 1000;
-        let avgTokenTime = undefined;
-
-        if (firstTokenTime !== null && tokenCount > 0) {
-          const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
-          avgTokenTime = timeAfterFirstToken / tokenCount;
-        }
-
-        this.callbacks.setStreamingMessage(fullResponse);
-        this.callbacks.setStreamingStats({
-          tokens: tokenCount,
-          duration,
-          firstTokenTime: firstTokenTime || undefined,
-          avgTokenTime: avgTokenTime && avgTokenTime > 0 ? avgTokenTime : undefined,
-        });
-
-        updateCounter++;
-        if (
-          updateCounter % 10 === 0 ||
-          fullResponse.endsWith('.') ||
-          fullResponse.endsWith('!') ||
-          fullResponse.endsWith('?')
-        ) {
-          let debouncedAvgTokenTime = undefined;
-          if (firstTokenTime !== null && tokenCount > 0) {
-            const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
-            debouncedAvgTokenTime = timeAfterFirstToken / tokenCount;
-          }
-
-          this.callbacks.updateMessageContentDebounced(
-            messageId,
-            fullResponse,
-            '',
-            {
-              duration,
-              tokens: tokenCount,
-              firstTokenTime: firstTokenTime || undefined,
-              avgTokenTime: debouncedAvgTokenTime && debouncedAvgTokenTime > 0 ? debouncedAvgTokenTime : undefined,
-            }
-          );
-        }
+    const streamCallback = (token: string) => {
+      if (this.cancelGenerationRef.current) {
+        return false;
       }
 
-      if (!this.cancelGenerationRef.current) {
-        let finalAvgTokenTime = undefined;
+      if (firstTokenTime === null && token.trim().length > 0) {
+        firstTokenTime = Date.now() - startTime;
+      }
+
+      fullResponse += token;
+      const wordCount = fullResponse.trim().split(/\s+/).filter(word => word.length > 0).length;
+      tokenCount = Math.max(1, Math.ceil(wordCount * 1.33));
+
+      const duration = (Date.now() - startTime) / 1000;
+      let avgTokenTime = undefined;
+
+      if (firstTokenTime !== null && tokenCount > 0) {
+        const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
+        avgTokenTime = timeAfterFirstToken / tokenCount;
+      }
+
+      this.callbacks.setStreamingMessage(fullResponse);
+      this.callbacks.setStreamingStats({
+        tokens: tokenCount,
+        duration,
+        firstTokenTime: firstTokenTime || undefined,
+        avgTokenTime: avgTokenTime && avgTokenTime > 0 ? avgTokenTime : undefined,
+      });
+
+      updateCounter++;
+      if (
+        updateCounter % 10 === 0 ||
+        fullResponse.endsWith('.') ||
+        fullResponse.endsWith('!') ||
+        fullResponse.endsWith('?')
+      ) {
+        let debouncedAvgTokenTime = undefined;
         if (firstTokenTime !== null && tokenCount > 0) {
           const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
-          finalAvgTokenTime = timeAfterFirstToken / tokenCount;
+          debouncedAvgTokenTime = timeAfterFirstToken / tokenCount;
         }
 
-        await chatManager.updateMessageContent(
+        this.callbacks.updateMessageContentDebounced(
           messageId,
           fullResponse,
           '',
           {
-            duration: (Date.now() - startTime) / 1000,
+            duration,
             tokens: tokenCount,
             firstTokenTime: firstTokenTime || undefined,
-            avgTokenTime: finalAvgTokenTime && finalAvgTokenTime > 0 ? finalAvgTokenTime : undefined,
+            avgTokenTime: debouncedAvgTokenTime && debouncedAvgTokenTime > 0 ? debouncedAvgTokenTime : undefined,
           }
         );
       }
-    } catch (error) {
-      appleFoundationService.cancel();
-      const message = error instanceof Error ? error.message : String(error);
-      const normalized = message.toLowerCase();
-      let displayMessage = 'Apple Intelligence not available on this device.';
-      if (normalized.includes('disabled')) {
-        displayMessage = 'Apple Intelligence is disabled. Enable it in Settings to continue.';
-      } else if (!normalized.includes('not available')) {
-        displayMessage = `Apple Intelligence error: ${message}`;
+
+      return !this.cancelGenerationRef.current;
+    };
+
+    const baseMessages = processedMessages.map(msg => {
+      let content = msg.content;
+      
+      try {
+        const parsed = JSON.parse(msg.content);
+        
+        if (parsed && parsed.type === 'ocr_result') {
+          const instruction = parsed.internalInstruction || '';
+          const userPrompt = parsed.userPrompt || '';
+          content = `${instruction}\n\nUser request: ${userPrompt}`;
+        } else if (parsed && parsed.type === 'file_upload') {
+          content = parsed.internalInstruction || msg.content;
+        }
+      } catch {
       }
+      
+      return { role: msg.role, content };
+    }) as RAGMessage[];
+
+    let usedRAG = false;
+
+    try {
+      const ragEnabled = await RAGService.isEnabled();
+      if (ragEnabled) {
+        if (!RAGService.isReady()) {
+          await RAGService.initialize('apple-foundation');
+        }
+        if (RAGService.isReady()) {
+          await RAGService.generate({ input: baseMessages, settings, callback: streamCallback });
+          usedRAG = true;
+        }
+      }
+    } catch (error) {
+      console.log('apple_rag_error', error instanceof Error ? error.message : 'unknown');
+      usedRAG = false;
+    }
+
+    if (!usedRAG) {
+      try {
+        const stream = appleFoundationService.streamResponse(
+          baseMessages.map(msg => ({ role: msg.role, content: msg.content })),
+          {
+            temperature: settings.temperature,
+            maxTokens: settings.maxTokens,
+            topP: settings.topP,
+            topK: settings.topK,
+          }
+        );
+
+        for await (const chunk of stream) {
+          if (this.cancelGenerationRef.current) {
+            appleFoundationService.cancel();
+            break;
+          }
+
+          if (firstTokenTime === null && chunk.trim().length > 0) {
+            firstTokenTime = Date.now() - startTime;
+          }
+
+          fullResponse += chunk;
+          const wordCount = fullResponse.trim().split(/\s+/).filter(word => word.length > 0).length;
+          tokenCount = Math.max(1, Math.ceil(wordCount * 1.33));
+
+          const duration = (Date.now() - startTime) / 1000;
+          let avgTokenTime = undefined;
+
+          if (firstTokenTime !== null && tokenCount > 0) {
+            const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
+            avgTokenTime = timeAfterFirstToken / tokenCount;
+          }
+
+          this.callbacks.setStreamingMessage(fullResponse);
+          this.callbacks.setStreamingStats({
+            tokens: tokenCount,
+            duration,
+            firstTokenTime: firstTokenTime || undefined,
+            avgTokenTime: avgTokenTime && avgTokenTime > 0 ? avgTokenTime : undefined,
+          });
+
+          updateCounter++;
+          if (
+            updateCounter % 10 === 0 ||
+            fullResponse.endsWith('.') ||
+            fullResponse.endsWith('!') ||
+            fullResponse.endsWith('?')
+          ) {
+            let debouncedAvgTokenTime = undefined;
+            if (firstTokenTime !== null && tokenCount > 0) {
+              const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
+              debouncedAvgTokenTime = timeAfterFirstToken / tokenCount;
+            }
+
+            this.callbacks.updateMessageContentDebounced(
+              messageId,
+              fullResponse,
+              '',
+              {
+                duration,
+                tokens: tokenCount,
+                firstTokenTime: firstTokenTime || undefined,
+                avgTokenTime: debouncedAvgTokenTime && debouncedAvgTokenTime > 0 ? debouncedAvgTokenTime : undefined,
+              }
+            );
+          }
+        }
+      } catch (error) {
+        appleFoundationService.cancel();
+        const message = error instanceof Error ? error.message : String(error);
+        const normalized = message.toLowerCase();
+        let displayMessage = 'Apple Intelligence not available on this device.';
+        if (normalized.includes('disabled')) {
+          displayMessage = 'Apple Intelligence is disabled. Enable it in Settings to continue.';
+        } else if (!normalized.includes('not available')) {
+          displayMessage = `Apple Intelligence error: ${message}`;
+        }
+        await chatManager.updateMessageContent(
+          messageId,
+          displayMessage,
+          '',
+          { duration: 0, tokens: 0 }
+        );
+        return;
+      }
+    }
+
+    if (!this.cancelGenerationRef.current) {
+      let finalAvgTokenTime = undefined;
+      if (firstTokenTime !== null && tokenCount > 0) {
+        const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
+        finalAvgTokenTime = timeAfterFirstToken / tokenCount;
+      }
+
       await chatManager.updateMessageContent(
         messageId,
-        displayMessage,
+        fullResponse,
         '',
-        { duration: 0, tokens: 0 }
+        {
+          duration: (Date.now() - startTime) / 1000,
+          tokens: tokenCount,
+          firstTokenTime: firstTokenTime || undefined,
+          avgTokenTime: finalAvgTokenTime && finalAvgTokenTime > 0 ? finalAvgTokenTime : undefined,
+        }
       );
     }
   }
