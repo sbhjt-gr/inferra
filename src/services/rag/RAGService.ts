@@ -140,7 +140,13 @@ class RAGServiceClass {
     return this.initialized && this.rag !== null;
   }
 
-  async addDocument(document: RAGDocument): Promise<void> {
+  async addDocument(
+    document: RAGDocument,
+    options?: {
+      onProgress?: (completed: number, total: number) => void;
+      isCancelled?: () => boolean;
+    }
+  ): Promise<void> {
     this.ensureReady();
     console.log('rag_add_doc', document.id);
 
@@ -178,16 +184,23 @@ class RAGServiceClass {
 
     console.log('rag_chunks_total', document.id, prepared.length);
 
+    const totalChunks = prepared.length;
+    options?.onProgress?.(0, totalChunks);
+
     let added = 0;
     let lastError: unknown = null;
 
     for (const entry of prepared) {
+      if (options?.isCancelled?.()) {
+        throw new Error('rag_upload_cancelled');
+      }
       try {
         await this.rag!.addDocument({
           document: entry.chunk,
           metadata: entry.metadata,
         });
         added += 1;
+        options?.onProgress?.(added, totalChunks);
       } catch (error) {
         lastError = error;
         console.log(
@@ -207,6 +220,9 @@ class RAGServiceClass {
     }
 
     console.log('rag_doc_added', document.id, added);
+    if (added < totalChunks) {
+      options?.onProgress?.(added, totalChunks);
+    }
   }
 
   async generate(params: {

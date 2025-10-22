@@ -95,6 +95,8 @@ export default function ChatInput({
   const [showAITermsDialog, setShowAITermsDialog] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [isProcessingWithRAG, setIsProcessingWithRAG] = useState(false);
+  const [ragProgress, setRagProgress] = useState<{ completed: number; total: number } | null>(null);
+  const ragCancelRef = useRef<{ cancelled: boolean }>({ cancelled: false });
 
   const isGenerating = isLoading || isRegenerating;
   const hasText = text.trim().length > 0;
@@ -431,6 +433,8 @@ export default function ChatInput({
             } else {
               ragIndicatorActive = true;
               setIsProcessingWithRAG(true);
+              ragCancelRef.current.cancelled = false;
+              setRagProgress({ completed: 0, total: 0 });
               if (!RAGService.isReady()) {
                 await RAGService.initialize();
               }
@@ -444,7 +448,12 @@ export default function ChatInput({
                   timestamp: Date.now(),
                 };
 
-                await RAGService.addDocument(ragDocument);
+                await RAGService.addDocument(ragDocument, {
+                  onProgress: (completed, total) => {
+                    setRagProgress({ completed, total });
+                  },
+                  isCancelled: () => ragCancelRef.current.cancelled,
+                });
                 ragHandled = true;
 
                 const messageObject = {
@@ -481,6 +490,8 @@ export default function ChatInput({
       }
 
       setShowAttachmentMenu(false);
+      setRagProgress(null);
+      ragCancelRef.current.cancelled = false;
     },
     [onSend, showDialog]
   );
@@ -794,7 +805,17 @@ export default function ChatInput({
           ]}
         >
           <ActivityIndicator size="small" color={getThemeAwareColor('#4a0660', currentTheme)} />
-          <Text style={[styles.ragBannerText, { color: isDark ? '#ffffff' : getThemeAwareColor('#4a0660', currentTheme) }]}>Storing document for retrieval</Text>
+          <Text style={[styles.ragBannerText, { color: isDark ? '#ffffff' : getThemeAwareColor('#4a0660', currentTheme) }]}>Storing document for retrieval {ragProgress ? `(${ragProgress.completed}/${ragProgress.total || '?'})` : ''}</Text>
+          <TouchableOpacity
+            onPress={() => {
+              ragCancelRef.current.cancelled = true;
+              setRagProgress(null);
+              setIsProcessingWithRAG(false);
+            }}
+            style={styles.ragCancelButton}
+          >
+            <MaterialCommunityIcons name="close" size={16} color={isDark ? '#ffffff' : getThemeAwareColor('#4a0660', currentTheme)} />
+          </TouchableOpacity>
         </View>
       )}
       <TouchableWithoutFeedback onPress={() => {
@@ -1112,6 +1133,11 @@ const styles = StyleSheet.create({
   ragBannerText: {
     fontSize: 13,
     fontWeight: '600',
+  },
+  ragCancelButton: {
+    marginLeft: 8,
+    padding: 4,
+    borderRadius: 12,
   },
   container: {
     position: 'relative',
