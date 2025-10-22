@@ -424,10 +424,13 @@ export default function ChatInput({
         setRagProgress({ completed: 0, total: 0 });
 
         if (!RAGService.isReady()) {
-          await RAGService.initialize();
+          console.log('rag_init_trigger', selectedModelPath);
+          await RAGService.initialize(selectedModelPath as any);
+          console.log('rag_init_done', RAGService.isReady());
         }
 
         if (!RAGService.isReady()) {
+          console.log('rag_not_ready_after_init', selectedModelPath);
           return { handled, cancelled, documentId };
         }
 
@@ -466,7 +469,7 @@ export default function ChatInput({
 
       return { handled, cancelled, documentId };
     },
-    [showDialog]
+    [showDialog, selectedModelPath]
   );
 
   const handleFileUpload = useCallback(

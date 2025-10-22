@@ -98,6 +98,9 @@ class RAGServiceClass {
       this.embeddings = new LlamaRnEmbeddings();
     }
     
+    await this.embeddings.load();
+    console.log('rag_embeddings_loaded', provider || 'local');
+    
     if (provider === 'apple-foundation') {
       this.llm = new AppleFoundationLLM();
     } else if (provider === 'gemini' || provider === 'chatgpt' || provider === 'deepseek' || provider === 'claude') {
