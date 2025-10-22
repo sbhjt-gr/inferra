@@ -181,6 +181,8 @@ export default function ImageViewerModal({
             selectedMode={processingMode}
             onModeChange={setProcessingMode}
             disabled={isProcessing}
+            useRag={useRag}
+            onToggleRag={onToggleRag}
           />
           
           <Text style={[styles.inputLabel, { color: themeColors.text }]}>

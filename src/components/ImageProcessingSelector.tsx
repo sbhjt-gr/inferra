@@ -4,6 +4,7 @@ import {
   View,
   TouchableOpacity,
   ActivityIndicator,
+  Switch,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Text, Button, Dialog, Portal } from 'react-native-paper';
@@ -26,6 +27,8 @@ type ImageProcessingSelectorProps = {
   onModeChange: (mode: ImageProcessingMode) => void;
   onMultimodalReady?: () => void;
   disabled?: boolean;
+  useRag?: boolean;
+  onToggleRag?: (value: boolean) => void;
 };
 
 export default function ImageProcessingSelector({
@@ -33,6 +36,8 @@ export default function ImageProcessingSelector({
   onModeChange,
   onMultimodalReady,
   disabled = false,
+  useRag = false,
+  onToggleRag,
 }: ImageProcessingSelectorProps) {
   const [mmProjSelectorVisible, setMmProjSelectorVisible] = useState(false);
   const [storedModels, setStoredModels] = useState<StoredModel[]>([]);
@@ -249,6 +254,30 @@ export default function ImageProcessingSelector({
         </TouchableOpacity>
       </View>
 
+      {selectedMode === 'ocr' && onToggleRag && (
+        <View
+          style={[
+            styles.ragRow,
+            {
+              backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.02)',
+              borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
+            },
+          ]}
+        >
+          <View style={styles.ragTextContainer}>
+            <Text style={[styles.ragTitle, { color: themeColors.text }]}>Use RAG</Text>
+            <Text style={[styles.ragDescription, { color: isDark ? '#bbbbbb' : '#666666' }]}>Store extracted text for this chat.</Text>
+          </View>
+          <Switch
+            value={useRag}
+            onValueChange={onToggleRag}
+            disabled={disabled}
+            trackColor={{ false: isDark ? '#444444' : '#dddddd', true: '#66088080' }}
+            thumbColor={useRag ? '#660880' : isDark ? '#222222' : '#f2f2f2'}
+          />
+        </View>
+      )}
+
       <Portal>
         <Dialog visible={mmProjSelectorVisible} onDismiss={handleProjectorSelectorClose}>
           <Dialog.Title style={{ color: isDark ? '#ffffff' : '#000000' }}>
@@ -428,5 +457,27 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 2,
     lineHeight: 16,
+  },
+  ragRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 12,
+    gap: 12,
+  },
+  ragTextContainer: {
+    flex: 1,
+  },
+  ragTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  ragDescription: {
+    fontSize: 13,
+    lineHeight: 18,
   },
 }); 

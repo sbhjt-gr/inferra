@@ -1020,6 +1020,8 @@ export default function ChatInput({
         visible={cameraVisible}
         onClose={closeCamera}
         onPhotoTaken={handlePhotoTaken}
+        useRag={useRagForUpload}
+        onToggleRag={handleToggleRagForUpload}
       />
 
       <Portal>
