@@ -543,12 +543,16 @@ export default function ChatInput({
 
   const processOcrRagIfNeeded = useCallback(
     async (messageContent: string): Promise<{ finalMessage: string; cancelled: boolean }> => {
-      if (!useRagForUpload) {
-        return { finalMessage: messageContent, cancelled: false };
-      }
-
       try {
         const parsed = JSON.parse(messageContent);
+
+        if (parsed?.type === 'multimodal') {
+          return { finalMessage: messageContent, cancelled: false };
+        }
+
+        if (!useRagForUpload) {
+          return { finalMessage: messageContent, cancelled: false };
+        }
 
         if (parsed?.type === 'ocr_result' && typeof parsed.extractedText === 'string') {
           const displayName = parsed?.fileName || 'ocr_document';
