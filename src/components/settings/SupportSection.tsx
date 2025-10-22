@@ -67,7 +67,7 @@ const SupportSection = ({ onOpenLink, onNavigateToLicenses }: SupportSectionProp
               Liked My App?
             </Text>
             <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
-              Please rate my app 5 stars
+              Rate my app 5 stars
             </Text>
           </View>
         </View>

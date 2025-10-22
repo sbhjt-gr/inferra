@@ -1,3 +1,4 @@
+import React from 'react';
 import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system';
 import PdfPageImage from 'react-native-pdf-page-image';
@@ -224,7 +225,8 @@ export const performOCROnPages = async (
   pages: PageImage[],
   selectedPages: number[],
   allPages: PageImage[],
-  setExtractionProgress: ExtractionProgress
+  setExtractionProgress: ExtractionProgress,
+  isCancelledRef?: React.MutableRefObject<boolean>
 ): Promise<string> => {
   try {
     setExtractionProgress('Processing PDF...');
@@ -240,6 +242,11 @@ export const performOCROnPages = async (
       : allPages.map((_, i) => i);
     
     for (let i = 0; i < pages.length; i++) {
+      if (isCancelledRef?.current) {
+        console.log('pdf_ocr_cancelled');
+        throw new Error('cancelled');
+      }
+      
       const actualPageNumber = selectedIndices[i] + 1;
       
       setExtractionProgress(`Reading text from page ${actualPageNumber}...`);
@@ -258,6 +265,11 @@ export const performOCROnPages = async (
           continue;
         }
         
+        if (isCancelledRef?.current) {
+          console.log('pdf_ocr_cancelled');
+          throw new Error('cancelled');
+        }
+        
         setExtractionProgress(`Processing page ${actualPageNumber}...`);
         
         const recognitionResult = await TextRecognition.recognize(imageUri);
@@ -268,6 +280,9 @@ export const performOCROnPages = async (
           allText += `--- Page ${actualPageNumber} ---\n[No text detected on this page]\n\n`;
         }
       } catch (err) {
+        if (err instanceof Error && err.message === 'cancelled') {
+          throw err;
+        }
         allText += `--- Page ${actualPageNumber} ---\n[Text recognition failed for this page]\n\n`;
       }
     }
@@ -285,6 +300,8 @@ export const performOCROnPages = async (
 
 export const cleanupTempFiles = async (tempFileUris: string[]): Promise<void> => {
   try {
+    console.log('pdf_cleanup_files_start', tempFileUris.length);
+    
     for (const uri of tempFileUris) {
       try {
         const fileInfo = await FileSystem.getInfoAsync(uri);
@@ -293,6 +310,21 @@ export const cleanupTempFiles = async (tempFileUris: string[]): Promise<void> =>
         }
       } catch (err) {
       }
+    }
+    
+    console.log('pdf_cleanup_files_complete');
+  } catch (err) {
+  }
+};
+
+export const cleanupAllPdfCache = async (): Promise<void> => {
+  try {
+    const cacheDir = FileSystem.cacheDirectory + 'pdf_images/';
+    const dirInfo = await FileSystem.getInfoAsync(cacheDir);
+    
+    if (dirInfo.exists) {
+      await FileSystem.deleteAsync(cacheDir, { idempotent: true });
+      console.log('pdf_cache_cleared');
     }
   } catch (err) {
   }

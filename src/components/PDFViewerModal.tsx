@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -24,6 +24,7 @@ import {
   extractPdfPages,
   performOCROnPages,
   cleanupTempFiles,
+  cleanupAllPdfCache,
   formatExtractedContent
 } from '../utils/PDFOcrUtils';
 
@@ -68,6 +69,9 @@ export default function PDFViewerModal({
   const [dialogMessage, setDialogMessage] = useState('');
   const [dialogActions, setDialogActions] = useState<React.ReactNode[]>([]);
 
+  const isCancelledRef = useRef(false);
+  const progressTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   const hideDialog = () => setDialogVisible(false);
 
   const showDialog = (title: string, message: string, actions: React.ReactNode[] = [<Button key="ok" onPress={hideDialog}>OK</Button>]) => {
@@ -78,6 +82,37 @@ export default function PDFViewerModal({
   };
 
   const displayFileName = fileName || pdfSource.split('/').pop() || "Document";
+
+  const cleanupAndClose = async () => {
+    console.log('pdf_cleanup_start');
+    
+    isCancelledRef.current = true;
+    
+    if (progressTimerRef.current) {
+      clearInterval(progressTimerRef.current);
+      progressTimerRef.current = null;
+    }
+    
+    setIsExtracting(false);
+    setExtractionProgress('');
+    
+    await cleanupTempFiles(tempFileUris);
+    console.log('pdf_cleanup_files', tempFileUris.length);
+    
+    setLoading(true);
+    setError(null);
+    setUserPrompt('');
+    setPromptError(false);
+    setExtractedPages([]);
+    setPageCount(0);
+    setTempFileUris([]);
+    setExtractionResult(null);
+    setShowGridView(false);
+    setExtractedContent('');
+    setSelectedPages([]);
+    
+    onClose();
+  };
 
   const safeUpload = (pdfPath: string, fileName: string, userPromptText: string, extractedText?: string): boolean => {
     try {
@@ -119,8 +154,8 @@ export default function PDFViewerModal({
     setPromptError(false);
     setIsExtracting(true);
     setExtractionResult(null);
+    isCancelledRef.current = false;
     
-    let progressTimer: NodeJS.Timeout | null = null;
     const progressMessages = [
       "Preparing...",
       "Processing PDF...",
@@ -131,12 +166,23 @@ export default function PDFViewerModal({
     ];
     
     let progressIndex = 0;
-    progressTimer = setInterval(() => {
+    progressTimerRef.current = setInterval(() => {
+      if (isCancelledRef.current) {
+        if (progressTimerRef.current) {
+          clearInterval(progressTimerRef.current);
+          progressTimerRef.current = null;
+        }
+        return;
+      }
+      
       if (progressIndex < progressMessages.length) {
         setExtractionProgress(progressMessages[progressIndex]);
         progressIndex++;
       } else {
-        if (progressTimer) clearInterval(progressTimer);
+        if (progressTimerRef.current) {
+          clearInterval(progressTimerRef.current);
+          progressTimerRef.current = null;
+        }
       }
     }, 3000);
     
@@ -145,6 +191,9 @@ export default function PDFViewerModal({
         ? extractedPages.filter((_, index) => selectedPages.includes(index))
         : extractedPages;
       
+      if (isCancelledRef.current) {
+        throw new Error('cancelled');
+      }
       
       setExtractionProgress(`Starting text recognition on ${pagesToProcess.length} page(s)...`);
       
@@ -152,12 +201,20 @@ export default function PDFViewerModal({
         pagesToProcess, 
         selectedPages, 
         extractedPages, 
-        setExtractionProgress
+        setExtractionProgress,
+        isCancelledRef
       );
+      
+      if (isCancelledRef.current) {
+        throw new Error('cancelled');
+      }
       
       let formattedContent = formatExtractedContent(rawExtractedContent);
       
-      if (progressTimer) clearInterval(progressTimer);
+      if (progressTimerRef.current) {
+        clearInterval(progressTimerRef.current);
+        progressTimerRef.current = null;
+      }
       
       if (formattedContent.includes("No significant text") || 
           formattedContent.includes("No text could be extracted") || 
@@ -171,6 +228,7 @@ export default function PDFViewerModal({
       const uploadSuccess = safeUpload(pdfSource, displayFileName, userPrompt, formattedContent);
       
       if (uploadSuccess) {
+        await cleanupTempFiles(tempFileUris);
         onClose();
       } else {
         setExtractionResult({
@@ -181,11 +239,17 @@ export default function PDFViewerModal({
         setShowGridView(false);
       }
     } catch (err) {
+      if (progressTimerRef.current) {
+        clearInterval(progressTimerRef.current);
+        progressTimerRef.current = null;
+      }
       
-      if (progressTimer) clearInterval(progressTimer);
+      if (isCancelledRef.current || (err instanceof Error && err.message === 'cancelled')) {
+        console.log('pdf_extraction_cancelled');
+        return;
+      }
       
       const fallbackExtractedContent = "[PDF content extraction failed. This PDF may contain complex formatting, be scanned, or primarily contain images.]";
-      
       
       setExtractedContent(fallbackExtractedContent);
       setExtractionResult({
@@ -195,9 +259,14 @@ export default function PDFViewerModal({
       });
       setShowGridView(false);
     } finally {
-      if (progressTimer) clearInterval(progressTimer);
-      setIsExtracting(false);
-      setExtractionProgress('');
+      if (progressTimerRef.current) {
+        clearInterval(progressTimerRef.current);
+        progressTimerRef.current = null;
+      }
+      if (!isCancelledRef.current) {
+        setIsExtracting(false);
+        setExtractionProgress('');
+      }
     }
   };
 
@@ -313,6 +382,7 @@ export default function PDFViewerModal({
 
   useEffect(() => {
     if (visible) {
+      isCancelledRef.current = false;
       setLoading(true);
       setError(null);
       setUserPrompt('');
@@ -335,6 +405,11 @@ export default function PDFViewerModal({
           try {
             const { extractedPages: pages, tempFileUris: uris, pageCount: count } = 
               await extractPdfPages(pdfSource, setExtractionProgress);
+            
+            if (isCancelledRef.current) {
+              await cleanupTempFiles(uris);
+              return;
+            }
               
             setExtractedPages(pages);
             setTempFileUris(uris);
@@ -342,8 +417,10 @@ export default function PDFViewerModal({
             setSelectedPages(pages.map((_, index) => index));
             setLoading(false);
           } catch (err) {
-            setError('Failed to load PDF. The file might be corrupted or not accessible.');
-            setLoading(false);
+            if (!isCancelledRef.current) {
+              setError('Failed to load PDF. The file might be corrupted or not accessible.');
+              setLoading(false);
+            }
           }
         };
         
@@ -353,8 +430,18 @@ export default function PDFViewerModal({
         setError('Failed to load PDF. The file might be corrupted or not accessible.');
       }
     } else {
-      cleanupTempFiles(tempFileUris);
+      cleanupAndClose();
     }
+    
+    return () => {
+      if (!visible) {
+        isCancelledRef.current = true;
+        if (progressTimerRef.current) {
+          clearInterval(progressTimerRef.current);
+          progressTimerRef.current = null;
+        }
+      }
+    };
   }, [visible, pdfSource]);
   
   return (
@@ -363,10 +450,7 @@ export default function PDFViewerModal({
         visible={visible && !showGridView}
         animationType="slide"
         transparent={false}
-        onRequestClose={() => {
-          cleanupTempFiles(tempFileUris);
-          onClose();
-        }}
+        onRequestClose={cleanupAndClose}
       >
         <KeyboardAvoidingView 
           style={{ flex: 1 }}
@@ -385,10 +469,7 @@ export default function PDFViewerModal({
               >
                 {displayFileName}
               </Text>
-              <TouchableOpacity style={styles.closeButton} onPress={() => {
-                cleanupTempFiles(tempFileUris);
-                onClose();
-              }}>
+              <TouchableOpacity style={styles.closeButton} onPress={cleanupAndClose}>
                 <MaterialCommunityIcons 
                   name="close" 
                   size={24} 
@@ -475,7 +556,16 @@ export default function PDFViewerModal({
       
       <PDFGridView 
         visible={showGridView}
-        onClose={() => setShowGridView(false)}
+        onClose={() => {
+          isCancelledRef.current = true;
+          if (progressTimerRef.current) {
+            clearInterval(progressTimerRef.current);
+            progressTimerRef.current = null;
+          }
+          setShowGridView(false);
+          setIsExtracting(false);
+          setExtractionProgress('');
+        }}
         displayFileName={displayFileName}
         isDark={isDark}
         extractedPages={extractedPages}
