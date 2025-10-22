@@ -85,6 +85,11 @@ class ChatDatabase {
     await this.db.runAsync('DELETE FROM app_state');
   }
 
+  async deleteMessage(messageId: string): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized');
+    await this.db.runAsync('DELETE FROM messages WHERE id = ?', [messageId]);
+  }
+
   async getAllChats(): Promise<Chat[]> {
     if (!this.db) throw new Error('Database not initialized');
 

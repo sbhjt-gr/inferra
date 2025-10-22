@@ -9,6 +9,24 @@ import { modelSettingsService, type ModelSettings } from './ModelSettingsService
 import { StoredModel } from './ModelDownloaderTypes';
 import { llamaManager } from '../utils/LlamaManager';
 import { logger } from '../utils/logger';
+import chatManager, { type Chat } from '../utils/ChatManager';
+import { RAGService } from './rag/RAGService';
+import type { ProviderType } from './ModelManagementService';
+import { appleFoundationService } from './AppleFoundationService';
+import { onlineModelService } from './OnlineModelService';
+import apiKeyDatabase from '../utils/ApiKeyDatabase';
+import { Platform } from 'react-native';
+
+type RemoteProvider = Exclude<ProviderType, 'local' | 'apple-foundation'>;
+type RemoteProviderState = {
+  provider: RemoteProvider;
+  configured: boolean;
+  model: string | null;
+  usingDefault: boolean;
+};
+
+const REMOTE_PROVIDERS: RemoteProvider[] = ['gemini', 'chatgpt', 'deepseek', 'claude'];
+const REMOTE_MODELS_PREF_KEY = 'remote_models_enabled';
 
 interface SignalingMessage {
   type: 'offer' | 'answer' | 'ice' | 'ping' | 'connected';
@@ -728,6 +746,7 @@ export class TCPSignalingServer {
     const method = parts[0] || '';
     const rawPath = parts[1] || '/';
     const path = rawPath.split('?')[0];
+  const segments = path.split('/').filter(segment => segment.length > 0);
 
     if (method === 'OPTIONS') {
       this.sendHTTPResponse(socket, 204, {
@@ -762,6 +781,11 @@ export class TCPSignalingServer {
   <p>Example:</p>
   <pre>curl -X GET http://&lt;host&gt;:11434/api/tags</pre>
 
+  <h3>GET /api/status</h3>
+  <p>Returns server health, active model details, and RAG readiness.</p>
+  <p>Example:</p>
+  <pre>curl -X GET http://&lt;host&gt;:11434/api/status</pre>
+
   <h3>POST /api/pull</h3>
   <p>Downloads a model from a supplied URL or remote registry.</p>
   <p>Request Body:</p>
@@ -780,6 +804,98 @@ export class TCPSignalingServer {
   <p>Displays the model currently loaded into memory with details.</p>
   <p>Example:</p>
   <pre>curl -X GET http://&lt;host&gt;:11434/api/ps</pre>
+
+  <h3>POST /api/models</h3>
+  <p>Controls the active model. Supported actions: <code>load</code>, <code>unload</code>, <code>reload</code>.</p>
+  <p>Request Body:</p>
+  <pre>{"action":"load","model":"ModelName.gguf"}</pre>
+  <p>Example:</p>
+  <pre>curl -X POST http://&lt;host&gt;:11434/api/models -H "Content-Type: application/json" -d '{"action":"unload"}'</pre>
+
+  <h3>GET /api/chats</h3>
+  <p>Lists stored conversations with summary metadata.</p>
+  <p>Example:</p>
+  <pre>curl -X GET http://&lt;host&gt;:11434/api/chats</pre>
+
+  <h3>POST /api/chats</h3>
+  <p>Creates a new chat with optional title and seed messages.</p>
+  <p>Request Body:</p>
+  <pre>{"title":"Brainstorm","messages":[{"role":"user","content":"Hello"}]}</pre>
+  <p>Example:</p>
+  <pre>curl -X POST http://&lt;host&gt;:11434/api/chats -H "Content-Type: application/json" -d '{"title":"New Chat"}'</pre>
+
+  <h3>GET /api/chats/&lt;chatId&gt;</h3>
+  <p>Returns chat metadata and all messages.</p>
+  <p>Example:</p>
+  <pre>curl -X GET http://&lt;host&gt;:11434/api/chats/123</pre>
+
+  <h3>DELETE /api/chats/&lt;chatId&gt;</h3>
+  <p>Removes a chat and its messages.</p>
+  <p>Example:</p>
+  <pre>curl -X DELETE http://&lt;host&gt;:11434/api/chats/123</pre>
+
+  <h3>GET /api/chats/&lt;chatId&gt;/messages</h3>
+  <p>Lists messages for a chat in chronological order.</p>
+  <p>Example:</p>
+  <pre>curl -X GET http://&lt;host&gt;:11434/api/chats/123/messages</pre>
+
+  <h3>POST /api/chats/&lt;chatId&gt;/messages</h3>
+  <p>Appends one or more messages to an existing chat.</p>
+  <p>Request Body:</p>
+  <pre>{"messages":[{"role":"assistant","content":"Hi!"}]}</pre>
+  <p>Example:</p>
+  <pre>curl -X POST http://&lt;host&gt;:11434/api/chats/123/messages -H "Content-Type: application/json" -d '{"messages":[{"role":"user","content":"Next step?"}]}'</pre>
+
+  <h3>PUT /api/chats/&lt;chatId&gt;/messages/&lt;messageId&gt;</h3>
+  <p>Updates message content, role, thinking traces, or stats.</p>
+  <p>Example:</p>
+  <pre>curl -X PUT http://&lt;host&gt;:11434/api/chats/123/messages/abc -H "Content-Type: application/json" -d '{"content":"Edited"}'</pre>
+
+  <h3>DELETE /api/chats/&lt;chatId&gt;/messages/&lt;messageId&gt;</h3>
+  <p>Deletes a single message from a chat.</p>
+  <p>Example:</p>
+  <pre>curl -X DELETE http://&lt;host&gt;:11434/api/chats/123/messages/abc</pre>
+
+  <h3>POST /api/chats/&lt;chatId&gt;/title</h3>
+  <p>Sets a custom title or auto-generates one from the first user prompt.</p>
+  <p>Example:</p>
+  <pre>curl -X POST http://&lt;host&gt;:11434/api/chats/123/title -H "Content-Type: application/json" -d '{"prompt":"Summarize research notes"}'</pre>
+
+  <h3>POST /api/chats/&lt;chatId&gt;/model</h3>
+  <p>Associates a chat with a model path or clears the link.</p>
+  <p>Example:</p>
+  <pre>curl -X POST http://&lt;host&gt;:11434/api/chats/123/model -H "Content-Type: application/json" -d '{"path":"models/llama.gguf"}'</pre>
+
+  <h3>POST /api/files/ingest</h3>
+  <p>Stores file contents in the Retrieval-Augmented Generation index when enabled.</p>
+  <p>Request Body:</p>
+  <pre>{"fileName":"notes.txt","content":"...","provider":"local","rag":true}</pre>
+  <p>Example:</p>
+  <pre>curl -X POST http://&lt;host&gt;:11434/api/files/ingest -H "Content-Type: application/json" -d '{"fileName":"doc.md","content":"# Notes"}'</pre>
+
+  <h3>GET /api/rag</h3>
+  <p>Shows retrieval status, storage mode, and readiness.</p>
+  <p>Example:</p>
+  <pre>curl -X GET http://&lt;host&gt;:11434/api/rag</pre>
+
+  <h3>POST /api/rag</h3>
+  <p>Updates RAG enablement, storage strategy, provider, and optional initialization.</p>
+  <p>Request Body:</p>
+  <pre>{"enabled":true,"storage":"persistent","provider":"local","initialize":true}</pre>
+  <p>Example:</p>
+  <pre>curl -X POST http://&lt;host&gt;:11434/api/rag -H "Content-Type: application/json" -d '{"enabled":false}'</pre>
+
+  <h3>POST /api/rag/reset</h3>
+  <p>Clears the vector store and reinitializes retrieval.</p>
+  <p>Example:</p>
+  <pre>curl -X POST http://&lt;host&gt;:11434/api/rag/reset</pre>
+
+  <h3>POST /api/settings/thinking</h3>
+  <p>Toggles local model thinking mode (chain-of-thought) on or off.</p>
+  <p>Request Body:</p>
+  <pre>{"enabled":true}</pre>
+  <p>Example:</p>
+  <pre>curl -X POST http://&lt;host&gt;:11434/api/settings/thinking -H "Content-Type: application/json" -d '{"enabled":false}'</pre>
 
   <h3>POST /api/chat</h3>
   <p>Streams chat completions using a messages array. Supports streaming and non-streaming modes.</p>
@@ -878,6 +994,10 @@ export class TCPSignalingServer {
 </html>`;
       this.sendHTTPResponse(socket, 200, { 'Content-Type': 'text/html; charset=utf-8' }, bodyContent);
       logger.logWebRequest(method, path, 200);
+      return;
+    }
+
+    if (await this.handleExtendedApiRequest(method, path, segments, body, socket)) {
       return;
     }
 
@@ -1568,6 +1688,1048 @@ export class TCPSignalingServer {
 
     this.sendJSONResponse(socket, 404, { error: 'not_found' });
     logger.logWebRequest(method, path, 404);
+  }
+
+  private async handleExtendedApiRequest(
+    method: string,
+    path: string,
+    segments: string[],
+    body: string,
+    socket: any
+  ): Promise<boolean> {
+    if (segments.length === 0 || segments[0] !== 'api') {
+      return false;
+    }
+
+    const resource = segments[1] || '';
+
+    switch (resource) {
+      case 'chats':
+        return await this.handleChatApi(method, segments.slice(2), body, socket, path);
+      case 'files':
+        return await this.handleFileApi(method, segments.slice(2), body, socket, path);
+      case 'rag':
+        return await this.handleRagApi(method, segments.slice(2), body, socket, path);
+      case 'status':
+        return await this.handleServerStatusApi(method, socket, path);
+      case 'models':
+        return await this.handleModelApi(method, segments.slice(2), body, socket, path);
+      case 'settings':
+        return await this.handleSettingsApi(method, segments.slice(2), body, socket, path);
+      default:
+        return false;
+    }
+  }
+
+  private async handleChatApi(
+    method: string,
+    segments: string[],
+    body: string,
+    socket: any,
+    path: string
+  ): Promise<boolean> {
+    if (segments.length === 0) {
+      if (method === 'GET') {
+        try {
+          await chatManager.ensureInitialized();
+          const chats = chatManager.getAllChats();
+          this.sendJSONResponse(socket, 200, { chats: chats.map(chat => this.serializeChat(chat, false)) });
+          logger.logWebRequest(method, `/api/chats`, 200);
+        } catch (error) {
+          this.sendJSONResponse(socket, 500, { error: 'chat_list_failed' });
+          logger.logWebRequest(method, `/api/chats`, 500);
+        }
+        return true;
+      }
+
+      if (method === 'POST') {
+        if (!body) {
+          this.sendJSONResponse(socket, 400, { error: 'empty_body' });
+          logger.logWebRequest(method, `/api/chats`, 400);
+          return true;
+        }
+
+        let payload: any;
+        try {
+          payload = JSON.parse(body);
+        } catch (error) {
+          this.sendJSONResponse(socket, 400, { error: 'invalid_json' });
+          logger.logWebRequest(method, `/api/chats`, 400);
+          return true;
+        }
+
+        const title = typeof payload?.title === 'string' && payload.title.length > 0 ? payload.title : undefined;
+        const initialMessages = Array.isArray(payload?.messages) ? payload.messages : [];
+        const preparedMessages = initialMessages
+          .filter((entry: any) => entry && typeof entry.content === 'string')
+          .map((entry: any) => ({
+            id: typeof entry.id === 'string' ? entry.id : undefined,
+            role: typeof entry.role === 'string' ? entry.role : 'user',
+            content: entry.content,
+            thinking: typeof entry.thinking === 'string' ? entry.thinking : undefined,
+            stats: typeof entry.stats === 'object' ? entry.stats : undefined,
+          }));
+
+        try {
+          await chatManager.ensureInitialized();
+          const chat = await chatManager.createNewChat();
+          if (preparedMessages.length > 0) {
+            await chatManager.appendMessages(chat.id, preparedMessages);
+          }
+          const updated = chatManager.getChatById(chat.id) || chat;
+          if (title) {
+            await chatManager.setChatTitle(chat.id, title);
+          }
+          this.sendJSONResponse(socket, 201, { chat: this.serializeChat(updated, true) });
+          logger.logWebRequest(method, `/api/chats`, 201);
+        } catch (error) {
+          this.sendJSONResponse(socket, 500, { error: 'chat_create_failed' });
+          logger.logWebRequest(method, `/api/chats`, 500);
+        }
+        return true;
+      }
+
+      this.sendJSONResponse(socket, 405, { error: 'method_not_allowed' });
+      logger.logWebRequest(method, `/api/chats`, 405);
+      return true;
+    }
+
+    const chatId = segments[0];
+    const subresource = segments[1] || '';
+
+    if (method === 'GET' && !subresource) {
+      try {
+        await chatManager.ensureInitialized();
+        const chat = chatManager.getChatById(chatId);
+        if (!chat) {
+          this.sendJSONResponse(socket, 404, { error: 'chat_not_found' });
+          logger.logWebRequest(method, path, 404);
+          return true;
+        }
+
+        this.sendJSONResponse(socket, 200, { chat: this.serializeChat(chat, true) });
+        logger.logWebRequest(method, path, 200);
+      } catch (error) {
+        this.sendJSONResponse(socket, 500, { error: 'chat_load_failed' });
+        logger.logWebRequest(method, path, 500);
+      }
+      return true;
+    }
+
+    if (method === 'DELETE' && !subresource) {
+      try {
+        await chatManager.ensureInitialized();
+        const result = await chatManager.deleteChat(chatId);
+        if (!result) {
+          this.sendJSONResponse(socket, 404, { error: 'chat_not_found' });
+          logger.logWebRequest(method, path, 404);
+          return true;
+        }
+
+        this.sendJSONResponse(socket, 200, { status: 'deleted', chatId });
+        logger.logWebRequest(method, path, 200);
+      } catch (error) {
+        this.sendJSONResponse(socket, 500, { error: 'chat_delete_failed' });
+        logger.logWebRequest(method, path, 500);
+      }
+      return true;
+    }
+
+    if (subresource === 'messages') {
+      if (method === 'GET') {
+        try {
+          await chatManager.ensureInitialized();
+          const chat = chatManager.getChatById(chatId);
+          if (!chat) {
+            this.sendJSONResponse(socket, 404, { error: 'chat_not_found' });
+            logger.logWebRequest(method, path, 404);
+            return true;
+          }
+
+          this.sendJSONResponse(socket, 200, { messages: chat.messages });
+          logger.logWebRequest(method, path, 200);
+        } catch (error) {
+          this.sendJSONResponse(socket, 500, { error: 'chat_messages_failed' });
+          logger.logWebRequest(method, path, 500);
+        }
+        return true;
+      }
+
+      if (method === 'POST') {
+        if (!body) {
+          this.sendJSONResponse(socket, 400, { error: 'empty_body' });
+          logger.logWebRequest(method, path, 400);
+          return true;
+        }
+
+        let payload: any;
+        try {
+          payload = JSON.parse(body);
+        } catch (error) {
+          this.sendJSONResponse(socket, 400, { error: 'invalid_json' });
+          logger.logWebRequest(method, path, 400);
+          return true;
+        }
+
+        const entries = Array.isArray(payload?.messages) ? payload.messages : Array.isArray(payload) ? payload : [payload];
+
+        try {
+          const created = await chatManager.appendMessages(
+            chatId,
+            entries.map((item: any) => ({
+              id: typeof item?.id === 'string' ? item.id : undefined,
+              role: typeof item?.role === 'string' ? item.role : 'user',
+              content: typeof item?.content === 'string' ? item.content : '',
+              thinking: typeof item?.thinking === 'string' ? item.thinking : undefined,
+              stats: typeof item?.stats === 'object' ? item.stats : undefined,
+            }))
+          );
+
+          this.sendJSONResponse(socket, 201, { messages: created });
+          logger.logWebRequest(method, path, 201);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'chat_message_append_failed';
+          if (message === 'chat_not_found') {
+            this.sendJSONResponse(socket, 404, { error: 'chat_not_found' });
+            logger.logWebRequest(method, path, 404);
+          } else {
+            this.sendJSONResponse(socket, 500, { error: 'chat_message_append_failed' });
+            logger.logWebRequest(method, path, 500);
+          }
+        }
+        return true;
+      }
+
+      if (segments.length >= 3) {
+        const messageId = segments[2];
+
+        if (method === 'PUT') {
+          if (!body) {
+            this.sendJSONResponse(socket, 400, { error: 'empty_body' });
+            logger.logWebRequest(method, path, 400);
+            return true;
+          }
+
+          let payload: any;
+          try {
+            payload = JSON.parse(body);
+          } catch (error) {
+            this.sendJSONResponse(socket, 400, { error: 'invalid_json' });
+            logger.logWebRequest(method, path, 400);
+            return true;
+          }
+
+          const updates = typeof payload === 'object' && payload ? payload : {};
+
+          const result = await chatManager.updateMessageById(chatId, messageId, {
+            content: typeof updates.content === 'string' ? updates.content : undefined,
+            thinking: typeof updates.thinking === 'string' ? updates.thinking : updates.thinking === null ? null : undefined,
+            stats: typeof updates.stats === 'object' ? updates.stats : updates.stats === null ? null : undefined,
+            role: typeof updates.role === 'string' ? updates.role : undefined,
+          });
+
+          if (!result) {
+            this.sendJSONResponse(socket, 404, { error: 'message_not_found' });
+            logger.logWebRequest(method, path, 404);
+            return true;
+          }
+
+          this.sendJSONResponse(socket, 200, { status: 'updated', chatId, messageId });
+          logger.logWebRequest(method, path, 200);
+          return true;
+        }
+
+        if (method === 'DELETE') {
+          try {
+            const result = await chatManager.removeMessage(chatId, messageId);
+            if (!result) {
+              this.sendJSONResponse(socket, 404, { error: 'message_not_found' });
+              logger.logWebRequest(method, path, 404);
+              return true;
+            }
+
+            this.sendJSONResponse(socket, 200, { status: 'deleted', chatId, messageId });
+            logger.logWebRequest(method, path, 200);
+          } catch (error) {
+            this.sendJSONResponse(socket, 500, { error: 'message_delete_failed' });
+            logger.logWebRequest(method, path, 500);
+          }
+          return true;
+        }
+      }
+    }
+
+    if (subresource === 'title' && method === 'POST') {
+      if (!body) {
+        this.sendJSONResponse(socket, 400, { error: 'empty_body' });
+        logger.logWebRequest(method, path, 400);
+        return true;
+      }
+
+      let payload: any;
+      try {
+        payload = JSON.parse(body);
+      } catch (error) {
+        this.sendJSONResponse(socket, 400, { error: 'invalid_json' });
+        logger.logWebRequest(method, path, 400);
+        return true;
+      }
+
+      const title = typeof payload?.title === 'string' && payload.title.length > 0 ? payload.title : undefined;
+      const prompt = typeof payload?.prompt === 'string' && payload.prompt.length > 0 ? payload.prompt : undefined;
+
+      try {
+        await chatManager.ensureInitialized();
+        const chat = chatManager.getChatById(chatId);
+        if (!chat) {
+          this.sendJSONResponse(socket, 404, { error: 'chat_not_found' });
+          logger.logWebRequest(method, path, 404);
+          return true;
+        }
+
+        if (title) {
+          await chatManager.setChatTitle(chatId, title);
+          this.sendJSONResponse(socket, 200, { title, generated: false });
+          logger.logWebRequest(method, path, 200);
+          return true;
+        }
+
+        const generated = await chatManager.generateTitleForChat(chatId, prompt);
+        if (!generated) {
+          this.sendJSONResponse(socket, 422, { error: 'title_generation_failed' });
+          logger.logWebRequest(method, path, 422);
+          return true;
+        }
+
+        this.sendJSONResponse(socket, 200, { title: generated, generated: true });
+        logger.logWebRequest(method, path, 200);
+      } catch (error) {
+        this.sendJSONResponse(socket, 500, { error: 'title_update_failed' });
+        logger.logWebRequest(method, path, 500);
+      }
+      return true;
+    }
+
+    if (subresource === 'model' && method === 'POST') {
+      if (!body) {
+        this.sendJSONResponse(socket, 400, { error: 'empty_body' });
+        logger.logWebRequest(method, path, 400);
+        return true;
+      }
+
+      let payload: any;
+      try {
+        payload = JSON.parse(body);
+      } catch (error) {
+        this.sendJSONResponse(socket, 400, { error: 'invalid_json' });
+        logger.logWebRequest(method, path, 400);
+        return true;
+      }
+
+      const modelPath = typeof payload?.path === 'string' && payload.path.length > 0 ? payload.path : null;
+
+      try {
+        const updated = await chatManager.setChatModelPath(chatId, modelPath);
+        if (!updated) {
+          this.sendJSONResponse(socket, 404, { error: 'chat_not_found' });
+          logger.logWebRequest(method, path, 404);
+          return true;
+        }
+
+        this.sendJSONResponse(socket, 200, { status: 'updated', chatId, modelPath });
+        logger.logWebRequest(method, path, 200);
+      } catch (error) {
+        this.sendJSONResponse(socket, 500, { error: 'chat_model_update_failed' });
+        logger.logWebRequest(method, path, 500);
+      }
+      return true;
+    }
+
+    return false;
+  }
+
+  private serializeChat(chat: Chat, includeMessages: boolean): any {
+    return {
+      id: chat.id,
+      title: chat.title,
+      timestamp: chat.timestamp,
+      modelPath: chat.modelPath ?? null,
+      messageCount: chat.messages.length,
+      ...(includeMessages ? { messages: chat.messages } : {}),
+    };
+  }
+
+  private async handleFileApi(
+    method: string,
+    segments: string[],
+    body: string,
+    socket: any,
+    path: string
+  ): Promise<boolean> {
+    if (method === 'POST' && segments[0] === 'ingest') {
+      if (!body) {
+        this.sendJSONResponse(socket, 400, { error: 'empty_body' });
+        logger.logWebRequest(method, path, 400);
+        return true;
+      }
+
+      let payload: any;
+      try {
+        payload = JSON.parse(body);
+      } catch (error) {
+        this.sendJSONResponse(socket, 400, { error: 'invalid_json' });
+        logger.logWebRequest(method, path, 400);
+        return true;
+      }
+
+      const content = typeof payload?.content === 'string' ? payload.content : null;
+      const fileName = typeof payload?.fileName === 'string' ? payload.fileName : 'uploaded.txt';
+      const model = typeof payload?.model === 'string' ? payload.model : undefined;
+      const provider = this.normalizeProvider(payload?.provider);
+      const useRag = payload?.rag !== false;
+
+      if (!content) {
+        this.sendJSONResponse(socket, 400, { error: 'content_required' });
+        logger.logWebRequest(method, path, 400);
+        return true;
+      }
+
+      try {
+        if (!useRag) {
+          this.sendJSONResponse(socket, 200, {
+            status: 'skipped',
+            reason: 'rag_disabled',
+          });
+          logger.logWebRequest(method, path, 200);
+          return true;
+        }
+
+        const ragEnabled = await RAGService.isEnabled();
+        if (!ragEnabled) {
+          await RAGService.setEnabled(true);
+        }
+
+        await RAGService.initialize(provider);
+        if (!RAGService.isReady()) {
+          this.sendJSONResponse(socket, 503, { error: 'rag_not_ready' });
+          logger.logWebRequest(method, path, 503);
+          return true;
+        }
+
+        const documentId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        await RAGService.addDocument({
+          id: documentId,
+          content,
+          fileName,
+          fileType: fileName.split('.').pop(),
+          timestamp: Date.now(),
+        });
+
+        this.sendJSONResponse(socket, 200, {
+          status: 'stored',
+          documentId,
+          fileName,
+          model: model || null,
+        });
+        logger.logWebRequest(method, path, 200);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'rag_ingest_failed';
+        const safe = message.replace(/\s+/g, '_');
+        logger.error(`rag_ingest_failed:${safe}`, 'webrtc');
+        this.sendJSONResponse(socket, 500, { error: 'rag_ingest_failed' });
+        logger.logWebRequest(method, path, 500);
+      }
+      return true;
+    }
+
+    return false;
+  }
+
+  private normalizeProvider(value: any): ProviderType | undefined {
+    if (typeof value !== 'string') {
+      return undefined;
+    }
+
+    const normalized = value.toLowerCase();
+
+    if (
+      normalized === 'gemini' ||
+      normalized === 'chatgpt' ||
+      normalized === 'deepseek' ||
+      normalized === 'claude' ||
+      normalized === 'apple-foundation'
+    ) {
+      return normalized;
+    }
+
+    if (normalized === 'local' || normalized === 'llama') {
+      return 'local';
+    }
+
+    return undefined;
+  }
+
+  private async handleRagApi(
+    method: string,
+    segments: string[],
+    body: string,
+    socket: any,
+    path: string
+  ): Promise<boolean> {
+    if (segments.length === 0) {
+      if (method === 'GET') {
+        try {
+          const enabled = await RAGService.isEnabled();
+          const storage = await RAGService.getStorageType();
+          this.sendJSONResponse(socket, 200, {
+            enabled,
+            storage,
+            ready: RAGService.isReady(),
+          });
+          logger.logWebRequest(method, path, 200);
+        } catch (error) {
+          this.sendJSONResponse(socket, 500, { error: 'rag_status_failed' });
+          logger.logWebRequest(method, path, 500);
+        }
+        return true;
+      }
+
+      if (method === 'POST') {
+        if (!body) {
+          this.sendJSONResponse(socket, 400, { error: 'empty_body' });
+          logger.logWebRequest(method, path, 400);
+          return true;
+        }
+
+        let payload: any;
+        try {
+          payload = JSON.parse(body);
+        } catch (error) {
+          this.sendJSONResponse(socket, 400, { error: 'invalid_json' });
+          logger.logWebRequest(method, path, 400);
+          return true;
+        }
+
+        const enabled = payload?.enabled;
+        const storage = payload?.storage;
+        const provider = this.normalizeProvider(payload?.provider);
+
+        try {
+          if (typeof enabled === 'boolean') {
+            await RAGService.setEnabled(enabled);
+          }
+
+          if (storage === 'memory' || storage === 'persistent') {
+            await RAGService.setStorageType(storage);
+          }
+
+          if (payload?.initialize) {
+            await RAGService.initialize(provider);
+          }
+
+          this.sendJSONResponse(socket, 200, {
+            enabled: await RAGService.isEnabled(),
+            storage: await RAGService.getStorageType(),
+            ready: RAGService.isReady(),
+          });
+          logger.logWebRequest(method, path, 200);
+        } catch (error) {
+          this.sendJSONResponse(socket, 500, { error: 'rag_update_failed' });
+          logger.logWebRequest(method, path, 500);
+        }
+        return true;
+      }
+    }
+
+    if (segments[0] === 'reset' && method === 'POST') {
+      try {
+        await RAGService.clear();
+        this.sendJSONResponse(socket, 200, { status: 'cleared' });
+        logger.logWebRequest(method, path, 200);
+      } catch (error) {
+        this.sendJSONResponse(socket, 500, { error: 'rag_reset_failed' });
+        logger.logWebRequest(method, path, 500);
+      }
+      return true;
+    }
+
+    return false;
+  }
+
+  private async handleServerStatusApi(method: string, socket: any, path: string): Promise<boolean> {
+    if (method !== 'GET') {
+      return false;
+    }
+
+    const status = this.getStatus();
+    const modelLoaded = llamaManager.isInitialized();
+    const modelPath = llamaManager.getModelPath();
+
+    this.sendJSONResponse(socket, 200, {
+      server: status,
+      model: {
+        loaded: modelLoaded,
+        path: modelPath,
+      },
+      rag: {
+        ready: RAGService.isReady(),
+      },
+    });
+    logger.logWebRequest(method, path, 200);
+    return true;
+  }
+
+  private async handleModelApi(
+    method: string,
+    segments: string[],
+    body: string,
+    socket: any,
+    path: string
+  ): Promise<boolean> {
+    if (segments.length > 0) {
+      const target = segments[0];
+      if (target === 'apple-foundation') {
+        return await this.handleAppleFoundationModelApi(method, segments.slice(1), body, socket, path);
+      }
+      if (target === 'remote') {
+        return await this.handleRemoteModelApi(method, segments.slice(1), body, socket, path);
+      }
+    }
+
+    if (segments.length === 0 && method === 'POST') {
+      if (!body) {
+        this.sendJSONResponse(socket, 400, { error: 'empty_body' });
+        logger.logWebRequest(method, path, 400);
+        return true;
+      }
+
+      let payload: any;
+      try {
+        payload = JSON.parse(body);
+      } catch (error) {
+        this.sendJSONResponse(socket, 400, { error: 'invalid_json' });
+        logger.logWebRequest(method, path, 400);
+        return true;
+      }
+
+      const action = typeof payload?.action === 'string' ? payload.action : '';
+      const identifier = typeof payload?.model === 'string' ? payload.model : undefined;
+
+      if (action === 'load') {
+        try {
+          const target = await this.ensureModelLoaded(identifier);
+          this.sendJSONResponse(socket, 200, {
+            status: 'loaded',
+            model: {
+              name: target.model.name,
+              path: target.model.path,
+              projector: target.projectorPath ?? null,
+            },
+          });
+          logger.logWebRequest(method, path, 200);
+        } catch (error) {
+          const parsed = this.parseHttpError(error);
+          this.sendJSONResponse(socket, parsed.status, { error: parsed.code });
+          logger.logWebRequest(method, path, parsed.status);
+        }
+        return true;
+      }
+
+      if (action === 'unload') {
+        try {
+          if (llamaManager.isInitialized()) {
+            await llamaManager.unloadModel();
+          }
+          this.sendJSONResponse(socket, 200, { status: 'unloaded' });
+          logger.logWebRequest(method, path, 200);
+        } catch (error) {
+          this.sendJSONResponse(socket, 500, { error: 'model_unload_failed' });
+          logger.logWebRequest(method, path, 500);
+        }
+        return true;
+      }
+
+      if (action === 'reload') {
+        try {
+          const current = llamaManager.getModelPath();
+          if (!current) {
+            this.sendJSONResponse(socket, 503, { error: 'model_not_loaded' });
+            logger.logWebRequest(method, path, 503);
+            return true;
+          }
+
+          await llamaManager.loadModel(current, llamaManager.getMultimodalProjectorPath() ?? undefined);
+          this.sendJSONResponse(socket, 200, { status: 'reloaded', path: current });
+          logger.logWebRequest(method, path, 200);
+        } catch (error) {
+          this.sendJSONResponse(socket, 500, { error: 'model_reload_failed' });
+          logger.logWebRequest(method, path, 500);
+        }
+        return true;
+      }
+
+      this.sendJSONResponse(socket, 400, { error: 'invalid_action' });
+      logger.logWebRequest(method, path, 400);
+      return true;
+    }
+
+    return false;
+  }
+
+  private async handleSettingsApi(
+    method: string,
+    segments: string[],
+    body: string,
+    socket: any,
+    path: string
+  ): Promise<boolean> {
+    if (method !== 'POST') {
+      return false;
+    }
+
+    if (segments[0] === 'thinking') {
+      if (!body) {
+        this.sendJSONResponse(socket, 400, { error: 'empty_body' });
+        logger.logWebRequest(method, path, 400);
+        return true;
+      }
+
+      let payload: any;
+      try {
+        payload = JSON.parse(body);
+      } catch (error) {
+        this.sendJSONResponse(socket, 400, { error: 'invalid_json' });
+        logger.logWebRequest(method, path, 400);
+        return true;
+      }
+
+      const enabled = payload?.enabled;
+      if (typeof enabled !== 'boolean') {
+        this.sendJSONResponse(socket, 400, { error: 'enabled_required' });
+        logger.logWebRequest(method, path, 400);
+        return true;
+      }
+
+      try {
+        await llamaManager.setEnableThinking(enabled);
+        this.sendJSONResponse(socket, 200, { status: 'updated', enabled });
+        logger.logWebRequest(method, path, 200);
+      } catch (error) {
+        this.sendJSONResponse(socket, 500, { error: 'thinking_update_failed' });
+        logger.logWebRequest(method, path, 500);
+      }
+      return true;
+    }
+
+    return false;
+  }
+
+  private async handleAppleFoundationModelApi(
+    method: string,
+    segments: string[],
+    body: string,
+    socket: any,
+    path: string
+  ): Promise<boolean> {
+    if (segments.length > 0) {
+      this.sendJSONResponse(socket, 404, { error: 'not_found' });
+      logger.logWebRequest(method, path, 404);
+      return true;
+    }
+
+    const available = appleFoundationService.isAvailable();
+    const meetsRequirements = appleFoundationService.meetsMinimumRequirements();
+    const enabled = available ? await appleFoundationService.isEnabled() : false;
+
+    if (method === 'GET') {
+      const message = this.buildAppleFoundationMessage(available, enabled, meetsRequirements);
+      this.sendJSONResponse(socket, 200, {
+        available,
+        requirementsMet: meetsRequirements,
+        enabled,
+        status: available && enabled ? 'ready' : 'configure',
+        message,
+      });
+      logger.logWebRequest(method, path, 200);
+      return true;
+    }
+
+    if (method === 'POST') {
+      if (body) {
+        try {
+          JSON.parse(body);
+        } catch (error) {
+          this.sendJSONResponse(socket, 400, { error: 'invalid_json' });
+          logger.logWebRequest(method, path, 400);
+          return true;
+        }
+      }
+
+      if (!available) {
+        this.sendJSONResponse(socket, 501, {
+          error: 'apple_foundation_unavailable',
+          message: 'Apple Foundation is not available on this device.',
+        });
+        logger.logWebRequest(method, path, 501);
+        return true;
+      }
+
+      if (!meetsRequirements) {
+        this.sendJSONResponse(socket, 428, {
+          error: 'requirements_not_met',
+          message: 'Update the device to meet Apple Intelligence requirements.',
+        });
+        logger.logWebRequest(method, path, 428);
+        return true;
+      }
+
+      if (!enabled) {
+        this.sendJSONResponse(socket, 409, {
+          error: 'apple_foundation_disabled',
+          message: 'Enable Apple Foundation in settings on this device.',
+        });
+        logger.logWebRequest(method, path, 409);
+        return true;
+      }
+
+      this.sendJSONResponse(socket, 200, { status: 'ready' });
+      logger.logWebRequest(method, path, 200);
+      return true;
+    }
+
+    this.sendJSONResponse(socket, 405, { error: 'method_not_allowed' });
+    logger.logWebRequest(method, path, 405);
+    return true;
+  }
+
+  private buildAppleFoundationMessage(available: boolean, enabled: boolean, meetsRequirements: boolean): string {
+    if (!available) {
+      if (Platform.OS === 'ios') {
+        return 'Apple Foundation is not available on this device.';
+      }
+      return 'Apple Foundation is only available on supported Apple devices.';
+    }
+
+    if (!meetsRequirements) {
+      return 'Update the device to meet Apple Intelligence requirements, then enable Apple Foundation in settings.';
+    }
+
+    if (!enabled) {
+      return 'Enable Apple Foundation in settings on this device before using this endpoint.';
+    }
+
+    return 'Apple Foundation is ready to use.';
+  }
+
+  private async handleRemoteModelApi(
+    method: string,
+    segments: string[],
+    body: string,
+    socket: any,
+    path: string
+  ): Promise<boolean> {
+    if (segments.length > 1) {
+      this.sendJSONResponse(socket, 404, { error: 'not_found' });
+      logger.logWebRequest(method, path, 404);
+      return true;
+    }
+
+    const segment = segments[0];
+    const providerFromPath = segment ? this.normalizeRemoteProvider(segment) : null;
+    if (segment && !providerFromPath) {
+      this.sendJSONResponse(socket, 404, { error: 'provider_not_found' });
+      logger.logWebRequest(method, path, 404);
+      return true;
+    }
+
+    if (method === 'GET') {
+      const enabled = await this.getRemoteModelsEnabled();
+
+      if (providerFromPath) {
+        const summary = await this.getRemoteProviderState(providerFromPath);
+        this.sendJSONResponse(socket, 200, {
+          enabled,
+          provider: summary,
+          message: enabled
+            ? 'Remote models are enabled.'
+            : 'Enable remote models in settings to activate providers.',
+        });
+        logger.logWebRequest(method, path, 200);
+        return true;
+      }
+
+      const summaries = await this.buildRemoteProviderSummaries();
+      this.sendJSONResponse(socket, 200, {
+        enabled,
+        providers: summaries,
+        message: enabled
+          ? 'Remote models are enabled.'
+          : 'Enable remote models in settings to activate providers.',
+      });
+      logger.logWebRequest(method, path, 200);
+      return true;
+    }
+
+    if (method === 'POST') {
+      const enabled = await this.getRemoteModelsEnabled();
+      if (!enabled) {
+        this.sendJSONResponse(socket, 409, {
+          error: 'remote_models_disabled',
+          message: 'Enable remote models in settings on the device.'
+        });
+        logger.logWebRequest(method, path, 409);
+        return true;
+      }
+
+      let target = providerFromPath;
+
+      if (!target) {
+        if (!body) {
+          this.sendJSONResponse(socket, 400, { error: 'provider_required' });
+          logger.logWebRequest(method, path, 400);
+          return true;
+        }
+
+        let payload: any;
+        try {
+          payload = JSON.parse(body);
+        } catch (error) {
+          this.sendJSONResponse(socket, 400, { error: 'invalid_json' });
+          logger.logWebRequest(method, path, 400);
+          return true;
+        }
+
+        target = this.normalizeRemoteProvider(payload?.provider);
+        if (!target) {
+          this.sendJSONResponse(socket, 400, { error: 'invalid_provider' });
+          logger.logWebRequest(method, path, 400);
+          return true;
+        }
+      } else if (body) {
+        try {
+          JSON.parse(body);
+        } catch (error) {
+          this.sendJSONResponse(socket, 400, { error: 'invalid_json' });
+          logger.logWebRequest(method, path, 400);
+          return true;
+        }
+      }
+
+      try {
+        const hasKey = await onlineModelService.hasApiKey(target);
+        if (!hasKey) {
+          const label = this.getRemoteProviderLabel(target);
+          this.sendJSONResponse(socket, 422, {
+            error: 'api_key_missing',
+            message: `Add a ${label} API key in settings before using this provider.`,
+          });
+          logger.logWebRequest(method, path, 422);
+          return true;
+        }
+
+        const summary = await this.getRemoteProviderState(target);
+        this.sendJSONResponse(socket, 200, { status: 'ready', provider: summary });
+        logger.logWebRequest(method, path, 200);
+        return true;
+      } catch (error) {
+        this.sendJSONResponse(socket, 500, { error: 'remote_provider_check_failed' });
+        logger.logWebRequest(method, path, 500);
+        return true;
+      }
+    }
+
+    this.sendJSONResponse(socket, 405, { error: 'method_not_allowed' });
+    logger.logWebRequest(method, path, 405);
+    return true;
+  }
+
+  private async getRemoteModelsEnabled(): Promise<boolean> {
+    try {
+      await apiKeyDatabase.initialize();
+      const value = await apiKeyDatabase.getPreference(REMOTE_MODELS_PREF_KEY);
+      return value === 'true';
+    } catch (error) {
+      return false;
+    }
+  }
+
+  private normalizeRemoteProvider(value: any): RemoteProvider | null {
+    if (typeof value !== 'string') {
+      return null;
+    }
+
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) {
+      return null;
+    }
+
+    if (REMOTE_PROVIDERS.includes(normalized as RemoteProvider)) {
+      return normalized as RemoteProvider;
+    }
+
+    if (normalized === 'openai' || normalized.startsWith('gpt')) {
+      return 'chatgpt';
+    }
+
+    if (normalized === 'anthropic' || normalized.startsWith('claude')) {
+      return 'claude';
+    }
+
+    if (normalized.startsWith('gemini')) {
+      return 'gemini';
+    }
+
+    if (normalized.startsWith('deepseek')) {
+      return 'deepseek';
+    }
+
+    return null;
+  }
+
+  private async buildRemoteProviderSummaries(): Promise<RemoteProviderState[]> {
+    const results: RemoteProviderState[] = [];
+    for (const provider of REMOTE_PROVIDERS) {
+      const state = await this.getRemoteProviderState(provider);
+      results.push(state);
+    }
+    return results;
+  }
+
+  private async getRemoteProviderState(provider: RemoteProvider): Promise<RemoteProviderState> {
+    try {
+      const configured = await onlineModelService.hasApiKey(provider);
+      const modelName = await onlineModelService.getModelName(provider);
+      const usingDefault = await onlineModelService.isUsingDefaultKey(provider);
+      const resolvedModel = modelName ?? onlineModelService.getDefaultModelName(provider);
+      return {
+        provider,
+        configured,
+        model: resolvedModel,
+        usingDefault,
+      };
+    } catch (error) {
+      return {
+        provider,
+        configured: false,
+        model: null,
+        usingDefault: false,
+      };
+    }
+  }
+
+  private getRemoteProviderLabel(provider: RemoteProvider): string {
+    switch (provider) {
+      case 'gemini':
+        return 'Gemini';
+      case 'chatgpt':
+        return 'OpenAI';
+      case 'deepseek':
+        return 'DeepSeek';
+      case 'claude':
+        return 'Anthropic Claude';
+      default:
+        return provider;
+    }
   }
 
   private sendHTTPResponse(socket: any, status: number, headers: Record<string, string>, body: string): void {

@@ -196,10 +196,10 @@ class OnlineModelService {
 
   getDefaultModelName(provider: string): string {
     const defaults: Record<string, string> = {
-      gemini: 'gemini-2.5-flash-preview-05-20',
-      chatgpt: 'gpt-4o',
+      gemini: 'gemini-2.5-flash',
+      chatgpt: 'gpt-4.1',
       deepseek: 'deepseek-reasoner',
-      claude: 'claude-opus-4-20250514'
+      claude: 'claude-sonnet-4-5'
     };
     return defaults[provider] || '';
   }

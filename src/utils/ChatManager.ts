@@ -346,6 +346,195 @@ class ChatManager {
     }
   }
 
+  async setChatTitle(chatId: string, title: string): Promise<boolean> {
+    try {
+      await this.ensureInitialized();
+
+      const chat = this.getChatById(chatId);
+      if (!chat) return false;
+
+      chat.title = title;
+      chat.timestamp = Date.now();
+
+      await this.saveChat(chat);
+      this.notifyListeners();
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  async setChatModelPath(chatId: string, modelPath: string | null): Promise<boolean> {
+    try {
+      await this.ensureInitialized();
+
+      const chat = this.getChatById(chatId);
+      if (!chat) return false;
+
+      chat.modelPath = modelPath || undefined;
+      chat.timestamp = Date.now();
+
+      await this.saveChat(chat);
+      this.notifyListeners();
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  async appendMessages(
+    chatId: string,
+    entries: Array<Omit<ChatMessage, 'id'> & { id?: string }>
+  ): Promise<ChatMessage[]> {
+    await this.ensureInitialized();
+
+    const chat = this.getChatById(chatId);
+    if (!chat) {
+      throw new Error('chat_not_found');
+    }
+
+    const created: ChatMessage[] = [];
+
+    for (const entry of entries) {
+      const id = typeof entry.id === 'string' && entry.id.length > 0 ? entry.id : generateRandomId();
+      const role: ChatMessage['role'] = entry.role === 'assistant' || entry.role === 'system' ? entry.role : 'user';
+      const content = typeof entry.content === 'string' ? entry.content : String(entry.content ?? '');
+      const thinking = typeof entry.thinking === 'string' ? entry.thinking : undefined;
+
+      let stats: ChatMessage['stats'] | undefined;
+      if (entry.stats && typeof entry.stats === 'object') {
+        const info = entry.stats;
+        if (typeof info.duration === 'number' && typeof info.tokens === 'number') {
+          stats = {
+            duration: info.duration,
+            tokens: info.tokens,
+            firstTokenTime: typeof info.firstTokenTime === 'number' ? info.firstTokenTime : undefined,
+            avgTokenTime: typeof info.avgTokenTime === 'number' ? info.avgTokenTime : undefined,
+          };
+        }
+      }
+
+      const message: ChatMessage = {
+        id,
+        role,
+        content,
+        thinking,
+        stats,
+      };
+
+      chat.messages.push(message);
+      created.push(message);
+    }
+
+    chat.timestamp = Date.now();
+
+    await this.saveChat(chat);
+    this.notifyListeners();
+    return created;
+  }
+
+  async updateMessageById(
+    chatId: string,
+    messageId: string,
+    updates: {
+      content?: string;
+      thinking?: string | null;
+      stats?: ChatMessage['stats'] | null;
+      role?: ChatMessage['role'];
+    }
+  ): Promise<boolean> {
+    try {
+      await this.ensureInitialized();
+
+      const chat = this.getChatById(chatId);
+      if (!chat) return false;
+
+      const message = chat.messages.find(item => item.id === messageId);
+      if (!message) return false;
+
+      if (updates.content !== undefined) {
+        message.content = updates.content;
+      }
+
+      if (updates.thinking !== undefined) {
+        message.thinking = updates.thinking === null ? undefined : updates.thinking;
+      }
+
+      if (updates.role && (updates.role === 'user' || updates.role === 'assistant' || updates.role === 'system')) {
+        message.role = updates.role;
+      }
+
+      if (updates.stats !== undefined) {
+        if (updates.stats === null) {
+          delete message.stats;
+        } else {
+          const info = updates.stats;
+          if (info && typeof info.duration === 'number' && typeof info.tokens === 'number') {
+          message.stats = {
+              duration: info.duration,
+              tokens: info.tokens,
+              firstTokenTime: typeof info.firstTokenTime === 'number' ? info.firstTokenTime : undefined,
+              avgTokenTime: typeof info.avgTokenTime === 'number' ? info.avgTokenTime : undefined,
+          };
+          }
+        }
+      }
+
+      chat.timestamp = Date.now();
+
+      await this.saveChat(chat);
+      this.notifyListeners();
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  async removeMessage(chatId: string, messageId: string): Promise<boolean> {
+    try {
+      await this.ensureInitialized();
+
+      const chat = this.getChatById(chatId);
+      if (!chat) return false;
+
+      const index = chat.messages.findIndex(item => item.id === messageId);
+      if (index === -1) return false;
+
+      chat.messages.splice(index, 1);
+      chat.timestamp = Date.now();
+
+      await chatDatabase.deleteMessage(messageId);
+      await this.saveChat(chat);
+      this.notifyListeners();
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  async generateTitleForChat(chatId: string, prompt?: string): Promise<string | null> {
+    try {
+      await this.ensureInitialized();
+
+      const chat = this.getChatById(chatId);
+      if (!chat) return null;
+
+      const firstUserMessage = chat.messages.find(message => message.role === 'user');
+      const basePrompt = typeof prompt === 'string' && prompt.length > 0 ? prompt : firstUserMessage?.content;
+      if (!basePrompt || basePrompt.length === 0) return null;
+
+      const title = await this.generateChatTitle(basePrompt);
+      chat.title = title;
+      chat.timestamp = Date.now();
+
+      await this.saveChat(chat);
+      this.notifyListeners();
+      return title;
+    } catch (error) {
+      return null;
+    }
+  }
+
   setCurrentProvider(provider: ProviderType | null): void {
     this.currentProvider = provider;
   }
@@ -377,7 +566,7 @@ class ChatManager {
     }
   }
 
-  private async generateChatTitle(userMessage: string): Promise<string> {
+  async generateChatTitle(userMessage: string): Promise<string> {
     try {
       if (this.currentProvider === 'local') {
         const { llamaManager } = await import('./LlamaManager');
