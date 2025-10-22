@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { modelDownloader } from '../services/ModelDownloader';
 import { StoredModel } from '../services/ModelDownloaderTypes';
 
@@ -25,10 +26,6 @@ export const useStoredModels = (): UseStoredModelsReturn => {
     try {
       setIsLoading(true);
 
-      if (forceRefresh) {
-        await modelDownloader.reloadStoredModels();
-      }
-
       const models = await modelDownloader.getStoredModels();
       setStoredModels(models);
     } catch (error) {
@@ -42,11 +39,13 @@ export const useStoredModels = (): UseStoredModelsReturn => {
   const refreshStoredModels = useCallback(async () => {
     setIsRefreshing(true);
     try {
-      await loadStoredModels(true);
+      await modelDownloader.reloadStoredModels();
+      const models = await modelDownloader.getStoredModels();
+      setStoredModels(models);
     } finally {
       setIsRefreshing(false);
     }
-  }, [loadStoredModels]);
+  }, []);
 
   useEffect(() => {
     loadStoredModels();
@@ -61,6 +60,12 @@ export const useStoredModels = (): UseStoredModelsReturn => {
       modelDownloader.off('modelsChanged', handleModelsChanged);
     };
   }, [loadStoredModels]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadStoredModels(true);
+    }, [loadStoredModels])
+  );
 
   return {
     storedModels,

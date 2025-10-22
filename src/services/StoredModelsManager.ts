@@ -1,5 +1,6 @@
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { EventEmitter } from './EventEmitter';
 import { FileManager } from './FileManager';
 import { StoredModel } from './ModelDownloaderTypes';
@@ -8,9 +9,7 @@ import { ModelType } from '../types/models';
 
 export class StoredModelsManager extends EventEmitter {
   private fileManager: FileManager;
-  private cachedModels: StoredModel[] | null = null;
-  private lastCacheTime: number = 0;
-  private readonly CACHE_TTL = 500;
+  private readonly STORAGE_KEY = 'stored_models_list';
 
   constructor(fileManager: FileManager) {
     super();
@@ -18,31 +17,38 @@ export class StoredModelsManager extends EventEmitter {
   }
 
   async initialize(): Promise<void> {
+    await this.syncStorageWithFileSystem();
   }
 
   async getStoredModels(): Promise<StoredModel[]> {
-    const now = Date.now();
-
-    if (this.cachedModels && (now - this.lastCacheTime) < this.CACHE_TTL) {
-      return this.cachedModels;
+    try {
+      const storedData = await AsyncStorage.getItem(this.STORAGE_KEY);
+      if (storedData) {
+        return JSON.parse(storedData);
+      }
+    } catch (error) {
     }
 
+    return await this.scanFileSystemAndUpdateStorage();
+  }
+
+  private async scanFileSystemAndUpdateStorage(): Promise<StoredModel[]> {
     try {
       const baseDir = this.fileManager.getBaseDir();
 
       const dirInfo = await FileSystem.getInfoAsync(baseDir);
       if (!dirInfo.exists) {
         await FileSystem.makeDirectoryAsync(baseDir, { intermediates: true });
-        this.cachedModels = [];
-        this.lastCacheTime = now;
-        return this.cachedModels;
+        const emptyModels: StoredModel[] = [];
+        await this.saveModelsToStorage(emptyModels);
+        return emptyModels;
       }
 
       const dir = await FileSystem.readDirectoryAsync(baseDir);
 
-      let localModels: StoredModel[] = [];
+      let models: StoredModel[] = [];
       if (dir.length > 0) {
-        localModels = await Promise.all(
+        models = await Promise.all(
           dir.map(async (name) => {
             const path = `${baseDir}/${name}`;
             const fileInfo = await FileSystem.getInfoAsync(path, { size: true });
@@ -77,44 +83,54 @@ export class StoredModelsManager extends EventEmitter {
         );
       }
 
-      this.cachedModels = localModels;
-      this.lastCacheTime = now;
-      return this.cachedModels;
+      await this.saveModelsToStorage(models);
+      return models;
     } catch (error) {
-      this.cachedModels = [];
-      this.lastCacheTime = now;
-      return this.cachedModels;
+      const emptyModels: StoredModel[] = [];
+      await this.saveModelsToStorage(emptyModels);
+      return emptyModels;
+    }
+  }
+
+  private async syncStorageWithFileSystem(): Promise<void> {
+    try {
+      await this.scanFileSystemAndUpdateStorage();
+    } catch (error) {
+    }
+  }
+
+  private async saveModelsToStorage(models: StoredModel[]): Promise<void> {
+    try {
+      await AsyncStorage.setItem(this.STORAGE_KEY, JSON.stringify(models));
+    } catch (error) {
     }
   }
 
   async deleteModel(path: string): Promise<void> {
     try {
       await this.fileManager.deleteFile(path);
-      this.invalidateCache();
+      
+      const currentModels = await this.getStoredModels();
+      const updatedModels = currentModels.filter(model => model.path !== path);
+      await this.saveModelsToStorage(updatedModels);
+      
       this.emit('modelsChanged');
     } catch (error) {
       throw error;
     }
   }
 
-  private invalidateCache(): void {
-    this.cachedModels = null;
-    this.lastCacheTime = 0;
-  }
-
-  public refresh(): void {
-    this.invalidateCache();
+  public async refresh(): Promise<void> {
+    await this.scanFileSystemAndUpdateStorage();
+    this.emit('modelsChanged');
   }
 
   async reloadStoredModels(): Promise<StoredModel[]> {
-    this.invalidateCache();
-    return await this.getStoredModels();
+    return await this.scanFileSystemAndUpdateStorage();
   }
 
   async refreshStoredModels(): Promise<void> {
     try {
-      this.invalidateCache();
-      
       const storedModels = await this.getStoredModels();
       const storedModelNames = storedModels.map(model => model.name);
       
@@ -123,7 +139,6 @@ export class StoredModelsManager extends EventEmitter {
       
       for (const filename of modelDirContents) {
         if (!storedModelNames.includes(filename)) {
-          
           const filePath = `${baseDir}/${filename}`;
           const fileInfo = await FileSystem.getInfoAsync(filePath, { size: true });
           
@@ -138,7 +153,7 @@ export class StoredModelsManager extends EventEmitter {
               downloadId
             });
             
-            this.invalidateCache();
+            await this.scanFileSystemAndUpdateStorage();
             this.emit('modelsChanged');
           }
         }
@@ -171,7 +186,31 @@ export class StoredModelsManager extends EventEmitter {
         to: destPath
       });
 
-      this.invalidateCache();
+      const size = (fileInfo as any).size || 0;
+      const capabilities = detectVisionCapabilities(fileName);
+      const modelType = capabilities.isProjection
+        ? ModelType.PROJECTION
+        : capabilities.isVision
+          ? ModelType.VISION
+          : ModelType.LLM;
+
+      const newModel: StoredModel = {
+        name: fileName,
+        path: destPath,
+        size,
+        modified: new Date().toISOString(),
+        isExternal: true,
+        modelType,
+        capabilities: capabilities.capabilities,
+        supportsMultimodal: capabilities.isVision,
+        compatibleProjectionModels: capabilities.compatibleProjections,
+        defaultProjectionModel: capabilities.defaultProjection,
+      };
+
+      const currentModels = await this.getStoredModels();
+      const updatedModels = [...currentModels, newModel];
+      await this.saveModelsToStorage(updatedModels);
+
       this.emit('modelsChanged');
 
     } catch (error) {
