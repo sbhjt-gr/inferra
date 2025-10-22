@@ -274,28 +274,7 @@ export default function LocalServerScreen() {
           </SettingsSection>
         )}
 
-        <SettingsSection title="API">
-          <TouchableOpacity
-            style={styles.settingItem}
-            onPress={() => navigation.navigate('ServerDocs')}
-          >
-            <View style={styles.settingLeft}>
-              <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
-                <MaterialCommunityIcons name="book-open-variant" size={22} color={iconColor} />
-              </View>
-              <View style={styles.settingTextContainer}>
-                <Text style={[styles.settingText, { color: themeColors.text }]}>
-                  Server API Reference
-                </Text>
-                <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
-                  View REST endpoints documentation and examples
-                </Text>
-              </View>
-            </View>
-            <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
-          </TouchableOpacity>
-
-          <View style={[styles.separator, { backgroundColor: themeColors.background }]} />
+        <SettingsSection title="LOGS">
           <TouchableOpacity
             style={styles.settingItem}
             onPress={() => navigation.navigate('ServerLogs')}

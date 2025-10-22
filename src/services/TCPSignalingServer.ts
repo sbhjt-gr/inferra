@@ -741,21 +741,139 @@ export class TCPSignalingServer {
     if (method === 'GET' && path === '/') {
       const bodyContent = `<!DOCTYPE html>
 <html>
-<head><title>Inferra Local Server</title></head>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Inferra Local Server API</title>
+</head>
 <body>
   <h1>Inferra Local Server</h1>
-  <p>Status: Running</p>
-  <p>Version: ${this.getAppVersion()}</p>
-  <p>Available endpoints:</p>
+  <p>AI Model REST API & WebRTC Signaling</p>
+  <p>Version ${this.getAppVersion()} | Status: Running</p>
+
+  <h2>Base URL</h2>
+  <p>Replace &lt;host&gt; in the examples below with your device IP and port.</p>
+  <p>Current address: http://${this.localIP}:${this.port}</p>
+
+  <h2>REST API Endpoints</h2>
+
+  <h3>GET /api/tags</h3>
+  <p>Lists all installed models with metadata including name, size, type, and capabilities.</p>
+  <p>Example:</p>
+  <pre>curl -X GET http://&lt;host&gt;:11434/api/tags</pre>
+
+  <h3>POST /api/pull</h3>
+  <p>Downloads a model from a supplied URL or remote registry.</p>
+  <p>Request Body:</p>
+  <pre>{"url":"https://...","model":"model-name"}</pre>
+  <p>Example:</p>
+  <pre>curl -X POST http://&lt;host&gt;:11434/api/pull -H "Content-Type: application/json" -d '{"url":"https://huggingface.co/...","model":"example"}'</pre>
+
+  <h3>DELETE /api/delete</h3>
+  <p>Removes an installed model by name.</p>
+  <p>Request Body:</p>
+  <pre>{"name":"model-name"}</pre>
+  <p>Example:</p>
+  <pre>curl -X DELETE http://&lt;host&gt;:11434/api/delete -H "Content-Type: application/json" -d '{"name":"example"}'</pre>
+
+  <h3>GET /api/ps</h3>
+  <p>Displays the model currently loaded into memory with details.</p>
+  <p>Example:</p>
+  <pre>curl -X GET http://&lt;host&gt;:11434/api/ps</pre>
+
+  <h3>POST /api/chat</h3>
+  <p>Streams chat completions using a messages array. Supports streaming and non-streaming modes.</p>
+  <p>Request Body:</p>
+  <pre>{"messages":[{"role":"user","content":"Hello"}],"stream":true}</pre>
+  <p>Example (Streaming):</p>
+  <pre>curl -N -X POST http://&lt;host&gt;:11434/api/chat -H "Content-Type: application/json" -d '{"messages":[{"role":"user","content":"Hello"}],"stream":true}'</pre>
+
+  <h3>POST /api/generate</h3>
+  <p>Generates a single completion from a prompt or messages array.</p>
+  <p>Request Body:</p>
+  <pre>{"prompt":"Write a haiku."}</pre>
+  <p>Example:</p>
+  <pre>curl -N -X POST http://&lt;host&gt;:11434/api/generate -H "Content-Type: application/json" -d '{"prompt":"Hello"}'</pre>
+
+  <h3>POST /api/embeddings</h3>
+  <p>Returns vector embeddings when supported by the loaded model.</p>
+  <p>Request Body:</p>
+  <pre>{"input":"Vector me"}</pre>
+  <p>Example:</p>
+  <pre>curl -X POST http://&lt;host&gt;:11434/api/embeddings -H "Content-Type: application/json" -d '{"input":"Example"}'</pre>
+
+  <h3>POST /api/copy</h3>
+  <p>Copies an existing model file to a new name.</p>
+  <p>Request Body:</p>
+  <pre>{"source":"model.gguf","destination":"model-copy"}</pre>
+  <p>Example:</p>
+  <pre>curl -X POST http://&lt;host&gt;:11434/api/copy -H "Content-Type: application/json" -d '{"source":"model.gguf","destination":"duplicate"}'</pre>
+
+  <h3>POST /api/show</h3>
+  <p>Returns detailed information about a specific model including settings and capabilities.</p>
+  <p>Request Body:</p>
+  <pre>{"name":"model-name"}</pre>
+  <p>Example:</p>
+  <pre>curl -X POST http://&lt;host&gt;:11434/api/show -H "Content-Type: application/json" -d '{"name":"example"}'</pre>
+
+  <h3>GET /api/version</h3>
+  <p>Returns the Inferra local server version.</p>
+  <p>Example:</p>
+  <pre>curl -X GET http://&lt;host&gt;:11434/api/version</pre>
+
+  <h2>WebRTC Signaling Endpoints</h2>
+
+  <h3>GET /offer</h3>
+  <p>Provides the current WebRTC offer for manual pairing.</p>
+  <p>Example:</p>
+  <pre>curl -X GET http://&lt;host&gt;:11434/offer</pre>
+
+  <h3>POST /webrtc/answer</h3>
+  <p>Accepts a WebRTC answer payload when pairing manually.</p>
+  <p>Request Body:</p>
+  <pre>{"peerId":"...","sdp":"..."}</pre>
+  <p>Example:</p>
+  <pre>curl -X POST http://&lt;host&gt;:11434/webrtc/answer -H "Content-Type: application/json" -d '{"peerId":"browser","sdp":"..."}'</pre>
+
+  <h3>Pairing Overview</h3>
   <ul>
-    <li><code>GET /api/tags</code></li>
-    <li><code>POST /api/pull</code></li>
-    <li><code>DELETE /api/delete</code></li>
-    <li><code>GET /api/version</code></li>
-    <li><code>GET /offer</code></li>
-    <li><code>POST /webrtc/answer</code></li>
+    <li>Browser clients request /offer to receive the SDP when automatic pairing fails.</li>
+    <li>After creating an answer locally, POST it to /webrtc/answer with the same peerId returned alongside the offer.</li>
+    <li>Once accepted, the HTTP REST endpoints operate over the established data channel connection.</li>
   </ul>
-  <p>Visit <a href="/offer">/offer</a> to retrieve the current WebRTC offer.</p>
+
+  <h2>Advanced Options</h2>
+  <p>Most endpoints support additional parameters for fine-tuning model behavior:</p>
+  <pre>{
+  "temperature": 0.7,
+  "top_p": 0.9,
+  "top_k": 40,
+  "min_p": 0.05,
+  "num_predict": 128,
+  "seed": 42,
+  "repeat_penalty": 1.1,
+  "frequency_penalty": 0.0,
+  "presence_penalty": 0.0,
+  "penalty_last_n": 64,
+  "mirostat": 0,
+  "mirostat_tau": 5.0,
+  "mirostat_eta": 0.1,
+  "typical_p": 1.0,
+  "n_probs": 0,
+  "ignore_eos": false,
+  "enable_thinking": false,
+  "xtc_probability": 0.0,
+  "xtc_threshold": 0.1,
+  "grammar": "",
+  "system_prompt": "",
+  "stop": [],
+  "stop_words": [],
+  "logit_bias": []
+}</pre>
+
+  <hr>
+  <p>Inferra Local Server &copy; 2025 | Version ${this.getAppVersion()}</p>
+  <p>For more information, visit the <a href="/offer">WebRTC offer endpoint</a></p>
 </body>
 </html>`;
       this.sendHTTPResponse(socket, 200, { 'Content-Type': 'text/html; charset=utf-8' }, bodyContent);
