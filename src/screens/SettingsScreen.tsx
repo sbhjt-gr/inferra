@@ -716,14 +716,16 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
         } catch (error) {
           await RAGService.setEnabled(false);
           setRagEnabled(false);
-          Alert.alert('RAG error', 'Retrieval could not be enabled.');
+          const message = error instanceof Error && error.message ? error.message : 'Retrieval could not be enabled.';
+          Alert.alert('RAG error', message);
           setRagBusy(false);
           return;
         }
       }
       setRagEnabled(value);
     } catch (error) {
-      Alert.alert('RAG error', value ? 'Retrieval could not be enabled.' : 'Retrieval could not be disabled.');
+      const message = error instanceof Error && error.message ? error.message : value ? 'Retrieval could not be enabled.' : 'Retrieval could not be disabled.';
+      Alert.alert('RAG error', message);
     } finally {
       setRagBusy(false);
     }

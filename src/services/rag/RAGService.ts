@@ -4,6 +4,7 @@ import { OPSQLiteVectorStore } from '@react-native-rag/op-sqlite';
 import { LlamaRnEmbeddings } from './LlamaRnEmbeddings';
 import { LlamaRnLLM } from './LlamaRnLLM';
 import type { ModelSettings } from '../ModelSettingsService';
+import { llamaManager } from '../../utils/LlamaManager';
 
 const RAG_ENABLED_KEY = '@inferra/rag/enabled';
 const RAG_STORAGE_KEY = '@inferra/rag/storage';
@@ -60,6 +61,7 @@ class RAGServiceClass {
       return;
     }
 
+    await this.ensureEmbeddingSupport();
     this.storage = await this.getStorageType();
     this.embeddings = new LlamaRnEmbeddings();
     this.llm = new LlamaRnLLM();
@@ -172,6 +174,32 @@ class RAGServiceClass {
   private ensureReady() {
     if (!this.initialized || !this.rag) {
       throw new Error('RAG service not ready');
+    }
+  }
+
+  private async ensureEmbeddingSupport(): Promise<void> {
+    if (!llamaManager.isInitialized()) {
+      throw new Error('Model not initialized');
+    }
+
+    try {
+      await llamaManager.generateEmbedding('__rag_probe__');
+      return;
+    } catch (error) {
+      const modelPath = llamaManager.getModelPath();
+      if (!modelPath) {
+        throw error instanceof Error ? error : new Error('Unable to generate embeddings');
+      }
+
+      const projectorPath = llamaManager.getMultimodalProjectorPath();
+      await llamaManager.loadModel(modelPath, projectorPath ?? undefined);
+      try {
+        await llamaManager.generateEmbedding('__rag_probe__');
+      } catch (finalError) {
+        throw finalError instanceof Error && finalError.message
+          ? finalError
+          : new Error('Current model does not support embeddings');
+      }
     }
   }
 }
