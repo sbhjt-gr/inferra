@@ -11,6 +11,7 @@ export class DownloadTaskManager extends EventEmitter {
   private fileManager: FileManager;
   private readonly DOWNLOAD_PROGRESS_KEY = 'download_progress_state';
   private isInitialized: boolean = false;
+  private manualCancellationSet: Set<string> = new Set<string>();
 
   constructor(fileManager: FileManager) {
     super();
@@ -129,6 +130,10 @@ export class DownloadTaskManager extends EventEmitter {
         this.saveDownloadProgress();
       },
       onCancelled: (modelName: string) => {
+        if (this.manualCancellationSet.has(modelName)) {
+          this.manualCancellationSet.delete(modelName);
+          return;
+        }
         const downloadInfo = this.activeDownloads.get(modelName);
         if (downloadInfo) {
           downloadInfo.status = 'cancelled';
@@ -240,6 +245,7 @@ export class DownloadTaskManager extends EventEmitter {
   async cancelDownload(downloadId: number): Promise<void>;
   async cancelDownload(identifier: string | number): Promise<void> {
     let modelName: string;
+    let downloadInfo: DownloadTaskInfo | undefined;
     
     if (typeof identifier === 'number') {
       const download = Array.from(this.activeDownloads.entries()).find(([, info]) => info.downloadId === identifier);
@@ -247,9 +253,11 @@ export class DownloadTaskManager extends EventEmitter {
         return;
       }
       modelName = download[0];
+      downloadInfo = download[1];
     } else {
       modelName = identifier;
-      if (!this.activeDownloads.has(modelName)) {
+      downloadInfo = this.activeDownloads.get(modelName);
+      if (!downloadInfo) {
         return;
       }
     }
@@ -258,6 +266,27 @@ export class DownloadTaskManager extends EventEmitter {
       await backgroundDownloadService.abortTransfer(modelName);
     } catch (error) {
       throw error;
+    } finally {
+      if (downloadInfo && this.activeDownloads.has(modelName)) {
+        downloadInfo.status = 'cancelled';
+        if (downloadInfo.destination) {
+          try {
+            await this.fileManager.deleteFile(downloadInfo.destination);
+          } catch (error) {
+          }
+        }
+        this.activeDownloads.delete(modelName);
+        this.manualCancellationSet.add(modelName);
+        setTimeout(() => {
+          this.manualCancellationSet.delete(modelName);
+        }, 30000);
+        await this.saveDownloadProgress();
+        this.emit('downloadCancelled', {
+          modelName,
+          downloadId: downloadInfo.downloadId,
+          nativeDownloadId: downloadInfo.nativeDownloadId,
+        });
+      }
     }
   }
 
