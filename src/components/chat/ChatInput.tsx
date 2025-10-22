@@ -77,7 +77,7 @@ export default function ChatInput({
   const [pendingMultimodalAction, setPendingMultimodalAction] = useState<'camera' | 'file' | null>(null);
   const [pendingFileForMultimodal, setPendingFileForMultimodal] = useState<{uri: string, name?: string} | null>(null);
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
-  const [useRagForUpload, setUseRagForUpload] = useState(false);
+  const [useRagForUpload, setUseRagForUpload] = useState(true);
   
   const inputRef = useRef<TextInput>(null);
   const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
@@ -161,31 +161,30 @@ export default function ChatInput({
     }
   }, [showAttachmentMenu]);
 
-  useEffect(() => {
-    let isActive = true;
-    if (fileModalVisible) {
-      (async () => {
-        try {
-          const enabled = await RAGService.isEnabled();
-          if (!isActive) return;
-          if (!enabled) {
-            setUseRagForUpload(false);
-            await AsyncStorage.setItem('@rag_upload_pref', 'false');
-            return;
-          }
-          const stored = await AsyncStorage.getItem('@rag_upload_pref');
-          if (!isActive) return;
-          setUseRagForUpload(stored === 'true' || stored === null);
-        } catch (error) {
-          if (!isActive) return;
-          setUseRagForUpload(true);
-        }
-      })();
+  const refreshRagPreference = useCallback(async () => {
+    try {
+      const enabled = await RAGService.isEnabled();
+      if (!enabled) {
+        setUseRagForUpload(false);
+        await AsyncStorage.setItem('@rag_upload_pref', 'false');
+        return;
+      }
+      const stored = await AsyncStorage.getItem('@rag_upload_pref');
+      setUseRagForUpload(stored === 'true' || stored === null);
+    } catch (error) {
+      setUseRagForUpload(true);
     }
-    return () => {
-      isActive = false;
-    };
-  }, [fileModalVisible]);
+  }, []);
+
+  useEffect(() => {
+    refreshRagPreference();
+  }, [refreshRagPreference]);
+
+  useEffect(() => {
+    if (fileModalVisible || cameraVisible) {
+      refreshRagPreference();
+    }
+  }, [fileModalVisible, cameraVisible, refreshRagPreference]);
 
   const startPulseAnimation = () => {
     Animated.loop(
@@ -401,6 +400,79 @@ export default function ChatInput({
     setInputHeight(height);
   }, []);
 
+  const processRagDocument = useCallback(
+    async (
+      content: string,
+      displayName: string,
+      fileType?: string,
+    ): Promise<{ handled: boolean; cancelled: boolean; documentId?: string }> => {
+      let handled = false;
+      let cancelled = false;
+      let documentId: string | undefined;
+      let ragIndicatorActive = false;
+
+      try {
+        const enabled = await RAGService.isEnabled();
+        if (!enabled) {
+          return { handled, cancelled, documentId };
+        }
+
+        if (!llamaManager.isInitialized()) {
+          showDialog('Model not ready', 'Load a local model before using retrieval.');
+          return { handled, cancelled, documentId };
+        }
+
+        ragIndicatorActive = true;
+        setIsProcessingWithRAG(true);
+        ragCancelRef.current.cancelled = false;
+        setRagProgress({ completed: 0, total: 0 });
+
+        if (!RAGService.isReady()) {
+          await RAGService.initialize();
+        }
+
+        if (!RAGService.isReady()) {
+          return { handled, cancelled, documentId };
+        }
+
+        documentId = uuidv4();
+        const ragDocument: RAGDocument = {
+          id: documentId,
+          content,
+          fileName: displayName,
+          fileType,
+          timestamp: Date.now(),
+        };
+
+        await RAGService.addDocument(ragDocument, {
+          onProgress: (completed, total) => {
+            setRagProgress({ completed, total });
+            console.log('rag_progress', documentId, `${completed}/${total}`);
+          },
+          isCancelled: () => ragCancelRef.current.cancelled,
+        });
+        handled = true;
+        console.log('file_rag_store', displayName, documentId, content.length);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'unknown';
+        console.log('file_upload_error', errorMessage);
+        if (error instanceof Error && error.message === 'rag_upload_cancelled') {
+          cancelled = true;
+          console.log('file_upload_cancelled', displayName);
+        } else {
+          showDialog('Retrieval error', 'Document could not be stored for retrieval. Sending full content instead.');
+        }
+      } finally {
+        if (ragIndicatorActive) {
+          setIsProcessingWithRAG(false);
+        }
+      }
+
+      return { handled, cancelled, documentId };
+    },
+    [showDialog]
+  );
+
   const handleFileUpload = useCallback(
     async (content: string, fileName?: string, userPrompt?: string, useRagFlag = false) => {
       const displayName = fileName || 'unnamed file';
@@ -423,70 +495,32 @@ export default function ChatInput({
       };
 
       let ragHandled = false;
-      let ragIndicatorActive = false;
       let ragCancelled = false;
+      let documentId: string | undefined;
 
       if (useRagFlag) {
-        try {
-          const enabled = await RAGService.isEnabled();
-          if (enabled) {
-            if (!llamaManager.isInitialized()) {
-              showDialog('Model not ready', 'Load a local model before using retrieval.');
-            } else {
-              ragIndicatorActive = true;
-              setIsProcessingWithRAG(true);
-              ragCancelRef.current.cancelled = false;
-              setRagProgress({ completed: 0, total: 0 });
-              if (!RAGService.isReady()) {
-                await RAGService.initialize();
-              }
-              if (RAGService.isReady()) {
-                const documentId = uuidv4();
-                const ragDocument: RAGDocument = {
-                  id: documentId,
-                  content,
-                  fileName: displayName,
-                  fileType: displayName.split('.').pop()?.toLowerCase(),
-                  timestamp: Date.now(),
-                };
+        const result = await processRagDocument(
+          content,
+          displayName,
+          displayName.split('.').pop()?.toLowerCase()
+        );
+        ragHandled = result.handled;
+        ragCancelled = result.cancelled;
+        documentId = result.documentId;
 
-                await RAGService.addDocument(ragDocument, {
-                  onProgress: (completed, total) => {
-                    setRagProgress({ completed, total });
-                    console.log('rag_progress', documentId, `${completed}/${total}`);
-                  },
-                  isCancelled: () => ragCancelRef.current.cancelled,
-                });
-                ragHandled = true;
+        if (ragHandled && documentId) {
+          const messageObject = {
+            type: 'file_upload',
+            internalInstruction: buildInternalInstruction(),
+            userContent: userMessage,
+            metadata: { ragDocumentId: documentId },
+          };
 
-                const messageObject = {
-                  type: 'file_upload',
-                  internalInstruction: buildInternalInstruction(),
-                  userContent: userMessage,
-                  metadata: { ragDocumentId: documentId },
-                };
-
-                console.log('file_internal', messageObject.internalInstruction);
-                console.log('file_prompt', userMessage);
-                console.log('file_content', content);
-                console.log('file_upload_rag', displayName, documentId, content.length, sanitizedPrompt || 'no_prompt');
-                onSend(JSON.stringify(messageObject));
-              }
-            }
-          }
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'unknown';
-          console.log('file_upload_error', errorMessage);
-          if (error instanceof Error && error.message === 'rag_upload_cancelled') {
-            ragCancelled = true;
-            console.log('file_upload_cancelled', displayName);
-          } else if (!ragHandled) {
-            showDialog('Retrieval error', 'Document could not be stored for retrieval. Sending full content instead.');
-          }
-        } finally {
-          if (ragIndicatorActive) {
-            setIsProcessingWithRAG(false);
-          }
+          console.log('file_internal', messageObject.internalInstruction);
+          console.log('file_prompt', userMessage);
+          console.log('file_content', content);
+          console.log('file_upload_rag', displayName, documentId, content.length, sanitizedPrompt || 'no_prompt');
+          onSend(JSON.stringify(messageObject));
         }
       }
 
@@ -508,19 +542,79 @@ export default function ChatInput({
       ragCancelRef.current.cancelled = false;
       console.log('file_upload_complete', displayName, ragCancelled ? 'cancelled' : ragHandled ? 'rag' : 'fallback');
     },
-    [onSend, showDialog]
+    [onSend, processRagDocument]
+  );
+
+  const processOcrRagIfNeeded = useCallback(
+    async (messageContent: string): Promise<{ finalMessage: string; cancelled: boolean }> => {
+      if (!useRagForUpload) {
+        return { finalMessage: messageContent, cancelled: false };
+      }
+
+      try {
+        const parsed = JSON.parse(messageContent);
+
+        if (parsed?.type === 'ocr_result' && typeof parsed.extractedText === 'string') {
+          const displayName = parsed?.fileName || 'ocr_document';
+          const result = await processRagDocument(parsed.extractedText, displayName, 'ocr');
+
+          if (result.cancelled) {
+            return { finalMessage: messageContent, cancelled: true };
+          }
+
+          if (result.handled && result.documentId) {
+            parsed.metadata = { ...(parsed.metadata || {}), ragDocumentId: result.documentId };
+            return { finalMessage: JSON.stringify(parsed), cancelled: false };
+          }
+        }
+      } catch (error) {
+        console.log('ocr_rag_parse_error');
+      }
+
+      return { finalMessage: messageContent, cancelled: false };
+    },
+    [processRagDocument, useRagForUpload]
   );
 
   const handleImageUpload = useCallback((messageContent: string) => {
-    onSend(messageContent);
-    setShowAttachmentMenu(false);
-  }, [onSend]);
+    processOcrRagIfNeeded(messageContent)
+      .then(({ finalMessage, cancelled }) => {
+        if (cancelled) {
+          setRagProgress(null);
+          ragCancelRef.current.cancelled = false;
+          return;
+        }
+
+        setRagProgress(null);
+        ragCancelRef.current.cancelled = false;
+        onSend(finalMessage);
+        setShowAttachmentMenu(false);
+      })
+      .catch(() => {
+        setRagProgress(null);
+        ragCancelRef.current.cancelled = false;
+      });
+  }, [onSend, processOcrRagIfNeeded]);
 
   const handlePhotoTaken = useCallback((photoUri: string, messageContent: string) => {
-    
-    onSend(messageContent);
-    setShowAttachmentMenu(false);
-  }, [onSend]);
+    processOcrRagIfNeeded(messageContent)
+      .then(({ finalMessage, cancelled }) => {
+        if (cancelled) {
+          setRagProgress(null);
+          ragCancelRef.current.cancelled = false;
+          return;
+        }
+
+        setRagProgress(null);
+        ragCancelRef.current.cancelled = false;
+        onSend(finalMessage);
+        setShowAttachmentMenu(false);
+      })
+      .catch(() => {
+        setRagProgress(null);
+        ragCancelRef.current.cancelled = false;
+      });
+  }, [onSend, processOcrRagIfNeeded]);
 
   const handleAudioRecorded = useCallback((audioUri: string) => {
     const messageObject = {
