@@ -406,6 +406,7 @@ export default function ChatInput({
       const displayName = fileName || 'unnamed file';
       const sanitizedPrompt = userPrompt ? userPrompt.trim() : '';
       const userMessage = sanitizedPrompt || `File uploaded: ${displayName}`;
+      console.log('file_upload_start', displayName, useRagFlag ? 'rag_on' : 'rag_off');
       const buildInternalInstruction = (fileBody?: string) => {
         const sections: string[] = [`You're reading a file named: ${displayName}`];
         if (sanitizedPrompt) {
@@ -423,6 +424,7 @@ export default function ChatInput({
 
       let ragHandled = false;
       let ragIndicatorActive = false;
+      let ragCancelled = false;
 
       if (useRagFlag) {
         try {
@@ -451,6 +453,7 @@ export default function ChatInput({
                 await RAGService.addDocument(ragDocument, {
                   onProgress: (completed, total) => {
                     setRagProgress({ completed, total });
+                    console.log('rag_progress', documentId, `${completed}/${total}`);
                   },
                   isCancelled: () => ragCancelRef.current.cancelled,
                 });
@@ -463,13 +466,21 @@ export default function ChatInput({
                   metadata: { ragDocumentId: documentId },
                 };
 
-                console.log('file_upload_rag', displayName, documentId, content.length);
+                console.log('file_internal', messageObject.internalInstruction);
+                console.log('file_prompt', userMessage);
+                console.log('file_content', content);
+                console.log('file_upload_rag', displayName, documentId, content.length, sanitizedPrompt || 'no_prompt');
                 onSend(JSON.stringify(messageObject));
               }
             }
           }
         } catch (error) {
-          if (!ragHandled) {
+          const errorMessage = error instanceof Error ? error.message : 'unknown';
+          console.log('file_upload_error', errorMessage);
+          if (error instanceof Error && error.message === 'rag_upload_cancelled') {
+            ragCancelled = true;
+            console.log('file_upload_cancelled', displayName);
+          } else if (!ragHandled) {
             showDialog('Retrieval error', 'Document could not be stored for retrieval. Sending full content instead.');
           }
         } finally {
@@ -479,19 +490,23 @@ export default function ChatInput({
         }
       }
 
-      if (!ragHandled) {
+      if (!ragHandled && !ragCancelled) {
         const fallbackObject = {
           type: 'file_upload',
           internalInstruction: buildInternalInstruction(content),
           userContent: userMessage,
         };
-        console.log('file_upload_fallback', displayName, content.length);
+        console.log('file_internal', fallbackObject.internalInstruction);
+        console.log('file_prompt', userMessage);
+        console.log('file_content', content);
+        console.log('file_upload_fallback', displayName, content.length, sanitizedPrompt || 'no_prompt');
         onSend(JSON.stringify(fallbackObject));
       }
 
       setShowAttachmentMenu(false);
       setRagProgress(null);
       ragCancelRef.current.cancelled = false;
+      console.log('file_upload_complete', displayName, ragCancelled ? 'cancelled' : ragHandled ? 'rag' : 'fallback');
     },
     [onSend, showDialog]
   );
