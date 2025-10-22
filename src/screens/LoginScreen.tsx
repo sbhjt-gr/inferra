@@ -97,11 +97,14 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps) {
       if (result.success) {
         await checkLoginStatus();
         
-        if (redirectAfterLogin === 'MainTabs') {
-          navigation.replace('MainTabs', redirectParams as any);
-        } else {
-          navigation.replace(redirectAfterLogin as any);
-        }
+        navigation.reset({
+          index: 0,
+          routes: [
+            redirectAfterLogin === 'MainTabs' 
+              ? { name: 'MainTabs', params: redirectParams as any }
+              : { name: redirectAfterLogin as any }
+          ],
+        });
       } else {
         setError(result.error || 'Login failed. Please try again.');
       }
@@ -122,11 +125,14 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps) {
       if (result.success) {
         await checkLoginStatus();
         
-        if (redirectAfterLogin === 'MainTabs') {
-          navigation.replace('MainTabs', redirectParams as any);
-        } else {
-          navigation.replace(redirectAfterLogin as any);
-        }
+        navigation.reset({
+          index: 0,
+          routes: [
+            redirectAfterLogin === 'MainTabs' 
+              ? { name: 'MainTabs', params: redirectParams as any }
+              : { name: redirectAfterLogin as any }
+          ],
+        });
       } else {
         setError(result.error || 'Google sign-in failed. Please try again.');
       }
@@ -150,11 +156,14 @@ export default function LoginScreen({ navigation, route }: LoginScreenProps) {
       if (result.success) {
         await checkLoginStatus();
 
-        if (redirectAfterLogin === 'MainTabs') {
-          navigation.replace('MainTabs', redirectParams as any);
-        } else {
-          navigation.replace(redirectAfterLogin as any);
-        }
+        navigation.reset({
+          index: 0,
+          routes: [
+            redirectAfterLogin === 'MainTabs' 
+              ? { name: 'MainTabs', params: redirectParams as any }
+              : { name: redirectAfterLogin as any }
+          ],
+        });
       } else {
         setError(result.error || 'Apple sign-in failed. Please try again.');
       }
