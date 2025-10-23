@@ -58,112 +58,6 @@ If you want to support me and the development of this project, you can donate to
 - Chat history management with the ability to create, save, and organize conversations.
 - Real-time streaming responses for both local and remote models.
 
-## Architecture
-
-### Project Structure
-This is an AI-generated rough file structure of the project. This may not be up-to-date as the file structure is constantly evolving.
-```
-src/
-├── components/          # Reusable UI components
-│   ├── chat/           # Chat interface components (messages, input, bubbles)
-│   ├── model/          # Model management components (selector, cards)
-│   ├── settings/       # Settings screen components
-│   └── ...             # Other shared components
-├── config/             # App configuration files
-├── constants/          # App constants, themes, and configurations
-│   ├── theme.ts        # Theme definitions and color schemes
-│   └── ...             # Other constants
-├── context/            # React context providers
-│   ├── DialogContext.tsx      # Dialog management
-│   ├── DownloadContext.tsx    # Download state management
-│   ├── ModelContext.tsx       # Local model management
-│   ├── RemoteModelContext.tsx # Cloud model management
-│   └── ThemeContext.tsx       # Theme and appearance
-├── hooks/              # Custom React hooks
-├── navigation/         # Navigation configuration
-│   └── AppNavigator.tsx       # Main navigation setup
-├── screens/           # Main application screens
-│   ├── HomeScreen.tsx         # Main chat interface
-│   ├── ModelScreen.tsx        # Model management
-│   ├── ModelSettingsScreen.tsx # Model configuration
-│   ├── SettingsScreen.tsx     # App configuration
-│   ├── ChatHistoryScreen.tsx  # Conversation history
-│   ├── SearchScreen.tsx       # Chat search functionality
-│   ├── DownloadsScreen.tsx    # Download management
-│   ├── LocalServerScreen.tsx  # Server management and control
-│   ├── ServerLogsScreen.tsx   # Server activity logs
-│   ├── ProfileScreen.tsx      # User profile and account
-│   ├── LoginScreen.tsx        # Authentication
-│   ├── RegisterScreen.tsx     # User registration
-│   ├── ReportScreen.tsx       # Bug reporting
-│   └── NotificationsScreen.tsx # Notifications center
-├── services/          # Core business logic and services
-│   ├── Authentication/
-│   │   ├── FirebaseAuth.ts    # Firebase authentication
-│   │   └── AuthStorage.ts     # Auth state persistence
-│   ├── AI Services/
-│   │   ├── ClaudeService.ts   # Anthropic Claude integration
-│   │   ├── GeminiService.ts   # Google Gemini integration
-│   │   ├── OpenAIService.ts   # OpenAI ChatGPT integration
-│   │   ├── DeepSeekService.ts # DeepSeek integration
-│   │   └── OnlineModelService.ts # Unified remote model interface
-│   ├── Model Management/
-│   │   ├── ModelDownloader.ts    # Model download and storage
-│   │   ├── ModelManagementService.ts # Model lifecycle management
-│   │   ├── StoredModelsManager.ts # Model file operations
-│   │   ├── ModelSettingsService.ts # Model configuration
-│   │   └── LlamaSettingsManager.ts # Llama-specific settings
-│   ├── RAG/
-│   │   ├── RAGService.ts         # Main RAG implementation
-│   │   ├── LlamaRnLLM.ts        # Llama.cpp LLM adapter
-│   │   ├── OnlineModelLLM.ts    # Remote model LLM adapter
-│   │   ├── AppleFoundationLLM.ts # Apple Intelligence adapter
-│   │   ├── LlamaRnEmbeddings.ts # Local embeddings
-│   │   ├── AppleRagEmbeddings.ts # Apple embeddings
-│   │   └── UniversalEmbeddings.ts # Unified embeddings interface
-│   ├── Server/
-│   │   ├── LocalServerWebRTC.ts  # Server lifecycle management
-│   │   ├── TCPSignalingServer.ts # HTTP server implementation
-│   │   ├── HTTPSignalingServer.ts # Alternative server
-│   │   └── tcp/http/             # HTTP request handlers
-│   │       ├── chatApiHandler.ts      # Chat endpoints
-│   │       ├── modelApiHandler.ts     # Model operations
-│   │       ├── ragApiHandler.ts       # RAG endpoints
-│   │       ├── fileApiHandler.ts      # File operations
-│   │       ├── settingsApiHandler.ts  # Settings endpoints
-│   │       ├── homepageTemplate.ts    # API documentation page
-│   │       └── ...                    # Other handlers
-│   ├── Downloads/
-│   │   ├── DownloadTaskManager.ts    # Download queue management
-│   │   └── DownloadNotificationService.ts # Download notifications
-│   ├── Chat/
-│   │   ├── ChatLifecycleService.ts   # Chat session management
-│   │   ├── MessageProcessingService.ts # Message handling
-│   │   ├── RegenerationService.ts    # Message regeneration
-│   │   └── TokenProcessingService.ts # Token streaming
-│   ├── AppleFoundationService.ts # Apple Intelligence integration
-│   ├── FileManager.ts        # File operations and management
-│   ├── MultimodalService.ts  # Vision and image processing
-│   ├── NotificationService.ts # Push notifications
-│   ├── HuggingFaceService.ts # HuggingFace API integration
-│   ├── UsageTrackingService.ts # Analytics and usage stats
-│   ├── InAppReviewService.ts # App review prompts
-│   └── SecurityUtils.ts      # Security utilities
-├── types/             # TypeScript type definitions
-│   ├── chat.ts        # Chat and message types
-│   ├── model.ts       # Model-related types
-│   ├── navigation.ts  # Navigation types
-│   └── ...            # Other type definitions
-└── utils/            # Utility functions and managers
-    ├── ChatManager.ts        # Chat state management
-    ├── LlamaManager.ts       # Local LLM interface
-    ├── PDFOcrUtils.ts        # Document processing and OCR
-    ├── ImageProcessingUtils.ts # Image handling and compression
-    ├── ApiKeyDatabase.ts     # Secure API key storage
-    ├── logger.ts             # Logging utilities
-    └── ...                   # Other utilities
-```
-
 ## Getting Started
 If you want to contribute or just try to run it locally, follow the guide below. Please adhere to the rules of the <a href="https://github.com/sbhjt-gr/inferra/blob/main/LICENSE">LICENSE</a> because you are not supposed to just `git clone` and pass it as your own work.
 
@@ -273,8 +167,8 @@ If you're interested in working on these or have other ideas, open an issue to d
 
 - [llama.cpp](https://github.com/ggerganov/llama.cpp) - The default underlying engine for running local LLMs and it's the only one that's been implemented yet.
 - [inferra-llama.rn](https://github.com/sbhjt-gr/inferra-llama.rn) - The customized React Native adapter which provides the bridge for llama.cpp. Originally forked and self-hosted from [llama.rn](https://github.com/mybigday/llama.rn) for updating llama.cpp more frequently.
-- [react-native-rag](https://github.com/a-ghorbani/react-native-rag) - RAG implementation for React Native that powers the document retrieval and ingestion features.
-- [react-native-ai](https://github.com/dabit3/react-native-ai) - Inspiration and reference for AI integration patterns in React Native applications.
+- [react-native-rag](https://github.com/software-mansion-labs/react-native-rag) - RAG implementation for React Native that powers the document retrieval and ingestion features.
+- [react-native-ai](https://github.com/callstackincubator/ai) - Inspiration and reference for AI integration patterns in React Native applications.
 - If someone thinks they also need to be mentioned here, please let me know.
 
 ## Tech Stack
@@ -287,6 +181,7 @@ If you're interested in working on these or have other ideas, open an issue to d
 - **React Native Paper**: Used for many Material Design UI components, although the whole UI is not purely based on the Material design.
 - **React Native ML Kit**: For on-device text recognition and OCR.
 - **react-native-tcp-socket**: For HTTP server implementation and network communication.
+- **react-native-webrtc**: For WebRTC peer-to-peer connections and signaling.
 - **ESLint**: For code quality.
 - **Some Expo Modules**: For camera, file system, notifications, device APIs etc.
 
