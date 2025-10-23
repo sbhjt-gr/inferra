@@ -164,19 +164,6 @@ src/
     └── ...                   # Other utilities
 ```
 
-## Tech Stack
-
-- **React Native + Expo**: For cross-platform support.
-- **TypeScript**: The syntactical superset of JavaScript, widely used for React Development.
-- **Firebase**: For authentication, Firestore database, and cloud services.
-- **inferra-llama**: Custom llama.cpp bridge for local inference originally maintained by <a href="https://www.bricks.tools/" target="_blank">BRICS</a>.
-- **React Navigation**: For navigation and routing.
-- **React Native Paper**: Used for many Material Design UI components, although the whole UI is not purely based on the Material design.
-- **React Native ML Kit**: For on-device text recognition and OCR.
-- **react-native-tcp-socket**: For HTTP server implementation and network communication.
-- **ESLint**: For code quality.
-- **Some Expo Modules**: For camera, file system, notifications, device APIs etc.
-
 ## Getting Started
 If you want to contribute or just try to run it locally, follow the guide below. Please adhere to the rules of the <a href="https://github.com/sbhjt-gr/inferra/blob/main/LICENSE">LICENSE</a> because you are not supposed to just `git clone` and pass it as your own work.
 
@@ -198,13 +185,13 @@ If you want to contribute or just try to run it locally, follow the guide below.
 
 2. **Install dependencies**
    ```bash
-   npm install
+   yarn install
    ```
 
 3. **Set up environment variables**
    ```bash
    cp .env.example .env
-   # Configure your API keys and Firebase settings as shown in the example env.
+   # Configure your API keys and Firebase settings as shown in app.config.json
    ```
 
 4. **Run on device or emulator**
@@ -289,6 +276,19 @@ If you're interested in working on these or have other ideas, open an issue to d
 - [react-native-rag](https://github.com/a-ghorbani/react-native-rag) - RAG implementation for React Native that powers the document retrieval and ingestion features.
 - [react-native-ai](https://github.com/dabit3/react-native-ai) - Inspiration and reference for AI integration patterns in React Native applications.
 - If someone thinks they also need to be mentioned here, please let me know.
+
+## Tech Stack
+
+- **React Native + Expo**: For cross-platform support.
+- **TypeScript**: The syntactical superset of JavaScript, widely used for React Development.
+- **Firebase**: For authentication, Firestore database, and cloud services.
+- **inferra-llama**: Custom llama.cpp bridge for local inference originally maintained by <a href="https://www.bricks.tools/" target="_blank">BRICS</a>.
+- **React Navigation**: For navigation and routing.
+- **React Native Paper**: Used for many Material Design UI components, although the whole UI is not purely based on the Material design.
+- **React Native ML Kit**: For on-device text recognition and OCR.
+- **react-native-tcp-socket**: For HTTP server implementation and network communication.
+- **ESLint**: For code quality.
+- **Some Expo Modules**: For camera, file system, notifications, device APIs etc.
 
 ## Star History
 
