@@ -25,20 +25,48 @@ interface License {
 }
 
 const licenses: License[] = [
-    {
-        name: 'Vector Icons',
-        description: 'Perfect for buttons, logos and nav/tab bars',
-        licenseType: 'MIT License',
-        licenseUrl: 'https://github.com/expo/vector-icons/blob/main/LICENSE',
-        repositoryUrl: 'https://github.com/expo/vector-icons'
-    },
-    {
-      name: 'Firebase',
-      description: 'Google Firebase SDK for React Native',
-      licenseType: 'Apache License 2.0',
-      licenseUrl: 'https://github.com/invertase/react-native-firebase/blob/main/LICENSE',
-      repositoryUrl: 'https://github.com/invertase/react-native-firebase'
-    },
+  {
+    name: 'React',
+    description: 'JavaScript library for building user interfaces',
+    licenseType: 'MIT License',
+    licenseUrl: 'https://github.com/facebook/react/blob/main/LICENSE',
+    repositoryUrl: 'https://github.com/facebook/react'
+  },
+  {
+    name: 'React Native',
+    description: 'Framework for building native apps using React',
+    licenseType: 'MIT License',
+    licenseUrl: 'https://github.com/facebook/react-native/blob/main/LICENSE',
+    repositoryUrl: 'https://github.com/facebook/react-native'
+  },
+  {
+    name: 'Expo',
+    description: 'Platform for making universal native apps',
+    licenseType: 'MIT License',
+    licenseUrl: 'https://github.com/expo/expo/blob/main/LICENSE',
+    repositoryUrl: 'https://github.com/expo/expo'
+  },
+  {
+    name: 'Expo Vector Icons',
+    description: 'Perfect for buttons, logos and nav/tab bars',
+    licenseType: 'MIT License',
+    licenseUrl: 'https://github.com/expo/vector-icons/blob/main/LICENSE',
+    repositoryUrl: 'https://github.com/expo/vector-icons'
+  },
+  {
+    name: 'React Navigation',
+    description: 'Routing and navigation for React Native apps',
+    licenseType: 'MIT License',
+    licenseUrl: 'https://github.com/react-navigation/react-navigation/blob/main/packages/core/LICENSE',
+    repositoryUrl: 'https://github.com/react-navigation/react-navigation'
+  },
+  {
+    name: 'Firebase',
+    description: 'Google Firebase SDK for JavaScript',
+    licenseType: 'Apache License 2.0',
+    licenseUrl: 'https://github.com/firebase/firebase-js-sdk/blob/master/LICENSE',
+    repositoryUrl: 'https://github.com/firebase/firebase-js-sdk'
+  },
   {
     name: 'React Native Paper',
     description: 'Material Design for React Native',
@@ -54,8 +82,22 @@ const licenses: License[] = [
     repositoryUrl: 'https://github.com/mybigday/llama.rn'
   },
   {
+    name: 'React Native RAG',
+    description: 'Retrieval-Augmented Generation for React Native',
+    licenseType: 'MIT License',
+    licenseUrl: 'https://github.com/software-mansion-labs/react-native-rag/blob/main/LICENSE',
+    repositoryUrl: 'https://github.com/software-mansion-labs/react-native-rag'
+  },
+  {
+    name: 'React Native AI Apple',
+    description: 'Apple Intelligence SDK for React Native',
+    licenseType: 'MIT License',
+    licenseUrl: 'https://github.com/callstackincubator/ai/blob/main/LICENSE',
+    repositoryUrl: 'https://github.com/callstackincubator/ai'
+  },
+  {
     name: 'React Native ML Kit Text Recognition',
-    description: 'React Native ML Kit Text Recognition',
+    description: 'Google ML Kit text recognition for React Native',
     licenseType: 'MIT License',
     licenseUrl: 'https://github.com/a7medev/react-native-ml-kit/blob/main/LICENSE',
     repositoryUrl: 'https://github.com/a7medev/react-native-ml-kit'
@@ -66,6 +108,97 @@ const licenses: License[] = [
     licenseType: 'MIT License',
     licenseUrl: 'https://github.com/iamacup/react-native-markdown-display/blob/master/LICENSE',
     repositoryUrl: 'https://github.com/iamacup/react-native-markdown-display'
+  },
+  {
+    name: 'React Native Gesture Handler',
+    description: 'Declarative API exposing platform native touch and gesture system',
+    licenseType: 'MIT License',
+    licenseUrl: 'https://github.com/software-mansion/react-native-gesture-handler/blob/main/LICENSE',
+    repositoryUrl: 'https://github.com/software-mansion/react-native-gesture-handler'
+  },
+  {
+    name: 'React Native Screens',
+    description: 'Native navigation primitives for React Native apps',
+    licenseType: 'MIT License',
+    licenseUrl: 'https://github.com/software-mansion/react-native-screens/blob/main/LICENSE',
+    repositoryUrl: 'https://github.com/software-mansion/react-native-screens'
+  },
+  {
+    name: 'React Native Safe Area Context',
+    description: 'Flexible way to handle safe area insets',
+    licenseType: 'MIT License',
+    licenseUrl: 'https://github.com/th3rdwave/react-native-safe-area-context/blob/main/LICENSE',
+    repositoryUrl: 'https://github.com/th3rdwave/react-native-safe-area-context'
+  },
+  {
+    name: 'React Native SVG',
+    description: 'SVG library for React Native',
+    licenseType: 'MIT License',
+    licenseUrl: 'https://github.com/software-mansion/react-native-svg/blob/main/LICENSE',
+    repositoryUrl: 'https://github.com/software-mansion/react-native-svg'
+  },
+  {
+    name: 'React Native WebView',
+    description: 'WebView component for React Native',
+    licenseType: 'MIT License',
+    licenseUrl: 'https://github.com/react-native-webview/react-native-webview/blob/master/LICENSE',
+    repositoryUrl: 'https://github.com/react-native-webview/react-native-webview'
+  },
+  {
+    name: 'React Native WebRTC',
+    description: 'WebRT\C module for React Native',
+    licenseType: 'MIT License',
+    licenseUrl: 'https://github.com/react-native-webrtc/react-native-webrtc/blob/master/LICENSE.md',
+    repositoryUrl: 'https://github.com/react-native-webrtc/react-native-webrtc'
+  },
+  {
+    name: 'OP SQLite',
+    description: 'Fast SQLite implementation for React Native',
+    licenseType: 'MIT License',
+    licenseUrl: 'https://github.com/OP-Engineering/op-sqlite/blob/main/LICENSE',
+    repositoryUrl: 'https://github.com/OP-Engineering/op-sqlite'
+  },
+  {
+    name: 'React Native Async Storage',
+    description: 'Asynchronous, persistent key-value storage system',
+    licenseType: 'MIT License',
+    licenseUrl: 'https://github.com/react-native-async-storage/async-storage/blob/main/LICENSE',
+    repositoryUrl: 'https://github.com/react-native-async-storage/async-storage'
+  },
+  {
+    name: 'React Native FS',
+    description: 'Native filesystem access for React Native',
+    licenseType: 'MIT License',
+    licenseUrl: 'https://github.com/birdofpreyru/react-native-fs/blob/master/LICENSE',
+    repositoryUrl: 'https://github.com/birdofpreyru/react-native-fs'
+  },
+  {
+    name: 'React Native Google Sign In',
+    description: 'Google Sign-In for React Native',
+    licenseType: 'MIT License',
+    licenseUrl: 'https://github.com/react-native-google-signin/google-signin/blob/master/LICENSE',
+    repositoryUrl: 'https://github.com/react-native-google-signin/google-signin'
+  },
+  {
+    name: 'React Native In App Review',
+    description: 'Native in-app review functionality',
+    licenseType: 'MIT License',
+    licenseUrl: 'https://github.com/MinaSamir11/react-native-in-app-review/blob/master/LICENSE',
+    repositoryUrl: 'https://github.com/MinaSamir11/react-native-in-app-review'
+  },
+  {
+    name: 'React Native Community Slider',
+    description: 'Slider component for React Native',
+    licenseType: 'MIT License',
+    licenseUrl: 'https://github.com/callstack/react-native-slider/blob/main/LICENSE.md',
+    repositoryUrl: 'https://github.com/callstack/react-native-slider'
+  },
+  {
+    name: 'TypeScript',
+    description: 'Typed superset of JavaScript',
+    licenseType: 'Apache License 2.0',
+    licenseUrl: 'https://github.com/microsoft/TypeScript/blob/main/LICENSE.txt',
+    repositoryUrl: 'https://github.com/microsoft/TypeScript'
   }
 ];
 
@@ -146,6 +279,7 @@ const LicensesScreen = ({ navigation }: LicensesScreenProps) => {
             <MaterialCommunityIcons name="arrow-left" size={24} color={themeColors.headerText} />
           </TouchableOpacity>
         }
+        rightButtons={[]}
       />
       
       <ScrollView 
