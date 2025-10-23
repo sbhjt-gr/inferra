@@ -1,3 +1,4 @@
+import { Buffer } from 'buffer';
 import { getHTTPStatusText } from './httpStatus';
 
 export function sendChunkedResponseStart(socket: any, status: number, headers: Record<string, string>): void {

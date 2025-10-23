@@ -1,3 +1,4 @@
+import * as FileSystem from 'expo-file-system';
 import { RAGService } from '../../rag/RAGService';
 import { logger } from '../../../utils/logger';
 import type { ApiHandler, JsonResponder } from './apiTypes';
@@ -25,19 +26,52 @@ export function createFileApiHandler(context: Context): ApiHandler {
         return true;
       }
 
-      const content = typeof payload?.content === 'string' ? payload.content : null;
+      let content = typeof payload?.content === 'string' ? payload.content : null;
       const fileName = typeof payload?.fileName === 'string' ? payload.fileName : 'uploaded.txt';
+      const filePath = typeof payload?.filePath === 'string' ? payload.filePath : null;
+      const files = Array.isArray(payload?.files) ? payload.files : null;
       const model = typeof payload?.model === 'string' ? payload.model : undefined;
       const provider = normalizeProvider(payload?.provider);
       const useRag = payload?.rag !== false;
 
-      if (!content) {
-        context.respond(socket, 400, { error: 'content_required' });
+      if (!content && !filePath && !files) {
+        context.respond(socket, 400, { error: 'content_or_file_required' });
         logger.logWebRequest(method, path, 400);
         return true;
       }
 
       try {
+        if (filePath && !content) {
+          const fileInfo = await FileSystem.getInfoAsync(filePath);
+          if (!fileInfo.exists) {
+            context.respond(socket, 404, { error: 'file_not_found' });
+            logger.logWebRequest(method, path, 404);
+            return true;
+          }
+          content = await FileSystem.readAsStringAsync(filePath);
+        }
+
+        if (files && !content) {
+          const fileContents: string[] = [];
+          for (const file of files) {
+            const path = typeof file === 'string' ? file : file?.path;
+            if (path) {
+              const fileInfo = await FileSystem.getInfoAsync(path);
+              if (fileInfo.exists) {
+                const fileContent = await FileSystem.readAsStringAsync(path);
+                fileContents.push(fileContent);
+              }
+            }
+          }
+          content = fileContents.join('\n\n');
+        }
+
+        if (!content) {
+          context.respond(socket, 400, { error: 'content_required' });
+          logger.logWebRequest(method, path, 400);
+          return true;
+        }
+
         if (!useRag) {
           context.respond(socket, 200, {
             status: 'skipped',

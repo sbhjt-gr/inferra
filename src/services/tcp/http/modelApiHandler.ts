@@ -1,5 +1,6 @@
 import { llamaManager } from '../../../utils/LlamaManager';
 import { logger } from '../../../utils/logger';
+import { modelDownloader } from '../../ModelDownloader';
 import type { StoredModel } from '../../ModelDownloaderTypes';
 import type { ApiHandler, JsonResponder } from './apiTypes';
 
@@ -100,6 +101,30 @@ export function createModelApiHandler(context: Context): ApiHandler {
           logger.logWebRequest(method, path, 200);
         } catch (error) {
           context.respond(socket, 500, { error: 'model_reload_failed' });
+          logger.logWebRequest(method, path, 500);
+        }
+        return true;
+      }
+
+      if (action === 'refresh') {
+        try {
+          const models = await modelDownloader.reloadStoredModels();
+          const items = models.map(model => ({
+            name: model.name,
+            path: model.path,
+            size: model.size,
+            modified_at: model.modified,
+            model_type: model.modelType,
+            is_external: model.isExternal === true,
+          }));
+          context.respond(socket, 200, {
+            status: 'refreshed',
+            count: items.length,
+            models: items,
+          });
+          logger.logWebRequest(method, path, 200);
+        } catch (error) {
+          context.respond(socket, 500, { error: 'refresh_failed' });
           logger.logWebRequest(method, path, 500);
         }
         return true;

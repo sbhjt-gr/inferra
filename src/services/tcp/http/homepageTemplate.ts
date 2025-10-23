@@ -175,6 +175,7 @@ export function getHomepageHTML(): string {
       <button class="nav-btn" onclick="document.getElementById('models').scrollIntoView({behavior:'smooth'})">Models</button>
       <button class="nav-btn" onclick="document.getElementById('rag').scrollIntoView({behavior:'smooth'})">RAG</button>
       <button class="nav-btn" onclick="document.getElementById('server').scrollIntoView({behavior:'smooth'})">Server</button>
+      <button class="nav-btn" onclick="document.getElementById('webrtc').scrollIntoView({behavior:'smooth'})">WebRTC</button>
     </div>
 
     <div id="chat" class="section">
@@ -375,11 +376,102 @@ export function getHomepageHTML(): string {
           <span class="method post">POST</span>
           <span class="endpoint-path">/api/models</span>
         </div>
-        <p class="endpoint-desc">Refresh model list from storage</p>
+        <p class="endpoint-desc">Manage model operations: load, unload, reload, or refresh model list</p>
+        <div class="code-label">Request (refresh):</div>
+        <pre class="code-block">{
+  "action": "refresh"
+}</pre>
+        <div class="code-label">Request (load/unload):</div>
+        <pre class="code-block">{
+  "action": "load",
+  "model": "llama-3.2-1b"
+}</pre>
         <div class="code-label">Response:</div>
         <pre class="code-block">{
   "status": "refreshed",
-  "count": 5
+  "count": 5,
+  "models": [...]
+}</pre>
+      </div>
+
+      <div class="endpoint-card">
+        <div class="endpoint-header">
+          <span class="method get">GET</span>
+          <span class="endpoint-path">/api/models/apple-foundation</span>
+        </div>
+        <p class="endpoint-desc">Check Apple Foundation model availability and status</p>
+        <div class="code-label">Response:</div>
+        <pre class="code-block">{
+  "available": true,
+  "requirementsMet": true,
+  "enabled": true,
+  "status": "ready",
+  "message": "Apple Foundation is ready to use."
+}</pre>
+      </div>
+
+      <div class="endpoint-card">
+        <div class="endpoint-header">
+          <span class="method post">POST</span>
+          <span class="endpoint-path">/api/models/apple-foundation</span>
+        </div>
+        <p class="endpoint-desc">Configure Apple Foundation model settings</p>
+        <div class="code-label">Request:</div>
+        <pre class="code-block">{
+  "enabled": true,
+  "model": "gpt-4o"
+}</pre>
+        <div class="code-label">Response:</div>
+        <pre class="code-block">{
+  "success": true,
+  "enabled": true,
+  "model": "gpt-4o"
+}</pre>
+      </div>
+
+      <div class="endpoint-card">
+        <div class="endpoint-header">
+          <span class="method get">GET</span>
+          <span class="endpoint-path">/api/models/remote/status</span>
+        </div>
+        <p class="endpoint-desc">Get status of all remote model providers (Gemini, ChatGPT, DeepSeek, Claude)</p>
+        <div class="code-label">Response:</div>
+        <pre class="code-block">{
+  "providers": [
+    {
+      "provider": "gemini",
+      "configured": true,
+      "model": "gemini-1.5-pro",
+      "usingDefault": false
+    },
+    {
+      "provider": "chatgpt",
+      "configured": false,
+      "model": null,
+      "usingDefault": false
+    }
+  ]
+}</pre>
+      </div>
+
+      <div class="endpoint-card">
+        <div class="endpoint-header">
+          <span class="method post">POST</span>
+          <span class="endpoint-path">/api/models/remote</span>
+        </div>
+        <p class="endpoint-desc">Configure remote model provider settings</p>
+        <div class="code-label">Request:</div>
+        <pre class="code-block">{
+  "provider": "gemini",
+  "model": "gemini-1.5-pro",
+  "apiKey": "your-api-key-here"
+}</pre>
+        <div class="code-label">Response:</div>
+        <pre class="code-block">{
+  "success": true,
+  "provider": "gemini",
+  "model": "gemini-1.5-pro",
+  "configured": true
 }</pre>
       </div>
 
@@ -424,17 +516,26 @@ export function getHomepageHTML(): string {
           <span class="method post">POST</span>
           <span class="endpoint-path">/api/files/ingest</span>
         </div>
-        <p class="endpoint-desc">Ingest documents for RAG</p>
-        <div class="code-label">Request:</div>
+        <p class="endpoint-desc">Ingest documents for RAG (supports multiple input methods)</p>
+        <div class="code-label">Request (direct content):</div>
+        <pre class="code-block">{
+  "content": "Document content here..."
+}</pre>
+        <div class="code-label">Request (single file path):</div>
+        <pre class="code-block">{
+  "filePath": "/documents/doc1.pdf"
+}</pre>
+        <div class="code-label">Request (multiple files):</div>
         <pre class="code-block">{
   "files": [
-    {"path": "/documents/doc1.pdf", "name": "doc1.pdf"}
+    "/documents/doc1.pdf",
+    "/documents/doc2.txt"
   ]
 }</pre>
         <div class="code-label">Response:</div>
         <pre class="code-block">{
   "status": "success",
-  "processed": 1
+  "processed": 2
 }</pre>
       </div>
 
@@ -505,31 +606,53 @@ export function getHomepageHTML(): string {
   "max_thinking_tokens": 1000
 }</pre>
       </div>
+    </div>
+
+    <div id="webrtc" class="section">
+      <h2 class="section-title">WebRTC Signaling</h2>
 
       <div class="endpoint-card">
         <div class="endpoint-header">
           <span class="method get">GET</span>
-          <span class="endpoint-path">/api/models/apple-foundation</span>
+          <span class="endpoint-path">/offer</span>
         </div>
-        <p class="endpoint-desc">List available Apple Foundation models</p>
+        <p class="endpoint-desc">Get WebRTC offer for peer-to-peer connection</p>
         <div class="code-label">Response:</div>
         <pre class="code-block">{
-  "models": ["gpt-4o", "gpt-4o-mini", "o1-preview"],
-  "available": true
+  "type": "offer",
+  "data": "v=0\\r\\no=- ...SDP offer data...",
+  "peerId": "peer-12345"
 }</pre>
       </div>
 
       <div class="endpoint-card">
         <div class="endpoint-header">
           <span class="method get">GET</span>
-          <span class="endpoint-path">/api/models/remote/status</span>
+          <span class="endpoint-path">/webrtc/offer</span>
         </div>
-        <p class="endpoint-desc">Check remote model connection status</p>
+        <p class="endpoint-desc">Alternative endpoint for WebRTC offer</p>
         <div class="code-label">Response:</div>
         <pre class="code-block">{
-  "connected": true,
-  "provider": "openai",
-  "models_available": 15
+  "type": "offer",
+  "data": "v=0\\r\\no=- ...SDP offer data...",
+  "peerId": "peer-12345"
+}</pre>
+      </div>
+
+      <div class="endpoint-card">
+        <div class="endpoint-header">
+          <span class="method post">POST</span>
+          <span class="endpoint-path">/webrtc/answer</span>
+        </div>
+        <p class="endpoint-desc">Submit WebRTC answer for peer-to-peer connection</p>
+        <div class="code-label">Request:</div>
+        <pre class="code-block">{
+  "data": "v=0\\r\\no=- ...SDP answer data...",
+  "peerId": "peer-12345"
+}</pre>
+        <div class="code-label">Response:</div>
+        <pre class="code-block">{
+  "success": true
 }</pre>
       </div>
     </div>

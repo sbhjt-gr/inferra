@@ -1,175 +1,104 @@
-import { llamaManager } from '../../../utils/LlamaManager';
-import type { ModelSettings } from '../../ModelSettingsService';
+import { modelDownloader } from '../../ModelDownloader';
+import type { StoredModel } from '../../ModelDownloaderTypes';
+import { logger } from '../../../utils/logger';
 
-export function buildCustomSettings(options: any): ModelSettings | undefined {
-  if (!options || typeof options !== 'object') {
-    return undefined;
-  }
+type Context = {
+  getSelectedModelOption: () => any;
+  getSelectedProvider: () => string;
+  resolveProjectorPath: (modelPath: string | null, models: StoredModel[]) => string | null;
+};
 
-  const base = llamaManager.getSettings();
-  let changed = false;
+export async function buildCustomSettings(context: Context): Promise<any> {
+  try {
+    const selectedModelOption = context.getSelectedModelOption();
+    const selectedProvider = context.getSelectedProvider();
+    const models = await modelDownloader.getStoredModels();
 
-  if (Object.prototype.hasOwnProperty.call(options, 'temperature') && typeof options.temperature === 'number') {
-    base.temperature = options.temperature;
-    changed = true;
-  }
+    const customSettings: any = {
+      model: null,
+      modelPath: null,
+      projectorPath: null,
+      isRemote: false,
+      provider: null,
+      modelType: null,
+      isExternal: false
+    };
 
-  if (Object.prototype.hasOwnProperty.call(options, 'top_p') && typeof options.top_p === 'number') {
-    base.topP = options.top_p;
-    changed = true;
-  }
-
-  if (Object.prototype.hasOwnProperty.call(options, 'top_k') && typeof options.top_k === 'number') {
-    base.topK = options.top_k;
-    changed = true;
-  }
-
-  if (Object.prototype.hasOwnProperty.call(options, 'min_p') && typeof options.min_p === 'number') {
-    base.minP = options.min_p;
-    changed = true;
-  }
-
-  if (Object.prototype.hasOwnProperty.call(options, 'num_predict') && typeof options.num_predict === 'number') {
-    base.maxTokens = options.num_predict;
-    changed = true;
-  }
-
-  if (Object.prototype.hasOwnProperty.call(options, 'seed') && typeof options.seed === 'number') {
-    base.seed = options.seed;
-    changed = true;
-  }
-
-  if (Object.prototype.hasOwnProperty.call(options, 'repeat_penalty') && typeof options.repeat_penalty === 'number') {
-    base.penaltyRepeat = options.repeat_penalty;
-    changed = true;
-  }
-
-  if (Object.prototype.hasOwnProperty.call(options, 'frequency_penalty') && typeof options.frequency_penalty === 'number') {
-    base.penaltyFreq = options.frequency_penalty;
-    changed = true;
-  }
-
-  if (Object.prototype.hasOwnProperty.call(options, 'presence_penalty') && typeof options.presence_penalty === 'number') {
-    base.penaltyPresent = options.presence_penalty;
-    changed = true;
-  }
-
-  if (Object.prototype.hasOwnProperty.call(options, 'penalty_last_n') && typeof options.penalty_last_n === 'number') {
-    base.penaltyLastN = options.penalty_last_n;
-    changed = true;
-  }
-
-  if (Object.prototype.hasOwnProperty.call(options, 'mirostat') && typeof options.mirostat === 'number') {
-    base.mirostat = options.mirostat;
-    changed = true;
-  }
-
-  if (Object.prototype.hasOwnProperty.call(options, 'mirostat_tau') && typeof options.mirostat_tau === 'number') {
-    base.mirostatTau = options.mirostat_tau;
-    changed = true;
-  }
-
-  if (Object.prototype.hasOwnProperty.call(options, 'mirostat_eta') && typeof options.mirostat_eta === 'number') {
-    base.mirostatEta = options.mirostat_eta;
-    changed = true;
-  }
-
-  if (Object.prototype.hasOwnProperty.call(options, 'typical_p') && typeof options.typical_p === 'number') {
-    base.typicalP = options.typical_p;
-    changed = true;
-  }
-
-  if (Object.prototype.hasOwnProperty.call(options, 'n_probs') && typeof options.n_probs === 'number') {
-    base.nProbs = options.n_probs;
-    changed = true;
-  }
-
-  if (Object.prototype.hasOwnProperty.call(options, 'dry_multiplier') && typeof options.dry_multiplier === 'number') {
-    base.dryMultiplier = options.dry_multiplier;
-    changed = true;
-  }
-
-  if (Object.prototype.hasOwnProperty.call(options, 'dry_base') && typeof options.dry_base === 'number') {
-    base.dryBase = options.dry_base;
-    changed = true;
-  }
-
-  if (Object.prototype.hasOwnProperty.call(options, 'dry_allowed_length') && typeof options.dry_allowed_length === 'number') {
-    base.dryAllowedLength = options.dry_allowed_length;
-    changed = true;
-  }
-
-  if (Object.prototype.hasOwnProperty.call(options, 'dry_penalty_last_n') && typeof options.dry_penalty_last_n === 'number') {
-    base.dryPenaltyLastN = options.dry_penalty_last_n;
-    changed = true;
-  }
-
-  if (Object.prototype.hasOwnProperty.call(options, 'dry_sequence_breakers') && Array.isArray(options.dry_sequence_breakers)) {
-    base.drySequenceBreakers = options.dry_sequence_breakers.filter((item: any) => typeof item === 'string');
-    changed = true;
-  }
-
-  if (Object.prototype.hasOwnProperty.call(options, 'ignore_eos') && typeof options.ignore_eos === 'boolean') {
-    base.ignoreEos = options.ignore_eos;
-    changed = true;
-  }
-
-  if (Object.prototype.hasOwnProperty.call(options, 'enable_thinking') && typeof options.enable_thinking === 'boolean') {
-    base.enableThinking = options.enable_thinking;
-    changed = true;
-  }
-
-  if (Object.prototype.hasOwnProperty.call(options, 'xtc_probability') && typeof options.xtc_probability === 'number') {
-    base.xtcProbability = options.xtc_probability;
-    changed = true;
-  }
-
-  if (Object.prototype.hasOwnProperty.call(options, 'xtc_threshold') && typeof options.xtc_threshold === 'number') {
-    base.xtcThreshold = options.xtc_threshold;
-    changed = true;
-  }
-
-  if (Object.prototype.hasOwnProperty.call(options, 'jinja') && typeof options.jinja === 'boolean') {
-    base.jinja = options.jinja;
-    changed = true;
-  }
-
-  if (Object.prototype.hasOwnProperty.call(options, 'grammar') && typeof options.grammar === 'string') {
-    base.grammar = options.grammar;
-    changed = true;
-  }
-
-  if (Object.prototype.hasOwnProperty.call(options, 'system_prompt') && typeof options.system_prompt === 'string') {
-    base.systemPrompt = options.system_prompt;
-    changed = true;
-  }
-
-  if (Object.prototype.hasOwnProperty.call(options, 'stop') && Array.isArray(options.stop)) {
-    const words = options.stop.filter((item: any) => typeof item === 'string');
-    if (words.length > 0) {
-      base.stopWords = words;
-      changed = true;
+    if (selectedProvider === 'openai' || selectedProvider === 'anthropic' || selectedProvider === 'google') {
+      customSettings.isRemote = true;
+      customSettings.provider = selectedProvider;
+      customSettings.model = selectedProvider === 'openai'
+        ? 'gpt-4o-mini'
+        : selectedProvider === 'anthropic'
+          ? 'claude-3-5-sonnet-20241022'
+          : 'gemini-2.0-flash-exp';
+      return customSettings;
     }
-  } else if (Object.prototype.hasOwnProperty.call(options, 'stop') && typeof options.stop === 'string') {
-    base.stopWords = [options.stop];
-    changed = true;
-  }
 
-  if (Object.prototype.hasOwnProperty.call(options, 'stop_words') && Array.isArray(options.stop_words)) {
-    const words = options.stop_words.filter((item: any) => typeof item === 'string');
-    if (words.length > 0) {
-      base.stopWords = words;
-      changed = true;
+    if (!selectedModelOption || typeof selectedModelOption !== 'object') {
+      return customSettings;
     }
-  } else if (Object.prototype.hasOwnProperty.call(options, 'stop_words') && typeof options.stop_words === 'string') {
-    base.stopWords = [options.stop_words];
-    changed = true;
-  }
 
-  if (Object.prototype.hasOwnProperty.call(options, 'logit_bias') && Array.isArray(options.logit_bias)) {
-    base.logitBias = options.logit_bias;
-    changed = true;
-  }
+    const isAppleFoundation = selectedModelOption.category === 'apple-foundation';
+    if (isAppleFoundation) {
+      customSettings.isRemote = true;
+      customSettings.provider = 'apple-foundation';
+      customSettings.model = selectedModelOption.modelId || selectedModelOption.name || 'apple-foundation';
+      return customSettings;
+    }
 
-  return changed ? base : undefined;
+    const hasPath = typeof selectedModelOption.path === 'string' && selectedModelOption.path.length > 0;
+    const hasUrl = typeof selectedModelOption.url === 'string' && selectedModelOption.url.length > 0;
+    const hasModelId = typeof selectedModelOption.modelId === 'string' && selectedModelOption.modelId.length > 0;
+    const isRemoteEntry = selectedModelOption.isRemote === true;
+
+    if (isRemoteEntry && hasModelId) {
+      customSettings.isRemote = true;
+      customSettings.provider = selectedModelOption.provider || 'unknown';
+      customSettings.model = selectedModelOption.modelId;
+      return customSettings;
+    }
+
+    if (!hasPath && !hasUrl) {
+      return customSettings;
+    }
+
+    let resolvedPath: string | null = null;
+    let targetModel: StoredModel | null = null;
+
+    if (hasPath) {
+      resolvedPath = selectedModelOption.path;
+      targetModel = models.find(model => model.path === resolvedPath) || null;
+    } else if (hasUrl) {
+      // URL matching not available in StoredModel type
+      targetModel = models.find(model => model.name === selectedModelOption.name) || null;
+      resolvedPath = targetModel?.path || null;
+    }
+
+    if (!resolvedPath) {
+      return customSettings;
+    }
+
+    customSettings.modelPath = resolvedPath;
+    customSettings.model = targetModel?.name || resolvedPath.split('/').pop() || 'model';
+    customSettings.modelType = targetModel?.modelType || null;
+    customSettings.isExternal = targetModel?.isExternal === true;
+
+    const projectorPath = context.resolveProjectorPath(resolvedPath, models);
+    customSettings.projectorPath = projectorPath;
+
+    return customSettings;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'settings_build_failed';
+    logger.error(`build_settings_failed:${message.replace(/\s+/g, '_')}`, 'webrtc');
+    return {
+      model: null,
+      modelPath: null,
+      projectorPath: null,
+      isRemote: false,
+      provider: null,
+      modelType: null,
+      isExternal: false
+    };
+  }
 }
