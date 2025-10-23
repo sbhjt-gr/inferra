@@ -582,8 +582,11 @@ export default function ChatView({
                             lineHeight: 20,
                             fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
                           }}
-                          scrollViewProps={{ contentContainerStyle: { backgroundColor: '#000000' } }}
-                          language={language}
+                          scrollViewProps={{ 
+                            style: { backgroundColor: '#000000' },
+                            contentContainerStyle: { backgroundColor: '#000000' } 
+                          }}
+                          {...({ language } as any)}
                         >
                           {codeContent || ''}
                         </CodeHighlighter>
@@ -613,8 +616,11 @@ export default function ChatView({
                             lineHeight: 20,
                             fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
                           }}
-                          scrollViewProps={{ contentContainerStyle: { backgroundColor: '#000000' } }}
-                          language={language}
+                          scrollViewProps={{ 
+                            style: { backgroundColor: '#000000' },
+                            contentContainerStyle: { backgroundColor: '#000000' } 
+                          }}
+                          {...({ language } as any)}
                         >
                           {codeContent || ''}
                         </CodeHighlighter>
