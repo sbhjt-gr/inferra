@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useState, useCallback } fr
 import { isAuthenticated, getCurrentUser, isFirebaseReady, onAuthStateChange } from '../services/FirebaseAuth';
 import { getUserFromSecureStorage } from '../services/AuthStorage';
 import { User as FirebaseUser } from 'firebase/auth';
-import apiKeyDatabase from '../utils/ApiKeyDatabase';
+import providerKeyStorage from '../utils/ProviderKeyStorage';
 
 const REMOTE_MODELS_KEY = 'remote_models_enabled';
 
@@ -29,8 +29,8 @@ export const RemoteModelProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const disableRemoteModels = async (): Promise<void> => {
     setEnableRemoteModels(false);
     try {
-      await apiKeyDatabase.initialize();
-      await apiKeyDatabase.setPreference(REMOTE_MODELS_KEY, 'false');
+      await providerKeyStorage.initialize();
+      await providerKeyStorage.setPreference(REMOTE_MODELS_KEY, 'false');
     } catch {
     }
   };
@@ -91,8 +91,8 @@ export const RemoteModelProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const loadRemoteModelPreference = async () => {
     try {
-      await apiKeyDatabase.initialize();
-      const savedPreference = await apiKeyDatabase.getPreference(REMOTE_MODELS_KEY);
+      await providerKeyStorage.initialize();
+      const savedPreference = await providerKeyStorage.getPreference(REMOTE_MODELS_KEY);
       if (savedPreference !== null) {
         setEnableRemoteModels(savedPreference === 'true');
       }
@@ -116,8 +116,8 @@ export const RemoteModelProvider: React.FC<{ children: React.ReactNode }> = ({ c
     const newValue = !enableRemoteModels;
     setEnableRemoteModels(newValue);
     try {
-      await apiKeyDatabase.initialize();
-      await apiKeyDatabase.setPreference(REMOTE_MODELS_KEY, newValue.toString());
+      await providerKeyStorage.initialize();
+      await providerKeyStorage.setPreference(REMOTE_MODELS_KEY, newValue.toString());
       return { success: true };
     } catch {
       return { success: false };

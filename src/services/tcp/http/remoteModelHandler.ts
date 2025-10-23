@@ -1,6 +1,6 @@
 import type { ProviderType } from '../../ModelManagementService';
 import { onlineModelService } from '../../OnlineModelService';
-import apiKeyDatabase from '../../../utils/ApiKeyDatabase';
+import providerKeyStorage from '../../../utils/ProviderKeyStorage';
 import { logger } from '../../../utils/logger';
 import type { ApiHandler, JsonResponder } from './apiTypes';
 
@@ -54,8 +54,8 @@ function normalizeRemoteProvider(value: any): RemoteProvider | null {
 
 async function getRemoteModelsEnabled(): Promise<boolean> {
   try {
-    await apiKeyDatabase.initialize();
-    const value = await apiKeyDatabase.getPreference(REMOTE_MODELS_PREF_KEY);
+    await providerKeyStorage.initialize();
+    const value = await providerKeyStorage.getPreference(REMOTE_MODELS_PREF_KEY);
     return value === 'true';
   } catch (error) {
     return false;

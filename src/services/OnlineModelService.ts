@@ -4,7 +4,7 @@ import { OpenAIService } from './OpenAIService';
 import { DeepSeekService } from './DeepSeekService';
 import { ClaudeService } from './ClaudeService';
 import Constants from 'expo-constants';
-import apiKeyDatabase from '../utils/ApiKeyDatabase';
+import providerKeyStorage from '../utils/ProviderKeyStorage';
 
 export interface ChatMessage {
   id: string;
@@ -66,7 +66,7 @@ class OnlineModelService {
   private async ensureInitialized(): Promise<void> {
     if (this.isInitialized) return;
     if (!this.initPromise) {
-      this.initPromise = apiKeyDatabase.initialize().then(() => {
+      this.initPromise = providerKeyStorage.initialize().then(() => {
         this.isInitialized = true;
       });
     }
@@ -83,7 +83,7 @@ class OnlineModelService {
   async getApiKey(provider: string): Promise<string | null> {
     try {
       await this.ensureInitialized();
-      const record = await apiKeyDatabase.getEntry(provider);
+      const record = await providerKeyStorage.getEntry(provider);
       if (record?.customKey) {
         return record.customKey;
       }
@@ -105,7 +105,7 @@ class OnlineModelService {
   async saveApiKey(provider: string, apiKey: string): Promise<boolean> {
     try {
       await this.ensureInitialized();
-      await apiKeyDatabase.upsertEntry(provider, { customKey: apiKey, useDefault: 0 });
+      await providerKeyStorage.upsertEntry(provider, { customKey: apiKey, useDefault: 0 });
       this.events.emit('api-key-updated', provider);
       return true;
     } catch (error) {
@@ -122,7 +122,7 @@ class OnlineModelService {
     try {
       await this.ensureInitialized();
       const hasDefault = this.hasDefaultKey(provider);
-      await apiKeyDatabase.upsertEntry(provider, { customKey: null, useDefault: hasDefault ? 1 : 0 });
+      await providerKeyStorage.upsertEntry(provider, { customKey: null, useDefault: hasDefault ? 1 : 0 });
       this.events.emit('api-key-updated', provider);
       return true;
     } catch (error) {
@@ -134,9 +134,9 @@ class OnlineModelService {
     try {
       await this.ensureInitialized();
       if (useDefault) {
-        await apiKeyDatabase.upsertEntry(provider, { useDefault: 1, customKey: null });
+        await providerKeyStorage.upsertEntry(provider, { useDefault: 1, customKey: null });
       } else {
-        await apiKeyDatabase.upsertEntry(provider, { useDefault: 0 });
+        await providerKeyStorage.upsertEntry(provider, { useDefault: 0 });
       }
       this.events.emit('api-key-updated', provider);
       return true;
@@ -148,7 +148,7 @@ class OnlineModelService {
   async isUsingDefaultKey(provider: string): Promise<boolean> {
     try {
       await this.ensureInitialized();
-      const record = await apiKeyDatabase.getEntry(provider);
+      const record = await providerKeyStorage.getEntry(provider);
       if (record?.customKey) {
         return false;
       }
@@ -167,7 +167,7 @@ class OnlineModelService {
   async getModelName(provider: string): Promise<string | null> {
     try {
       await this.ensureInitialized();
-      const record = await apiKeyDatabase.getEntry(provider);
+      const record = await providerKeyStorage.getEntry(provider);
       return record?.modelName || null;
     } catch (error) {
       return null;
@@ -177,7 +177,7 @@ class OnlineModelService {
   async saveModelName(provider: string, modelName: string): Promise<boolean> {
     try {
       await this.ensureInitialized();
-      await apiKeyDatabase.upsertEntry(provider, { modelName });
+      await providerKeyStorage.upsertEntry(provider, { modelName });
       return true;
     } catch (error) {
       return false;
@@ -187,7 +187,7 @@ class OnlineModelService {
   async clearModelName(provider: string): Promise<boolean> {
     try {
       await this.ensureInitialized();
-      await apiKeyDatabase.upsertEntry(provider, { modelName: null });
+      await providerKeyStorage.upsertEntry(provider, { modelName: null });
       return true;
     } catch (error) {
       return false;

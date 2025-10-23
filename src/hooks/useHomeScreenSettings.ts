@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { APIKeysService } from '../services/APIKeysService';
+import { useNavigation } from '@react-navigation/native';
+import { ProviderKeysService } from '../services/ProviderKeysService';
+import { useRemoteModel } from '../context/RemoteModelContext';
 import { ChatLifecycleService } from '../services/ChatLifecycleService';
 import { onlineModelService } from '../services/OnlineModelService';
 import type { ProviderType } from '../services/ModelManagementService';
@@ -21,7 +23,7 @@ export const useHomeScreenSettings = (
   useEffect(() => {
     const validateProvider = async () => {
       if (activeProvider && activeProvider !== 'local' && activeProvider !== 'apple-foundation') {
-        const validation = await APIKeysService.validateApiKey(
+        const validation = await ProviderKeysService.validateApiKey(
           activeProvider, 
           enableRemoteModels, 
           isLoggedIn
