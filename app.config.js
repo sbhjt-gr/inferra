@@ -1,11 +1,9 @@
-import 'dotenv/config';
-
 export default {
   expo: {
     name: "Inferra",
     slug: "inferra",
     owner: "subhajitgorai",
-    version: "2.6.2",
+    version: "2.6.4",
     orientation: "portrait",
     icon: "./assets/icon.png",
     userInterfaceStyle: "automatic",
@@ -30,10 +28,10 @@ export default {
     ios: {
       supportsTablet: true,
       requireFullScreen: false,
-      bundleIdentifier: "com.gorai.ragionare",
-      buildNumber: "262",
-      runtimeVersion: "2.6.2",
-      googleServicesFile: "./ios/GoogleService-Info.plist",
+      bundleIdentifier: "com.gorai.inferra",
+      buildNumber: "264",
+      runtimeVersion: "2.6.4",
+      deploymentTarget: "17.0",
       updates: {
         enabled: false
       },
@@ -42,21 +40,33 @@ export default {
           "fetch",
           "remote-notification"
         ],
+        NSCameraUsageDescription: "Camera access enables direct file capture uploads and OCR analysis features inside Inferra.",
+        NSLocalNetworkUsageDescription: "Inferra uses local network access to share your AI chat interface with other devices on your WiFi network, allowing you to access your assistant from browsers on computers, tablets, or other phones.",
+        NSBonjourServices: ["_http._tcp"],
         UIStatusBarStyle: "UIStatusBarStyleDefault",
         UIViewControllerBasedStatusBarAppearance: false,
         UIGestureRecognizerShouldBegin: false,
-        UINavigationControllerHidesBarsOnSwipe: false
+        UINavigationControllerHidesBarsOnSwipe: false,
+        CFBundleURLTypes: [
+          {
+            CFBundleURLName: "google",
+            CFBundleURLSchemes: ["com.googleusercontent.apps.299137610747-v1ipf308vgdgg06amnci4omektd3vurt"]
+          }
+        ]
       },
-      scheme: "com.gorai.ragionare"
+      entitlements: {
+        "com.apple.developer.applesignin": ["Default"]
+      },
+      scheme: "com.gorai.inferra"
     },
     android: {
-      versionCode: 262,
+      versionCode: 264,
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon.png",
         backgroundColor: "#660880"
       },
       package: "com.gorai.ragionare",
-      runtimeVersion: "2.6.2",
+      runtimeVersion: "2.6.4",
       googleServicesFile: "./android/app/google-services.json",
       edgeToEdgeEnabled: true,
       resizeableActivity: true,
@@ -96,44 +106,50 @@ export default {
       OPENAI_API_KEY: process.env.OPENAI_API_KEY,
       DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY,
       ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+      HUGGINGFACE_TOKEN: process.env.HUGGINGFACE_TOKEN,
       GOOGLE_SIGN_IN_WEB_CLIENT_ID: process.env.GOOGLE_SIGN_IN_WEB_CLIENT_ID,
+      GOOGLE_SIGN_IN_IOS_CLIENT_ID: process.env.GOOGLE_SIGN_IN_IOS_CLIENT_ID,
+      FIREBASE_API_KEY: process.env.FIREBASE_API_KEY,
+      FIREBASE_AUTH_DOMAIN: process.env.FIREBASE_AUTH_DOMAIN,
+      FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID,
+      FIREBASE_STORAGE_BUCKET: process.env.FIREBASE_STORAGE_BUCKET,
+      FIREBASE_MESSAGING_SENDER_ID: process.env.FIREBASE_MESSAGING_SENDER_ID,
+      FIREBASE_APP_ID: process.env.FIREBASE_APP_ID,
+      FIREBASE_MEASUREMENT_ID: process.env.FIREBASE_MEASUREMENT_ID,
       eas: {
-        projectId: process.env.EAS_PROJECT_ID
+        projectId: "5ef5d807-bc8b-4dcb-a3f4-2bad3c098b3e"
       },
     },
     experiments: {
       typedRoutes: true
     },
     plugins: [
-      "@react-native-firebase/app",
+      "expo-font",
+      "expo-web-browser",
+      "expo-asset",
+      "expo-audio",
+      "expo-background-task",
+      "expo-router",
+      "expo-secure-store",
+      "expo-sqlite",
       [
-        
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 28
+          },
+          "ios": {
+            "deploymentTarget": "17.0"
+          }
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           image: "./assets/icon.png",
           imageWidth: 200,
           resizeMode: "cover",
           backgroundColor: "#660880"
-        }
-      ],
-      [
-        "expo-build-properties",
-        {
-          android: {
-            compileSdkVersion: 35,
-            targetSdkVersion: 35,
-            buildToolsVersion: '35.0.0',
-            kotlinVersion: '2.0.21',
-            kspVersion: '2.0.21-1.0.20',
-            usesCleartextTraffic: false,
-            manifestPlaceholders: {
-              screenOrientation: "unspecified"
-            }
-          },
-          ios: {
-            deploymentTarget: "15.5",
-            useFrameworks: "static"
-          }
         }
       ]
     ]

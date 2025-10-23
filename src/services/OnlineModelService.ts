@@ -1,10 +1,10 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import EventEmitter from 'eventemitter3';
 import { GeminiService } from './GeminiService';
 import { OpenAIService } from './OpenAIService';
 import { DeepSeekService } from './DeepSeekService';
 import { ClaudeService } from './ClaudeService';
 import Constants from 'expo-constants';
+import providerKeyStorage from '../utils/ProviderKeyStorage';
 
 export interface ChatMessage {
   id: string;
@@ -44,6 +44,8 @@ class OnlineModelService {
     deepseek: Constants.expoConfig?.extra?.DEEPSEEK_API_KEY || '',
     claude: Constants.expoConfig?.extra?.ANTHROPIC_API_KEY || '',
   };
+  private isInitialized = false;
+  private initPromise: Promise<void> | null = null;
 
   setGeminiServiceGetter(getter: () => GeminiService) {
     this._geminiServiceGetter = getter;
@@ -61,21 +63,39 @@ class OnlineModelService {
     this._claudeServiceGetter = getter;
   }
 
+  private async ensureInitialized(): Promise<void> {
+    if (this.isInitialized) return;
+    if (!this.initPromise) {
+      this.initPromise = providerKeyStorage.initialize().then(() => {
+        this.isInitialized = true;
+      });
+    }
+
+    try {
+      await this.initPromise;
+    } catch (error) {
+      this.initPromise = null;
+      this.isInitialized = false;
+      throw error;
+    }
+  }
+
   async getApiKey(provider: string): Promise<string | null> {
     try {
-      const customKey = await AsyncStorage.getItem(`@${provider}_api_key`);
-      if (customKey) {
-        return customKey;
+      await this.ensureInitialized();
+      const record = await providerKeyStorage.getEntry(provider);
+      if (record?.customKey) {
+        return record.customKey;
       }
-      
-      const useDefaultKey = await AsyncStorage.getItem(`@${provider}_use_default`);
-      if (useDefaultKey !== 'false') {
+
+      const shouldUseDefault = record ? record.useDefault !== 0 : true;
+      if (shouldUseDefault) {
         const defaultKey = this.defaultKeys[provider as keyof typeof this.defaultKeys];
         if (defaultKey) {
           return defaultKey;
         }
       }
-      
+
       return null;
     } catch (error) {
       return null;
@@ -84,8 +104,8 @@ class OnlineModelService {
 
   async saveApiKey(provider: string, apiKey: string): Promise<boolean> {
     try {
-      await AsyncStorage.setItem(`@${provider}_api_key`, apiKey);
-      await AsyncStorage.setItem(`@${provider}_use_default`, 'false');
+      await this.ensureInitialized();
+      await providerKeyStorage.upsertEntry(provider, { customKey: apiKey, useDefault: 0 });
       this.events.emit('api-key-updated', provider);
       return true;
     } catch (error) {
@@ -100,12 +120,9 @@ class OnlineModelService {
 
   async clearApiKey(provider: string): Promise<boolean> {
     try {
-      await AsyncStorage.removeItem(`@${provider}_api_key`);
-      if (this.defaultKeys[provider as keyof typeof this.defaultKeys]) {
-        await AsyncStorage.setItem(`@${provider}_use_default`, 'true');
-      } else {
-        await AsyncStorage.removeItem(`@${provider}_use_default`);
-      }
+      await this.ensureInitialized();
+      const hasDefault = this.hasDefaultKey(provider);
+      await providerKeyStorage.upsertEntry(provider, { customKey: null, useDefault: hasDefault ? 1 : 0 });
       this.events.emit('api-key-updated', provider);
       return true;
     } catch (error) {
@@ -115,11 +132,11 @@ class OnlineModelService {
 
   async useDefaultKey(provider: string, useDefault: boolean): Promise<boolean> {
     try {
+      await this.ensureInitialized();
       if (useDefault) {
-        await AsyncStorage.setItem(`@${provider}_use_default`, 'true');
-        await AsyncStorage.removeItem(`@${provider}_api_key`);
+        await providerKeyStorage.upsertEntry(provider, { useDefault: 1, customKey: null });
       } else {
-        await AsyncStorage.setItem(`@${provider}_use_default`, 'false');
+        await providerKeyStorage.upsertEntry(provider, { useDefault: 0 });
       }
       this.events.emit('api-key-updated', provider);
       return true;
@@ -130,13 +147,14 @@ class OnlineModelService {
 
   async isUsingDefaultKey(provider: string): Promise<boolean> {
     try {
-      const customKey = await AsyncStorage.getItem(`@${provider}_api_key`);
-      if (customKey) {
+      await this.ensureInitialized();
+      const record = await providerKeyStorage.getEntry(provider);
+      if (record?.customKey) {
         return false;
       }
-      
-      const useDefaultKey = await AsyncStorage.getItem(`@${provider}_use_default`);
-      return useDefaultKey !== 'false' && !!this.defaultKeys[provider as keyof typeof this.defaultKeys];
+
+      const shouldUseDefault = record ? record.useDefault !== 0 : true;
+      return shouldUseDefault && !!this.defaultKeys[provider as keyof typeof this.defaultKeys];
     } catch (error) {
       return false;
     }
@@ -148,8 +166,9 @@ class OnlineModelService {
 
   async getModelName(provider: string): Promise<string | null> {
     try {
-      const modelName = await AsyncStorage.getItem(`@${provider}_model_name`);
-      return modelName;
+      await this.ensureInitialized();
+      const record = await providerKeyStorage.getEntry(provider);
+      return record?.modelName || null;
     } catch (error) {
       return null;
     }
@@ -157,7 +176,8 @@ class OnlineModelService {
 
   async saveModelName(provider: string, modelName: string): Promise<boolean> {
     try {
-      await AsyncStorage.setItem(`@${provider}_model_name`, modelName);
+      await this.ensureInitialized();
+      await providerKeyStorage.upsertEntry(provider, { modelName });
       return true;
     } catch (error) {
       return false;
@@ -166,7 +186,8 @@ class OnlineModelService {
 
   async clearModelName(provider: string): Promise<boolean> {
     try {
-      await AsyncStorage.removeItem(`@${provider}_model_name`);
+      await this.ensureInitialized();
+      await providerKeyStorage.upsertEntry(provider, { modelName: null });
       return true;
     } catch (error) {
       return false;
@@ -175,10 +196,10 @@ class OnlineModelService {
 
   getDefaultModelName(provider: string): string {
     const defaults: Record<string, string> = {
-      gemini: 'gemini-2.5-flash-preview-05-20',
-      chatgpt: 'gpt-4o',
+      gemini: 'gemini-2.5-flash',
+      chatgpt: 'gpt-4.1',
       deepseek: 'deepseek-reasoner',
-      claude: 'claude-opus-4-20250514'
+      claude: 'claude-sonnet-4-5'
     };
     return defaults[provider] || '';
   }

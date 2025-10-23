@@ -7,10 +7,13 @@ import React, { useState, useEffect } from 'react';
 import HomeScreen from '../screens/HomeScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import ModelScreen from '../screens/ModelScreen';
+import LocalServerScreen from '../screens/LocalServerScreen';
+import WideScreenLayout from '../components/WideScreenLayout';
 import { TabParamList } from '../types/navigation';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import { OpenSansFont } from '../hooks/OpenSansFont';
+import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 
 const Tab = createBottomTabNavigator<TabParamList>();
 
@@ -68,6 +71,9 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
           case 'ModelTab':
             iconName = isFocused ? 'cube' : 'cube-outline';
             break;
+          case 'LocalServerTab':
+            iconName = isFocused ? 'server' : 'server';
+            break;
           case 'SettingsTab':
             iconName = isFocused ? 'cog' : 'cog-outline';
             break;
@@ -119,6 +125,12 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
 }
 
 export default function MainTabNavigator() {
+  const { isWideScreen } = useResponsiveLayout();
+
+  if (isWideScreen) {
+    return <WideScreenLayout />;
+  }
+
   return (
     <Tab.Navigator
       tabBar={props => <CustomTabBar {...props} />}
@@ -126,24 +138,31 @@ export default function MainTabNavigator() {
         headerShown: false,
       }}
     >
-      <Tab.Screen 
-        name="HomeTab" 
-        component={HomeScreen} 
-        options={{ 
+      <Tab.Screen
+        name="HomeTab"
+        component={HomeScreen}
+        options={{
           tabBarLabel: 'Chat'
         }}
       />
-      <Tab.Screen 
-        name="ModelTab" 
+      <Tab.Screen
+        name="ModelTab"
         component={ModelScreen}
-        options={{ 
+        options={{
           tabBarLabel: 'Models'
         }}
       />
-      <Tab.Screen 
-        name="SettingsTab" 
+      <Tab.Screen
+        name="LocalServerTab"
+        component={LocalServerScreen}
+        options={{
+          tabBarLabel: 'Server'
+        }}
+      />
+      <Tab.Screen
+        name="SettingsTab"
         component={SettingsScreen}
-        options={{ 
+        options={{
           tabBarLabel: 'Settings'
         }}
       />

@@ -16,12 +16,11 @@ import { RootStackParamList } from '../types/navigation';
 import { modelDownloader } from '../services/ModelDownloader';
 import { useDownloads } from '../context/DownloadContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { DownloadTask } from '@kesha-antonov/react-native-background-downloader';
 import * as FileSystem from 'expo-file-system';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AppHeader from '../components/AppHeader';
 import { getThemeAwareColor } from '../utils/ColorUtils';
-import { Dialog, Portal, PaperProvider, Text, Button } from 'react-native-paper';
+import { Dialog, Portal, Text, Button } from 'react-native-paper';
 
 const formatBytes = (bytes: number) => {
   if (bytes === undefined || bytes === null || isNaN(bytes) || bytes === 0) return '0 B';
@@ -54,17 +53,6 @@ interface StoredDownloadProgress {
   status: string;
 }
 
-interface DownloadTaskInfo {
-  task: DownloadTask;
-  downloadId: number;
-  modelName: string;
-  progress?: number;
-  bytesDownloaded?: number;
-  totalBytes?: number;
-  destination?: string;
-  url?: string;
-}
-
 export default function DownloadsScreen() {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
@@ -88,10 +76,32 @@ export default function DownloadsScreen() {
     setDialogVisible(true);
   };
 
+  const removePersistedActiveDownload = async (modelName: string) => {
+    try {
+      const savedStates = await AsyncStorage.getItem('active_downloads');
+      if (!savedStates) {
+        return;
+      }
+
+      const parsedStates = JSON.parse(savedStates);
+      if (parsedStates && parsedStates[modelName]) {
+        delete parsedStates[modelName];
+
+        if (Object.keys(parsedStates).length > 0) {
+          await AsyncStorage.setItem('active_downloads', JSON.stringify(parsedStates));
+        } else {
+          await AsyncStorage.removeItem('active_downloads');
+        }
+      }
+    } catch (error) {
+    }
+  };
+
   const downloads: DownloadItem[] = Object.entries(downloadProgress)
     .filter(([_, data]) => {
-      return data.status !== 'completed' && 
-             data.status !== 'failed' && 
+      return data.status !== 'completed' &&
+             data.status !== 'failed' &&
+             data.status !== 'cancelled' &&
              data.progress < 100;
     })
     .map(([name, data]) => ({
@@ -102,6 +112,11 @@ export default function DownloadsScreen() {
       totalBytes: data.totalBytes || 0,
       status: data.status || 'unknown'
     }));
+
+  useEffect(() => {
+    modelDownloader.ensureDownloadsAreRunning().catch(() => {
+    });
+  }, []);
 
   useEffect(() => {
     const handleAppStateChange = async (nextAppState: AppStateStatus) => {
@@ -244,32 +259,41 @@ export default function DownloadsScreen() {
     saveDownloadProgress();
   }, [downloadProgress]);
 
-  const handleCancel = async (downloadId: number, modelName: string) => {
+  const handleCancel = (modelName: string) => {
+    const confirmCancellation = async () => {
+      hideDialog();
+
+      if (buttonProcessingRef.current.has(modelName)) {
+        return;
+      }
+
+      buttonProcessingRef.current.add(modelName);
+
+      try {
+        await modelDownloader.cancelDownload(modelName);
+
+        setDownloadProgress(prev => {
+          const newProgress = { ...prev };
+          delete newProgress[modelName];
+          return newProgress;
+        });
+
+        await removePersistedActiveDownload(modelName);
+      } catch (error) {
+        showDialog('Error', 'Failed to cancel download', [
+          <Button key="ok" onPress={hideDialog}>OK</Button>
+        ]);
+      } finally {
+        buttonProcessingRef.current.delete(modelName);
+      }
+    };
+
     showDialog(
       'Cancel Download',
       'Are you sure you want to cancel this download?',
       [
         <Button key="cancel" onPress={hideDialog}>No</Button>,
-        <Button
-          key="confirm"
-          onPress={async () => {
-            hideDialog();
-            try {
-              await modelDownloader.cancelDownload(downloadId);
-              setDownloadProgress(prev => {
-                const newProgress = { ...prev };
-                delete newProgress[modelName];
-                return newProgress;
-              });
-            } catch (error) {
-              showDialog('Error', 'Failed to cancel download', [
-                <Button key="ok" onPress={hideDialog}>OK</Button>
-              ]);
-            }
-          }}
-        >
-          Yes
-        </Button>
+        <Button key="confirm" onPress={confirmCancellation}>Yes</Button>
       ]
     );
   };
@@ -283,7 +307,7 @@ export default function DownloadsScreen() {
         <View style={styles.downloadActions}>
           <TouchableOpacity
             style={styles.cancelButton}
-            onPress={() => handleCancel(item.id, item.name)}
+            onPress={() => handleCancel(item.name)}
           >
             <MaterialCommunityIcons name="close-circle" size={24} color={getThemeAwareColor('#ff4444', currentTheme)} />
           </TouchableOpacity>
@@ -291,7 +315,7 @@ export default function DownloadsScreen() {
       </View>
       
       <Text style={[styles.downloadProgress, { color: themeColors.secondaryText }]}>
-        {`${item.progress || 0}% • ${formatBytes(item.bytesDownloaded || 0)} / ${formatBytes(item.totalBytes || 0)}`}
+        {`${Math.floor(item.progress || 0)}% • ${formatBytes(item.bytesDownloaded || 0)} / ${formatBytes(item.totalBytes || 0)}`}
       </Text>
       
       <View style={[styles.progressBar, { backgroundColor: themeColors.background }]}>

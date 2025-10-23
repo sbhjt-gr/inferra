@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View, Switch, Modal, TextInput, ScrollView, Dimensions } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View, Switch, Modal, TextInput, ScrollView, Dimensions, Platform, ActivityIndicator } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../constants/theme';
 import SettingsSection from './SettingsSection';
 import SettingSlider from '../SettingSlider';
+import * as Device from 'expo-device';
 
 type ModelSettings = {
   maxTokens: number;
@@ -13,6 +14,7 @@ type ModelSettings = {
   topP: number;
   minP: number;
   stopWords: string[];
+  systemPrompt: string;
   jinja: boolean;
   grammar: string;
   nProbs: number;
@@ -37,20 +39,45 @@ type ModelSettings = {
   enableThinking: boolean;
 };
 
+export type GpuConfig = {
+  label: string;
+  description: string;
+  enabled: boolean;
+  supported: boolean;
+  value: number;
+  defaultValue: number;
+  min: number;
+  max: number;
+  reason?: 'ios_version' | 'no_adreno' | 'missing_cpu_features' | 'unknown';
+  experimental?: boolean;
+};
+
 type ModelSettingsSectionProps = {
   modelSettings: ModelSettings;
-  defaultSettings: ModelSettings;
+  defaultSettings: Partial<ModelSettings>;
   error: string | null;
   onSettingsChange: (settings: Partial<ModelSettings>) => void;
   onMaxTokensPress: () => void;
   onStopWordsPress: () => void;
-  onGrammarPress: () => void;
-  onSeedPress: () => void;
-  onNProbsPress: () => void;
-  onLogitBiasPress: () => void;
-  onDrySequenceBreakersPress: () => void;
+  onGrammarPress?: () => void;
+  onSeedPress?: () => void;
+  onNProbsPress?: () => void;
+  onLogitBiasPress?: () => void;
+  onDrySequenceBreakersPress?: () => void;
   onDialogOpen: (config: any) => void;
   defaultExpanded?: boolean;
+  selectedInferenceEngine?: 'llama.cpp' | 'mediapipe' | 'mlc-llm' | 'mlx';
+  onInferenceEngineChange?: (engine: 'llama.cpp' | 'mediapipe' | 'mlc-llm' | 'mlx') => void;
+  onOpenSystemPromptDialog?: () => void;
+  onResetSystemPrompt?: () => void;
+  enableRemoteModels?: boolean;
+  onToggleRemoteModels?: (enabled: boolean) => void;
+  gpuConfig?: GpuConfig;
+  onToggleGpu?: (enabled: boolean) => void | Promise<void>;
+  onGpuLayersChange?: (layers: number) => void | Promise<void>;
+  showAppleFoundationToggle?: boolean;
+  appleFoundationEnabled?: boolean;
+  onToggleAppleFoundation?: (enabled: boolean) => void;
 };
 
 const ModelSettingsSection = ({
@@ -66,12 +93,25 @@ const ModelSettingsSection = ({
   onLogitBiasPress,
   onDrySequenceBreakersPress,
   onDialogOpen,
-  defaultExpanded = false
+  defaultExpanded = false,
+  selectedInferenceEngine,
+  onInferenceEngineChange,
+  onOpenSystemPromptDialog,
+  onResetSystemPrompt,
+  enableRemoteModels,
+  onToggleRemoteModels,
+  gpuConfig,
+  onToggleGpu,
+  onGpuLayersChange,
+  showAppleFoundationToggle,
+  appleFoundationEnabled,
+  onToggleAppleFoundation,
 }: ModelSettingsSectionProps) => {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme];
   const iconColor = currentTheme === 'dark' ? '#FFFFFF' : themeColors.primary;
   const [showModelSettings, setShowModelSettings] = useState(defaultExpanded);
+  const [showInferenceEngineModal, setShowInferenceEngineModal] = useState(false);
   
   const [showGrammarDialog, setShowGrammarDialog] = useState(false);
   const [showSeedDialog, setShowSeedDialog] = useState(false);
@@ -96,10 +136,304 @@ const ModelSettingsSection = ({
            !currArray.every((item, index) => item === defArray[index]);
   };
 
+  const showGpuSettings = Boolean(
+    gpuConfig &&
+    onToggleGpu &&
+    onGpuLayersChange &&
+    typeof onDialogOpen === 'function'
+  );
+
+  const gpuSupportMessage = React.useMemo(() => {
+    if (!gpuConfig) {
+      return null;
+    }
+
+    if (gpuConfig.supported && gpuConfig.reason !== 'unknown') {
+      return null;
+    }
+
+    switch (gpuConfig.reason) {
+      case 'ios_version':
+        return 'Metal acceleration requires iOS 18 or newer.';
+      case 'no_adreno':
+        return 'OpenCL acceleration needs an Adreno GPU.';
+      case 'missing_cpu_features':
+        return 'OpenCL acceleration needs i8mm and dot product CPU instructions.';
+      case 'unknown':
+        return Platform.OS === 'android'
+          ? 'Device GPU capabilities could not be verified. Results may vary.'
+          : null;
+      default:
+        return null;
+    }
+  }, [gpuConfig]);
+
+  const handleGpuLayersReset = React.useCallback(() => {
+    if (!gpuConfig || !onGpuLayersChange) {
+      return;
+    }
+
+    try {
+      const result = onGpuLayersChange(gpuConfig.defaultValue);
+      if (result && typeof (result as Promise<void>).catch === 'function') {
+        (result as Promise<void>).catch(() => {});
+      }
+    } catch (error) {
+    }
+  }, [gpuConfig, onGpuLayersChange]);
+
   return (
     <SettingsSection title="MODEL SETTINGS">
+      {onOpenSystemPromptDialog && (
+        <TouchableOpacity 
+          style={[styles.settingItem, styles.settingItemBottomBorder]}
+          onPress={onOpenSystemPromptDialog}
+        >
+          <View style={styles.settingLeft}>
+            <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
+              <MaterialCommunityIcons name="message-text-outline" size={22} color={iconColor} />
+            </View>
+            <View style={styles.settingTextContainer}>
+              <Text style={[styles.settingText, { color: themeColors.text }]}>
+                System Prompt
+              </Text>
+              <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
+                Define what should the AI know about you and your preferences
+              </Text>
+              {defaultSettings.systemPrompt && modelSettings.systemPrompt !== defaultSettings.systemPrompt && onResetSystemPrompt && (
+                <TouchableOpacity
+                  onPress={onResetSystemPrompt}
+                  style={[styles.resetButton, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}
+                >
+                  <MaterialCommunityIcons name="refresh" size={14} color={iconColor} />
+                  <Text style={[styles.resetText, { color: iconColor }]}>Reset to Default</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+          <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
+        </TouchableOpacity>
+      )}
+
+      {enableRemoteModels !== undefined && onToggleRemoteModels && (
+        <View style={[styles.settingItem, styles.settingItemBottomBorder]}>
+          <View style={styles.settingLeft}>
+            <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
+              <MaterialCommunityIcons 
+                name="cloud-outline"
+                size={22} 
+                color={iconColor} 
+              />
+            </View>
+            <View style={styles.settingTextContainer}>
+              <Text style={[styles.settingText, { color: themeColors.text }]}>
+                Enable Remote Models
+              </Text>
+              <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
+                Access cloud-based AI models (Gemini, ChatGPT, Claude, DeepSeek)
+              </Text>
+            </View>
+          </View>
+          <Switch
+            value={enableRemoteModels}
+            onValueChange={onToggleRemoteModels}
+            trackColor={{ false: themeColors.borderColor, true: themeColors.primary + '80' }}
+            thumbColor={enableRemoteModels ? themeColors.primary : themeColors.background}
+          />
+        </View>
+      )}
+
+      {showAppleFoundationToggle && onToggleAppleFoundation && (
+        <View style={[styles.settingItem, styles.settingItemBottomBorder]}> 
+          <View style={styles.settingLeft}>
+            <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
+              <MaterialCommunityIcons
+                name="apple"
+                size={22}
+                color={iconColor}
+              />
+            </View>
+            <View style={styles.settingTextContainer}>
+              <Text style={[styles.settingText, { color: themeColors.text }]}> 
+                Enable Apple Foundation
+              </Text>
+              <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}> 
+                Use Apple Intelligence models when available
+              </Text>
+            </View>
+          </View>
+          <Switch
+            value={Boolean(appleFoundationEnabled)}
+            onValueChange={onToggleAppleFoundation}
+            trackColor={{ false: themeColors.borderColor, true: themeColors.primary + '80' }}
+            thumbColor={appleFoundationEnabled ? themeColors.primary : themeColors.background}
+          />
+        </View>
+      )}
+
+      {selectedInferenceEngine !== undefined && onInferenceEngineChange && (
+        <TouchableOpacity
+          style={[styles.settingItem, styles.settingItemBottomBorder]}
+          onPress={() => setShowInferenceEngineModal(true)}
+        >
+          <View style={styles.settingLeft}>
+            <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
+              <MaterialCommunityIcons 
+                name="engine"
+                size={22} 
+                color={iconColor} 
+              />
+            </View>
+            <View style={styles.settingTextContainer}>
+              <Text style={[styles.settingText, { color: themeColors.text }]}>
+                Inference Engine
+              </Text>
+              <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
+                {selectedInferenceEngine === 'llama.cpp' ? 'llama.cpp' :
+                 selectedInferenceEngine === 'mediapipe' ? 'Google AI Edge Gallery (MediaPipe)' :
+                 selectedInferenceEngine === 'mlc-llm' ? 'MLC LLM' :
+                 selectedInferenceEngine === 'mlx' ? 'MLX' : selectedInferenceEngine}
+              </Text>
+            </View>
+          </View>
+          <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
+        </TouchableOpacity>
+      )}
+
+      {showGpuSettings && gpuConfig && (
+        <>
+          <View style={styles.settingItem}>
+            <View style={styles.settingLeft}>
+              <View
+                style={[
+                  styles.iconContainer,
+                  {
+                    backgroundColor:
+                      currentTheme === 'dark'
+                        ? 'rgba(255, 255, 255, 0.2)'
+                        : themeColors.primary + '20',
+                  },
+                ]}
+              >
+                <MaterialCommunityIcons name="chip" size={22} color={iconColor} />
+              </View>
+              <View style={styles.settingTextContainer}>
+                <View style={styles.labelRow}>
+                  <Text style={[styles.settingText, { color: themeColors.text }]}>
+                    {gpuConfig.label}
+                  </Text>
+                  {gpuConfig.experimental && (
+                    <View
+                      style={[
+                        styles.gpuBadge,
+                        {
+                          backgroundColor:
+                            currentTheme === 'dark'
+                              ? 'rgba(255, 255, 255, 0.2)'
+                              : themeColors.primary + '20',
+                        },
+                      ]}
+                    >
+                      <Text style={[styles.gpuBadgeText, { color: iconColor }]}>EXPERIMENTAL</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
+                  {gpuConfig.description}
+                </Text>
+                {gpuSupportMessage && (
+                  <Text style={[styles.gpuSupportText, { color: themeColors.secondaryText }]}>
+                    {gpuSupportMessage}
+                  </Text>
+                )}
+              </View>
+            </View>
+            <Switch
+              value={gpuConfig.enabled}
+              onValueChange={value => onToggleGpu?.(value)}
+              disabled={!gpuConfig.supported}
+              trackColor={{ false: themeColors.borderColor, true: themeColors.primary + '80' }}
+              thumbColor={gpuConfig.enabled ? themeColors.primary : themeColors.background}
+            />
+          </View>
+
+          <TouchableOpacity
+            style={[
+              styles.settingItem,
+              styles.settingItemBorder,
+              styles.settingItemBottomBorder,
+              (!gpuConfig.enabled || !gpuConfig.supported) && styles.disabledSettingItem,
+            ]}
+            disabled={!gpuConfig.enabled || !gpuConfig.supported}
+            onPress={() => {
+              if (!gpuConfig.enabled || !gpuConfig.supported) {
+                return;
+              }
+
+              onDialogOpen({
+                label: 'Layers on GPU',
+                value: gpuConfig.value,
+                defaultValue: gpuConfig.defaultValue,
+                minimumValue: gpuConfig.min,
+                maximumValue: gpuConfig.max,
+                step: 1,
+                description:
+                  'Number of transformer layers executed on the GPU. Higher values reduce CPU load but require more GPU memory.',
+                onSave: onGpuLayersChange,
+              });
+            }}
+          >
+            <View style={styles.settingLeft}>
+              <View
+                style={[
+                  styles.iconContainer,
+                  {
+                    backgroundColor:
+                      currentTheme === 'dark'
+                        ? 'rgba(255, 255, 255, 0.2)'
+                        : themeColors.primary + '20',
+                  },
+                ]}
+              >
+                <MaterialCommunityIcons name="layers-triple" size={22} color={iconColor} />
+              </View>
+              <View style={styles.settingTextContainer}>
+                <View style={styles.labelRow}>
+                  <Text style={[styles.settingText, { color: themeColors.text }]}>
+                    Layers on GPU
+                  </Text>
+                  <Text style={[styles.valueText, { color: themeColors.text }]}>
+                    {gpuConfig.value}
+                  </Text>
+                </View>
+                <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
+                  Higher values push more transformer layers to the GPU for faster inference.
+                </Text>
+                {gpuConfig.value !== gpuConfig.defaultValue && (
+                  <TouchableOpacity
+                    onPress={handleGpuLayersReset}
+                    style={[
+                      styles.resetButton,
+                      {
+                        backgroundColor:
+                          currentTheme === 'dark'
+                            ? 'rgba(255, 255, 255, 0.2)'
+                            : themeColors.primary + '20',
+                      },
+                    ]}
+                  >
+                    <MaterialCommunityIcons name="refresh" size={14} color={iconColor} />
+                    <Text style={[styles.resetText, { color: iconColor }]}>Reset to Default</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+            <MaterialCommunityIcons name="chevron-right" size={20} color={themeColors.secondaryText} />
+          </TouchableOpacity>
+        </>
+      )}
       <TouchableOpacity 
-        style={[styles.settingItem]}
+        style={styles.settingItem}
         onPress={() => setShowModelSettings(!showModelSettings)}
       >
         <View style={styles.settingLeft}>
@@ -417,7 +751,7 @@ const ModelSettingsSection = ({
             <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
               Enforce specific grammar rules to ensure generated text follows a particular structure.
             </Text>
-            {isStringDifferent(modelSettings.grammar, defaultSettings.grammar) && (
+            {defaultSettings.grammar !== undefined && isStringDifferent(modelSettings.grammar, defaultSettings.grammar) && (
               <TouchableOpacity
                 onPress={() => onSettingsChange({ grammar: defaultSettings.grammar })}
                 style={[styles.resetButton, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}
@@ -923,10 +1257,10 @@ const ModelSettingsSection = ({
             </ScrollView>
 
             <View style={styles.modalFooter}>
-              {isStringDifferent(tempGrammar, defaultSettings.grammar) && (
+              {defaultSettings.grammar !== undefined && isStringDifferent(tempGrammar, defaultSettings.grammar) && (
                 <TouchableOpacity
                   style={[styles.resetButton, { backgroundColor: themeColors.primary + '20' }]}
-                  onPress={() => setTempGrammar(defaultSettings.grammar)}
+                  onPress={() => setTempGrammar(defaultSettings.grammar || '')}
                 >
                   <MaterialCommunityIcons name="refresh" size={20} color={themeColors.primary} />
                   <Text style={[styles.resetText, { color: themeColors.primary }]}>Reset to Default</Text>
@@ -979,10 +1313,10 @@ const ModelSettingsSection = ({
             />
 
             <View style={styles.modalFooter}>
-              {(parseInt(tempSeed) || -1) !== defaultSettings.seed && (
+              {defaultSettings.seed !== undefined && (parseInt(tempSeed) || -1) !== defaultSettings.seed && (
                 <TouchableOpacity
                   style={[styles.resetButton, { backgroundColor: themeColors.primary + '20' }]}
-                  onPress={() => setTempSeed(defaultSettings.seed.toString())}
+                  onPress={() => setTempSeed(defaultSettings.seed?.toString() || '-1')}
                 >
                   <MaterialCommunityIcons name="refresh" size={20} color={themeColors.primary} />
                   <Text style={[styles.resetText, { color: themeColors.primary }]}>Reset to Default</Text>
@@ -1036,10 +1370,10 @@ const ModelSettingsSection = ({
             />
 
             <View style={styles.modalFooter}>
-              {(parseInt(tempNProbs) || 0) !== defaultSettings.nProbs && (
+              {defaultSettings.nProbs !== undefined && (parseInt(tempNProbs) || 0) !== defaultSettings.nProbs && (
                 <TouchableOpacity
                   style={[styles.resetButton, { backgroundColor: themeColors.primary + '20' }]}
-                  onPress={() => setTempNProbs(defaultSettings.nProbs.toString())}
+                  onPress={() => setTempNProbs(defaultSettings.nProbs?.toString() || '0')}
                 >
                   <MaterialCommunityIcons name="refresh" size={20} color={themeColors.primary} />
                   <Text style={[styles.resetText, { color: themeColors.primary }]}>Reset to Default</Text>
@@ -1194,6 +1528,151 @@ const ModelSettingsSection = ({
           </View>
         </View>
       </Modal>
+
+      <Modal
+        visible={showInferenceEngineModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowInferenceEngineModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: themeColors.background }]}>
+            <View style={[styles.modalHeader, { backgroundColor: themeColors.background }]}>
+              <Text style={[styles.modalTitle, { color: currentTheme === 'dark' ? '#fff' : themeColors.text }]}>
+                Select Inference Engine
+              </Text>
+              <TouchableOpacity 
+                onPress={() => setShowInferenceEngineModal(false)}
+                style={styles.closeButton}
+              >
+                <MaterialCommunityIcons 
+                  name="close" 
+                  size={24} 
+                  color={currentTheme === 'dark' ? '#fff' : themeColors.text} 
+                />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.engineListContainer} contentContainerStyle={{ paddingBottom: 20 }}>
+              {(() => {
+                const isAppleSilicon = Platform.OS === 'ios' && (
+                  Device.modelName?.includes('M1') || 
+                  Device.modelName?.includes('M2') || 
+                  Device.modelName?.includes('M3') ||
+                  Device.modelName?.includes('M4')
+                );
+
+                const engines = [
+                  {
+                    id: 'llama.cpp' as const,
+                    name: 'llama.cpp',
+                    description: 'The most popular inference engine with broad model support',
+                    icon: 'language-cpp',
+                    enabled: true,
+                  },
+                  {
+                    id: 'mediapipe' as const,
+                    name: 'Google AI Edge Gallery (MediaPipe)',
+                    description: 'MediaPipe LLM inference of AI Edge Gallery (not implemented)',
+                    icon: 'google',
+                    enabled: false,
+                  },
+                  {
+                    id: 'mlc-llm' as const,
+                    name: 'MLC LLM',
+                    description: 'Machine Learning Compilation for LLMs (not implemented)',
+                    icon: 'flash',
+                    enabled: false,
+                  },
+                  {
+                    id: 'mlx' as const,
+                    name: 'MLX',
+                    description: 'Apple Silicon optimized inference (not implemented)',
+                    icon: 'apple',
+                    enabled: false,
+                    requiresAppleSilicon: true,
+                  },
+                ];
+
+                return engines.map(engine => {
+                  const isSelected = selectedInferenceEngine === engine.id;
+                  const isDisabled = !engine.enabled || (engine.requiresAppleSilicon && !isAppleSilicon);
+
+                  return (
+                    <TouchableOpacity
+                      key={engine.id}
+                      style={[
+                        styles.engineItem,
+                        { backgroundColor: themeColors.borderColor },
+                        isSelected && styles.selectedEngineItem,
+                        isDisabled && styles.engineItemDisabled
+                      ]}
+                      onPress={() => {
+                        if (!isDisabled && onInferenceEngineChange) {
+                          onInferenceEngineChange(engine.id);
+                          setShowInferenceEngineModal(false);
+                        }
+                      }}
+                      disabled={isDisabled}
+                    >
+                      <View style={[
+                        styles.engineIconContainer,
+                        { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(74, 6, 96, 0.1)' }
+                      ]}>
+                        <MaterialCommunityIcons 
+                          name={engine.icon as any}
+                          size={28} 
+                          color={isDisabled ? 
+                            (currentTheme === 'dark' ? '#666' : themeColors.secondaryText) : 
+                            (isSelected ? (currentTheme === 'dark' ? '#fff' : '#4a0660') : (currentTheme === 'dark' ? '#fff' : themeColors.text))
+                          } 
+                        />
+                      </View>
+                      <View style={styles.engineInfo}>
+                        <Text 
+                          style={[
+                            styles.engineName, 
+                            { 
+                              color: isDisabled ? 
+                                (currentTheme === 'dark' ? '#666' : themeColors.secondaryText) : 
+                                (currentTheme === 'dark' ? '#fff' : themeColors.text),
+                              fontWeight: isSelected ? '600' : '500',
+                            }
+                          ]}
+                        >
+                          {engine.name}
+                        </Text>
+                        <Text 
+                          style={[
+                            styles.engineDescription, 
+                            { color: isDisabled ? (currentTheme === 'dark' ? '#666' : themeColors.secondaryText) : (currentTheme === 'dark' ? '#aaa' : themeColors.secondaryText) }
+                          ]}
+                        >
+                          {engine.description}
+                        </Text>
+                        {engine.requiresAppleSilicon && !isAppleSilicon && (
+                          <Text style={[styles.requirementText, { color: currentTheme === 'dark' ? '#FF9494' : '#d32f2f' }]}>
+                            Requires Apple Silicon
+                          </Text>
+                        )}
+                      </View>
+                      {isSelected && (
+                        <View style={styles.selectedIndicator}>
+                          <MaterialCommunityIcons 
+                            name="check-circle" 
+                            size={24} 
+                            color={currentTheme === 'dark' ? '#fff' : '#4a0660'} 
+                          />
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  );
+                });
+              })()}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SettingsSection>
   );
 };
@@ -1208,6 +1687,10 @@ const styles = StyleSheet.create({
   settingItemBorder: {
     borderTopWidth: 1,
     borderTopColor: 'rgba(150, 150, 150, 0.1)',
+  },
+  settingItemBottomBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(150, 150, 150, 0.1)',
   },
   settingLeft: {
     flexDirection: 'row',
@@ -1284,30 +1767,46 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.5,
   },
+  gpuBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  gpuBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  gpuSupportText: {
+    fontSize: 12,
+    marginTop: 6,
+  },
+  disabledSettingItem: {
+    opacity: 0.5,
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: 'flex-end',
   },
   modalContent: {
-    width: Dimensions.get('window').width - 48,
-    maxHeight: Dimensions.get('window').height - 200,
-    borderRadius: 16,
-    padding: 24,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    maxHeight: '80%',
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 20,
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: '600',
   },
   closeButton: {
-    padding: 4,
+    padding: 8,
   },
   modalDescription: {
     fontSize: 14,
@@ -1347,6 +1846,51 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  engineListContainer: {
+    paddingHorizontal: 4,
+  },
+  engineItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 8,
+    marginHorizontal: 4,
+  },
+  selectedEngineItem: {
+    backgroundColor: 'rgba(74, 6, 96, 0.1)',
+  },
+  engineItemDisabled: {
+    opacity: 0.6,
+  },
+  engineIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(74, 6, 96, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  engineInfo: {
+    flex: 1,
+  },
+  engineName: {
+    fontSize: 16,
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  engineDescription: {
+    fontSize: 14,
+  },
+  requirementText: {
+    fontSize: 12,
+    marginTop: 2,
+    fontWeight: '500',
+  },
+  selectedIndicator: {
+    marginLeft: 12,
   },
 });
 

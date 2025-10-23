@@ -216,7 +216,7 @@ const DownloadManager = forwardRef<DownloadManagerRef, DownloadManagerProps>(
                       </View>
                       
                       <Text style={[styles.downloadProgress, { color: themeColors.secondaryText }]}>
-                        {`${download.progress || 0}% • ${formatBytes(download.bytesDownloaded || 0)} / ${formatBytes(download.totalBytes || 0)}`}
+                        {`${Math.floor(download.progress || 0)}% • ${formatBytes(download.bytesDownloaded || 0)} / ${formatBytes(download.totalBytes || 0)}`}
                       </Text>
                       
                       <View style={[styles.progressBar, { backgroundColor: themeColors.borderColor }]}>

@@ -12,6 +12,7 @@ test/
 build/
 dist/
 web-build/
+logs.txt
 
 # Expo
 .expo/
@@ -172,3 +173,7 @@ eas.json
 # App specific
 app-example
 config/
+
+# Misc
+package-lock.json
+yarn.lock

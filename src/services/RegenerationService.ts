@@ -3,6 +3,8 @@ import { llamaManager } from '../utils/LlamaManager';
 import { onlineModelService } from './OnlineModelService';
 import chatManager from '../utils/ChatManager';
 import { generateRandomId } from '../utils/homeScreenUtils';
+import { appleFoundationService } from './AppleFoundationService';
+import type { ProviderType } from './ModelManagementService';
 
 interface RegenerationCallbacks {
   setMessages: (messages: ChatMessage[]) => void;
@@ -29,21 +31,33 @@ export class RegenerationService {
 
   async handleRegenerate(
     messages: ChatMessage[],
-    activeProvider: 'local' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude' | null,
+    activeProvider: ProviderType | null,
     settings: any
   ): Promise<void> {
     if (messages.length < 2) return;
     
     const hasLocalModel = !!llamaManager.getModelPath();
-    
+
     let hasValidModel = false;
     let validProvider = activeProvider;
-    
+
     if (!activeProvider) {
       hasValidModel = false;
       validProvider = null;
     } else if (activeProvider === 'local') {
       hasValidModel = hasLocalModel;
+    } else if (activeProvider === 'apple-foundation') {
+      try {
+        const available = appleFoundationService.isAvailable();
+        const enabled = await appleFoundationService.isEnabled();
+        hasValidModel = available && enabled;
+        if (!hasValidModel) {
+          validProvider = null;
+        }
+      } catch (error) {
+        hasValidModel = false;
+        validProvider = null;
+      }
     } else {
       try {
         const hasApiKey = await onlineModelService.hasApiKey(activeProvider);
@@ -99,11 +113,22 @@ export class RegenerationService {
     let firstTokenTime: number | null = null;
     
     try {
-      const isOnlineModel = validProvider && validProvider !== 'local';
-      
+      const isOnlineModel = validProvider === 'gemini' || validProvider === 'chatgpt' || validProvider === 'deepseek' || validProvider === 'claude';
+      const isAppleFoundation = validProvider === 'apple-foundation';
+
       if (isOnlineModel) {
         await this.processOnlineRegeneration(
           validProvider as 'gemini' | 'chatgpt' | 'deepseek' | 'claude',
+          newMessages,
+          settings,
+          assistantMessage,
+          startTime,
+          tokenCount,
+          fullResponse,
+          firstTokenTime
+        );
+      } else if (isAppleFoundation) {
+        await this.processAppleFoundationRegeneration(
           newMessages,
           settings,
           assistantMessage,
@@ -265,6 +290,137 @@ export class RegenerationService {
     } catch (error) {
       this.callbacks.handleApiError(error, this.getProviderDisplayName(validProvider));
       this.callbacks.setIsRegenerating(false);
+    }
+  }
+
+  private async processAppleFoundationRegeneration(
+    newMessages: ChatMessage[],
+    settings: any,
+    assistantMessage: ChatMessage,
+    startTime: number,
+    tokenCount: number,
+    fullResponse: string,
+    firstTokenTime: number | null
+  ): Promise<void> {
+    let updateCounter = 0;
+
+    try {
+      const stream = appleFoundationService.streamResponse(
+        newMessages.map(msg => ({ role: msg.role, content: msg.content })),
+        {
+          temperature: settings.temperature,
+          maxTokens: settings.maxTokens,
+          topP: settings.topP,
+          topK: settings.topK,
+        }
+      );
+
+      for await (const chunk of stream) {
+        if (this.cancelGenerationRef.current) {
+          appleFoundationService.cancel();
+          break;
+        }
+
+        if (firstTokenTime === null && chunk.trim().length > 0) {
+          firstTokenTime = Date.now() - startTime;
+        }
+
+        fullResponse += chunk;
+        const wordCount = fullResponse.trim().split(/\s+/).filter(word => word.length > 0).length;
+        tokenCount = Math.max(1, Math.ceil(wordCount * 1.33));
+
+        const duration = (Date.now() - startTime) / 1000;
+        let avgTokenTime = undefined;
+
+        if (firstTokenTime !== null && tokenCount > 0) {
+          const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
+          avgTokenTime = timeAfterFirstToken / tokenCount;
+        }
+
+        this.callbacks.setStreamingMessage(fullResponse);
+        this.callbacks.setStreamingStats({
+          tokens: tokenCount,
+          duration,
+          firstTokenTime: firstTokenTime || undefined,
+          avgTokenTime: avgTokenTime && avgTokenTime > 0 ? avgTokenTime : undefined,
+        });
+
+        updateCounter++;
+        if (
+          updateCounter % 10 === 0 ||
+          fullResponse.endsWith('.') ||
+          fullResponse.endsWith('!') ||
+          fullResponse.endsWith('?')
+        ) {
+          let debouncedAvgTokenTime = undefined;
+          if (firstTokenTime !== null && tokenCount > 0) {
+            const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
+            debouncedAvgTokenTime = timeAfterFirstToken / tokenCount;
+          }
+
+          const finalMessage: ChatMessage = {
+            ...assistantMessage,
+            content: fullResponse,
+            stats: {
+              duration,
+              tokens: tokenCount,
+              firstTokenTime: firstTokenTime || undefined,
+              avgTokenTime: debouncedAvgTokenTime && debouncedAvgTokenTime > 0 ? debouncedAvgTokenTime : undefined,
+            },
+          };
+
+          const finalMessages = [...newMessages, finalMessage];
+          this.callbacks.setMessages(finalMessages);
+        }
+      }
+
+    } catch (error) {
+      appleFoundationService.cancel();
+      const duration = (Date.now() - startTime) / 1000;
+      this.callbacks.setStreamingMessage('');
+      this.callbacks.setStreamingStats(null);
+      const message = error instanceof Error ? error.message : String(error);
+      const normalized = message.toLowerCase();
+      let displayMessage = 'Apple Intelligence not available on this device.';
+      if (normalized.includes('disabled')) {
+        displayMessage = 'Apple Intelligence is disabled. Enable it in Settings to continue.';
+      } else if (!normalized.includes('not available')) {
+        displayMessage = `Apple Intelligence error: ${message}`;
+      }
+      const errorMessage: ChatMessage = {
+        ...assistantMessage,
+        content: displayMessage,
+        stats: {
+          duration,
+          tokens: 0,
+        },
+      };
+      const finalMessages = [...newMessages, errorMessage];
+      this.callbacks.setMessages(finalMessages);
+      return;
+    }
+
+    if (!this.cancelGenerationRef.current) {
+      const duration = (Date.now() - startTime) / 1000;
+      let finalAvgTokenTime = undefined;
+      if (firstTokenTime !== null && tokenCount > 0) {
+        const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
+        finalAvgTokenTime = timeAfterFirstToken / tokenCount;
+      }
+
+      const finalMessage: ChatMessage = {
+        ...assistantMessage,
+        content: fullResponse,
+        stats: {
+          duration,
+          tokens: tokenCount,
+          firstTokenTime: firstTokenTime || undefined,
+          avgTokenTime: finalAvgTokenTime && finalAvgTokenTime > 0 ? finalAvgTokenTime : undefined,
+        },
+      };
+
+      const finalMessages = [...newMessages, finalMessage];
+      this.callbacks.setMessages(finalMessages);
     }
   }
 

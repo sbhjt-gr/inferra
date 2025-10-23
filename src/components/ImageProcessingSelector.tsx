@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   StyleSheet,
   View,
   TouchableOpacity,
   ActivityIndicator,
+  Switch,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Text, Button, Dialog, Portal } from 'react-native-paper';
@@ -26,6 +27,8 @@ type ImageProcessingSelectorProps = {
   onModeChange: (mode: ImageProcessingMode) => void;
   onMultimodalReady?: () => void;
   disabled?: boolean;
+  useRag?: boolean;
+  onToggleRag?: (value: boolean) => void;
 };
 
 export default function ImageProcessingSelector({
@@ -33,6 +36,8 @@ export default function ImageProcessingSelector({
   onModeChange,
   onMultimodalReady,
   disabled = false,
+  useRag = true,
+  onToggleRag,
 }: ImageProcessingSelectorProps) {
   const [mmProjSelectorVisible, setMmProjSelectorVisible] = useState(false);
   const [storedModels, setStoredModels] = useState<StoredModel[]>([]);
@@ -42,6 +47,12 @@ export default function ImageProcessingSelector({
   const { selectedModelPath, loadModel, isMultimodalEnabled } = useModel();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
   const isDark = currentTheme === 'dark';
+
+  useEffect(() => {
+    if (onToggleRag) {
+      onToggleRag(true);
+    }
+  }, [onToggleRag]);
 
   const loadStoredModels = async () => {
     try {
@@ -65,7 +76,7 @@ export default function ImageProcessingSelector({
         return;
       }
       
-      const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude'].includes(selectedModelPath);
+      const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude', 'apple-foundation'].includes(selectedModelPath);
       
       if (isOnlineModel) {
         onModeChange('multimodal');
@@ -118,7 +129,7 @@ export default function ImageProcessingSelector({
       case 'ocr':
         return 'Extract text from the image';
       case 'multimodal':
-        const isOnlineModel = selectedModelPath && ['gemini', 'chatgpt', 'deepseek', 'claude'].includes(selectedModelPath);
+        const isOnlineModel = selectedModelPath && ['gemini', 'chatgpt', 'deepseek', 'claude', 'apple-foundation'].includes(selectedModelPath);
         return isOnlineModel ? 'Analyze image content with AI' : 'Analyze image content with AI vision';
       case null:
       default:
@@ -129,7 +140,7 @@ export default function ImageProcessingSelector({
   const canUseMultimodal = (): boolean => {
     if (!selectedModelPath) return false;
     
-    const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude'].includes(selectedModelPath);
+    const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude', 'apple-foundation'].includes(selectedModelPath);
     if (isOnlineModel) {
       return selectedModelPath !== 'deepseek';
     }
@@ -140,7 +151,7 @@ export default function ImageProcessingSelector({
   const getMultimodalTitle = (): string => {
     if (!selectedModelPath) return 'Vision Analysis';
     
-    const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude'].includes(selectedModelPath);
+    const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude', 'apple-foundation'].includes(selectedModelPath);
     return isOnlineModel ? 'Vision Analysis' : 'Multimodal (AI Vision)';
   };
 
@@ -248,6 +259,30 @@ export default function ImageProcessingSelector({
           )}
         </TouchableOpacity>
       </View>
+
+      {selectedMode === 'ocr' && onToggleRag && (
+        <View
+          style={[
+            styles.ragRow,
+            {
+              backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.02)',
+              borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
+            },
+          ]}
+        >
+          <View style={styles.ragTextContainer}>
+            <Text style={[styles.ragTitle, { color: themeColors.text }]}>Use RAG</Text>
+            <Text style={[styles.ragDescription, { color: isDark ? '#bbbbbb' : '#666666' }]}>Store extracted text for this chat.</Text>
+          </View>
+          <Switch
+            value={useRag}
+            onValueChange={onToggleRag}
+            disabled={disabled}
+            trackColor={{ false: isDark ? '#444444' : '#dddddd', true: '#66088080' }}
+            thumbColor={useRag ? '#660880' : isDark ? '#222222' : '#f2f2f2'}
+          />
+        </View>
+      )}
 
       <Portal>
         <Dialog visible={mmProjSelectorVisible} onDismiss={handleProjectorSelectorClose}>
@@ -428,5 +463,27 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 2,
     lineHeight: 16,
+  },
+  ragRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 12,
+    gap: 12,
+  },
+  ragTextContainer: {
+    flex: 1,
+  },
+  ragTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  ragDescription: {
+    fontSize: 13,
+    lineHeight: 18,
   },
 }); 

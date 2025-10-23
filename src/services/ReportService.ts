@@ -1,11 +1,11 @@
 import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system';
 import * as ImageManipulator from 'expo-image-manipulator';
-import { getFirestoreInstance } from './FirebaseInstances';
+import { firestore } from '../config/firebase';
 import { 
   collection, 
   addDoc
-} from '@react-native-firebase/firestore';
+} from 'firebase/firestore';
 
 interface ReportData {
   messageContent: string;
@@ -151,7 +151,7 @@ const processImageAttachment = async (
 
 export const submitReport = async (reportData: ReportData): Promise<void> => {
   try {
-    const firestore = getFirestoreInstance();
+    const firestoreRef = firestore;
     
     const processedAttachments: FirebaseAttachment[] = [];
     
@@ -201,7 +201,7 @@ export const submitReport = async (reportData: ReportData): Promise<void> => {
       reportDocument.attachments = processedAttachments;
     }
 
-    await addDoc(collection(firestore, 'reports'), reportDocument);
+    await addDoc(collection(firestoreRef, 'reports'), reportDocument);
   } catch (error: any) {
     const errorMessage = error instanceof Error ? error.message : 'Failed to submit report';
     throw new Error(errorMessage);

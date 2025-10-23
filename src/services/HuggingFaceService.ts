@@ -1,5 +1,4 @@
 import Constants from 'expo-constants';
-import { HUGGINGFACE_TOKEN } from '@env';
 import { isVisionRepo, detectVisionCapabilities } from '../utils/multimodalHelpers';
 import { ModelFile } from '../types/models';
 
@@ -46,11 +45,15 @@ interface SearchParams {
 class HuggingFaceService {
   private baseUrl = 'https://huggingface.co';
   private apiUrl = `${this.baseUrl}/api`;
-  private token = HUGGINGFACE_TOKEN;
+  private token = Constants.expoConfig?.extra?.HUGGINGFACE_TOKEN;
 
   constructor() {
     if (!this.token) {
     }
+  }
+
+  getAccessToken(): string | undefined {
+    return this.token;
   }
 
   private getHeaders() {
@@ -250,7 +253,7 @@ class HuggingFaceService {
   }
 
   private filterGGUFFiles(siblings: ModelFile[]): ModelFile[] {
-    const RE_GGUF_SHARD_FILE = /^(?<prefix>.*?)-(?<shard>\d{5})-of-(?<total>\d{5})\.gguf$/;
+    const RE_GGUF_SHARD_FILE = /^(.*?)-(\d{5})-of-(\d{5})\.gguf$/;
     
     return siblings.filter(sibling => {
       const filename = sibling.rfilename.toLowerCase();

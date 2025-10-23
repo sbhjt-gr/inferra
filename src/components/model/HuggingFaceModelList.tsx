@@ -7,6 +7,7 @@ import { huggingFaceService, HFModel, HFModelDetails } from '../../services/Hugg
 import { isVisionModel } from '../../utils/ModelHelpers';
 import { modelDownloader } from '../../services/ModelDownloader';
 import { useNavigation } from '@react-navigation/native';
+import ModelFilesDialog from '../ModelFilesDialog';
 
 interface HuggingFaceModelListProps {
   storedModels: any[];
@@ -131,7 +132,11 @@ const HuggingFaceModelList: React.FC<HuggingFaceModelListProps> = ({
         }
       }));
 
-      const { downloadId } = await modelDownloader.downloadModel(downloadUrl, fullFilename);
+      const { downloadId } = await modelDownloader.downloadModel(
+        downloadUrl,
+        fullFilename,
+        huggingFaceService.getAccessToken(),
+      );
       
       setDownloadProgress((prev: any) => ({
         ...prev,
@@ -215,99 +220,14 @@ const HuggingFaceModelList: React.FC<HuggingFaceModelListProps> = ({
   };
 
   const renderModelDetails = () => {
-    if (!selectedModel) return null;
-
     return (
-      <Portal>
-        <Dialog
-          visible={!!selectedModel}
-          onDismiss={() => setSelectedModel(null)}
-          style={styles.detailDialog}
-        >
-          <Dialog.Title style={styles.dialogTitle}>
-            {selectedModel.id}
-            {selectedModel.hasVision && (
-              <View style={styles.visionBadge}>
-                <Text style={styles.visionBadgeText}>👁 Vision Model</Text>
-              </View>
-            )}
-          </Dialog.Title>
-          
-          <Dialog.ScrollArea style={styles.dialogScrollArea}>
-            <ScrollView style={styles.detailContent} showsVerticalScrollIndicator={false}>
-              <View style={styles.filesHeader}>
-                <Text style={styles.sectionTitle}>Available Model Files</Text>
-                <Text style={styles.sectionSubtitle}>
-                  {selectedModel.files.length} file{selectedModel.files.length !== 1 ? 's' : ''} available for download
-                </Text>
-              </View>
-              
-              {selectedModel.files.map((file, index) => (
-                <View key={index} style={styles.fileItem}>
-                  <View style={styles.fileHeader}>
-                    <Text style={styles.fileName} numberOfLines={2}>
-                      {file.filename}
-                    </Text>
-                  </View>
-                  
-                  <View style={styles.fileInfo}>
-                    <View style={styles.fileDetails}>
-                      <Chip
-                        mode="flat"
-                        style={[styles.fileChip, styles.sizeChip]}
-                        textStyle={styles.chipText}
-                        icon="download"
-                      >
-                        {huggingFaceService.formatModelSize(file.size)}
-                      </Chip>
-                      <Chip
-                        mode="flat"
-                        style={[styles.fileChip, styles.quantChip]}
-                        textStyle={styles.chipText}
-                        icon="cog"
-                      >
-                        {huggingFaceService.extractQuantization(file.filename)}
-                      </Chip>
-                      {selectedModel?.hasVision && file.filename.toLowerCase().includes('mmproj') && (
-                        <Chip
-                          mode="flat"
-                          style={[styles.fileChip, styles.projectionChip]}
-                          textStyle={styles.chipText}
-                          icon="eye-settings"
-                        >
-                          Projection
-                        </Chip>
-                      )}
-                    </View>
-                    
-                    <Button
-                      mode="contained"
-                      style={styles.downloadButton}
-                      contentStyle={styles.downloadButtonContent}
-                      onPress={() => handleDownloadFile(file.filename, file.downloadUrl)}
-                      icon="download"
-                    >
-                      Download
-                    </Button>
-                  </View>
-                  
-                  {index < selectedModel.files.length - 1 && <View style={styles.fileDivider} />}
-                </View>
-              ))}
-            </ScrollView>
-          </Dialog.ScrollArea>
-          
-          <Dialog.Actions style={styles.dialogActions}>
-            <Button 
-              onPress={() => setSelectedModel(null)}
-              style={styles.closeButton}
-              labelStyle={styles.closeButtonText}
-            >
-              Close
-            </Button>
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
+      <ModelFilesDialog
+        visible={!!selectedModel}
+        onClose={() => setSelectedModel(null)}
+        modelDetails={selectedModel}
+        onDownloadFile={handleDownloadFile}
+        isDownloading={modelDetailsLoading}
+      />
     );
   };
 
@@ -431,108 +351,6 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     textAlign: 'center',
-  },
-  detailDialog: {
-    maxHeight: '85%',
-    marginHorizontal: 20,
-  },
-  dialogTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    paddingBottom: 8,
-  },
-  visionBadge: {
-    marginTop: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    backgroundColor: 'rgba(123, 44, 191, 0.1)',
-    borderRadius: 12,
-    alignSelf: 'flex-start',
-  },
-  visionBadgeText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#7B2CBF',
-  },
-  dialogScrollArea: {
-    paddingHorizontal: 0,
-  },
-  detailContent: {
-    paddingHorizontal: 0,
-  },
-  filesHeader: {
-    marginBottom: 20,
-    paddingHorizontal: 4,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  sectionSubtitle: {
-    fontSize: 14,
-    opacity: 0.7,
-    marginBottom: 4,
-  },
-  fileItem: {
-    paddingVertical: 16,
-    paddingHorizontal: 4,
-  },
-  fileHeader: {
-    marginBottom: 12,
-  },
-  fileName: {
-    fontSize: 16,
-    fontWeight: '500',
-    lineHeight: 22,
-  },
-  fileInfo: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  fileDetails: {
-    flexDirection: 'row',
-    gap: 8,
-    flex: 1,
-    marginRight: 16,
-  },
-  fileChip: {
-    height: 32,
-  },
-  sizeChip: {
-    backgroundColor: 'rgba(74, 6, 96, 0.1)',
-  },
-  quantChip: {
-    backgroundColor: 'rgba(25, 118, 210, 0.1)',
-  },
-  projectionChip: {
-    backgroundColor: 'rgba(123, 44, 191, 0.1)',
-  },
-  chipText: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  downloadButton: {
-    minWidth: 100,
-  },
-  downloadButtonContent: {
-    height: 36,
-  },
-  fileDivider: {
-    height: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.08)',
-    marginTop: 16,
-  },
-  dialogActions: {
-    paddingTop: 16,
-  },
-  closeButton: {
-    paddingHorizontal: 16,
-  },
-  closeButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
   },
   loadingDialog: {
     alignItems: 'center',

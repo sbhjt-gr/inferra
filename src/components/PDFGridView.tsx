@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -10,7 +10,9 @@ import {
   FlatList,
   Image,
   Dimensions,
-  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Switch,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
@@ -34,6 +36,8 @@ type PDFGridViewProps = {
   promptError: boolean;
   setPromptError: (hasError: boolean) => void;
   handleStartOCR: () => void;
+  useRag: boolean;
+  onToggleRag: (value: boolean) => void;
 };
 
 export default function PDFGridView({
@@ -50,10 +54,18 @@ export default function PDFGridView({
   promptError,
   setPromptError,
   handleStartOCR,
+  useRag,
+  onToggleRag,
 }: PDFGridViewProps) {
   const screenWidth = Dimensions.get('window').width;
   const numColumns = 3;
   const itemWidth = (screenWidth - 40) / numColumns;
+
+  useEffect(() => {
+    if (visible) {
+      onToggleRag(true);
+    }
+  }, [visible, onToggleRag]);
 
   return (
     <Modal
@@ -142,58 +154,75 @@ export default function PDFGridView({
           />
         </View>
 
-        <View style={[styles.gridFooter, { backgroundColor: isDark ? '#1a1a1a' : '#ffffff' }]}>
-          <View style={styles.promptContainer}>
-            <Text style={[styles.promptLabel, { color: isDark ? '#ffffff' : '#333333' }]}>
-              Add your prompt:
-            </Text>
-            <TextInput
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        >
+          <View style={[styles.gridFooter, { backgroundColor: isDark ? '#1a1a1a' : '#ffffff' }]}>
+            <View style={styles.ragRow}>
+              <View style={styles.ragTextContainer}>
+                <Text style={[styles.ragTitle, { color: isDark ? '#ffffff' : '#333333' }]}>Use RAG</Text>
+                <Text style={[styles.ragDescription, { color: isDark ? '#bbbbbb' : '#666666' }]}>Store this file for smarter answers in this chat.</Text>
+              </View>
+              <Switch
+                value={useRag}
+                onValueChange={onToggleRag}
+                trackColor={{ false: isDark ? '#444444' : '#dddddd', true: '#66088080' }}
+                thumbColor={useRag ? '#660880' : isDark ? '#222222' : '#f2f2f2'}
+              />
+            </View>
+            <View style={styles.promptContainer}>
+              <Text style={[styles.promptLabel, { color: isDark ? '#ffffff' : '#333333' }]}>
+                Add your prompt:
+              </Text>
+              <TextInput
+                style={[
+                  styles.promptInput,
+                  { 
+                    color: isDark ? '#ffffff' : '#333333',
+                    backgroundColor: isDark ? '#2a2a2a' : '#f1f1f1',
+                    borderColor: promptError ? '#ff6b6b' : isDark ? '#444444' : '#dddddd'
+                  }
+                ]}
+                placeholder="What would you like to ask about this PDF?"
+                placeholderTextColor={isDark ? '#888888' : '#999999'}
+                value={userPrompt}
+                onChangeText={(text) => {
+                  setUserPrompt(text);
+                  if (text.trim()) setPromptError(false);
+                }}
+                multiline={true}
+                numberOfLines={2}
+              />
+              {promptError && (
+                <Text style={styles.errorPromptText}>
+                  Please enter a prompt before extracting text
+                </Text>
+              )}
+            </View>
+            <TouchableOpacity
               style={[
-                styles.promptInput,
+                styles.extractButton, 
                 { 
-                  color: isDark ? '#ffffff' : '#333333',
-                  backgroundColor: isDark ? '#2a2a2a' : '#f1f1f1',
-                  borderColor: promptError ? '#ff6b6b' : isDark ? '#444444' : '#dddddd'
+                  backgroundColor: selectedPages.length > 0 ? '#660880' : '#999',
+                  opacity: selectedPages.length > 0 ? 1 : 0.7
                 }
               ]}
-              placeholder="What would you like to ask about this PDF?"
-              placeholderTextColor={isDark ? '#888888' : '#999999'}
-              value={userPrompt}
-              onChangeText={(text) => {
-                setUserPrompt(text);
-                if (text.trim()) setPromptError(false);
-              }}
-              multiline={true}
-              numberOfLines={2}
-            />
-            {promptError && (
-              <Text style={styles.errorPromptText}>
-                Please enter a prompt before extracting text
+              onPress={handleStartOCR}
+              disabled={selectedPages.length === 0}
+            >
+              <MaterialCommunityIcons
+                name="send"
+                size={20}
+                color="#ffffff"
+                style={styles.sendIcon}
+              />
+              <Text style={styles.sendButtonText}>
+                Send Selected Pages {selectedPages.length > 0 ? `(${selectedPages.length})` : ''} 
               </Text>
-            )}
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity
-            style={[
-              styles.extractButton, 
-              { 
-                backgroundColor: selectedPages.length > 0 ? '#660880' : '#999',
-                opacity: selectedPages.length > 0 ? 1 : 0.7
-              }
-            ]}
-            onPress={handleStartOCR}
-            disabled={selectedPages.length === 0}
-          >
-            <MaterialCommunityIcons
-              name="send"
-              size={20}
-              color="#ffffff"
-              style={styles.sendIcon}
-            />
-            <Text style={styles.sendButtonText}>
-              Send Selected Pages {selectedPages.length > 0 ? `(${selectedPages.length})` : ''} 
-            </Text>
-          </TouchableOpacity>
-        </View>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     </Modal>
   );
@@ -299,6 +328,25 @@ const styles = StyleSheet.create({
     padding: 16,
     borderTopWidth: 1,
     borderTopColor: '#e0e0e0',
+  },
+  ragRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  ragTextContainer: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  ragTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  ragDescription: {
+    fontSize: 12,
+    marginTop: 2,
+    lineHeight: 16,
   },
   promptContainer: {
     marginBottom: 12,

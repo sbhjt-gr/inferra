@@ -9,7 +9,7 @@ import {
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, CommonActions } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import chatManager, { Chat } from '../utils/ChatManager';
@@ -65,12 +65,20 @@ export default function ChatHistoryScreen() {
 
   const handleSelectChat = async (chatId: string) => {
     try {
-      await chatManager.setCurrentChat(chatId);
-      
-      navigation.navigate('MainTabs', {
-        screen: 'HomeTab',
-        params: { loadChatId: chatId }
-      });
+      navigation.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [
+            {
+              name: 'MainTabs',
+              params: {
+                screen: 'HomeTab',
+                params: { loadChatId: chatId }
+              }
+            }
+          ]
+        })
+      );
     } catch (error) {
       showDialog('Error', 'Failed to load selected chat', [
         <Button key="ok" onPress={hideDialog}>OK</Button>

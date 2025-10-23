@@ -1,4 +1,4 @@
-import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
+import React, { useState, useEffect, forwardRef, useImperativeHandle, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -6,27 +6,35 @@ import {
   Modal,
   ActivityIndicator,
   SectionList,
+  Platform,
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { modelDownloader } from '../services/ModelDownloader';
-import { ThemeType, ThemeColors } from '../types/theme';
+import { ThemeColors } from '../types/theme';
 import { useModel } from '../context/ModelContext';
 import { useRemoteModel } from '../context/RemoteModelContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getThemeAwareColor } from '../utils/ColorUtils';
 import { onlineModelService } from '../services/OnlineModelService';
 import { Dialog, Portal, Text, Button } from 'react-native-paper';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
+import { appleFoundationService } from '../services/AppleFoundationService';
+import type { ProviderType } from '../services/ModelManagementService';
+import { useStoredModels } from '../hooks/useStoredModels';
 
 interface StoredModel {
   name: string;
   path: string;
   size: number;
   modified: string;
+  isExternal?: boolean;
+  originalPath?: string;
 }
 
 interface OnlineModel {
@@ -36,7 +44,14 @@ interface OnlineModel {
   isOnline: true;
 }
 
-type Model = StoredModel | OnlineModel;
+interface AppleFoundationModel {
+  id: string;
+  name: string;
+  provider: string;
+  isAppleFoundation: true;
+}
+
+type Model = StoredModel | OnlineModel | AppleFoundationModel;
 
 export interface ModelSelectorRef {
   refreshModels: () => void;
@@ -47,9 +62,73 @@ interface ModelSelectorProps {
   onClose?: () => void;
   preselectedModelPath?: string | null;
   isGenerating?: boolean;
-  onModelSelect?: (provider: 'local' | 'gemini' | 'chatgpt' | 'deepseek' | 'claude', modelPath?: string, projectorPath?: string) => void;
+  onModelSelect?: (provider: ProviderType, modelPath?: string, projectorPath?: string) => void | Promise<void>;
   navigation?: NativeStackNavigationProp<RootStackParamList>;
 }
+
+interface StorageWarningDialogProps {
+  visible: boolean;
+  onAccept: (dontShowAgain: boolean) => void;
+  onCancel: () => void;
+}
+
+const StorageWarningDialog: React.FC<StorageWarningDialogProps> = ({
+  visible,
+  onAccept,
+  onCancel
+}) => {
+  const { theme: currentTheme } = useTheme();
+  const themeColors = theme[currentTheme as ThemeColors];
+  const [dontShowAgain, setDontShowAgain] = useState(false);
+
+  return (
+    <Portal>
+      <Dialog 
+        visible={visible} 
+        onDismiss={onCancel}
+        style={{
+          zIndex: 10000,
+          elevation: 10000
+        }}
+      >
+        <Dialog.Title>File Manager Warning</Dialog.Title>
+        <Dialog.Content>
+          <Text variant="bodyMedium" style={{ marginBottom: 16 }}>
+            Large model files may cause the file manager to become temporarily stuck on some devices. Please be patient and wait for the file manager to respond once you click on a file.
+          </Text>
+          
+          <TouchableOpacity 
+            style={styles.checkboxContainer}
+            onPress={() => setDontShowAgain(!dontShowAgain)}
+          >
+            <View style={[
+              styles.checkboxSquare,
+              { 
+                borderColor: getThemeAwareColor('#4a0660', currentTheme),
+                backgroundColor: dontShowAgain ? getThemeAwareColor('#4a0660', currentTheme) : 'transparent'
+              }
+            ]}>
+              {dontShowAgain && (
+                <MaterialCommunityIcons 
+                  name="check" 
+                  size={16} 
+                  color="white" 
+                />
+              )}
+            </View>
+            <Text style={[styles.checkboxText, { color: themeColors.text }]}>
+              Don't show again
+            </Text>
+          </TouchableOpacity>
+        </Dialog.Content>
+        <Dialog.Actions>
+          <Button onPress={onCancel}>Cancel</Button>
+          <Button onPress={() => onAccept(dontShowAgain)}>Continue</Button>
+        </Dialog.Actions>
+      </Dialog>
+    </Portal>
+  );
+};
 
 const ONLINE_MODELS: OnlineModel[] = [
   { id: 'gemini', name: 'Gemini', provider: 'Google', isOnline: true },
@@ -71,9 +150,8 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     const defaultNavigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
     const navigation = propNavigation || defaultNavigation;
     const [modalVisible, setModalVisible] = useState(false);
-    const [models, setModels] = useState<StoredModel[]>([]);
-    const [sections, setSections] = useState<SectionData[]>([]);
-    const { selectedModelPath, selectedProjectorPath, isModelLoading, loadModel, unloadModel, unloadProjector } = useModel();
+    const { storedModels: models, isLoading: isLoadingLocalModels, isRefreshing: isRefreshingLocalModels, refreshStoredModels } = useStoredModels();
+    const { selectedModelPath, selectedProjectorPath, isModelLoading, loadModel, unloadModel, unloadProjector, isMultimodalEnabled } = useModel();
     const [onlineModelStatuses, setOnlineModelStatuses] = useState<{[key: string]: boolean}>({
       gemini: false,
       chatgpt: false,
@@ -82,6 +160,9 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     });
     const [isOnlineModelsExpanded, setIsOnlineModelsExpanded] = useState(false);
     const [isLocalModelsExpanded, setIsLocalModelsExpanded] = useState(true);
+    const [isLoadingFromStorage, setIsLoadingFromStorage] = useState(false);
+    const [loadingPhase, setLoadingPhase] = useState<'file_picker' | 'processing' | 'loading'>('file_picker');
+    const [showStorageWarningDialog, setShowStorageWarningDialog] = useState(false);
 
     const [dialogVisible, setDialogVisible] = useState(false);
     const [dialogTitle, setDialogTitle] = useState('');
@@ -91,6 +172,8 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     const [projectorSelectorVisible, setProjectorSelectorVisible] = useState(false);
     const [projectorModels, setProjectorModels] = useState<StoredModel[]>([]);
     const [selectedVisionModel, setSelectedVisionModel] = useState<Model | null>(null);
+  const [appleFoundationEnabled, setAppleFoundationEnabled] = useState(false);
+  const [appleFoundationAvailable, setAppleFoundationAvailable] = useState(false);
 
     const hideDialog = () => setDialogVisible(false);
 
@@ -109,65 +192,214 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
       setIsOnlineModelsExpanded(!isOnlineModelsExpanded);
     };
 
-    const loadModels = async () => {
+    const verifyExternalFileAccess = async (filePath: string): Promise<boolean> => {
       try {
-        const storedModels = await modelDownloader.getStoredModels();
-        const downloadStates = await AsyncStorage.getItem('active_downloads');
-        const activeDownloads = downloadStates ? JSON.parse(downloadStates) : {};
-        
-        const completedModels = storedModels.filter(model => {
-          const isDownloading = Object.values(activeDownloads).some(
-            (download: any) => 
-              download.filename === model.name && 
-              download.status !== 'completed'
-          );
-          const isProjectorModel = model.name.toLowerCase().includes('mmproj') ||
-                                   model.name.toLowerCase().includes('.proj');
-          
-          return !isDownloading && !isProjectorModel;
-        });
-        
-        setModels(completedModels);
-        
-        const sections: SectionData[] = [];
-        
-        if (completedModels.length > 0) {
-          sections.push({ title: 'Local Models', data: completedModels });
-          setIsLocalModelsExpanded(true);
-        } else {
-          setIsLocalModelsExpanded(false);
-        }
-        
-        sections.push({ title: 'Remote Models', data: ONLINE_MODELS });
-        setSections(sections);
+        const fileInfo = await FileSystem.getInfoAsync(filePath);
+        return fileInfo.exists;
       } catch (error) {
+        return false;
       }
     };
 
-    useEffect(() => {
-      loadModels();
-    }, []);
-
-    useEffect(() => {
-      const checkDownloads = async () => {
-        const downloadStates = await AsyncStorage.getItem('active_downloads');
-        if (downloadStates) {
-          const downloads = JSON.parse(downloadStates);
-          const hasCompletedDownload = Object.values(downloads).some(
-            (download: any) => download.status === 'completed'
-          );
-          if (hasCompletedDownload) {
-            loadModels();
-          }
+    const handleLoadFromStorage = async () => {
+      try {
+        const hideWarning = await AsyncStorage.getItem('hideStorageWarning');
+        
+        setModalVisible(false);
+        
+        if (hideWarning !== 'true') {
+          setShowStorageWarningDialog(true);
+          return;
         }
-      };
+        
+        await proceedWithStorageLoad();
+      } catch (error) {
+        setShowStorageWarningDialog(true);
+      }
+    };
 
-      const interval = setInterval(checkDownloads, 2000);
-      return () => clearInterval(interval);
+    const proceedWithStorageLoad = async () => {
+      try {
+        setIsLoadingFromStorage(true);
+        setLoadingPhase('file_picker');
+
+        setTimeout(async () => {
+          try {
+            const result = await DocumentPicker.getDocumentAsync({
+              type: '*/*',
+              copyToCacheDirectory: false,
+            });
+
+            if (result.canceled) {
+              setIsLoadingFromStorage(false);
+              return;
+            }
+
+            setLoadingPhase('processing');
+
+            const file = result.assets[0];
+            const fileName = file.name.toLowerCase();
+
+            if (!fileName.endsWith('.gguf')) {
+              setIsLoadingFromStorage(false);
+              showDialog(
+                'Invalid File',
+                'Please select a .gguf model file.',
+                [<Button key="ok" onPress={hideDialog}>OK</Button>]
+              );
+              return;
+            }
+
+            const isAccessible = await verifyExternalFileAccess(file.uri);
+            if (!isAccessible) {
+              setIsLoadingFromStorage(false);
+              showDialog(
+                'File Not Accessible',
+                'The selected file is not accessible. Please try again.',
+                [<Button key="ok" onPress={hideDialog}>OK</Button>]
+              );
+              return;
+            }
+
+            const isVisionModel = fileName.includes('llava') || 
+                                 fileName.includes('vision') ||
+                                 fileName.includes('minicpm');
+            
+            if (isVisionModel) {
+              setIsLoadingFromStorage(false);
+              const tempModel: StoredModel = {
+                name: file.name,
+                path: file.uri,
+                size: file.size || 0,
+                modified: new Date().toISOString(),
+                isExternal: true,
+                originalPath: file.uri,
+              };
+              showMultimodalDialog(tempModel);
+            } else {
+              setLoadingPhase('loading');
+              
+              if (onModelSelect) {
+                setIsLoadingFromStorage(false);
+                onModelSelect('local', file.uri);
+              } else {
+                const success = await loadModel(file.uri);
+                setIsLoadingFromStorage(false);
+                if (success) {
+                  showDialog(
+                    'Model Loaded',
+                    `Successfully loaded ${file.name} from storage.`,
+                    [<Button key="ok" onPress={hideDialog}>OK</Button>]
+                  );
+                } else {
+                  showDialog(
+                    'Load Failed',
+                    `Failed to load ${file.name}. The file may be corrupted or incompatible.`,
+                    [<Button key="ok" onPress={hideDialog}>OK</Button>]
+                  );
+                }
+              }
+            }
+
+          } catch (error) {
+            setIsLoadingFromStorage(false);
+            showDialog(
+              'Error',
+              'Failed to load model from storage.',
+              [<Button key="ok" onPress={hideDialog}>OK</Button>]
+            );
+          }
+        }, 100);
+
+      } catch (error) {
+        setIsLoadingFromStorage(false);
+        showDialog(
+          'Error',
+          'Failed to load model from storage.',
+          [<Button key="ok" onPress={hideDialog}>OK</Button>]
+        );
+      }
+    };
+
+    const handleStorageWarningAccept = async (dontShowAgain: boolean) => {
+      if (dontShowAgain) {
+        try {
+          await AsyncStorage.setItem('hideStorageWarning', 'true');
+        } catch (error) {
+        }
+      }
+      
+      setShowStorageWarningDialog(false);
+      await proceedWithStorageLoad();
+    };
+
+    const handleStorageWarningCancel = () => {
+      setShowStorageWarningDialog(false);
+    };
+
+    const refreshAppleFoundationState = async () => {
+      if (Platform.OS !== 'ios') {
+        setAppleFoundationEnabled(false);
+        setAppleFoundationAvailable(false);
+        return;
+      }
+      try {
+        const available = appleFoundationService.isAvailable();
+        const enabled = await appleFoundationService.isEnabled();
+        setAppleFoundationAvailable(available);
+        setAppleFoundationEnabled(enabled);
+      } catch (error) {
+        setAppleFoundationAvailable(false);
+        setAppleFoundationEnabled(false);
+      }
+    };
+
+    const sections = useMemo(() => {
+      const completedModels = models.filter(model => {
+        const isProjectorModel = model.name.toLowerCase().includes('mmproj') ||
+                                 model.name.toLowerCase().includes('.proj');
+
+        return !isProjectorModel;
+      });
+
+      const sectionsData: SectionData[] = [];
+      const localModels: Model[] = [];
+
+      if (Platform.OS === 'ios' && appleFoundationEnabled && appleFoundationAvailable) {
+        localModels.push({
+          id: 'apple-foundation',
+          name: 'Apple Foundation',
+          provider: 'Apple Intelligence',
+          isAppleFoundation: true,
+        });
+      }
+
+      localModels.push(...completedModels);
+
+      if (localModels.length > 0) {
+        sectionsData.push({ title: 'Local Models', data: localModels });
+      }
+
+      sectionsData.push({ title: 'Remote Models', data: ONLINE_MODELS });
+      return sectionsData;
+    }, [models, appleFoundationEnabled, appleFoundationAvailable]);
+
+    useEffect(() => {
+      if (sections.length > 0 && sections[0]?.data?.length > 0) {
+        setIsLocalModelsExpanded(true);
+      } else if (sections.length > 0 && sections[0]?.data?.length === 0) {
+        setIsLocalModelsExpanded(false);
+      }
+    }, [sections]);
+
+    useEffect(() => {
+      refreshAppleFoundationState();
     }, []);
 
     useImperativeHandle(ref, () => ({
-      refreshModels: loadModels
+      refreshModels: () => {
+        refreshStoredModels();
+      }
     }));
 
     useEffect(() => {
@@ -209,6 +441,12 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
         return;
       }
       
+      if ('isAppleFoundation' in model) {
+        if (onModelSelect) {
+          onModelSelect('apple-foundation');
+        }
+        return;
+      }
       if ('isOnline' in model) {
         if (!enableRemoteModels || !isLoggedIn) {
           setTimeout(() => {
@@ -242,17 +480,19 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
           onModelSelect(model.id as 'gemini' | 'chatgpt' | 'deepseek' | 'claude');
         }
       } else {
-        const isVisionModel = model.name.toLowerCase().includes('llava') || 
-                             model.name.toLowerCase().includes('vision') ||
-                             model.name.toLowerCase().includes('minicpm');
+        const storedModel = model as StoredModel;
+        
+        const isVisionModel = storedModel.name.toLowerCase().includes('llava') || 
+                             storedModel.name.toLowerCase().includes('vision') ||
+                             storedModel.name.toLowerCase().includes('minicpm');
         
         if (isVisionModel) {
-          showMultimodalDialog(model);
+          showMultimodalDialog(storedModel);
         } else {
           if (onModelSelect) {
-            onModelSelect('local', model.path);
+            onModelSelect('local', storedModel.path);
           } else {
-            await loadModel(model.path);
+            await loadModel(storedModel.path);
           }
         }
       }
@@ -267,10 +507,13 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
             key="text-only" 
             onPress={() => {
               hideDialog();
+              setIsLoadingFromStorage(false);
+              const storedModel = model as StoredModel;
+              const modelPath = storedModel.isExternal && storedModel.originalPath ? storedModel.originalPath : storedModel.path;
               if (onModelSelect) {
-                onModelSelect('local', (model as StoredModel).path);
+                onModelSelect('local', modelPath);
               } else {
-                loadModel((model as StoredModel).path);
+                loadModel(modelPath);
               }
             }}
           >
@@ -292,6 +535,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     const loadProjectorModels = async () => {
       try {
         const storedModels = await modelDownloader.getStoredModels();
+        
         const projectorModels = storedModels.filter(model => 
           model.name.toLowerCase().includes('proj') || 
           model.name.toLowerCase().includes('mmproj') ||
@@ -305,6 +549,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     };
 
     const promptForProjector = async (model: Model) => {
+      setIsLoadingFromStorage(false);
       setSelectedVisionModel(model);
       await loadProjectorModels();
       setProjectorSelectorVisible(true);
@@ -315,15 +560,19 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
       
       if (!selectedVisionModel) return;
 
+      const storedModel = selectedVisionModel as StoredModel;
+      const modelPath = storedModel.isExternal && storedModel.originalPath ? storedModel.originalPath : storedModel.path;
+      const projectorPath = projectorModel.path;
+
       if (onModelSelect) {
         showDialog(
           'Multimodal Model Ready',
           `Loading ${selectedVisionModel.name} with vision capabilities using ${projectorModel.name}`,
           [<Button key="ok" onPress={hideDialog}>OK</Button>]
         );
-        onModelSelect('local', (selectedVisionModel as StoredModel).path, projectorModel.path);
+        onModelSelect('local', modelPath, projectorPath);
       } else {
-        const success = await loadModel((selectedVisionModel as StoredModel).path, projectorModel.path);
+        const success = await loadModel(modelPath, projectorPath);
         if (success) {
           showDialog(
             'Success',
@@ -340,15 +589,18 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
       
       if (!selectedVisionModel) return;
 
+      const storedModel = selectedVisionModel as StoredModel;
+      const modelPath = storedModel.isExternal && storedModel.originalPath ? storedModel.originalPath : storedModel.path;
+
       if (onModelSelect) {
         showDialog(
           'Text-Only Model Ready',
           `Loading ${selectedVisionModel.name} in text-only mode (without vision capabilities)`,
           [<Button key="ok" onPress={hideDialog}>OK</Button>]
         );
-        onModelSelect('local', (selectedVisionModel as StoredModel).path);
+        onModelSelect('local', modelPath);
       } else {
-        const success = await loadModel((selectedVisionModel as StoredModel).path);
+        const success = await loadModel(modelPath);
         if (success) {
           showDialog(
             'Success',
@@ -366,6 +618,15 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     };
 
     const handleUnloadModel = () => {
+      if (!selectedModelPath) {
+        showDialog(
+          'No Model Loaded',
+          'There is no model currently loaded to unload.',
+          [<Button key="ok" onPress={hideDialog}>OK</Button>]
+        );
+        return;
+      }
+
       const title = 'Unload Model';
       const message = isGenerating
         ? 'This will stop the current generation. Are you sure you want to unload the model?'
@@ -375,7 +636,15 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
         <Button key="cancel" onPress={hideDialog}>Cancel</Button>,
         <Button key="unload" onPress={async () => {
           hideDialog();
-          await unloadModel();
+          try {
+            await unloadModel();
+          } catch (error) {
+            showDialog(
+              'Unload Warning',
+              `Model unloading completed with warnings. The model has been cleared from memory.`,
+              [<Button key="ok" onPress={hideDialog}>OK</Button>]
+            );
+          }
         }}>
           Unload
         </Button>
@@ -385,6 +654,15 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
     };
 
     const handleUnloadProjector = () => {
+      if (!selectedProjectorPath && !isMultimodalEnabled) {
+        showDialog(
+          'No Projector Loaded',
+          'There is no projector model currently loaded to unload.',
+          [<Button key="ok" onPress={hideDialog}>OK</Button>]
+        );
+        return;
+      }
+
       const title = 'Unload Projector';
       const message = isGenerating
         ? 'This will disable vision capabilities and stop the current generation. Are you sure you want to unload the projector?'
@@ -394,7 +672,15 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
         <Button key="cancel" onPress={hideDialog}>Cancel</Button>,
         <Button key="unload" onPress={async () => {
           hideDialog();
-          await unloadProjector();
+          try {
+            await unloadProjector();
+          } catch (error) {
+            showDialog(
+              'Unload Warning',
+              `Projector unloading completed with warnings. Vision capabilities have been disabled.`,
+              [<Button key="ok" onPress={hideDialog}>OK</Button>]
+            );
+          }
         }}>
           Unload Projector
         </Button>
@@ -430,6 +716,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
       if (path === 'chatgpt') return 'ChatGPT';
       if (path === 'deepseek') return 'DeepSeek';
       if (path === 'claude') return 'Claude';
+      if (path === 'apple-foundation') return 'Apple Foundation';
       
       const model = models.find(m => m.path === path);
       return model ? getDisplayName(model.name) : getDisplayName(path.split('/').pop() || '');
@@ -440,6 +727,137 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
       
       const model = models.find(m => m.path === path);
       return model ? getDisplayName(model.name) : getDisplayName(path.split('/').pop() || '');
+    };
+
+    const remoteProviders = new Set<ProviderType>(['gemini', 'chatgpt', 'deepseek', 'claude']);
+
+    const isRemoteProvider = (provider: string | null): boolean => {
+      if (!provider) return false;
+      return remoteProviders.has(provider as ProviderType);
+    };
+
+    const isAppleProvider = (provider: string | null): boolean => provider === 'apple-foundation';
+
+    const getActiveModelIcon = (provider: string | null): keyof typeof MaterialCommunityIcons.glyphMap => {
+      if (!provider) return 'cube-outline';
+      if (isAppleProvider(provider)) return 'apple';
+      if (isRemoteProvider(provider)) return 'cloud';
+      return 'cube';
+    };
+
+    const getConnectionBadgeConfig = (provider: string | null) => {
+      if (isRemoteProvider(provider)) {
+        return {
+          backgroundColor: 'rgba(74, 180, 96, 0.15)',
+          textColor: '#2a8c42',
+          label: 'REMOTE'
+        };
+      }
+      if (isAppleProvider(provider)) {
+        return {
+          backgroundColor: 'rgba(74, 6, 96, 0.1)',
+          textColor: currentTheme === 'dark' ? '#fff' : '#660880',
+          label: 'APPLE'
+        };
+      }
+      return {
+        backgroundColor: 'rgba(74, 6, 96, 0.1)',
+        textColor: currentTheme === 'dark' ? '#fff' : '#660880',
+        label: 'LOCAL'
+      };
+    };
+
+    const renderAppleFoundationItem = ({ item }: { item: AppleFoundationModel }) => {
+      const isSelected = selectedModelPath === item.id;
+
+      return (
+        <TouchableOpacity
+          style={[
+            styles.modelItem,
+            { backgroundColor: themeColors.borderColor },
+            isSelected && styles.selectedModelItem,
+            isGenerating && styles.modelItemDisabled,
+          ]}
+          onPress={() => handleModelSelect(item)}
+          disabled={isGenerating}
+        >
+          <View style={styles.modelIconContainer}>
+            <MaterialCommunityIcons
+              name={isSelected ? 'apple' : 'apple'}
+              size={28}
+              color={isSelected ? (currentTheme === 'dark' ? '#fff' : getThemeAwareColor('#4a0660', currentTheme)) : currentTheme === 'dark' ? '#fff' : themeColors.text}
+            />
+          </View>
+          <View style={styles.modelInfo}>
+            <View style={styles.modelNameRow}>
+              <Text
+                style={[
+                  styles.modelName,
+                  { color: currentTheme === 'dark' ? '#fff' : themeColors.text },
+                  isSelected && { color: currentTheme === 'dark' ? '#fff' : getThemeAwareColor('#4a0660', currentTheme) },
+                ]}
+              >
+                {item.name}
+              </Text>
+              <View
+                style={[
+                  styles.connectionTypeBadge,
+                  { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.15)' : 'rgba(74, 6, 96, 0.1)' },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.connectionTypeText,
+                    { color: currentTheme === 'dark' ? '#fff' : '#4a0660' },
+                  ]}
+                >
+                  LOCAL
+                </Text>
+              </View>
+            </View>
+            <View style={styles.modelMetaInfo}>
+              <View
+                style={[
+                  styles.modelTypeBadge,
+                  {
+                    backgroundColor: isSelected
+                      ? currentTheme === 'dark'
+                        ? 'rgba(255, 255, 255, 0.15)'
+                        : 'rgba(74, 6, 96, 0.1)'
+                      : 'rgba(150, 150, 150, 0.1)',
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.modelTypeText,
+                    {
+                      color: isSelected
+                        ? currentTheme === 'dark'
+                          ? '#fff'
+                          : '#4a0660'
+                        : currentTheme === 'dark'
+                          ? '#fff'
+                          : themeColors.secondaryText,
+                    },
+                  ]}
+                >
+                  {item.provider}
+                </Text>
+              </View>
+            </View>
+          </View>
+          {isSelected && (
+            <View style={styles.selectedIndicator}>
+              <MaterialCommunityIcons
+                name="check-circle"
+                size={24}
+                color={currentTheme === 'dark' ? '#fff' : getThemeAwareColor('#4a0660', currentTheme)}
+              />
+            </View>
+          )}
+        </TouchableOpacity>
+      );
     };
 
     const renderLocalModelItem = ({ item }: { item: StoredModel }) => (
@@ -490,7 +908,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
           <View style={styles.selectedIndicator}>
             <MaterialCommunityIcons 
               name="check-circle" 
-              size={24} 
+              size={24}
               color={currentTheme === 'dark' ? '#fff' : getThemeAwareColor('#4a0660', currentTheme)} 
             />
           </View>
@@ -624,33 +1042,56 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
       }
       
       return (
-        <TouchableOpacity 
-          onPress={toggleLocalModelsDropdown}
+        <View
           style={[
-            styles.sectionHeader, 
+            styles.sectionHeader,
             { backgroundColor: themeColors.background },
             styles.modelSectionHeader,
+            styles.sectionHeaderWithControls,
             currentTheme === 'dark' && {
               backgroundColor: 'rgba(255, 255, 255, 0.1)',
               borderColor: 'rgba(255, 255, 255, 0.2)'
             }
           ]}
         >
-          <View style={styles.sectionHeaderContent}>
-            <Text style={[
-              styles.sectionHeaderText, 
-              { color: currentTheme === 'dark' ? '#fff' : themeColors.secondaryText },
-              currentTheme === 'dark' && { opacity: 0.9 }
-            ]}>
+          <TouchableOpacity
+            onPress={toggleLocalModelsDropdown}
+            style={styles.sectionHeaderToggle}
+          >
+            <Text
+              style={[
+                styles.sectionHeaderText,
+                { color: currentTheme === 'dark' ? '#fff' : themeColors.secondaryText },
+                currentTheme === 'dark' && { opacity: 0.9 }
+              ]}
+            >
               {section.title}
             </Text>
-            <MaterialCommunityIcons 
-              name={isLocalModelsExpanded ? "chevron-up" : "chevron-down"} 
-              size={24} 
-              color={currentTheme === 'dark' ? '#fff' : themeColors.secondaryText} 
+            <MaterialCommunityIcons
+              name={isLocalModelsExpanded ? "chevron-up" : "chevron-down"}
+              size={24}
+              color={currentTheme === 'dark' ? '#fff' : themeColors.secondaryText}
             />
-          </View>
-        </TouchableOpacity>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={refreshStoredModels}
+            style={[
+              styles.sectionRefreshButton,
+              { backgroundColor: themeColors.borderColor }
+            ]}
+            disabled={isRefreshingLocalModels}
+          >
+            {isRefreshingLocalModels ? (
+              <ActivityIndicator size="small" color={getThemeAwareColor('#4a0660', currentTheme)} />
+            ) : (
+              <MaterialCommunityIcons
+                name="refresh"
+                size={20}
+                color={currentTheme === 'dark' ? '#fff' : themeColors.secondaryText}
+              />
+            )}
+          </TouchableOpacity>
+        </View>
       );
     };
 
@@ -662,10 +1103,13 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
         return null;
       }
       
+      if ('isAppleFoundation' in item) {
+        return renderAppleFoundationItem({ item });
+      }
       if ('isOnline' in item) {
         return renderOnlineModelItem({ item });
       } else {
-        return renderLocalModelItem({ item });
+        return renderLocalModelItem({ item: item as StoredModel });
       }
     };
 
@@ -674,6 +1118,12 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
         setModalVisible(isOpen);
       }
     }, [isOpen]);
+
+    useEffect(() => {
+      if (modalVisible) {
+        refreshAppleFoundationState();
+      }
+    }, [modalVisible]);
 
     const handleModalClose = () => {
       setModalVisible(false);
@@ -688,6 +1138,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
         }
       }
     }, [preselectedModelPath, models]);
+
 
     useEffect(() => {
       if (isGenerating && modalVisible) {
@@ -705,13 +1156,15 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
       };
     }, []);
 
+    const badgeConfig = getConnectionBadgeConfig(selectedModelPath);
+
     return (
       <>
         <TouchableOpacity
           style={[
             styles.selector, 
             { backgroundColor: themeColors.borderColor },
-            (isGenerating || isModelLoading) && styles.selectorDisabled
+            (isGenerating || isModelLoading || isLoadingFromStorage) && styles.selectorDisabled
           ]}
           onPress={() => {
             if (isGenerating) {
@@ -724,25 +1177,21 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
             }
             setModalVisible(true);
           }}
-          disabled={isModelLoading || isGenerating}
+          disabled={isModelLoading || isGenerating || isLoadingFromStorage}
         >
           <View style={styles.selectorContent}>
             <View style={styles.modelIconWrapper}>
-              {isModelLoading ? (
+              {(isModelLoading || isLoadingFromStorage) ? (
                 <ActivityIndicator size="small" color={getThemeAwareColor('#4a0660', currentTheme)} />
               ) : (
-                <MaterialCommunityIcons 
-                  name={selectedModelPath ? 
-                    (selectedModelPath === 'gemini' || 
-                     selectedModelPath === 'chatgpt' || 
-                     selectedModelPath === 'deepseek' || 
-                     selectedModelPath === 'claude') ? 
-                      "cloud" : "cube" 
-                    : "cube-outline"} 
-                  size={24} 
-                  color={selectedModelPath ? 
-                    getThemeAwareColor('#4a0660', currentTheme) : 
-                    currentTheme === 'dark' ? '#fff' : themeColors.text} 
+                <MaterialCommunityIcons
+                  name={getActiveModelIcon(selectedModelPath)}
+                  size={24}
+                  color={selectedModelPath
+                    ? getThemeAwareColor('#4a0660', currentTheme)
+                    : currentTheme === 'dark'
+                      ? '#fff'
+                      : themeColors.text}
                 />
               )}
             </View>
@@ -754,41 +1203,32 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                 <Text style={[styles.selectorText, { color: currentTheme === 'dark' ? '#fff' : themeColors.text }]}>
                   {isModelLoading 
                     ? 'Loading...' 
-                    : getModelNameFromPath(selectedModelPath, models)
+                    : isLoadingFromStorage 
+                      ? loadingPhase === 'file_picker' 
+                        ? 'Opening File Manager...' 
+                        : loadingPhase === 'processing'
+                        ? 'Processing File...'
+                        : 'Loading Model...'
+                      : getModelNameFromPath(selectedModelPath, models)
                   }
                 </Text>
-                {selectedModelPath && !isModelLoading && (
+                {selectedModelPath && !isModelLoading && !isLoadingFromStorage && (
                   <View style={[
                     styles.connectionTypeBadge,
-                    { 
-                      backgroundColor: (selectedModelPath === 'gemini' || 
-                                       selectedModelPath === 'chatgpt' || 
-                                       selectedModelPath === 'deepseek' || 
-                                       selectedModelPath === 'claude') ? 
-                        'rgba(74, 180, 96, 0.15)' : 
-                        'rgba(74, 6, 96, 0.1)' 
+                    {
+                      backgroundColor: badgeConfig.backgroundColor
                     }
                   ]}>
                     <Text style={[
-                      styles.connectionTypeText, 
-                      { 
-                        color: (selectedModelPath === 'gemini' || 
-                                selectedModelPath === 'chatgpt' || 
-                                selectedModelPath === 'deepseek' || 
-                                selectedModelPath === 'claude') ? 
-                          '#2a8c42' : 
-                          currentTheme === 'dark' ? '#fff' : '#660880' 
-                      }
+                      styles.connectionTypeText,
+                      { color: badgeConfig.textColor }
                     ]}>
-                      {(selectedModelPath === 'gemini' || 
-                        selectedModelPath === 'chatgpt' || 
-                        selectedModelPath === 'deepseek' || 
-                        selectedModelPath === 'claude') ? 'REMOTE' : 'LOCAL'}
+                      {badgeConfig.label}
                     </Text>
                   </View>
                 )}
               </View>
-              {selectedProjectorPath && !isModelLoading && (
+              {selectedProjectorPath && !isModelLoading && !isLoadingFromStorage && (
                 <>
                   <Text style={[styles.projectorLabel, { color: currentTheme === 'dark' ? '#ccc' : themeColors.secondaryText }]}>
                     Vision Projector
@@ -816,7 +1256,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
             </View>
           </View>
           <View style={styles.selectorActions}>
-            {selectedProjectorPath && !isModelLoading && (
+            {selectedProjectorPath && !isModelLoading && !isLoadingFromStorage && (
               <TouchableOpacity 
                 onPress={handleUnloadProjector}
                 style={[
@@ -834,7 +1274,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                 />
               </TouchableOpacity>
             )}
-            {selectedModelPath && !isModelLoading && (
+            {selectedModelPath && !isModelLoading && !isLoadingFromStorage && (
               <TouchableOpacity 
                 onPress={handleUnloadModel}
                 style={[
@@ -883,14 +1323,53 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                 contentContainerStyle={styles.modelList}
                 stickySectionHeadersEnabled={true}
                 ListHeaderComponent={
-                  models.length === 0 ? (
-                    <View style={styles.emptyContainer}>
-                      <MaterialCommunityIcons name="cube-outline" size={48} color={currentTheme === 'dark' ? '#fff' : themeColors.secondaryText} />
-                      <Text style={[styles.emptyText, { color: currentTheme === 'dark' ? '#fff' : themeColors.text }]}>
-                        No local models found. Go to the Models → Download Models screen to download a Model.
-                      </Text>
-                    </View>
-                  ) : null
+                  <View>
+                    <TouchableOpacity 
+                      style={[
+                        styles.loadFromStorageModelCard, 
+                        { backgroundColor: themeColors.borderColor }
+                      ]}
+                      onPress={handleLoadFromStorage}
+                    >
+                      <View style={styles.modelIconContainer}>
+                        <MaterialCommunityIcons 
+                          name="plus" 
+                          size={28} 
+                          color={currentTheme === 'dark' ? '#fff' : themeColors.text}
+                        />
+                      </View>
+                      <View style={styles.modelInfo}>
+                        <View style={styles.modelNameRow}>
+                          <Text style={[
+                            styles.modelName, 
+                            { color: currentTheme === 'dark' ? '#fff' : themeColors.text }
+                          ]}>
+                            Load from Storage
+                          </Text>
+                        </View>
+                        <View style={styles.modelMetaInfo}>
+                          <Text style={[styles.modelDetails, { color: currentTheme === 'dark' ? '#fff' : themeColors.secondaryText }]}>
+                            Load .gguf models directly from device
+                          </Text>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                    {isLoadingLocalModels ? (
+                      <View style={styles.emptyContainer}>
+                        <ActivityIndicator size="large" color={getThemeAwareColor('#4a0660', currentTheme)} />
+                        <Text style={[styles.emptyText, { color: currentTheme === 'dark' ? '#fff' : themeColors.text, marginTop: 16 }]}>
+                          Loading models...
+                        </Text>
+                      </View>
+                    ) : models.length === 0 ? (
+                      <View style={styles.emptyContainer}>
+                        <MaterialCommunityIcons name="cube-outline" size={48} color={currentTheme === 'dark' ? '#fff' : themeColors.secondaryText} />
+                        <Text style={[styles.emptyText, { color: currentTheme === 'dark' ? '#fff' : themeColors.text }]}>
+                          No local models found. Download from Models tab.
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
                 }
                 ListEmptyComponent={
                   sections.length === 0 ? (
@@ -978,6 +1457,12 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
             </Dialog.Actions>
           </Dialog>
         </Portal>
+
+        <StorageWarningDialog
+          visible={showStorageWarningDialog}
+          onAccept={handleStorageWarningAccept}
+          onCancel={handleStorageWarningCancel}
+        />
       </>
     );
   }
@@ -1151,6 +1636,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     width: '100%',
   },
+  sectionHeaderWithControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  sectionHeaderToggle: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  sectionRefreshButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 12,
+  },
   sectionHeaderText: {
     fontSize: 14,
     fontWeight: '600',
@@ -1238,5 +1741,54 @@ const styles = StyleSheet.create({
   projectorUnloadButton: {
     backgroundColor: 'rgba(95, 213, 132, 0.1)',
     borderRadius: 12,
+  },
+  loadFromStorageButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 16,
+  },
+  loadFromStorageModelCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 8,
+    marginHorizontal: 4,
+  },
+  loadFromStorageTextContainer: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  loadFromStorageTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  loadFromStorageDescription: {
+    fontSize: 14,
+    marginTop: 2,
+  },
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    marginBottom: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    borderRadius: 6,
+  },
+  checkboxSquare: {
+    width: 20,
+    height: 20,
+    borderRadius: 3,
+    borderWidth: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkboxText: {
+    fontSize: 13,
+    marginLeft: 8,
+    flex: 1,
   },
 }); 

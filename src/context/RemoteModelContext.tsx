@@ -1,9 +1,10 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { isAuthenticated, getCurrentUser, isFirebaseReady } from '../services/FirebaseAuth';
+import { isAuthenticated, getCurrentUser, isFirebaseReady, onAuthStateChange } from '../services/FirebaseAuth';
 import { getUserFromSecureStorage } from '../services/AuthStorage';
-import { getFirebaseServices } from '../services/FirebaseService';
-import { onAuthStateChanged, FirebaseAuthTypes } from '@react-native-firebase/auth';
+import { User as FirebaseUser } from 'firebase/auth';
+import providerKeyStorage from '../utils/ProviderKeyStorage';
+
+const REMOTE_MODELS_KEY = 'remote_models_enabled';
 
 interface RemoteModelContextType {
   enableRemoteModels: boolean;
@@ -28,7 +29,8 @@ export const RemoteModelProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const disableRemoteModels = async (): Promise<void> => {
     setEnableRemoteModels(false);
     try {
-      await AsyncStorage.setItem('@remote_models_enabled', 'false');
+      await providerKeyStorage.initialize();
+      await providerKeyStorage.setPreference(REMOTE_MODELS_KEY, 'false');
     } catch {
     }
   };
@@ -72,12 +74,7 @@ export const RemoteModelProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
 
     try {
-      const { auth } = getFirebaseServices();
-      if (!auth) {
-        return;
-      }
-
-      const unsubscribe = onAuthStateChanged(auth(), async (user: FirebaseAuthTypes.User | null) => {
+      const unsubscribe = onAuthStateChange(async (user: FirebaseUser | null) => {
         const newLoginState = !!user;
         setIsLoggedIn(newLoginState);
         
@@ -94,8 +91,9 @@ export const RemoteModelProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const loadRemoteModelPreference = async () => {
     try {
-      const savedPreference = await AsyncStorage.getItem('@remote_models_enabled');
-      if (savedPreference) {
+      await providerKeyStorage.initialize();
+      const savedPreference = await providerKeyStorage.getPreference(REMOTE_MODELS_KEY);
+      if (savedPreference !== null) {
         setEnableRemoteModels(savedPreference === 'true');
       }
     } catch {
@@ -118,7 +116,8 @@ export const RemoteModelProvider: React.FC<{ children: React.ReactNode }> = ({ c
     const newValue = !enableRemoteModels;
     setEnableRemoteModels(newValue);
     try {
-      await AsyncStorage.setItem('@remote_models_enabled', newValue.toString());
+      await providerKeyStorage.initialize();
+      await providerKeyStorage.setPreference(REMOTE_MODELS_KEY, newValue.toString());
       return { success: true };
     } catch {
       return { success: false };

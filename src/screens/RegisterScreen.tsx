@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -27,7 +27,8 @@ import {
   Portal,
   Checkbox,
 } from 'react-native-paper';
-import { registerWithEmail, signInWithGoogle, isEmailFromTrustedProvider, testFirebaseConnection, debugGoogleOAuthConfig } from '../services/FirebaseService';
+import { registerWithEmail, signInWithGoogle, isEmailFromTrustedProvider, signInWithApple } from '../services/FirebaseService';
+import * as AppleAuthentication from 'expo-apple-authentication';
 
 type RegisterScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList>;
@@ -54,7 +55,7 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
   const [emailTouched, setEmailTouched] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [termsError, setTermsError] = useState<string | null>(null);
-  const [googleButtonEnabled, setGoogleButtonEnabled] = useState(false);
+  const [isAppleSignInAvailable, setIsAppleSignInAvailable] = useState(false);
 
   const redirectAfterRegister = route.params?.redirectTo || 'MainTabs';
   const redirectParams = route.params?.redirectParams || { screen: 'HomeTab' };
@@ -75,26 +76,64 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
     }
   };
 
+  useEffect(() => {
+    let active = true;
+    if (Platform.OS !== 'ios') {
+      return () => {
+        active = false;
+      };
+    }
+    AppleAuthentication.isAvailableAsync()
+      .then((available: boolean) => {
+        if (active) {
+          setIsAppleSignInAvailable(available);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setIsAppleSignInAvailable(false);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const validateEmail = (email: string) => {
     const emailRegex = /^[a-zA-Z0-9.!#$%&'*=?^_`{|}~-]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
   };
 
   const handleEmailChange = (text: string) => {
-    setEmail(text);
-    setIsEmailTrusted(isEmailFromTrustedProvider(text));
+    const trimmedText = text.trim();
+    setEmail(trimmedText);
+    setIsEmailTrusted(isEmailFromTrustedProvider(trimmedText));
     setEmailTouched(true);
   };
 
-  const handlePasswordEyeLongPress = () => {
-    setGoogleButtonEnabled(true);
-    setTimeout(() => {
-      setGoogleButtonEnabled(false);
-    }, 30000);
-  };
 
   const handleRegister = async () => {
-    if (password !== confirmPassword) {
+    if (!name.trim()) {
+      setError('Full name is required');
+      return;
+    }
+
+    if (!email.trim()) {
+      setError('Email is required');
+      return;
+    }
+
+    if (!validateEmail(email.trim().toLowerCase())) {
+      setError('Please enter a valid email address');
+      return;
+    }
+
+    if (!password.trim()) {
+      setError('Password is required');
+      return;
+    }
+
+    if (password.trim() !== confirmPassword.trim()) {
       setError('Passwords do not match');
       return;
     }
@@ -110,34 +149,16 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
     setTermsError(null);
 
     try {
-      const connectionTest = await testFirebaseConnection();
-      
-      if (!connectionTest.connected) {
-        setError(`Firebase configuration error: ${connectionTest.error}`);
-        setIsLoading(false);
-        return;
-      }
-      
-      
-      const result = await registerWithEmail(name, email, password);
+      const result = await registerWithEmail(name.trim(), email.trim().toLowerCase(), password.trim());
       
       if (result.success) {
         await checkLoginStatus();
-        
-        if (result.passwordWarning) {
-          setPasswordWarning(result.passwordWarning);
-        }
-        
         setDialogVisible(true);
       } else {
         setError(result.error || 'Registration failed');
-        
-        if (result.passwordWarning) {
-          setPasswordWarning(result.passwordWarning);
-        }
       }
     } catch (error: any) {
-      setError(error.message || 'Registration failed');
+      setError('Registration failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -154,23 +175,60 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
       setError(null);
       setTermsError(null);
       
-      debugGoogleOAuthConfig();
-      
       const result = await signInWithGoogle();
       
       if (result.success) {
         await checkLoginStatus();
         
-        if (redirectAfterRegister === 'MainTabs') {
-          navigation.replace('MainTabs', redirectParams as any);
-        } else {
-          navigation.replace(redirectAfterRegister as any);
-        }
+        navigation.reset({
+          index: 0,
+          routes: [
+            redirectAfterRegister === 'MainTabs' 
+              ? { name: 'MainTabs', params: redirectParams as any }
+              : { name: redirectAfterRegister as any }
+          ],
+        });
       } else {
         setError(result.error || 'Google sign-in failed. Please try again.');
       }
     } catch (err) {
       setError('Google sign-in failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleAppleSignIn = async () => {
+    try {
+      if (!termsAccepted) {
+        setTermsError('You must accept the Terms & Conditions and Privacy Policy to continue');
+        return;
+      }
+      if (isLoading) {
+        return;
+      }
+      setIsLoading(true);
+      setError(null);
+      setTermsError(null);
+
+      const result = await signInWithApple();
+
+      if (result.success) {
+        await checkLoginStatus();
+
+        navigation.reset({
+          index: 0,
+          routes: [
+            redirectAfterRegister === 'MainTabs' 
+              ? { name: 'MainTabs', params: redirectParams as any }
+              : { name: redirectAfterRegister as any }
+          ],
+        });
+      } else {
+        setError(result.error || 'Apple sign-in failed. Please try again.');
+      }
+    } catch (err) {
+      setError('Apple sign-in failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -252,10 +310,9 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
                 style={styles.input}
                 secureTextEntry={!showPassword}
                 right={
-                  <TextInput.Icon 
-                    icon={showPassword ? "eye-off" : "eye"} 
+                  <TextInput.Icon
+                    icon={showPassword ? "eye-off" : "eye"}
                     onPress={() => setShowPassword(!showPassword)}
-                    onLongPress={handlePasswordEyeLongPress}
                   />
                 }
                 left={<TextInput.Icon icon="lock" />}
@@ -344,25 +401,32 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
               <View style={styles.socialContainer}>
                 <Text variant="bodySmall" style={styles.dividerText}>Or sign up with</Text>
                 
-                <View style={styles.socialButtonsRow}>
-                  <Button
-                    key={`google-button-${isLoading}`}
-                    mode="outlined"
-                    icon="google"
-                    style={[styles.socialButton, { marginHorizontal: 0 }]}
-                    contentStyle={styles.socialButtonContent}
-                    onPress={() => {
-                      if (typeof handleGoogleSignIn === 'function') {
-                        handleGoogleSignIn();
-                      } else {
-                        setError('Google sign-in is not available');
-                      }
-                    }}
-                    disabled={!googleButtonEnabled || isLoading}
-                  >
-                    Google
-                  </Button>
-                </View>
+                <Button
+                  key={`google-button-${isLoading}`}
+                  mode="outlined"
+                  icon="google"
+                  style={styles.socialButton}
+                  contentStyle={styles.socialButtonContent}
+                  onPress={() => {
+                    if (typeof handleGoogleSignIn === 'function') {
+                      handleGoogleSignIn();
+                    } else {
+                      setError('Google sign-in is not available');
+                    }
+                  }}
+                  disabled={isLoading}
+                >
+                  Google
+                </Button>
+                {isAppleSignInAvailable && (
+                  <AppleAuthentication.AppleAuthenticationButton
+                    buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+                    buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+                    cornerRadius={8}
+                    style={styles.appleButton}
+                    onPress={handleAppleSignIn}
+                  />
+                )}
               </View>
               
               <Divider style={styles.divider} />
@@ -390,11 +454,14 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
       <Portal>
         <Dialog visible={dialogVisible} onDismiss={() => {
           setDialogVisible(false);
-          if (redirectAfterRegister === 'MainTabs') {
-            navigation.replace('MainTabs', redirectParams as any);
-          } else {
-            navigation.replace(redirectAfterRegister as any);
-          }
+          navigation.reset({
+            index: 0,
+            routes: [
+              redirectAfterRegister === 'MainTabs' 
+                ? { name: 'MainTabs', params: redirectParams as any }
+                : { name: redirectAfterRegister as any }
+            ],
+          });
         }}>
           <Dialog.Title>Email Verification</Dialog.Title>
           <Dialog.Content>
@@ -407,11 +474,14 @@ export default function RegisterScreen({ navigation, route }: RegisterScreenProp
               key="dialog-ok-button"
               onPress={() => {
                 setDialogVisible(false);
-                if (redirectAfterRegister === 'MainTabs') {
-                  navigation.replace('MainTabs', redirectParams as any);
-                } else {
-                  navigation.replace(redirectAfterRegister as any);
-                }
+                navigation.reset({
+                  index: 0,
+                  routes: [
+                    redirectAfterRegister === 'MainTabs' 
+                      ? { name: 'MainTabs', params: redirectParams as any }
+                      : { name: redirectAfterRegister as any }
+                  ],
+                });
               }}>OK</Button>
           </Dialog.Actions>
         </Dialog>
@@ -501,18 +571,18 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     opacity: 0.7,
   },
-  socialButtonsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '100%',
-  },
   socialButton: {
-    flex: 1,
-    marginHorizontal: 6,
+    width: '100%',
+    marginBottom: 12,
     borderColor: '#8A2BE2',
+    borderRadius: 8,
   },
   socialButtonContent: {
-    height: 40,
+    height: 43,
+  },
+  appleButton: {
+    width: '100%',
+    height: 48,
   },
   warningText: {
     marginBottom: 16,

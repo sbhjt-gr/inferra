@@ -7,6 +7,15 @@ import {
   MultimodalSupport 
 } from '../types/llama';
 
+const withTimeout = <T>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => 
+      setTimeout(() => reject(new Error(`Multimodal operation timed out after ${timeoutMs}ms`)), timeoutMs)
+    )
+  ]);
+};
+
 export class MultimodalService {
   private isMultimodalEnabled: boolean = false;
   private multimodalSupport: MultimodalSupport = { vision: false, audio: false };
@@ -55,13 +64,28 @@ export class MultimodalService {
   }
 
   async releaseMultimodal(context: LlamaContext): Promise<void> {
+    if (!context) {
+      this.isMultimodalEnabled = false;
+      this.multimodalSupport = { vision: false, audio: false };
+      this.mmProjectorPath = null;
+      return;
+    }
+
+    this.isMultimodalEnabled = false;
+    this.multimodalSupport = { vision: false, audio: false };
+    const projectorPathToRelease = this.mmProjectorPath;
+    this.mmProjectorPath = null;
+
     try {
-      if (context && this.isMultimodalEnabled) {
-        await context.releaseMultimodal();
-        this.isMultimodalEnabled = false;
-        this.multimodalSupport = { vision: false, audio: false };
+      if (projectorPathToRelease) {
+        try {
+          await withTimeout(context.releaseMultimodal(), 3000);
+        } catch (contextReleaseError) {
+          console.error('mmproj_context_release_error', contextReleaseError);
+        }
       }
     } catch (error) {
+      console.error('mmproj_release_error', error);
     }
   }
 
@@ -222,5 +246,11 @@ export class MultimodalService {
 
   hasAudioSupport(): boolean {
     return this.isMultimodalEnabled && this.multimodalSupport.audio;
+  }
+
+  clearMultimodalState(): void {
+    this.isMultimodalEnabled = false;
+    this.multimodalSupport = { vision: false, audio: false };
+    this.mmProjectorPath = null;
   }
 }

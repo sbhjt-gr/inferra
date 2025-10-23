@@ -25,6 +25,8 @@ export interface DownloadTaskInfo {
   destination?: string;
   url?: string;
   status?: string;
+  nativeDownloadId?: string;
+  lastPersistedProgress?: number;
 }
 
 export interface DownloadProgress {
@@ -82,4 +84,5 @@ export interface DownloadProgressEvent {
   downloadId: number;
   error?: string;
   isPaused?: boolean;
+  nativeDownloadId?: string;
 }

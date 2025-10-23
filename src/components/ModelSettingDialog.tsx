@@ -7,7 +7,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 interface ModelSettingDialogProps {
   visible: boolean;
   onClose: () => void;
-  onSave: (value: number) => void;
+  onSave: (value: number) => void | Promise<void>;
   label: string;
   value: number;
   defaultValue: number;

@@ -29,6 +29,7 @@ export type RootStackParamList = {
     modelName: string;
     modelPath: string;
   };
+  ServerLogs: undefined;
 };
 
 export type TabParamList = {
@@ -38,6 +39,7 @@ export type TabParamList = {
   };
   SettingsTab: undefined;
   ModelTab: undefined;
+  LocalServerTab: undefined;
   NotificationsTab: undefined;
   SearchTab: undefined;
 }; 

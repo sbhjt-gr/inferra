@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useRef, useMemo, useCallback, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -8,6 +8,7 @@ import {
   Keyboard,
   Animated,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
@@ -25,6 +26,9 @@ import { modelDownloader } from '../../services/ModelDownloader';
 import AITermsDialog from './AITermsDialog';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import StopButton from '../StopButton';
+import { RAGService, type RAGDocument } from '../../services/rag/RAGService';
+import type { ProviderType } from '../../services/ModelManagementService';
+import { uuidv4 } from 'react-native-rag';
 
 type ChatInputProps = {
   onSend: (text: string) => void;
@@ -74,6 +78,7 @@ export default function ChatInput({
   const [pendingMultimodalAction, setPendingMultimodalAction] = useState<'camera' | 'file' | null>(null);
   const [pendingFileForMultimodal, setPendingFileForMultimodal] = useState<{uri: string, name?: string} | null>(null);
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
+  const [useRagForUpload, setUseRagForUpload] = useState(true);
   
   const inputRef = useRef<TextInput>(null);
   const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
@@ -90,15 +95,18 @@ export default function ChatInput({
   const [dialogMessage, setDialogMessage] = useState('');
   const [showAITermsDialog, setShowAITermsDialog] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [isProcessingWithRAG, setIsProcessingWithRAG] = useState(false);
+  const [ragProgress, setRagProgress] = useState<{ completed: number; total: number } | null>(null);
+  const ragCancelRef = useRef<{ cancelled: boolean }>({ cancelled: false });
 
   const isGenerating = isLoading || isRegenerating;
   const hasText = text.trim().length > 0;
 
-  React.useEffect(() => {
+  useEffect(() => {
     loadTermsAcceptance();
   }, []);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (isEditing && editingText !== undefined) {
       setText(editingText);
       setTimeout(() => {
@@ -128,7 +136,7 @@ export default function ChatInput({
 
 
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (isRecording) {
       startPulseAnimation();
     } else {
@@ -136,7 +144,7 @@ export default function ChatInput({
     }
   }, [isRecording]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (showAttachmentMenu) {
       Animated.spring(attachmentMenuAnim, {
         toValue: 1,
@@ -153,6 +161,27 @@ export default function ChatInput({
       }).start();
     }
   }, [showAttachmentMenu]);
+
+  const ensureRagToggleDefault = useCallback(async () => {
+    try {
+      const enabled = await RAGService.isEnabled();
+      if (!enabled) {
+        await RAGService.setEnabled(true);
+      }
+    } catch (error) {
+    }
+    setUseRagForUpload(true);
+  }, []);
+
+  useEffect(() => {
+    ensureRagToggleDefault();
+  }, [ensureRagToggleDefault]);
+
+  useEffect(() => {
+    if (fileModalVisible || cameraVisible) {
+      ensureRagToggleDefault();
+    }
+  }, [fileModalVisible, cameraVisible, ensureRagToggleDefault]);
 
   const startPulseAnimation = () => {
     Animated.loop(
@@ -201,11 +230,11 @@ export default function ChatInput({
     }
   };
 
-  const showDialog = (title: string, message: string) => {
+  const showDialog = useCallback((title: string, message: string) => {
     setDialogTitle(title);
     setDialogMessage(message);
     setDialogVisible(true);
-  };
+  }, []);
 
   const hideDialog = () => setDialogVisible(false);
 
@@ -223,14 +252,30 @@ export default function ChatInput({
     }
   };
 
+  const safeAudioRecorderAccess = useCallback((operation: () => any) => {
+    try {
+      return operation();
+    } catch (error) {
+      return null;
+    }
+  }, []);
+
+  const safeAsyncAudioRecorderAccess = useCallback(async (operation: () => Promise<any>) => {
+    try {
+      return await operation();
+    } catch (error) {
+      return null;
+    }
+  }, []);
+
   const checkMultimodalSupport = (): boolean => {
     if (!selectedModelPath) return false;
-    
-    const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude'].includes(selectedModelPath);
+
+    const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude', 'apple-foundation'].includes(selectedModelPath);
     if (isOnlineModel) {
       return true;
     }
-    
+
     return isMultimodalEnabled;
   };
 
@@ -305,6 +350,10 @@ export default function ChatInput({
     setPendingFileForMultimodal(null);
   };
 
+  const handleToggleRagForUpload = useCallback((value: boolean) => {
+    setUseRagForUpload(value);
+  }, []);
+
   const toggleAttachmentMenu = () => {
     setShowAttachmentMenu(!showAttachmentMenu);
   };
@@ -327,7 +376,7 @@ export default function ChatInput({
       return;
     }
 
-    const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude'].includes(selectedModelPath);
+    const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude', 'apple-foundation'].includes(selectedModelPath);
     if (!isOnlineModel && (!llamaManager.isInitialized() || isModelLoading)) {
       showDialog(
         'Model Not Ready',
@@ -347,29 +396,225 @@ export default function ChatInput({
     setInputHeight(height);
   }, []);
 
-  const handleFileUpload = useCallback((content: string, fileName?: string, userPrompt?: string) => {
-    const displayName = fileName || "unnamed file";
-    
-    const messageObject = {
-      type: 'file_upload',
-      internalInstruction: `You're reading a file named: ${displayName}\n\n--- FILE START ---\n${content}\n--- FILE END ---`,
-      userContent: userPrompt || ''
-    };
-    
-    onSend(JSON.stringify(messageObject));
-    setShowAttachmentMenu(false);
-  }, [onSend]);
+  const processRagDocument = useCallback(
+    async (
+      content: string,
+      displayName: string,
+      fileType?: string,
+    ): Promise<{ handled: boolean; cancelled: boolean; documentId?: string }> => {
+      let handled = false;
+      let cancelled = false;
+      let documentId: string | undefined;
+      let ragIndicatorActive = false;
+
+      try {
+        const enabled = await RAGService.isEnabled();
+        if (!enabled) {
+          return { handled, cancelled, documentId };
+        }
+
+        const isRemoteOrApple = selectedModelPath && ['gemini', 'chatgpt', 'deepseek', 'claude', 'apple-foundation'].includes(selectedModelPath);
+        if (!isRemoteOrApple && !llamaManager.isInitialized()) {
+          showDialog('Model not ready', 'Load a local model before using retrieval.');
+          return { handled, cancelled, documentId };
+        }
+
+        ragIndicatorActive = true;
+        setIsProcessingWithRAG(true);
+        ragCancelRef.current.cancelled = false;
+        setRagProgress({ completed: 0, total: 0 });
+
+        const provider: ProviderType = isRemoteOrApple ? (selectedModelPath as ProviderType) : 'local';
+        await RAGService.initialize(provider);
+
+        if (!RAGService.isReady()) {
+          return { handled, cancelled, documentId };
+        }
+
+        documentId = uuidv4();
+        const ragDocument: RAGDocument = {
+          id: documentId,
+          content,
+          fileName: displayName,
+          fileType,
+          timestamp: Date.now(),
+        };
+
+        await RAGService.addDocument(ragDocument, {
+          onProgress: (completed, total) => {
+            setRagProgress({ completed, total });
+            console.log('rag_progress', documentId, `${completed}/${total}`);
+          },
+          isCancelled: () => ragCancelRef.current.cancelled,
+        });
+        handled = true;
+        console.log('file_rag_store', displayName, documentId, content.length);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'unknown';
+        console.log('file_upload_error', errorMessage);
+        if (error instanceof Error && error.message === 'rag_upload_cancelled') {
+          cancelled = true;
+          console.log('file_upload_cancelled', displayName);
+        } else {
+          showDialog('Retrieval error', 'Document could not be stored for retrieval. Sending full content instead.');
+        }
+      } finally {
+        if (ragIndicatorActive) {
+          setIsProcessingWithRAG(false);
+        }
+      }
+
+      return { handled, cancelled, documentId };
+    },
+    [showDialog, selectedModelPath]
+  );
+
+  const handleFileUpload = useCallback(
+    async (content: string, fileName?: string, userPrompt?: string, useRagFlag = true) => {
+      const displayName = fileName || 'unnamed file';
+      const sanitizedPrompt = userPrompt ? userPrompt.trim() : '';
+      const userMessage = sanitizedPrompt || `File uploaded: ${displayName}`;
+      console.log('file_upload_start', displayName, useRagFlag ? 'rag_on' : 'rag_off');
+      const buildInternalInstruction = (fileBody?: string) => {
+        const sections: string[] = [`You're reading a file named: ${displayName}`];
+        if (sanitizedPrompt) {
+          sections.push(`User request: ${sanitizedPrompt}`);
+        }
+        if (!sanitizedPrompt && userMessage) {
+          sections.push(`User request: ${userMessage}`);
+        }
+        const fileSection = fileBody && fileBody.length > 0
+          ? `--- FILE START ---\n${fileBody}\n--- FILE END ---`
+          : `--- FILE START ---\n--- FILE END ---`;
+        sections.push(fileSection);
+        return sections.join('\n\n');
+      };
+
+      let ragHandled = false;
+      let ragCancelled = false;
+      let documentId: string | undefined;
+
+      if (useRagFlag) {
+        const result = await processRagDocument(
+          content,
+          displayName,
+          displayName.split('.').pop()?.toLowerCase()
+        );
+        ragHandled = result.handled;
+        ragCancelled = result.cancelled;
+        documentId = result.documentId;
+
+        if (ragHandled && documentId) {
+          const messageObject = {
+            type: 'file_upload',
+            internalInstruction: buildInternalInstruction(),
+            userContent: userMessage,
+            metadata: { ragDocumentId: documentId },
+          };
+
+          console.log('file_internal', messageObject.internalInstruction);
+          console.log('file_prompt', userMessage);
+          console.log('file_content', content);
+          console.log('file_upload_rag', displayName, documentId, content.length, sanitizedPrompt || 'no_prompt');
+          onSend(JSON.stringify(messageObject));
+        }
+      }
+
+      if (!ragHandled && !ragCancelled) {
+        const fallbackObject = {
+          type: 'file_upload',
+          internalInstruction: buildInternalInstruction(content),
+          userContent: userMessage,
+        };
+        console.log('file_internal', fallbackObject.internalInstruction);
+        console.log('file_prompt', userMessage);
+        console.log('file_content', content);
+        console.log('file_upload_fallback', displayName, content.length, sanitizedPrompt || 'no_prompt');
+        onSend(JSON.stringify(fallbackObject));
+      }
+
+      setShowAttachmentMenu(false);
+      setRagProgress(null);
+      ragCancelRef.current.cancelled = false;
+      console.log('file_upload_complete', displayName, ragCancelled ? 'cancelled' : ragHandled ? 'rag' : 'fallback');
+    },
+    [onSend, processRagDocument]
+  );
+
+  const processOcrRagIfNeeded = useCallback(
+    async (messageContent: string): Promise<{ finalMessage: string; cancelled: boolean }> => {
+      try {
+        const parsed = JSON.parse(messageContent);
+
+        if (parsed?.type === 'multimodal') {
+          return { finalMessage: messageContent, cancelled: false };
+        }
+
+        if (!useRagForUpload) {
+          return { finalMessage: messageContent, cancelled: false };
+        }
+
+        if (parsed?.type === 'ocr_result' && typeof parsed.extractedText === 'string') {
+          const displayName = parsed?.fileName || 'ocr_document';
+          const result = await processRagDocument(parsed.extractedText, displayName, 'ocr');
+
+          if (result.cancelled) {
+            return { finalMessage: messageContent, cancelled: true };
+          }
+
+          if (result.handled && result.documentId) {
+            parsed.metadata = { ...(parsed.metadata || {}), ragDocumentId: result.documentId };
+            return { finalMessage: JSON.stringify(parsed), cancelled: false };
+          }
+        }
+      } catch (error) {
+        console.log('ocr_rag_parse_error');
+      }
+
+      return { finalMessage: messageContent, cancelled: false };
+    },
+    [processRagDocument, useRagForUpload]
+  );
 
   const handleImageUpload = useCallback((messageContent: string) => {
-    onSend(messageContent);
-    setShowAttachmentMenu(false);
-  }, [onSend]);
+    processOcrRagIfNeeded(messageContent)
+      .then(({ finalMessage, cancelled }) => {
+        if (cancelled) {
+          setRagProgress(null);
+          ragCancelRef.current.cancelled = false;
+          return;
+        }
+
+        setRagProgress(null);
+        ragCancelRef.current.cancelled = false;
+        onSend(finalMessage);
+        setShowAttachmentMenu(false);
+      })
+      .catch(() => {
+        setRagProgress(null);
+        ragCancelRef.current.cancelled = false;
+      });
+  }, [onSend, processOcrRagIfNeeded]);
 
   const handlePhotoTaken = useCallback((photoUri: string, messageContent: string) => {
-    
-    onSend(messageContent);
-    setShowAttachmentMenu(false);
-  }, [onSend]);
+    processOcrRagIfNeeded(messageContent)
+      .then(({ finalMessage, cancelled }) => {
+        if (cancelled) {
+          setRagProgress(null);
+          ragCancelRef.current.cancelled = false;
+          return;
+        }
+
+        setRagProgress(null);
+        ragCancelRef.current.cancelled = false;
+        onSend(finalMessage);
+        setShowAttachmentMenu(false);
+      })
+      .catch(() => {
+        setRagProgress(null);
+        ragCancelRef.current.cancelled = false;
+      });
+  }, [onSend, processOcrRagIfNeeded]);
 
   const handleAudioRecorded = useCallback((audioUri: string) => {
     const messageObject = {
@@ -418,7 +663,7 @@ export default function ChatInput({
         return;
       }
 
-      const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude'].includes(selectedModelPath);
+      const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude', 'apple-foundation'].includes(selectedModelPath);
       if (!isOnlineModel && !checkMultimodalSupport()) {
         showDialog(
           'Multimodal Support Required',
@@ -433,10 +678,18 @@ export default function ChatInput({
         playsInSilentMode: true,
       });
 
-      await audioRecorder.prepareToRecordAsync();
-      audioRecorder.record();
-      setIsRecording(true);
-      setShowAttachmentMenu(false);
+      if (audioRecorder) {
+        const success = await safeAsyncAudioRecorderAccess(async () => {
+          await audioRecorder.prepareToRecordAsync();
+          audioRecorder.record();
+          return true;
+        });
+
+        if (success) {
+          setIsRecording(true);
+          setShowAttachmentMenu(false);
+        }
+      }
     } catch (error) {
       showDialog(
         'Recording Error',
@@ -447,11 +700,14 @@ export default function ChatInput({
 
   const stopRecording = async () => {
     try {
-      if (!audioRecorder.isRecording) return;
+      const isCurrentlyRecording = safeAudioRecorderAccess(() => audioRecorder?.isRecording);
+      if (!isCurrentlyRecording || !audioRecorder) return;
 
-      await audioRecorder.stop();
+      await safeAsyncAudioRecorderAccess(async () => {
+        await audioRecorder.stop();
+      });
       
-      const uri = audioRecorder.uri;
+      const uri = safeAudioRecorderAccess(() => audioRecorder?.uri);
       setIsRecording(false);
 
       if (uri) {
@@ -508,7 +764,7 @@ export default function ChatInput({
     }
 
     if (!checkMultimodalSupport()) {
-      const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude'].includes(selectedModelPath);
+      const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude', 'apple-foundation'].includes(selectedModelPath);
       if (!isOnlineModel) {
         showMmProjSelector('camera');
         return;
@@ -542,7 +798,7 @@ export default function ChatInput({
         const file = result.assets[0];
         
         if (isImageFile(file.name) && !checkMultimodalSupport()) {
-          const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude'].includes(selectedModelPath);
+          const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude', 'apple-foundation'].includes(selectedModelPath);
           if (!isOnlineModel) {
             setPendingFileForMultimodal({
               uri: file.uri,
@@ -581,13 +837,15 @@ export default function ChatInput({
     }
   };
 
-  React.useEffect(() => {
+  useEffect(() => {
     return () => {
-      if (audioRecorder.isRecording) {
-        audioRecorder.stop().catch(() => {});
+      if (isRecording && audioRecorder) {
+        safeAsyncAudioRecorderAccess(async () => {
+          await audioRecorder.stop();
+        });
       }
     };
-  }, []);
+  }, [isRecording, safeAsyncAudioRecorderAccess]);
 
   const inputContainerStyle = useMemo(() => [
     styles.inputContainer,
@@ -646,6 +904,29 @@ export default function ChatInput({
 
   return (
     <View style={styles.wrapper}>
+      {isProcessingWithRAG && (
+        <View
+          style={[
+            styles.ragBanner,
+            {
+              backgroundColor: isDark ? 'rgba(74, 6, 96, 0.25)' : 'rgba(74, 6, 96, 0.08)',
+            },
+          ]}
+        >
+          <ActivityIndicator size="small" color={getThemeAwareColor('#4a0660', currentTheme)} />
+          <Text style={[styles.ragBannerText, { color: isDark ? '#ffffff' : getThemeAwareColor('#4a0660', currentTheme) }]}>Storing document for retrieval {ragProgress ? `(${ragProgress.completed}/${ragProgress.total || '?'})` : ''}</Text>
+          <TouchableOpacity
+            onPress={() => {
+              ragCancelRef.current.cancelled = true;
+              setRagProgress(null);
+              setIsProcessingWithRAG(false);
+            }}
+            style={styles.ragCancelButton}
+          >
+            <MaterialCommunityIcons name="close" size={16} color={isDark ? '#ffffff' : getThemeAwareColor('#4a0660', currentTheme)} />
+          </TouchableOpacity>
+        </View>
+      )}
       <TouchableWithoutFeedback onPress={() => {
         Keyboard.dismiss();
         setShowAttachmentMenu(false);
@@ -825,12 +1106,16 @@ export default function ChatInput({
         fileName={selectedFile?.name}
         onUpload={handleFileUpload}
         onImageUpload={handleImageUpload}
+        useRag={useRagForUpload}
+        onToggleRag={handleToggleRagForUpload}
       />
 
       <CameraOverlay
         visible={cameraVisible}
         onClose={closeCamera}
         onPhotoTaken={handlePhotoTaken}
+        useRag={useRagForUpload}
+        onToggleRag={handleToggleRagForUpload}
       />
 
       <Portal>
@@ -945,6 +1230,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 0,
     paddingTop: 8,
+  },
+  ragBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    marginBottom: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+  },
+  ragBannerText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  ragCancelButton: {
+    marginLeft: 8,
+    padding: 4,
+    borderRadius: 12,
   },
   container: {
     position: 'relative',

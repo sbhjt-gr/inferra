@@ -6,6 +6,8 @@ import {
   ScrollView,
   Switch,
   ActivityIndicator,
+  TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
@@ -25,6 +27,18 @@ import { RootStackParamList } from '../types/navigation';
 
 type ModelSettingsScreenRouteProp = RouteProp<RootStackParamList, 'ModelSettings'>;
 
+type DialogConfig = {
+  key?: keyof ModelSettings;
+  label: string;
+  value: number;
+  defaultValue?: number;
+  minimumValue: number;
+  maximumValue: number;
+  step: number;
+  description: string;
+  onSave?: (value: number) => void | Promise<void>;
+};
+
 export default function ModelSettingsScreen() {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme];
@@ -33,16 +47,15 @@ export default function ModelSettingsScreen() {
   const { modelName, modelPath } = route.params;
   
   const [modelSettingsConfig, setModelSettingsConfig] = useState<ModelSettingsConfig>({
-    useGlobalSettings: true
+    useGlobalSettings: true,
   });
-  const [globalSettings, setGlobalSettings] = useState<ModelSettings | null>(null);
-  const [customSettings, setCustomSettings] = useState<ModelSettings | null>(null);
+  const [globalSettings, setGlobalSettings] = useState<ModelSettings | undefined>(undefined);
+  const [customSettings, setCustomSettings] = useState<ModelSettings | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
-  
   const [systemPromptDialogVisible, setSystemPromptDialogVisible] = useState(false);
   const [maxTokensDialogVisible, setMaxTokensDialogVisible] = useState(false);
   const [stopWordsDialogVisible, setStopWordsDialogVisible] = useState(false);
-  const [dialogConfig, setDialogConfig] = useState<any>(null);
+  const [dialogConfig, setDialogConfig] = useState<DialogConfig | null>(null);
 
   useEffect(() => {
     loadSettings();
@@ -52,16 +65,14 @@ export default function ModelSettingsScreen() {
     setIsLoading(true);
     try {
       const modelSettings = await modelSettingsService.getModelSettings(modelPath);
-      const globalSettings = llamaManager.getSettings();
-      
+      const settings = llamaManager.getSettings();
+
       setModelSettingsConfig(modelSettings);
-      setGlobalSettings(globalSettings);
-      
-      if (modelSettings.customSettings) {
-        setCustomSettings(modelSettings.customSettings);
-      } else {
-        setCustomSettings({ ...globalSettings });
-      }
+      setGlobalSettings(settings);
+      const computedCustom = modelSettings.customSettings
+        ? modelSettings.customSettings
+        : { ...settings };
+      setCustomSettings(computedCustom);
     } catch (error) {
     } finally {
       setIsLoading(false);
@@ -70,12 +81,13 @@ export default function ModelSettingsScreen() {
 
   const handleToggleUseGlobal = async (useGlobal: boolean) => {
     try {
-      const newModelSettings = {
+      const nextCustom = !useGlobal ? customSettings ?? globalSettings : undefined;
+      const newModelSettings: ModelSettingsConfig = {
         ...modelSettingsConfig,
         useGlobalSettings: useGlobal,
-        customSettings: customSettings || globalSettings
+        customSettings: nextCustom,
       };
-      
+
       await modelSettingsService.setModelSettings(modelPath, newModelSettings);
       setModelSettingsConfig(newModelSettings);
     } catch (error) {
@@ -120,13 +132,42 @@ export default function ModelSettingsScreen() {
     setStopWordsDialogVisible(false);
   };
 
-  const handleDialogOpen = (config: any) => {
-    setDialogConfig(config);
+  const handleDialogOpen = (config: DialogConfig) => {
+    let defaultValue = config.defaultValue;
+    if (defaultValue === undefined) {
+      if (config.key && globalSettings) {
+        defaultValue = globalSettings[config.key] as unknown as number;
+      } else {
+        defaultValue = config.value;
+      }
+    }
+
+    let source: ModelSettings | undefined;
+    if (modelSettingsConfig.useGlobalSettings) {
+      source = globalSettings ?? llamaManager.getSettings();
+    } else {
+      source = customSettings ?? globalSettings ?? llamaManager.getSettings();
+    }
+
+    let value = config.value;
+    if (config.key && source) {
+      value = source[config.key] as unknown as number;
+    }
+
+    setDialogConfig({ ...config, defaultValue, value });
   };
 
   const handleDialogSave = (value: number) => {
     if (dialogConfig) {
-      handleCustomSettingsChange({ [dialogConfig.key]: value });
+      if (dialogConfig.key) {
+        handleCustomSettingsChange({ [dialogConfig.key]: value } as Partial<ModelSettings>);
+      }
+      if (dialogConfig.onSave) {
+        const result = dialogConfig.onSave(value);
+        if (result && typeof (result as Promise<void>).then === 'function') {
+          (result as Promise<void>).catch(() => {});
+        }
+      }
     }
     setDialogConfig(null);
   };
@@ -287,12 +328,12 @@ export default function ModelSettingsScreen() {
 
       {dialogConfig && (
         <ModelSettingDialog
-          visible={!!dialogConfig}
+          visible
           onClose={() => setDialogConfig(null)}
           onSave={handleDialogSave}
           label={dialogConfig.label}
           value={dialogConfig.value}
-          defaultValue={displaySettings[dialogConfig.key]}
+          defaultValue={dialogConfig.defaultValue ?? dialogConfig.value}
           minimumValue={dialogConfig.minimumValue}
           maximumValue={dialogConfig.maximumValue}
           step={dialogConfig.step}

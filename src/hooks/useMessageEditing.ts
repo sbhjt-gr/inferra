@@ -66,8 +66,8 @@ export const useMessageEditing = (messages: ChatMessage[], onProcessMessage: () 
       
       if (success) {
         handleCancelEdit();
-        setTimeout(() => {
-          onProcessMessage();
+        setTimeout(async () => {
+          await onProcessMessage();
         }, 50);
       } else {
         Alert.alert('Error', 'Failed to edit message');

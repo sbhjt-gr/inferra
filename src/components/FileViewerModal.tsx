@@ -9,8 +9,10 @@ type FileViewerModalProps = {
   onClose: () => void;
   filePath: string;
   fileName?: string;
-  onUpload?: (content: string, fileName: string, userPrompt: string) => void;
+  onUpload?: (content: string, fileName: string, userPrompt: string, useRag: boolean) => void;
   onImageUpload?: (messageContent: string) => void;
+  useRag: boolean;
+  onToggleRag: (value: boolean) => void;
 };
 
 export default function FileViewerModal({
@@ -20,6 +22,8 @@ export default function FileViewerModal({
   fileName,
   onUpload,
   onImageUpload,
+  useRag,
+  onToggleRag,
 }: FileViewerModalProps) {
   const [fileType, setFileType] = useState<FileType>('unknown');
   
@@ -41,6 +45,8 @@ export default function FileViewerModal({
           pdfSource={filePath}
           fileName={fileName}
           onUpload={onUpload}
+          useRag={useRag}
+          onToggleRag={onToggleRag}
         />
       );
     case 'image':
@@ -52,6 +58,8 @@ export default function FileViewerModal({
           fileName={fileName}
           onUpload={onUpload}
           onImageUpload={onImageUpload}
+          useRag={useRag}
+          onToggleRag={onToggleRag}
         />
       );
     case 'text':
@@ -62,6 +70,8 @@ export default function FileViewerModal({
           filePath={filePath}
           fileName={fileName}
           onUpload={onUpload}
+          useRag={useRag}
+          onToggleRag={onToggleRag}
         />
       );
     case 'unknown':
@@ -73,6 +83,8 @@ export default function FileViewerModal({
           filePath={filePath}
           fileName={fileName}
           onUpload={onUpload}
+          useRag={useRag}
+          onToggleRag={onToggleRag}
         />
       );
   }

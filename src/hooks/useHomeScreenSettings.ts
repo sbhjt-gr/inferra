@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
-import { APIKeysService } from '../services/APIKeysService';
+import { useNavigation } from '@react-navigation/native';
+import { ProviderKeysService } from '../services/ProviderKeysService';
+import { useRemoteModel } from '../context/RemoteModelContext';
 import { ChatLifecycleService } from '../services/ChatLifecycleService';
-import { ModelManagementService } from '../services/ModelManagementService';
 import { onlineModelService } from '../services/OnlineModelService';
+import type { ProviderType } from '../services/ModelManagementService';
 
 export const useHomeScreenSettings = (
-  activeProvider: string | null,
+  activeProvider: ProviderType | null,
   enableRemoteModels: boolean,
   isLoggedIn: boolean,
   navigation: any,
@@ -20,8 +22,8 @@ export const useHomeScreenSettings = (
 
   useEffect(() => {
     const validateProvider = async () => {
-      if (activeProvider && activeProvider !== 'local') {
-        const validation = await APIKeysService.validateApiKey(
+      if (activeProvider && activeProvider !== 'local' && activeProvider !== 'apple-foundation') {
+        const validation = await ProviderKeysService.validateApiKey(
           activeProvider, 
           enableRemoteModels, 
           isLoggedIn
@@ -85,7 +87,7 @@ export const useHomeScreenSettings = (
         enableRemoteModels,
         isLoggedIn,
         onlineModelService,
-        (provider: string | null) => {
+        (provider) => {
           setSelectedModelPath(provider);
         }
       );

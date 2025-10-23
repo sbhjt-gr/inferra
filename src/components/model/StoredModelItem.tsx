@@ -10,7 +10,6 @@ interface StoredModelProps {
   name: string;
   path: string;
   size: number;
-  isExternal: boolean;
   isProjector?: boolean;
   onDelete: (id: string, path: string) => void;
   onExport?: (path: string, name: string) => void;
@@ -39,7 +38,6 @@ const StoredModelItem: React.FC<StoredModelProps> = ({
   name,
   path,
   size,
-  isExternal,
   isProjector,
   onDelete,
   onExport,
@@ -54,12 +52,9 @@ const StoredModelItem: React.FC<StoredModelProps> = ({
     <View style={[styles.modelItem, { backgroundColor: themeColors.borderColor }]}>
       <View style={styles.modelIconContainer}>
         <MaterialCommunityIcons 
-          name={isExternal ? "link" : "file-document-outline"} 
+          name="file-document-outline" 
           size={24} 
-          color={isExternal ? 
-            getThemeAwareColor("#4a90e2", currentTheme) : 
-            getDocumentIconColor(currentTheme)
-          }
+          color={getDocumentIconColor(currentTheme)}
         />
       </View>
       <View style={styles.modelInfo}>
@@ -67,12 +62,6 @@ const StoredModelItem: React.FC<StoredModelProps> = ({
           <Text style={[styles.modelName, { color: themeColors.text }]} numberOfLines={1}>
             {displayName}
           </Text>
-          {isExternal && (
-            <View style={styles.externalBadgeContainer}>
-              <MaterialCommunityIcons name="link" size={12} color="white" style={{ marginRight: 4 }} />
-              <Text style={styles.externalBadgeText}>External</Text>
-            </View>
-          )}
           {isProjector && (
             <View style={styles.projectorBadgeContainer}>
               <MaterialCommunityIcons name="projector" size={12} color="white" style={{ marginRight: 4 }} />
@@ -98,7 +87,7 @@ const StoredModelItem: React.FC<StoredModelProps> = ({
             <MaterialCommunityIcons name="cog-outline" size={20} color={getThemeAwareColor('#4a0660', currentTheme)} />
           </TouchableOpacity>
         )}
-        {!isExternal && onExport && (
+        {onExport && (
           <TouchableOpacity
             style={styles.actionButton}
             onPress={() => onExport(path, name)}
@@ -155,19 +144,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     marginRight: 8,
-  },
-  externalBadgeContainer: {
-    backgroundColor: '#4a90e2',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  externalBadgeText: {
-    color: 'white',
-    fontSize: 11,
-    fontWeight: '600',
   },
   projectorBadgeContainer: {
     backgroundColor: '#8e44ad',

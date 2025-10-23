@@ -6,12 +6,15 @@ import { StoredModelsManager } from './StoredModelsManager';
 import { DownloadTaskManager } from './DownloadTaskManager';
 import { downloadNotificationService } from './DownloadNotificationService';
 import { StoredModel } from './ModelDownloaderTypes';
+import { notificationService } from './NotificationService';
 
 class ModelDownloader extends EventEmitter {
   private fileManager: FileManager;
   private storedModelsManager: StoredModelsManager;
   private downloadTaskManager: DownloadTaskManager;
   private isInitialized: boolean = false;
+  private isInitializing: boolean = false;
+  private initializationPromise: Promise<void> | null = null;
   private hasNotificationPermission: boolean = false;
 
   constructor() {
@@ -22,7 +25,7 @@ class ModelDownloader extends EventEmitter {
     
     this.setupEventForwarding();
     
-    this.initialize();
+    this.initializationPromise = this.initialize();
   }
 
   private setupEventForwarding(): void {
@@ -39,19 +42,57 @@ class ModelDownloader extends EventEmitter {
 
     // Forward DownloadTaskManager events
     this.downloadTaskManager.on('progress', (data) => {
+      notificationService.updateDownloadProgressNotification(
+        data.modelName,
+        data.downloadId,
+        Math.floor(data.progress || 0),
+        data.bytesDownloaded || 0,
+        data.totalBytes || 0,
+        data.nativeDownloadId,
+      ).catch(() => {
+      });
       this.emit('downloadProgress', data);
     });
     
     this.downloadTaskManager.on('downloadStarted', (data) => {
+      notificationService.showDownloadStartedNotification(
+        data.modelName,
+        data.downloadId,
+        data.nativeDownloadId,
+      ).catch(() => {
+      });
       this.emit('downloadStarted', data);
     });
     
     this.downloadTaskManager.on('downloadCompleted', (data) => {
+      this.storedModelsManager.refresh();
+      notificationService.showDownloadCompletedNotification(
+        data.modelName,
+        data.downloadId,
+        data.nativeDownloadId,
+      ).catch(() => {
+      });
       this.emit('downloadCompleted', data);
     });
     
     this.downloadTaskManager.on('downloadFailed', (data) => {
+      notificationService.showDownloadFailedNotification(
+        data.modelName,
+        data.downloadId,
+        data.nativeDownloadId,
+      ).catch(() => {
+      });
       this.emit('downloadFailed', data);
+    });
+
+    this.downloadTaskManager.on('downloadCancelled', (data) => {
+      notificationService.showDownloadCancelledNotification(
+        data.modelName,
+        data.downloadId,
+        data.nativeDownloadId,
+      ).catch(() => {
+      });
+      this.emit('downloadCancelled', data);
     });
   }
 
@@ -62,13 +103,26 @@ class ModelDownloader extends EventEmitter {
     }
   }
 
-  private async initialize() {
+  private async initialize(): Promise<void> {
+    if (this.isInitialized) {
+      return;
+    }
+
+    if (this.isInitializing) {
+      await this.initializationPromise;
+      return;
+    }
+
+    this.isInitializing = true;
+    
     try {
       await this.fileManager.initializeDirectories();
       
       await this.storedModelsManager.initialize();
 
       await this.downloadTaskManager.initialize();
+
+      await this.downloadTaskManager.ensureDownloadsAreRunning();
       
       try {
         AppState.addEventListener('change', this.handleAppStateChange);
@@ -81,41 +135,43 @@ class ModelDownloader extends EventEmitter {
       
       this.isInitialized = true;
     } catch (error) {
+      throw error;
+    } finally {
+      this.isInitializing = false;
     }
   }
 
 
 
   private async requestNotificationPermissions(): Promise<boolean> {
-    if (Device.isDevice) {
-      if (Platform.OS === 'android') {
-        const granted = await downloadNotificationService.requestPermissions();
-        this.hasNotificationPermission = granted;
-        return granted;
-      }
+    if (!Device.isDevice) {
+      return false;
     }
-    return false;
+
+    try {
+      const granted = await downloadNotificationService.requestPermissions();
+      this.hasNotificationPermission = granted;
+      return granted;
+    } catch (error) {
+      return false;
+    }
   }
 
   async ensureDownloadsAreRunning(): Promise<void> {
     await this.downloadTaskManager.ensureDownloadsAreRunning();
   }
 
-  async downloadModel(url: string, modelName: string): Promise<{ downloadId: number }> {
+  async downloadModel(url: string, modelName: string, authToken?: string): Promise<{ downloadId: number }> {
     if (!this.isInitialized) {
-      await this.initialize();
+      await this.initializationPromise;
     }
 
     try {
       if (!this.hasNotificationPermission) {
-        if (Platform.OS === 'android') {
-          this.hasNotificationPermission = await downloadNotificationService.requestPermissions();
-        } else {
-          this.hasNotificationPermission = await this.requestNotificationPermissions();
-        }
+        this.hasNotificationPermission = await this.requestNotificationPermissions();
       }
       
-      return await this.downloadTaskManager.downloadModel(url, modelName);
+      return await this.downloadTaskManager.downloadModel(url, modelName, authToken);
     } catch (error) {
       throw error;
     }
@@ -129,16 +185,31 @@ class ModelDownloader extends EventEmitter {
     await this.downloadTaskManager.resumeDownload(downloadId);
   }
 
-  async cancelDownload(downloadId: number): Promise<void> {
-    await this.downloadTaskManager.cancelDownload(downloadId);
+  async cancelDownload(identifier: number | string): Promise<void> {
+    if (typeof identifier === 'number') {
+      await this.downloadTaskManager.cancelDownload(identifier);
+    } else {
+      await this.downloadTaskManager.cancelDownload(identifier);
+    }
   }
 
   async getStoredModels(): Promise<StoredModel[]> {
+    if (!this.isInitialized) {
+      await this.initializationPromise;
+    }
     return await this.storedModelsManager.getStoredModels();
+  }
+
+  refresh(): void {
+    this.storedModelsManager.refresh();
   }
 
   async deleteModel(path: string): Promise<void> {
     await this.storedModelsManager.deleteModel(path);
+  }
+
+  async clearAllModels(): Promise<void> {
+    await this.storedModelsManager.clearAllModels();
   }
 
   async checkBackgroundDownloads(): Promise<void> {
@@ -158,6 +229,10 @@ class ModelDownloader extends EventEmitter {
     await this.storedModelsManager.refreshStoredModels();
   }
 
+  async reloadStoredModels(): Promise<StoredModel[]> {
+    return await this.storedModelsManager.reloadStoredModels();
+  }
+
   async linkExternalModel(uri: string, fileName: string): Promise<void> {
     await this.storedModelsManager.linkExternalModel(uri, fileName);
   }
@@ -169,6 +244,7 @@ class ModelDownloader extends EventEmitter {
   async processCompletedDownloads(): Promise<void> {
     try {
       await this.downloadTaskManager.processCompletedDownloads();
+      this.storedModelsManager.refresh();
     } catch (error) {
     }
   }

@@ -14,6 +14,7 @@ interface StoredNotification {
 class NotificationService {
   private notificationIds: Record<number, string> = {};
   private isInitialized = false;
+  private lastNotifiedProgress: Record<number, number> = {};
 
   constructor() {
     this.initialize();
@@ -70,13 +71,29 @@ class NotificationService {
     }
   }
 
-  async showDownloadStartedNotification(modelName: string, downloadId: number): Promise<void> {
+  private getNotificationIdentifier(downloadId: number, nativeDownloadId?: string): string {
+    return nativeDownloadId ?? downloadId.toString();
+  }
+
+  private shouldSendNativeNotification(nativeDownloadId?: string): boolean {
+    if (Platform.OS === 'android') {
+      return !!nativeDownloadId;
+    }
+    return true;
+  }
+
+  async showDownloadStartedNotification(modelName: string, downloadId: number, nativeDownloadId?: string): Promise<void> {
     await this.initialize();
     
-    if (Platform.OS === 'android') {
-      await downloadNotificationService.showNotification(modelName, downloadId, 0);
+    const identifier = this.getNotificationIdentifier(downloadId, nativeDownloadId);
+
+    if (this.shouldSendNativeNotification(nativeDownloadId)) {
+      if (Platform.OS === 'android' || Platform.OS === 'ios') {
+        await downloadNotificationService.showNotification(modelName, identifier, 0);
+      }
     }
     
+    this.lastNotifiedProgress[downloadId] = 0;
     
     await this.storeNotification(
       'Download Started',
@@ -91,12 +108,29 @@ class NotificationService {
     downloadId: number,
     progress: number,
     bytesDownloaded: number,
-    totalBytes: number
+    totalBytes: number,
+    nativeDownloadId?: string,
   ): Promise<void> {
     await this.initialize();
 
-    if (Platform.OS === 'android') {
-      await downloadNotificationService.updateProgress(downloadId, progress);
+    const lastProgress = this.lastNotifiedProgress[downloadId] ?? -1;
+    if (progress < lastProgress + 5 && progress < 100) {
+      return;
+    }
+    this.lastNotifiedProgress[downloadId] = progress;
+
+    const identifier = this.getNotificationIdentifier(downloadId, nativeDownloadId);
+
+    if (this.shouldSendNativeNotification(nativeDownloadId)) {
+      if (Platform.OS === 'android' || Platform.OS === 'ios') {
+        await downloadNotificationService.updateProgress(
+          identifier,
+          progress,
+          bytesDownloaded,
+          totalBytes,
+          modelName
+        );
+      }
     }
     
     
@@ -113,13 +147,20 @@ class NotificationService {
     }
   }
 
-  async showDownloadCompletedNotification(modelName: string, downloadId: number): Promise<void> {
+  async showDownloadCompletedNotification(modelName: string, downloadId: number, nativeDownloadId?: string): Promise<void> {
     await this.initialize();
 
-    if (Platform.OS === 'android') {
-      await downloadNotificationService.showNotification(modelName, downloadId, 100);
+    this.lastNotifiedProgress[downloadId] = 100;
+
+    const identifier = this.getNotificationIdentifier(downloadId, nativeDownloadId);
+
+    if (this.shouldSendNativeNotification(nativeDownloadId)) {
+      if (Platform.OS === 'android' || Platform.OS === 'ios') {
+        await downloadNotificationService.showNotification(modelName, identifier, 100);
+      }
     }
     
+    delete this.lastNotifiedProgress[downloadId];
     
     await this.storeNotification(
       'Download Complete',
@@ -129,13 +170,20 @@ class NotificationService {
     );
   }
 
-  async showDownloadFailedNotification(modelName: string, downloadId: number): Promise<void> {
+  async showDownloadFailedNotification(modelName: string, downloadId: number, nativeDownloadId?: string): Promise<void> {
     await this.initialize();
 
-    if (Platform.OS === 'android') {
-      await downloadNotificationService.cancelNotification(downloadId);
+    const identifier = this.getNotificationIdentifier(downloadId, nativeDownloadId);
+
+    if (this.shouldSendNativeNotification(nativeDownloadId)) {
+      if (Platform.OS === 'android' || Platform.OS === 'ios') {
+        await downloadNotificationService.cancelNotification(identifier);
+      }
     }
     
+    delete this.lastNotifiedProgress[downloadId];
+    
+    delete this.lastNotifiedProgress[downloadId];
     
     await this.storeNotification(
       'Download Failed',
@@ -193,13 +241,18 @@ class NotificationService {
     );
   }
 
-  async showDownloadCancelledNotification(modelName: string, downloadId: number): Promise<void> {
+  async showDownloadCancelledNotification(modelName: string, downloadId: number, nativeDownloadId?: string): Promise<void> {
     await this.initialize();
 
-    if (Platform.OS === 'android') {
-      await downloadNotificationService.cancelNotification(downloadId);
+    const identifier = this.getNotificationIdentifier(downloadId, nativeDownloadId);
+
+    if (this.shouldSendNativeNotification(nativeDownloadId)) {
+      if (Platform.OS === 'android' || Platform.OS === 'ios') {
+        await downloadNotificationService.cancelNotification(identifier);
+      }
     }
     
+    delete this.lastNotifiedProgress[downloadId];
     
     await this.storeNotification(
       'Download Cancelled',
@@ -221,10 +274,15 @@ class NotificationService {
     );
   }
 
-  async cancelDownloadNotification(downloadId: number): Promise<void> {
-    if (Platform.OS === 'android') {
-      await downloadNotificationService.cancelNotification(downloadId);
+  async cancelDownloadNotification(downloadId: number, nativeDownloadId?: string): Promise<void> {
+    const identifier = this.getNotificationIdentifier(downloadId, nativeDownloadId);
+
+    if (this.shouldSendNativeNotification(nativeDownloadId)) {
+      if (Platform.OS === 'android' || Platform.OS === 'ios') {
+        await downloadNotificationService.cancelNotification(identifier);
+      }
     }
+    delete this.lastNotifiedProgress[downloadId];
   }
 
   private async saveNotificationIds(): Promise<void> {

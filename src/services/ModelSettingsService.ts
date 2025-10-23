@@ -132,12 +132,26 @@ class ModelSettingsService {
       delete this.cache[modelPath];
       
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(allSettings));
+      console.log('settings_deleted', modelPath);
     } catch (error) {
+      console.log('settings_delete_error', error);
+      throw error;
     }
   }
 
   clearCache(): void {
     this.cache = {};
+  }
+
+  async clearAllSettings(): Promise<void> {
+    try {
+      await AsyncStorage.removeItem(STORAGE_KEY);
+      this.cache = {};
+      console.log('all_settings_cleared');
+    } catch (error) {
+      console.log('clear_all_settings_error', error);
+      throw error;
+    }
   }
 
   async clearCorruptedData(): Promise<void> {

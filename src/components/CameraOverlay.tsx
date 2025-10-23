@@ -35,9 +35,11 @@ type CameraOverlayProps = {
   visible: boolean;
   onClose: () => void;
   onPhotoTaken: (uri: string, messageContent: string) => void;
+  useRag?: boolean;
+  onToggleRag?: (value: boolean) => void;
 };
 
-export default function CameraOverlay({ visible, onClose, onPhotoTaken }: CameraOverlayProps) {
+export default function CameraOverlay({ visible, onClose, onPhotoTaken, useRag = true, onToggleRag }: CameraOverlayProps) {
   const [facing, setFacing] = useState<CameraType>('back');
   const [permission, requestPermission] = useCameraPermissions();
   const [mediaLibraryPermission, requestMediaLibraryPermission] = MediaLibrary.usePermissions();
@@ -220,6 +222,8 @@ export default function CameraOverlay({ visible, onClose, onPhotoTaken }: Camera
                   selectedMode={processingMode}
                   onModeChange={setProcessingMode}
                   disabled={isProcessing}
+                  useRag={useRag}
+                  onToggleRag={onToggleRag}
                 />
                 
                 <Text style={[styles.promptSubtitle, { color: themeColors.text }]}>

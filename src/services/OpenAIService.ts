@@ -124,7 +124,7 @@ export class OpenAIService {
       const temperature = options.temperature ?? 0.7;
       const maxTokens = options.maxTokens ?? 1024;
       const topP = options.topP ?? 0.9;
-      const model = options.model ?? 'gpt-4o';
+      const model = options.model ?? 'gpt-4.1';
 
       const formattedMessages = [];
       for (const msg of messages) {

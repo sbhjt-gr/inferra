@@ -1,4 +1,4 @@
-import { initLlama, loadLlamaModelInfo, type LlamaContext } from 'llama.rn';
+import { initLlama, loadLlamaModelInfo, type LlamaContext, type EmbeddingParams } from 'llama.rn';
 import { Platform, NativeModules } from 'react-native';
 import EventEmitter from 'eventemitter3';
 import { ModelSettings } from '../services/ModelSettingsService';
@@ -13,14 +13,26 @@ import { MultimodalService } from '../services/MultimodalService';
 import { TokenProcessingService } from '../services/TokenProcessingService';
 import { LlamaSettingsManager } from '../services/LlamaSettingsManager';
 import { LLAMA_INIT_CONFIG, TITLE_GENERATION_CONFIG } from '../config/llamaConfig';
+import { gpuSettingsService } from '../services/GpuSettingsService';
+import { checkGpuSupport, type GpuSupport } from '../utils/gpuCapabilities';
 
 const LlamaManagerModule = NativeModules.LlamaManager as LlamaManagerInterface;
+
+const withTimeout = <T>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => 
+      setTimeout(() => reject(new Error(`Operation timed out after ${timeoutMs}ms`)), timeoutMs)
+    )
+  ]);
+};
 
 class LlamaManager {
   private context: LlamaContext | null = null;
   private modelPath: string | null = null;
   private events = new EventEmitter<LlamaManagerEvents>();
   private isCancelled: boolean = false;
+  private isUnloading: boolean = false;
   
   private multimodalService = new MultimodalService();
   private tokenProcessingService = new TokenProcessingService();
@@ -47,16 +59,53 @@ class LlamaManager {
       const modelInfo = await loadLlamaModelInfo(finalModelPath);
 
       if (this.context) {
-        await this.multimodalService.releaseMultimodal(this.context);
-        await this.context.release();
+        const contextToRelease = this.context;
+        const wasMultimodal = this.multimodalService.isMultimodalInitialized();
+        
         this.context = null;
+        this.modelPath = null;
+        this.multimodalService.clearMultimodalState();
+        
+        try {
+          if (typeof contextToRelease.stopCompletion === 'function') {
+            await withTimeout(contextToRelease.stopCompletion(), 2000).catch(() => {});
+          }
+        } catch {}
+        
+        Promise.all([
+          wasMultimodal ? withTimeout(
+            this.multimodalService.releaseMultimodal(contextToRelease),
+            3000
+          ).catch(error => {
+            console.error('mmproj_release_error', error);
+          }) : Promise.resolve(),
+          withTimeout(
+            contextToRelease.release(),
+            5000
+          ).catch(error => {
+            console.error('context_release_error', error);
+          })
+        ]).catch(() => {});
       }
 
       this.modelPath = finalModelPath;
       
+      let gpuLayerCount = 0;
+      try {
+        const [gpuSettings, gpuSupport] = await Promise.all([
+          gpuSettingsService.loadSettings(),
+          checkGpuSupport().catch((): GpuSupport => ({ isSupported: false, reason: 'unknown' })),
+        ]);
+        gpuLayerCount =
+          gpuSettings.enabled && gpuSupport.isSupported ? gpuSettings.layers : 0;
+      } catch (error) {
+        gpuLayerCount = 0;
+      }
+
       this.context = await initLlama({
         model: finalModelPath,
         ...LLAMA_INIT_CONFIG,
+        n_gpu_layers: gpuLayerCount,
       });
 
       if (mmProjectorPath && this.context) {
@@ -67,9 +116,12 @@ class LlamaManager {
         }
       }
 
+      this.isCancelled = false;
+
       return this.context;
     } catch (error) {
-      throw new Error(`Failed to initialize model: ${error}`);
+      this.emergencyCleanup();
+      throw new Error(`model_init_failed: ${error}`);
     }
   }
 
@@ -401,10 +453,32 @@ class LlamaManager {
       try {
         const currentModelPath = this.modelPath;
         const currentMmProjectorPath = this.multimodalService.getMultimodalProjectorPath();
+        const contextToRelease = this.context;
+        const wasMultimodal = this.multimodalService.isMultimodalInitialized();
         
-        await this.multimodalService.releaseMultimodal(this.context);
-        await this.context.release();
         this.context = null;
+        this.multimodalService.clearMultimodalState();
+        
+        try {
+          if (typeof contextToRelease.stopCompletion === 'function') {
+            await withTimeout(contextToRelease.stopCompletion(), 2000).catch(() => {});
+          }
+        } catch {}
+        
+        Promise.all([
+          wasMultimodal ? withTimeout(
+            this.multimodalService.releaseMultimodal(contextToRelease),
+            3000
+          ).catch(error => {
+            console.error('mmproj_release_on_cancel_error', error);
+          }) : Promise.resolve(),
+          withTimeout(
+            contextToRelease.release(),
+            5000
+          ).catch(error => {
+            console.error('context_release_on_cancel_error', error);
+          })
+        ]).catch(() => {});
         
         this.context = await initLlama({
           model: currentModelPath,
@@ -422,25 +496,57 @@ class LlamaManager {
   }
 
   async release() {
-    try {
-      this.isCancelled = true;
-      
-      this.tokenProcessingService.clearTokenQueue();
-      
-      if (this.context) {
-        await this.multimodalService.releaseMultimodal(this.context);
-        await this.context.release();
-        this.context = null;
-        this.modelPath = null;
-      }
-    } catch (error) {
-      throw error;
+    if (!this.context) {
+      return;
     }
+
+    const contextToRelease = this.context;
+    const wasMultimodalEnabled = this.multimodalService.isMultimodalInitialized();
+    
+    this.context = null;
+    this.modelPath = null;
+    this.isCancelled = true;
+    this.tokenProcessingService.clearTokenQueue();
+    this.multimodalService.clearMultimodalState();
+    
+    try {
+      if (typeof contextToRelease.stopCompletion === 'function') {
+        await withTimeout(contextToRelease.stopCompletion(), 2000).catch(() => {});
+      }
+    } catch {}
+    
+    const releasePromises: Promise<void>[] = [];
+    
+    if (wasMultimodalEnabled) {
+      releasePromises.push(
+        withTimeout(
+          this.multimodalService.releaseMultimodal(contextToRelease),
+          3000
+        ).catch(multimodalError => {
+          console.error('mmproj_release_error', multimodalError);
+        })
+      );
+    }
+    
+    releasePromises.push(
+      withTimeout(
+        contextToRelease.release(),
+        5000
+      ).catch(contextError => {
+        console.error('context_release_error', contextError);
+      })
+    );
+    
+    Promise.all(releasePromises).catch(() => {});
   }
 
   emergencyCleanup() {
     this.isCancelled = true;
     this.tokenProcessingService.clearTokenQueue();
+    this.multimodalService.clearMultimodalState();
+    this.context = null;
+    this.modelPath = null;
+    this.isUnloading = false;
   }
 
   getModelPath() {
@@ -459,12 +565,30 @@ class LlamaManager {
     return this.multimodalService.getMultimodalSupport();
   }
 
+  async releaseMultimodal(): Promise<void> {
+    if (this.context) {
+      const contextToRelease = this.context;
+      this.multimodalService.releaseMultimodal(contextToRelease).catch(error => {
+        console.error('mmproj_manual_release_error', error);
+      });
+    }
+  }
+
   hasVisionSupport(): boolean {
     return this.multimodalService.hasVisionSupport();
   }
 
   hasAudioSupport(): boolean {
     return this.multimodalService.hasAudioSupport();
+  }
+
+  async generateEmbedding(text: string, params?: EmbeddingParams): Promise<number[]> {
+    if (!this.context) {
+      throw new Error('Model not initialized');
+    }
+
+    const result = await this.context.embedding(text, params);
+    return result.embedding;
   }
 
   async tokenizeWithMedia(text: string, mediaPaths: string[] = []): Promise<any> {
@@ -514,18 +638,43 @@ class LlamaManager {
 
   async loadModel(modelPath: string, mmProjectorPath?: string) {
     try {
-      await this.release();
+      console.log('model_load_start', modelPath);
+      
+      this.isCancelled = true;
+      this.tokenProcessingService.clearTokenQueue();
+      
+      await withTimeout(this.release(), 8000).catch(error => {
+        console.error('model_release_timeout', error);
+        this.emergencyCleanup();
+      });
+      
+      console.log('model_load_init');
       await this.initializeModel(modelPath, mmProjectorPath);
+      console.log('model_load_success');
       this.events.emit('model-loaded', modelPath);
       return true;
     } catch (error) {
-      return false;
+      console.error('model_load_failed', error);
+      throw error;
     }
   }
 
   async unloadModel() {
-    await this.release();
-    this.events.emit('model-unloaded');
+    if (this.isUnloading) {
+      throw new Error('model_unload_in_progress');
+    }
+
+    this.isUnloading = true;
+    
+    try {
+      await withTimeout(this.release(), 8000);
+    } catch (error) {
+      console.error('model_release_error', error);
+      this.emergencyCleanup();
+    } finally {
+      this.events.emit('model-unloaded');
+      this.isUnloading = false;
+    }
   }
 
   addListener(event: keyof LlamaManagerEvents, listener: any): () => void {
