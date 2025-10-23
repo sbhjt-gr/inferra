@@ -224,7 +224,7 @@ Once the server is running, you can access the complete API documentation by ope
 - Server configuration and status
 - WebRTC signaling for peer-to-peer connections
 
-For detailed API reference, see the [REST API Documentation](../llama.rn/docs/REST-API.md).
+For detailed API reference, see the [REST API Documentation](docs/REST_APIs.md).
 
 ### Example Usage
 
