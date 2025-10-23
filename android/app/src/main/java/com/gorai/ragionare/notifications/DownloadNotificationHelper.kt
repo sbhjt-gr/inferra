@@ -1,4 +1,4 @@
-package com.gorai.inferra.notifications
+package com.gorai.ragionare.notifications
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -9,8 +9,8 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.work.ForegroundInfo
-import com.gorai.inferra.MainActivity
-import com.gorai.inferra.R
+import com.gorai.ragionare.MainActivity
+import com.gorai.ragionare.R
 import java.text.DecimalFormat
 import java.util.concurrent.atomic.AtomicBoolean
 

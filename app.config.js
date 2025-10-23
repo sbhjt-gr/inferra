@@ -65,7 +65,7 @@ export default {
         foregroundImage: "./assets/adaptive-icon.png",
         backgroundColor: "#660880"
       },
-      package: "com.gorai.inferra",
+      package: "com.gorai.ragionare",
       runtimeVersion: "2.6.4",
       googleServicesFile: "./android/app/google-services.json",
       edgeToEdgeEnabled: true,
@@ -88,13 +88,13 @@ export default {
       navigationBar: {
         backgroundColor: "#660880"
       },
-      scheme: "com.gorai.inferra",
+      scheme: "com.gorai.ragionare",
       intentFilters: [
         {
           action: "VIEW",
           data: [
             {
-              scheme: "com.gorai.inferra"
+              scheme: "com.gorai.ragionare"
             }
           ],
           category: ["BROWSABLE", "DEFAULT"]

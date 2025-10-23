@@ -208,6 +208,10 @@ class ModelDownloader extends EventEmitter {
     await this.storedModelsManager.deleteModel(path);
   }
 
+  async clearAllModels(): Promise<void> {
+    await this.storedModelsManager.clearAllModels();
+  }
+
   async checkBackgroundDownloads(): Promise<void> {
     try {
       await this.downloadTaskManager.ensureDownloadsAreRunning();

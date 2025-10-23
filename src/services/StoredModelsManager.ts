@@ -158,6 +158,7 @@ export class StoredModelsManager extends EventEmitter {
       console.log('save_storage_complete');
     } catch (error) {
       console.log('save_storage_error', error);
+      throw error;
     }
   }
 
@@ -165,12 +166,35 @@ export class StoredModelsManager extends EventEmitter {
     try {
       await this.fileManager.deleteFile(path);
       
+      const dir = path.substring(0, path.lastIndexOf('/'));
+      const baseName = path.substring(path.lastIndexOf('/') + 1);
+      const potentialProjectorName = baseName.replace('.gguf', '-mmproj-f16.gguf');
+      const potentialProjectorPath = `${dir}/${potentialProjectorName}`;
+      
+      let projectorDeleted = false;
+      try {
+        const projectorInfo = await FileSystem.getInfoAsync(potentialProjectorPath);
+        if (projectorInfo?.exists) {
+          await this.fileManager.deleteFile(potentialProjectorPath);
+          projectorDeleted = true;
+          console.log('mmproj_deleted', potentialProjectorName);
+        }
+      } catch (projectorError) {
+        console.log('mmproj_delete_check_error', projectorError);
+      }
+      
       const currentModels = await this.getStoredModels();
-      const updatedModels = currentModels.filter(model => model.path !== path);
+      let updatedModels = currentModels.filter(model => model.path !== path);
+      
+      if (projectorDeleted) {
+        updatedModels = updatedModels.filter(model => model.path !== potentialProjectorPath);
+      }
+      
       await this.saveModelsToStorage(updatedModels);
       
       this.emit('modelsChanged');
     } catch (error) {
+      console.log('delete_model_error', error);
       throw error;
     }
   }
@@ -178,6 +202,18 @@ export class StoredModelsManager extends EventEmitter {
   public async refresh(): Promise<void> {
     await this.scanFileSystemAndUpdateStorage();
     this.emit('modelsChanged');
+  }
+
+  async clearAllModels(): Promise<void> {
+    try {
+      const emptyModels: StoredModel[] = [];
+      await this.saveModelsToStorage(emptyModels);
+      this.emit('modelsChanged');
+      console.log('all_models_cleared_from_storage');
+    } catch (error) {
+      console.log('clear_all_models_error', error);
+      throw error;
+    }
   }
 
   async reloadStoredModels(): Promise<StoredModel[]> {

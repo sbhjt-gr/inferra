@@ -1,4 +1,4 @@
-package com.gorai.inferra.notifications
+package com.gorai.ragionare.notifications
 
 import com.facebook.react.ReactPackage
 import com.facebook.react.bridge.NativeModule

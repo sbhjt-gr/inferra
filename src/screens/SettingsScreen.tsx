@@ -28,6 +28,7 @@ import StorageSection from '../components/settings/StorageSection';
 import { Dialog, Portal, PaperProvider, Button, Text as PaperText } from 'react-native-paper';
 import { DEFAULT_SETTINGS } from '../config/llamaConfig';
 import type { ModelSettings as StoredModelSettings } from '../services/ModelSettingsService';
+import { modelSettingsService } from '../services/ModelSettingsService';
 import {
   gpuSettingsService,
   DEFAULT_GPU_LAYERS,
@@ -527,7 +528,8 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
                 setIsClearing(true);
                 const modelsDir = `${FileSystem.documentDirectory}models`;
                 await clearDirectory(modelsDir);
-                await modelDownloader.refreshStoredModels();
+                await modelDownloader.clearAllModels();
+                await modelSettingsService.clearAllSettings();
                 await loadStorageInfo();
                 showDialog('Success', 'All models cleared successfully', [
                   <Button key="ok" onPress={hideDialog}>OK</Button>
