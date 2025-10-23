@@ -33,7 +33,7 @@
         <string>google</string>
         <key>CFBundleURLSchemes</key>
         <array>
-          <string>com.googleusercontent.apps.299137610747-u3b72q0vr3fi3qfb71rorhtam2vnr4oj</string>
+          <string>com.googleusercontent.apps.299137610747-v1ipf308vgdgg06amnci4omektd3vurt</string>
         </array>
       </dict>
       <dict>
@@ -56,10 +56,16 @@
       <key>NSAllowsLocalNetworking</key>
       <true/>
     </dict>
+    <key>NSBonjourServices</key>
+    <array>
+      <string>_http._tcp</string>
+    </array>
     <key>NSCameraUsageDescription</key>
     <string>Camera access enables direct file capture uploads and OCR analysis features inside Inferra.</string>
     <key>NSFaceIDUsageDescription</key>
     <string>Allow $(PRODUCT_NAME) to access your Face ID biometric data.</string>
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>Inferra uses local network access to share your AI chat interface with other devices on your WiFi network, allowing you to access your assistant from browsers on computers, tablets, or other phones.</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>Allow $(PRODUCT_NAME) to access your microphone</string>
     <key>NSPhotoLibraryAddUsageDescription</key>

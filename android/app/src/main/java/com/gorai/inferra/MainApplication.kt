@@ -1,4 +1,4 @@
-package com.gorai.ragionare
+package com.gorai.inferra
 
 import android.app.Application
 import android.content.res.Configuration
@@ -17,7 +17,7 @@ import expo.modules.ApplicationLifecycleDispatcher
 import expo.modules.ReactNativeHostWrapper
 
 import com.inferra.transfer.TransferPackage
-import com.gorai.ragionare.notifications.DownloadNotificationPackage
+import com.gorai.inferra.notifications.DownloadNotificationPackage
 
 class MainApplication : Application(), ReactApplication {
 

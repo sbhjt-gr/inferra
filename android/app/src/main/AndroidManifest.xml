@@ -39,10 +39,11 @@
         <data android:scheme="com.gorai.ragionare"/>
         <data android:scheme="com.gorai.ragionare"/>
         <data android:scheme="exp+inferra"/>
+        <data android:scheme="com.gorai.inferra"/>
       </intent-filter>
       <intent-filter data-generated="true">
         <action android:name="android.intent.action.VIEW"/>
-        <data android:scheme="com.gorai.ragionare"/>
+        <data android:scheme="com.gorai.inferra"/>
         <category android:name="android.intent.category.BROWSABLE"/>
         <category android:name="android.intent.category.DEFAULT"/>
       </intent-filter>

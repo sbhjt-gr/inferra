@@ -86,9 +86,9 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace 'com.gorai.ragionare'
+    namespace 'com.gorai.inferra'
     defaultConfig {
-        applicationId 'com.gorai.ragionare'
+        applicationId 'com.gorai.inferra'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 264

@@ -28,7 +28,7 @@ export default {
     ios: {
       supportsTablet: true,
       requireFullScreen: false,
-      bundleIdentifier: "com.gorai.ragionare",
+      bundleIdentifier: "com.gorai.inferra",
       buildNumber: "264",
       runtimeVersion: "2.6.4",
       deploymentTarget: "17.0",
@@ -50,14 +50,14 @@ export default {
         CFBundleURLTypes: [
           {
             CFBundleURLName: "google",
-            CFBundleURLSchemes: ["com.googleusercontent.apps.299137610747-u3b72q0vr3fi3qfb71rorhtam2vnr4oj"]
+            CFBundleURLSchemes: ["com.googleusercontent.apps.299137610747-v1ipf308vgdgg06amnci4omektd3vurt"]
           }
         ]
       },
       entitlements: {
         "com.apple.developer.applesignin": ["Default"]
       },
-      scheme: "com.gorai.ragionare"
+      scheme: "com.gorai.inferra"
     },
     android: {
       versionCode: 264,
@@ -65,7 +65,7 @@ export default {
         foregroundImage: "./assets/adaptive-icon.png",
         backgroundColor: "#660880"
       },
-      package: "com.gorai.ragionare",
+      package: "com.gorai.inferra",
       runtimeVersion: "2.6.4",
       googleServicesFile: "./android/app/google-services.json",
       edgeToEdgeEnabled: true,
@@ -88,13 +88,13 @@ export default {
       navigationBar: {
         backgroundColor: "#660880"
       },
-      scheme: "com.gorai.ragionare",
+      scheme: "com.gorai.inferra",
       intentFilters: [
         {
           action: "VIEW",
           data: [
             {
-              scheme: "com.gorai.ragionare"
+              scheme: "com.gorai.inferra"
             }
           ],
           category: ["BROWSABLE", "DEFAULT"]
@@ -117,7 +117,7 @@ export default {
       FIREBASE_APP_ID: process.env.FIREBASE_APP_ID,
       FIREBASE_MEASUREMENT_ID: process.env.FIREBASE_MEASUREMENT_ID,
       eas: {
-        projectId: process.env.EAS_PROJECT_ID
+        projectId: "5ef5d807-bc8b-4dcb-a3f4-2bad3c098b3e"
       },
     },
     experiments: {

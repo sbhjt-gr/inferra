@@ -179,9 +179,12 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
             <Text>{dialogMessage}</Text>
           </Dialog.Content>
           <Dialog.Actions>
-            {dialogActions.map((ActionComponent, index) =>
-              React.isValidElement(ActionComponent) ? React.cloneElement(ActionComponent, { key: index }) : null
-            )}
+            {dialogActions.length > 0 
+              ? dialogActions.map((ActionComponent, index) =>
+                  React.isValidElement(ActionComponent) ? React.cloneElement(ActionComponent, { key: index }) : null
+                )
+              : <Button key="ok" onPress={hideDialog}>OK</Button>
+            }
           </Dialog.Actions>
         </Dialog>
       </Portal>

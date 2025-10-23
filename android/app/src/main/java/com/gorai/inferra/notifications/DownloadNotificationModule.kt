@@ -1,4 +1,4 @@
-package com.gorai.ragionare.notifications
+package com.gorai.inferra.notifications
 
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext

@@ -1,4 +1,4 @@
-package com.gorai.ragionare
+package com.gorai.inferra
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build
