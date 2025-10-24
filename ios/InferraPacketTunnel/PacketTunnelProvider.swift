@@ -100,12 +100,12 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     })
   }
 
-  private func resolvePort() -> NWEndpoint.Port {
+  private func resolvePort() -> Network.NWEndpoint.Port {
     if let configuration = (protocolConfiguration as? NETunnelProviderProtocol)?.providerConfiguration,
        let value = configuration["port"] as? NSNumber,
-       let port = NWEndpoint.Port(rawValue: value.uint16Value) {
+       let port = Network.NWEndpoint.Port(rawValue: value.uint16Value) {
       return port
     }
-    return NWEndpoint.Port(integerLiteral: 62000)
+    return Network.NWEndpoint.Port(rawValue: 62000)!
   }
 }
