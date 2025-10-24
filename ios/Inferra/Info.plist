@@ -81,6 +81,7 @@
       <string>fetch</string>
       <string>remote-notification</string>
       <string>processing</string>
+      <string>audio</string>
     </array>
     <key>UIGestureRecognizerShouldBegin</key>
     <false/>

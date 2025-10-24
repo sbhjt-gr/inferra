@@ -3,9 +3,10 @@ import { logger } from '../utils/logger';
 import type { LocalServerService } from './LocalServerWebRTC';
 
 const { LocalServerBackground } = NativeModules as { LocalServerBackground?: {
-  start(options: { port?: number; identifier?: string }): Promise<void>;
+  start(options: { port?: number; identifier?: string; metadata?: Record<string, unknown> }): Promise<void>;
   stop(): Promise<void>;
   status(): Promise<{ running: boolean }>;
+  fetchPendingAnswer(): Promise<{ sdp: string; peerId?: string } | null>;
 } };
 const eventEmitter = LocalServerBackground
   ? new NativeEventEmitter(LocalServerBackground as any)
@@ -37,6 +38,17 @@ function ensureNativeSubscription() {
       return;
     }
     server.runBackgroundMaintenance().catch(() => {});
+    if (LocalServerBackground?.fetchPendingAnswer) {
+      LocalServerBackground.fetchPendingAnswer()
+        .then((answer) => {
+          if (!answer || typeof answer.sdp !== 'string') {
+            return;
+          }
+          const peerId = typeof answer.peerId === 'string' ? answer.peerId : undefined;
+          server.handleAnswer(answer.sdp, peerId).catch(() => {});
+        })
+        .catch(() => {});
+    }
   });
 }
 
@@ -46,6 +58,7 @@ async function registerTask() {
       const server = getServer();
       const status = server?.getStatus();
       let port: number | undefined;
+      const metadata: Record<string, unknown> = {};
       if (status?.signalingURL) {
         try {
           const parsed = new URL(status.signalingURL);
@@ -55,9 +68,27 @@ async function registerTask() {
           logger.warn('local_server_background_port_parse_failed', 'webrtc');
         }
       }
+      if (status) {
+        metadata.running = status.isRunning;
+        metadata.peerCount = status.peerCount;
+        if (typeof status.offerSDP === 'string') {
+          metadata.offerSDP = status.offerSDP;
+        }
+        if (typeof status.offerPeerId === 'string') {
+          metadata.offerPeerId = status.offerPeerId;
+        }
+        if (typeof status.signalingURL === 'string') {
+          metadata.signalingURL = status.signalingURL;
+        }
+        if (status.startTime instanceof Date) {
+          metadata.startTime = status.startTime.toISOString();
+        }
+        metadata.updatedAt = new Date().toISOString();
+      }
       await LocalServerBackground.start({
         port,
         identifier: status?.offerSDP,
+        metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
       });
     } catch (error) {
       logger.error('local_server_background_enable_failed', 'webrtc');

@@ -46,6 +46,7 @@ interface ServerStatus {
   isRunning: boolean;
   peerCount: number;
   offerSDP?: string;
+  offerPeerId?: string;
   signalingURL?: string;
   startTime?: Date;
   backgroundKeepAlive?: boolean;
@@ -275,6 +276,7 @@ export class LocalServerService extends SimpleEventEmitter {
       isRunning: this.isRunning,
       peerCount: this.peerCount,
       offerSDP: this.offerSDP || undefined,
+      offerPeerId: this.offerPeerId || undefined,
       signalingURL: this.signalingURL || undefined,
       startTime: this.startTime || undefined,
       backgroundKeepAlive: this.backgroundKeepAlive
