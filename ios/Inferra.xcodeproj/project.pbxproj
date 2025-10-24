@@ -14,6 +14,11 @@
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
 		EE5B1EF1C45DE6AF88E29C34 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 494B73B6A30B8765B7F16E1B /* PrivacyInfo.xcprivacy */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
+		4FBB5B112C28F6E8004EAAA1 /* PacketTunnelProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FBB5B0B2C28F6E7004EAAA1 /* PacketTunnelProvider.swift */; };
+		4FBB5B122C28F6E8004EAAA1 /* NetworkExtension.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4FBB5B0E2C28F6E7004EAAA1 /* NetworkExtension.framework */; };
+		4FBB5B132C28F6E8004EAAA1 /* InferraPacketTunnel.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 4FBB5B0A2C28F6E7004EAAA1 /* InferraPacketTunnel.appex */; platformFilter = ios; };
+		4FBB5B262C28F6E8004EAAA1 /* Network.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4FBB5B252C28F6E8004EAAA1 /* Network.framework */; };
+		4FBB5B282C28F6E8004EAAA1 /* LocalServerBackgroundModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FBB5B272C28F6E8004EAAA1 /* LocalServerBackgroundModule.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -22,6 +27,13 @@
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = Inferra/Info.plist; sourceTree = "<group>"; };
 		3BBE38F7EE8191C908675C38 /* libPods-Inferra.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-Inferra.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		494B73B6A30B8765B7F16E1B /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = Inferra/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		4FBB5B272C28F6E8004EAAA1 /* LocalServerBackgroundModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LocalServerBackgroundModule.swift; path = Inferra/LocalServerBackgroundModule.swift; sourceTree = "<group>"; };
+		4FBB5B0A2C28F6E7004EAAA1 /* InferraPacketTunnel.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = InferraPacketTunnel.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		4FBB5B0B2C28F6E7004EAAA1 /* PacketTunnelProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PacketTunnelProvider.swift; path = InferraPacketTunnel/PacketTunnelProvider.swift; sourceTree = "<group>"; };
+		4FBB5B0C2C28F6E7004EAAA1 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; name = Info.plist; path = InferraPacketTunnel/Info.plist; sourceTree = "<group>"; };
+		4FBB5B0D2C28F6E7004EAAA1 /* InferraPacketTunnel.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; name = InferraPacketTunnel.entitlements; path = InferraPacketTunnel/InferraPacketTunnel.entitlements; sourceTree = "<group>"; };
+		4FBB5B0E2C28F6E7004EAAA1 /* NetworkExtension.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = NetworkExtension.framework; path = System/Library/Frameworks/NetworkExtension.framework; sourceTree = SDKROOT; };
+		4FBB5B252C28F6E8004EAAA1 /* Network.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Network.framework; path = System/Library/Frameworks/Network.framework; sourceTree = SDKROOT; };
 		917799D70ADC7D94FBF6F0FA /* Pods-Inferra.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Inferra.release.xcconfig"; path = "Target Support Files/Pods-Inferra/Pods-Inferra.release.xcconfig"; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = Inferra/SplashScreen.storyboard; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
@@ -41,6 +53,15 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		4FBB5B1A2C28F6E8004EAAA1 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4FBB5B122C28F6E8004EAAA1 /* NetworkExtension.framework in Frameworks */,
+				4FBB5B262C28F6E8004EAAA1 /* Network.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -48,6 +69,7 @@
 			isa = PBXGroup;
 			children = (
 				F11748412D0307B40044C1D9 /* AppDelegate.swift */,
+				4FBB5B272C28F6E8004EAAA1 /* LocalServerBackgroundModule.swift */,
 				F11748442D0722820044C1D9 /* Inferra-Bridging-Header.h */,
 				BB2F792B24A3F905000567C9 /* Supporting */,
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
@@ -62,6 +84,8 @@
 			isa = PBXGroup;
 			children = (
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
+				4FBB5B0E2C28F6E7004EAAA1 /* NetworkExtension.framework */,
+				4FBB5B252C28F6E8004EAAA1 /* Network.framework */,
 				3BBE38F7EE8191C908675C38 /* libPods-Inferra.a */,
 			);
 			name = Frameworks;
@@ -95,6 +119,7 @@
 			isa = PBXGroup;
 			children = (
 				13B07FAE1A68108700A75B9A /* Inferra */,
+				4FBB5B0F2C28F6E7004EAAA1 /* InferraPacketTunnel */,
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
@@ -110,6 +135,7 @@
 			isa = PBXGroup;
 			children = (
 				13B07F961A680F5B00A75B9A /* Inferra.app */,
+				4FBB5B0A2C28F6E7004EAAA1 /* InferraPacketTunnel.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -121,6 +147,16 @@
 			);
 			name = Supporting;
 			path = Inferra/Supporting;
+			sourceTree = "<group>";
+		};
+		4FBB5B0F2C28F6E7004EAAA1 /* InferraPacketTunnel */ = {
+			isa = PBXGroup;
+			children = (
+				4FBB5B0B2C28F6E7004EAAA1 /* PacketTunnelProvider.swift */,
+				4FBB5B0C2C28F6E7004EAAA1 /* Info.plist */,
+				4FBB5B0D2C28F6E7004EAAA1 /* InferraPacketTunnel.entitlements */,
+			);
+			path = InferraPacketTunnel;
 			sourceTree = "<group>";
 		};
 		C139A399804F011B07F0CE45 /* ExpoModulesProviders */ = {
@@ -146,17 +182,46 @@
 				00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */,
 				800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */,
 				7659C9D046254625B6925815 /* [CP] Embed Pods Frameworks */,
+				4FBB5B202C28F6E8004EAAA1 /* Embed App Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				4FBB5B222C28F6E8004EAAA1 /* PBXTargetDependency */,
 			);
 			name = Inferra;
 			productName = Inferra;
 			productReference = 13B07F961A680F5B00A75B9A /* Inferra.app */;
 			productType = "com.apple.product-type.application";
 		};
+		4FBB5B152C28F6E8004EAAA1 /* InferraPacketTunnel */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4FBB5B1F2C28F6E8004EAAA1 /* Build configuration list for PBXNativeTarget "InferraPacketTunnel" */;
+			buildPhases = (
+				4FBB5B1B2C28F6E8004EAAA1 /* Sources */,
+				4FBB5B1A2C28F6E8004EAAA1 /* Frameworks */,
+				4FBB5B1C2C28F6E8004EAAA1 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = InferraPacketTunnel;
+			productName = InferraPacketTunnel;
+			productReference = 4FBB5B0A2C28F6E7004EAAA1 /* InferraPacketTunnel.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
+
+/* Begin PBXContainerItemProxy section */
+		4FBB5B212C28F6E8004EAAA1 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 83CBB9F71A601CBA00E9B192 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 4FBB5B152C28F6E8004EAAA1;
+			remoteInfo = InferraPacketTunnel;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXProject section */
 		83CBB9F71A601CBA00E9B192 /* Project object */ = {
@@ -166,6 +231,9 @@
 				TargetAttributes = {
 					13B07F861A680F5B00A75B9A = {
 						LastSwiftMigration = 1250;
+						ProvisioningStyle = Automatic;
+					};
+					4FBB5B152C28F6E8004EAAA1 = {
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -184,6 +252,7 @@
 			projectRoot = "";
 			targets = (
 				13B07F861A680F5B00A75B9A /* Inferra */,
+				4FBB5B152C28F6E8004EAAA1 /* InferraPacketTunnel */,
 			);
 		};
 /* End PBXProject section */
@@ -200,7 +269,28 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		4FBB5B1C2C28F6E8004EAAA1 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		4FBB5B202C28F6E8004EAAA1 /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				4FBB5B132C28F6E8004EAAA1 /* InferraPacketTunnel.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
 		00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */ = {
@@ -374,12 +464,29 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4FBB5B282C28F6E8004EAAA1 /* LocalServerBackgroundModule.swift in Sources */,
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
 				2A11FCB4F6FA898AEEB7FD73 /* ExpoModulesProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		4FBB5B1B2C28F6E8004EAAA1 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4FBB5B112C28F6E8004EAAA1 /* PacketTunnelProvider.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		4FBB5B222C28F6E8004EAAA1 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 4FBB5B152C28F6E8004EAAA1 /* InferraPacketTunnel */;
+			targetProxy = 4FBB5B212C28F6E8004EAAA1 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
@@ -420,6 +527,51 @@
 				VERSIONING_SYSTEM = "apple-generic";
 			};
 			name = Debug;
+		};
+		4FBB5B232C28F6E8004EAAA1 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = InferraPacketTunnel/InferraPacketTunnel.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = GXKD77CCQ6;
+				INFOPLIST_FILE = InferraPacketTunnel/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.gorai.inferra.InferraPacketTunnel;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		4FBB5B242C28F6E8004EAAA1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = InferraPacketTunnel/InferraPacketTunnel.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = GXKD77CCQ6;
+				INFOPLIST_FILE = InferraPacketTunnel/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.gorai.inferra.InferraPacketTunnel;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
 		};
 		13B07F951A680F5B00A75B9A /* Release */ = {
 			isa = XCBuildConfiguration;
@@ -586,6 +738,15 @@
 			buildConfigurations = (
 				13B07F941A680F5B00A75B9A /* Debug */,
 				13B07F951A680F5B00A75B9A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		4FBB5B1F2C28F6E8004EAAA1 /* Build configuration list for PBXNativeTarget "InferraPacketTunnel" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4FBB5B232C28F6E8004EAAA1 /* Debug */,
+				4FBB5B242C28F6E8004EAAA1 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

@@ -1,14 +1,20 @@
-import { AppState, AppStateStatus } from 'react-native';
-import * as TaskManager from 'expo-task-manager';
-import * as BackgroundTask from 'expo-background-task';
+import { AppState, AppStateStatus, NativeModules, NativeEventEmitter } from 'react-native';
 import { logger } from '../utils/logger';
 import type { LocalServerService } from './LocalServerWebRTC';
 
+const { LocalServerBackground } = NativeModules as { LocalServerBackground?: {
+  start(options: { port?: number; identifier?: string }): Promise<void>;
+  stop(): Promise<void>;
+  status(): Promise<{ running: boolean }>;
+} };
+const eventEmitter = LocalServerBackground
+  ? new NativeEventEmitter(LocalServerBackground as any)
+  : null;
+let nativeEventSubscription: { remove(): void } | null = null;
 const TASK_NAME = 'local-server-keepalive';
 let provider: (() => LocalServerService | null) | null = null;
 let appStateSubscription: { remove(): void } | null = null;
 let currentState: AppStateStatus = AppState.currentState;
-const backgroundTaskModule: any = BackgroundTask as any;
 
 function getServer(): LocalServerService | null {
   if (!provider) {
@@ -21,44 +27,53 @@ function getServer(): LocalServerService | null {
   }
 }
 
-function ensureTaskDefinition() {
-  const manager: any = TaskManager;
-  if (manager.isTaskDefined && manager.isTaskDefined(TASK_NAME)) {
+function ensureNativeSubscription() {
+  if (!eventEmitter || nativeEventSubscription) {
     return;
   }
-  TaskManager.defineTask(TASK_NAME, async () => {
+  nativeEventSubscription = eventEmitter.addListener('local_server_maintenance', () => {
     const server = getServer();
     if (!server || !server.isServerRunning()) {
-      return backgroundTaskModule.BackgroundTaskResult.NoData;
+      return;
     }
-    try {
-      await server.runBackgroundMaintenance();
-      return backgroundTaskModule.BackgroundTaskResult.NewData;
-    } catch (error) {
-      logger.error('local_server_background_task_failed', 'webrtc');
-      return backgroundTaskModule.BackgroundTaskResult.Failed;
-    }
+    server.runBackgroundMaintenance().catch(() => {});
   });
 }
 
 async function registerTask() {
-  const registered = await TaskManager.isTaskRegisteredAsync(TASK_NAME);
-  if (registered) {
+  if (LocalServerBackground) {
+    try {
+      const server = getServer();
+      const status = server?.getStatus();
+      let port: number | undefined;
+      if (status?.signalingURL) {
+        try {
+          const parsed = new URL(status.signalingURL);
+          const resolvedPort = parsed.port ? Number(parsed.port) : parsed.protocol === 'https:' ? 443 : 80;
+          port = Number.isFinite(resolvedPort) ? resolvedPort : undefined;
+        } catch (error) {
+          logger.warn('local_server_background_port_parse_failed', 'webrtc');
+        }
+      }
+      await LocalServerBackground.start({
+        port,
+        identifier: status?.offerSDP,
+      });
+    } catch (error) {
+      logger.error('local_server_background_enable_failed', 'webrtc');
+    }
     return;
   }
-  await backgroundTaskModule.registerTaskAsync(TASK_NAME, {
-    minimumInterval: 120,
-    stopOnTerminate: false,
-    startOnBoot: true
-  });
 }
 
 async function unregisterTask() {
-  const registered = await TaskManager.isTaskRegisteredAsync(TASK_NAME);
-  if (!registered) {
-    return;
+  if (LocalServerBackground) {
+    try {
+      await LocalServerBackground.stop();
+    } catch (error) {
+      logger.error('local_server_background_disable_failed', 'webrtc');
+    }
   }
-  await backgroundTaskModule.unregisterTaskAsync(TASK_NAME);
 }
 
 async function syncRegistration() {
@@ -81,11 +96,11 @@ function handleAppStateChange(nextState: AppStateStatus) {
 
 export function setLocalServerProvider(fn: () => LocalServerService | null) {
   provider = fn;
-  ensureTaskDefinition();
+  ensureNativeSubscription();
 }
 
 export async function enableLocalServerBackgroundSupport() {
-  ensureTaskDefinition();
+  ensureNativeSubscription();
   if (!appStateSubscription) {
     appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
   }
@@ -98,4 +113,8 @@ export async function disableLocalServerBackgroundSupport() {
     appStateSubscription = null;
   }
   await unregisterTask();
+  if (nativeEventSubscription) {
+    nativeEventSubscription.remove();
+    nativeEventSubscription = null;
+  }
 }
