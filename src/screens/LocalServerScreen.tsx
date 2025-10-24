@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Text, TouchableOpacity, Alert, Switch, Clipboard, Share } from 'react-native';
+import { View, StyleSheet, ScrollView, Text, TouchableOpacity, Alert, Switch, Clipboard, Share, Platform } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import QRCodeStyled from 'react-native-qrcode-styled';
 import { useNavigation } from '@react-navigation/native';
@@ -18,6 +18,7 @@ interface ServerStatus {
   signalingURL?: string;
   peerCount: number;
   startTime?: Date;
+  backgroundKeepAlive?: boolean;
 }
 
 export default function LocalServerScreen() {
@@ -34,6 +35,8 @@ export default function LocalServerScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [autoStart, setAutoStart] = useState(false);
   const [allowExternalAccess, setAllowExternalAccess] = useState(true);
+  const [backgroundKeepAlive, setBackgroundKeepAlive] = useState(false);
+  const [isSettingsUpdating, setIsSettingsUpdating] = useState(false);
 
   useEffect(() => {
     const server = localServerWebRTC;
@@ -64,6 +67,9 @@ export default function LocalServerScreen() {
 
     const handleStatusChanged = (status: ServerStatus) => {
       setServerStatus(status);
+      if (typeof status.backgroundKeepAlive === 'boolean') {
+        setBackgroundKeepAlive(status.backgroundKeepAlive);
+      }
     };
 
     const handlePeerCountChanged = (count: number) => {
@@ -79,6 +85,7 @@ export default function LocalServerScreen() {
       }
       setAutoStart(settings.autoStart);
       setAllowExternalAccess(settings.allowExternalAccess);
+      setBackgroundKeepAlive(settings.backgroundKeepAlive);
     }).catch(() => {});
 
     server.on('serverStarted', handleServerStarted);
@@ -99,6 +106,9 @@ export default function LocalServerScreen() {
   }, []);
 
   const handleToggleServer = async () => {
+    if (isSettingsUpdating) {
+      return;
+    }
     setIsLoading(true);
 
     try {
@@ -121,6 +131,9 @@ export default function LocalServerScreen() {
   };
 
   const handleAutoStartToggle = async (value: boolean) => {
+    if (isLoading || isSettingsUpdating) {
+      return;
+    }
     setAutoStart(value);
     try {
       await localServerWebRTC.setAutoStartEnabled(value);
@@ -131,7 +144,7 @@ export default function LocalServerScreen() {
   };
 
   const handleAllowExternalAccessToggle = async (value: boolean) => {
-    if (isLoading) {
+    if (isLoading || isSettingsUpdating) {
       return;
     }
     setAllowExternalAccess(value);
@@ -147,6 +160,22 @@ export default function LocalServerScreen() {
       Alert.alert('Error', 'Failed to update network access');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleBackgroundKeepAliveToggle = async (value: boolean) => {
+    if (isLoading || isSettingsUpdating) {
+      return;
+    }
+    setBackgroundKeepAlive(value);
+    setIsSettingsUpdating(true);
+    try {
+      await localServerWebRTC.setBackgroundKeepAliveEnabled(value);
+    } catch (error) {
+      setBackgroundKeepAlive(!value);
+      Alert.alert('Error', 'Failed to update background support');
+    } finally {
+      setIsSettingsUpdating(false);
     }
   };
 
@@ -213,7 +242,7 @@ export default function LocalServerScreen() {
         <SettingsSection title="SERVER STATUS">
           <View style={styles.settingItem}>
             <View style={styles.settingLeft}>
-              <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
+              <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}> 
                 <MaterialCommunityIcons name="server" size={22} color={iconColor} />
               </View>
               <View style={styles.settingTextContainer}>
@@ -231,7 +260,7 @@ export default function LocalServerScreen() {
             <Switch
               value={serverStatus.isRunning}
               onValueChange={handleToggleServer}
-              disabled={isLoading}
+              disabled={isLoading || isSettingsUpdating}
               thumbColor={serverStatus.isRunning ? themeColors.primary : themeColors.secondaryText}
               trackColor={{ false: themeColors.borderColor, true: themeColors.primary + '40' }}
             />
@@ -336,7 +365,7 @@ export default function LocalServerScreen() {
           >
             <View style={styles.settingLeft}>
               <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
-                <MaterialCommunityIcons name="text-box-outline" size={22} color={iconColor} />
+                <MaterialCommunityIcons name="play-circle-outline" size={22} color={iconColor} />
               </View>
               <View style={styles.settingTextContainer}>
                 <Text style={[styles.settingText, { color: themeColors.text }]}>
@@ -392,7 +421,7 @@ export default function LocalServerScreen() {
               onValueChange={handleAllowExternalAccessToggle}
               thumbColor={allowExternalAccess ? themeColors.primary : themeColors.secondaryText}
               trackColor={{ false: themeColors.borderColor, true: themeColors.primary + '40' }}
-              disabled={isLoading}
+              disabled={isLoading || isSettingsUpdating}
             />
           </View>
 
@@ -416,6 +445,31 @@ export default function LocalServerScreen() {
               onValueChange={handleAutoStartToggle}
               thumbColor={autoStart ? themeColors.primary : themeColors.secondaryText}
               trackColor={{ false: themeColors.borderColor, true: themeColors.primary + '40' }}
+              disabled={isLoading || isSettingsUpdating}
+            />
+          </View>
+
+          <View style={[styles.separator, { backgroundColor: themeColors.background }]} />
+          <View style={styles.settingItem}>
+            <View style={styles.settingLeft}>
+              <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
+                <MaterialCommunityIcons name="shield-outline" size={22} color={iconColor} />
+              </View>
+              <View style={styles.settingTextContainer}>
+                <Text style={[styles.settingText, { color: themeColors.text }]}>
+                  Background Keepalive
+                </Text>
+                <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
+                  {Platform.OS === 'ios' ? 'Uses network extension to persist the server when the app is backgrounded.' : 'Keeps the server active using a foreground service when you leave the app.'}
+                </Text>
+              </View>
+            </View>
+            <Switch
+              value={backgroundKeepAlive}
+              onValueChange={handleBackgroundKeepAliveToggle}
+              thumbColor={backgroundKeepAlive ? themeColors.primary : themeColors.secondaryText}
+              trackColor={{ false: themeColors.borderColor, true: themeColors.primary + '40' }}
+              disabled={isLoading || isSettingsUpdating}
             />
           </View>
         </SettingsSection>

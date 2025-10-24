@@ -48,6 +48,7 @@ interface ServerStatus {
   offerSDP?: string;
   signalingURL?: string;
   startTime?: Date;
+  backgroundKeepAlive?: boolean;
 }
 
 export class LocalServerService extends SimpleEventEmitter {
@@ -62,6 +63,7 @@ export class LocalServerService extends SimpleEventEmitter {
   private settingsPromise: Promise<void> | null = null;
   private autoStart: boolean = false;
   private allowExternalAccess: boolean = true;
+  private backgroundKeepAlive: boolean = false;
   private readonly SETTINGS_KEY = 'local_server_preferences';
 
   private handlePeerConnected = () => {
@@ -96,6 +98,9 @@ export class LocalServerService extends SimpleEventEmitter {
             if (typeof parsed.allowExternalAccess === 'boolean') {
               this.allowExternalAccess = parsed.allowExternalAccess;
             }
+            if (typeof parsed.backgroundKeepAlive === 'boolean') {
+              this.backgroundKeepAlive = parsed.backgroundKeepAlive;
+            }
           }
         } catch (error) {
         } finally {
@@ -114,7 +119,8 @@ export class LocalServerService extends SimpleEventEmitter {
     try {
       const payload = JSON.stringify({
         autoStart: this.autoStart,
-        allowExternalAccess: this.allowExternalAccess
+        allowExternalAccess: this.allowExternalAccess,
+        backgroundKeepAlive: this.backgroundKeepAlive
       });
       await AsyncStorage.setItem(this.SETTINGS_KEY, payload);
     } catch (error) {
@@ -171,7 +177,11 @@ export class LocalServerService extends SimpleEventEmitter {
       });
       this.emit('peerCountChanged', this.peerCount);
 
-  await enableLocalServerBackgroundSupport().catch(() => {});
+      if (this.backgroundKeepAlive) {
+        await enableLocalServerBackgroundSupport().catch(() => {});
+      } else {
+        await disableLocalServerBackgroundSupport().catch(() => {});
+      }
       this.emit('statusChanged', this.getStatus());
 
       logger.info(`webrtc_server_started signaling:${this.signalingURL}`, 'webrtc');
@@ -245,8 +255,8 @@ export class LocalServerService extends SimpleEventEmitter {
       this.peerCount = 0;
 
       this.emit('serverStopped');
-  await disableLocalServerBackgroundSupport().catch(() => {});
-  this.emit('peerCountChanged', this.peerCount);
+      await disableLocalServerBackgroundSupport().catch(() => {});
+      this.emit('peerCountChanged', this.peerCount);
       this.emit('statusChanged', this.getStatus());
 
       return { success: true };
@@ -266,7 +276,8 @@ export class LocalServerService extends SimpleEventEmitter {
       peerCount: this.peerCount,
       offerSDP: this.offerSDP || undefined,
       signalingURL: this.signalingURL || undefined,
-      startTime: this.startTime || undefined
+      startTime: this.startTime || undefined,
+      backgroundKeepAlive: this.backgroundKeepAlive
     };
   }
 
@@ -278,11 +289,12 @@ export class LocalServerService extends SimpleEventEmitter {
     return this.offerSDP;
   }
 
-  async getSettings(): Promise<{ autoStart: boolean; allowExternalAccess: boolean }> {
+  async getSettings(): Promise<{ autoStart: boolean; allowExternalAccess: boolean; backgroundKeepAlive: boolean }> {
     await this.ensureSettingsLoaded();
     return {
       autoStart: this.autoStart,
-      allowExternalAccess: this.allowExternalAccess
+      allowExternalAccess: this.allowExternalAccess,
+      backgroundKeepAlive: this.backgroundKeepAlive
     };
   }
 
@@ -329,7 +341,44 @@ export class LocalServerService extends SimpleEventEmitter {
     return { success: true };
   }
 
+  async setBackgroundKeepAliveEnabled(enabled: boolean): Promise<void> {
+    await this.ensureSettingsLoaded();
+    if (this.backgroundKeepAlive === enabled) {
+      return;
+    }
+
+    const previous = this.backgroundKeepAlive;
+    this.backgroundKeepAlive = enabled;
+
+    try {
+      if (this.isRunning) {
+        if (enabled) {
+          await enableLocalServerBackgroundSupport();
+        } else {
+          await disableLocalServerBackgroundSupport();
+        }
+      }
+      await this.saveSettings();
+      this.emit('statusChanged', this.getStatus());
+    } catch (error) {
+      this.backgroundKeepAlive = previous;
+      if (this.isRunning) {
+        if (previous) {
+          await enableLocalServerBackgroundSupport().catch(() => {});
+        } else {
+          await disableLocalServerBackgroundSupport().catch(() => {});
+        }
+      }
+      await this.saveSettings().catch(() => {});
+      this.emit('statusChanged', this.getStatus());
+      throw error instanceof Error ? error : new Error('background_toggle_failed');
+    }
+  }
+
   async runBackgroundMaintenance(): Promise<void> {
+    if (!this.backgroundKeepAlive) {
+      return;
+    }
     if (!this.isRunning) {
       return;
     }
