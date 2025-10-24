@@ -37,6 +37,7 @@ export default function LocalServerScreen() {
 
   useEffect(() => {
     const server = localServerWebRTC;
+    let mounted = true;
 
     const handleServerStarted = (data: any) => {
       setServerStatus(prev => ({
@@ -61,15 +62,39 @@ export default function LocalServerScreen() {
       setIsLoading(false);
     };
 
+    const handleStatusChanged = (status: ServerStatus) => {
+      setServerStatus(status);
+    };
+
+    const handlePeerCountChanged = (count: number) => {
+      setServerStatus(prev => ({
+        ...prev,
+        peerCount: count,
+      }));
+    };
+
+    localServerWebRTC.getSettings().then(settings => {
+      if (!mounted) {
+        return;
+      }
+      setAutoStart(settings.autoStart);
+      setAllowExternalAccess(settings.allowExternalAccess);
+    }).catch(() => {});
+
     server.on('serverStarted', handleServerStarted);
     server.on('serverStopped', handleServerStopped);
+    server.on('statusChanged', handleStatusChanged);
+    server.on('peerCountChanged', handlePeerCountChanged);
 
     const status = server.getStatus();
     setServerStatus(status);
 
     return () => {
+      mounted = false;
       server.off('serverStarted', handleServerStarted);
       server.off('serverStopped', handleServerStopped);
+      server.off('statusChanged', handleStatusChanged);
+      server.off('peerCountChanged', handlePeerCountChanged);
     };
   }, []);
 
@@ -90,6 +115,36 @@ export default function LocalServerScreen() {
       }
     } catch (error) {
       Alert.alert('Error', 'An unexpected error occurred');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleAutoStartToggle = async (value: boolean) => {
+    setAutoStart(value);
+    try {
+      await localServerWebRTC.setAutoStartEnabled(value);
+    } catch (error) {
+      setAutoStart(!value);
+      Alert.alert('Error', 'Failed to update auto start');
+    }
+  };
+
+  const handleAllowExternalAccessToggle = async (value: boolean) => {
+    if (isLoading) {
+      return;
+    }
+    setAllowExternalAccess(value);
+    setIsLoading(true);
+    try {
+      const result = await localServerWebRTC.setExternalAccessEnabled(value);
+      if (!result.success) {
+        setAllowExternalAccess(!value);
+        Alert.alert('Error', result.error || 'Failed to update network access');
+      }
+    } catch (error) {
+      setAllowExternalAccess(!value);
+      Alert.alert('Error', 'Failed to update network access');
     } finally {
       setIsLoading(false);
     }
@@ -334,9 +389,10 @@ export default function LocalServerScreen() {
             </View>
             <Switch
               value={allowExternalAccess}
-              onValueChange={setAllowExternalAccess}
+              onValueChange={handleAllowExternalAccessToggle}
               thumbColor={allowExternalAccess ? themeColors.primary : themeColors.secondaryText}
               trackColor={{ false: themeColors.borderColor, true: themeColors.primary + '40' }}
+              disabled={isLoading}
             />
           </View>
 
@@ -357,7 +413,7 @@ export default function LocalServerScreen() {
             </View>
             <Switch
               value={autoStart}
-              onValueChange={setAutoStart}
+              onValueChange={handleAutoStartToggle}
               thumbColor={autoStart ? themeColors.primary : themeColors.secondaryText}
               trackColor={{ false: themeColors.borderColor, true: themeColors.primary + '40' }}
             />

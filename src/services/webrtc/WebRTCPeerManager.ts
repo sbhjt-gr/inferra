@@ -264,4 +264,21 @@ export class WebRTCPeerManager {
   getLastOfferPeerId(): string | null {
     return this.lastOfferPeerId;
   }
+
+  sendKeepAlive(): number {
+    let active = 0;
+    this.dataChannels.forEach((channel, peerId) => {
+      if (channel.readyState === 'open') {
+        try {
+          channel.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
+          active += 1;
+        } catch (error) {
+          this.closePeerConnection(peerId);
+        }
+      } else if (channel.readyState === 'closed') {
+        this.closePeerConnection(peerId);
+      }
+    });
+    return active;
+  }
 }
