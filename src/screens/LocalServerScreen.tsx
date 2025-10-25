@@ -11,6 +11,7 @@ import { RootStackParamList } from '../types/navigation';
 import AppHeader from '../components/AppHeader';
 import SettingsSection from '../components/settings/SettingsSection';
 import { localServerWebRTC } from '../services/LocalServerWebRTC';
+import { localServerPlatformBackground } from '../services/LocalServerPlatformBackground';
 
 interface ServerStatus {
   isRunning: boolean;
@@ -78,6 +79,7 @@ export default function LocalServerScreen() {
 
     try {
       if (serverStatus.isRunning) {
+        await localServerPlatformBackground.stop();
         const result = await localServerWebRTC.stop();
         if (!result.success) {
           Alert.alert('Error', result.error || 'Failed to stop server');
@@ -86,6 +88,9 @@ export default function LocalServerScreen() {
         const result = await localServerWebRTC.start();
         if (!result.success) {
           Alert.alert('Error', result.error || 'Failed to start server');
+        } else if (allowExternalAccess) {
+          const port = parsePortFromURL(result.signalingURL);
+          await localServerPlatformBackground.start({ port, url: result.signalingURL });
         }
       }
     } catch (error) {
@@ -94,6 +99,33 @@ export default function LocalServerScreen() {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!serverStatus.isRunning) {
+      localServerPlatformBackground.stop().catch(() => {});
+      return;
+    }
+    if (allowExternalAccess) {
+      const port = parsePortFromURL(serverStatus.signalingURL);
+      localServerPlatformBackground.start({ port, url: serverStatus.signalingURL }).catch(() => {});
+    } else {
+      localServerPlatformBackground.stop().catch(() => {});
+    }
+  }, [allowExternalAccess, serverStatus.isRunning, serverStatus.signalingURL]);
+
+  useEffect(() => {
+    if (!serverStatus.isRunning) {
+      return;
+    }
+    const port = parsePortFromURL(serverStatus.signalingURL);
+    localServerPlatformBackground.update({ peerCount: serverStatus.peerCount, url: serverStatus.signalingURL, port }).catch(() => {});
+  }, [serverStatus.peerCount, serverStatus.isRunning, serverStatus.signalingURL]);
+
+  useEffect(() => {
+    return () => {
+      localServerPlatformBackground.stop().catch(() => {});
+    };
+  }, []);
 
   const getStatusText = () => {
     if (isLoading) return 'Starting...';
@@ -117,6 +149,20 @@ export default function LocalServerScreen() {
       return `${hours}h ${minutes % 60}m`;
     }
     return `${minutes}m`;
+  };
+
+  const parsePortFromURL = (value?: string) => {
+    if (!value) return undefined;
+    try {
+      const parsed = new URL(value);
+      if (parsed.port) {
+        const resolved = Number(parsed.port);
+        return Number.isFinite(resolved) ? resolved : undefined;
+      }
+      return parsed.protocol === 'https:' ? 443 : 80;
+    } catch (error) {
+      return undefined;
+    }
   };
 
   const ProfileButton = () => {
