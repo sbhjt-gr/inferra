@@ -60,7 +60,6 @@ export class TCPSignalingServer {
   private onAnswerReceived: ((answer: string, peerId: string) => void | Promise<void>) | null = null;
   private isRunning: boolean = false;
   private localIP: string = '';
-  private bindingHost: string = '0.0.0.0';
   private connectionStates: Map<string, ConnectionState> = new Map();
   private activeModel: { path: string; name: string; startedAt: string } | null = null;
   private readonly chatApiHandler: ApiHandler;
@@ -110,12 +109,8 @@ export class TCPSignalingServer {
   async start(
     offerSDP: string,
     offerPeerId: string,
-    onAnswer: (answer: string, peerId: string) => void | Promise<void>,
-    options?: { allowExternalAccess?: boolean }
+    onAnswer: (answer: string, peerId: string) => void | Promise<void>
   ): Promise<ServerStatus> {
-    const allowExternal = options?.allowExternalAccess !== false;
-    const host = allowExternal ? '0.0.0.0' : '127.0.0.1';
-
     if (this.isRunning) {
       this.offerSDP = offerSDP;
       this.offerPeerId = offerPeerId;
@@ -133,17 +128,12 @@ export class TCPSignalingServer {
     this.onAnswerReceived = onAnswer;
 
     try {
-      this.bindingHost = host;
       this.server = TcpSocket.createServer((socket) => {
         this.handleConnection(socket);
       });
 
-      this.server.listen({ port: this.port, host }, async () => {
-        if (host === '127.0.0.1') {
-          this.localIP = '127.0.0.1';
-        } else {
-          this.localIP = await this.detectLocalIP();
-        }
+      this.server.listen({ port: this.port, host: '0.0.0.0' }, async () => {
+        this.localIP = await this.detectLocalIP();
         this.isRunning = true;
         
         logger.info(`tcp_signaling_server_started port:${this.port} ip:${this.localIP}`, 'webrtc');
@@ -180,38 +170,11 @@ export class TCPSignalingServer {
       setTimeout(() => {
         clearInterval(checkInterval);
         if (!this.isRunning) {
-          this.localIP = this.bindingHost;
+          this.localIP = '0.0.0.0';
           this.isRunning = true;
         }
         resolve();
       }, 2000);
-    });
-  }
-
-  async maintainBackgroundConnections(): Promise<void> {
-    if (!this.isRunning) {
-      return;
-    }
-    this.clients.forEach((socket, peerId) => {
-      const state = this.connectionStates.get(peerId);
-      if (!state) {
-        return;
-      }
-      if (socket.destroyed) {
-        this.clients.delete(peerId);
-        if (state.offerTimer) {
-          clearTimeout(state.offerTimer);
-        }
-        this.connectionStates.delete(peerId);
-        return;
-      }
-      if (!state.isHTTP) {
-        try {
-          this.sendMessage(socket, { type: 'ping', data: 'keepalive' });
-        } catch (error) {
-          logger.warn(`tcp_keepalive_failed peer:${peerId}`, 'webrtc');
-        }
-      }
     });
   }
 
@@ -815,7 +778,6 @@ export class TCPSignalingServer {
     this.offerSDP = '';
     this.offerPeerId = '';
     this.onAnswerReceived = null;
-    this.bindingHost = '0.0.0.0';
 
     logger.info('tcp_signaling_server_stopped', 'webrtc');
   }

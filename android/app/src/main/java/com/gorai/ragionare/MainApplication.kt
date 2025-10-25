@@ -16,9 +16,8 @@ import com.facebook.soloader.SoLoader
 import expo.modules.ApplicationLifecycleDispatcher
 import expo.modules.ReactNativeHostWrapper
 
-import com.gorai.ragionare.notifications.DownloadNotificationPackage
-import com.gorai.ragionare.localserver.LocalServerForegroundPackage
 import com.inferra.transfer.TransferPackage
+import com.gorai.ragionare.notifications.DownloadNotificationPackage
 
 class MainApplication : Application(), ReactApplication {
 
@@ -29,7 +28,6 @@ class MainApplication : Application(), ReactApplication {
             val packages = PackageList(this).packages.toMutableList()
             packages.add(TransferPackage())
             packages.add(DownloadNotificationPackage())
-            packages.add(LocalServerForegroundPackage())
             return packages
           }
 
@@ -49,6 +47,7 @@ class MainApplication : Application(), ReactApplication {
     super.onCreate()
     SoLoader.init(this, OpenSourceMergedSoMapping)
     if (BuildConfig.IS_NEW_ARCHITECTURE_ENABLED) {
+      // If you opted-in for the New Architecture, we load the native entry point for this app.
       load()
     }
     ApplicationLifecycleDispatcher.onApplicationCreate(this)

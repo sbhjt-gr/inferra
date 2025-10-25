@@ -38,8 +38,7 @@ export default {
       infoPlist: {
         UIBackgroundModes: [
           "fetch",
-          "remote-notification",
-          "processing"
+          "remote-notification"
         ],
         NSCameraUsageDescription: "Camera access enables direct file capture uploads and OCR analysis features inside Inferra.",
         NSLocalNetworkUsageDescription: "Inferra uses local network access to share your AI chat interface with other devices on your WiFi network, allowing you to access your assistant from browsers on computers, tablets, or other phones.",

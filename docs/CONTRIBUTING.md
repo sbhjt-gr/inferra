@@ -16,7 +16,7 @@ Contributions are welcome! You can find reported bugs and feature requests in th
 
 ### Proposing New Features
 
-If you want to contribute a feature of your own, open a new [issue](https://github.com/sbhjt-gr/inferra/issues) first and describe your idea clearly. Your proposal should explain:
+If you want to contribute a feature of your own, open a new issue first and describe your idea clearly. Your proposal should explain:
 
 - **What the feature is**: A clear description of the functionality you want to add
 - **Why it's useful**: The problem it solves or the value it adds to users
