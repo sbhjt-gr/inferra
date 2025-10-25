@@ -65,7 +65,7 @@ async function registerTask() {
           const resolvedPort = parsed.port ? Number(parsed.port) : parsed.protocol === 'https:' ? 443 : 80;
           port = Number.isFinite(resolvedPort) ? resolvedPort : undefined;
         } catch (error) {
-          logger.warn('local_server_background_port_parse_failed', 'webrtc');
+          logger.warn('tunnel_port_parse_failed', 'webrtc');
         }
       }
       if (status) {
@@ -85,13 +85,15 @@ async function registerTask() {
         }
         metadata.updatedAt = new Date().toISOString();
       }
+      logger.info(`tunnel_start port:${port}`, 'webrtc');
       await LocalServerBackground.start({
         port,
         identifier: status?.offerSDP,
         metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
       });
+      logger.info('tunnel_started', 'webrtc');
     } catch (error) {
-      logger.error('local_server_background_enable_failed', 'webrtc');
+      logger.error('tunnel_start_failed', 'webrtc');
     }
     return;
   }
@@ -102,7 +104,7 @@ async function unregisterTask() {
     try {
       await LocalServerBackground.stop();
     } catch (error) {
-      logger.error('local_server_background_disable_failed', 'webrtc');
+      logger.error('tunnel_stop_failed', 'webrtc');
     }
   }
 }
@@ -113,11 +115,14 @@ async function syncRegistration() {
     await unregisterTask();
     return;
   }
-  if (currentState === 'background' || currentState === 'inactive') {
-    await registerTask();
-  } else {
+  
+  const status = server.getStatus();
+  if (!status.backgroundKeepAlive) {
     await unregisterTask();
+    return;
   }
+  
+  await registerTask();
 }
 
 function handleAppStateChange(nextState: AppStateStatus) {

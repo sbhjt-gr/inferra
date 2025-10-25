@@ -26,15 +26,18 @@ class LocalServerBackground: RCTEventEmitter {
 
   @objc(start:resolver:rejecter:)
   func start(_ options: NSDictionary?, resolver: @escaping RCTPromiseResolveBlock, rejecter: @escaping RCTPromiseRejectBlock) {
+    NSLog("[LocalServerBackground] start called with options: %@", options ?? "nil")
     queue.async {
       self.latestOptions = options
       self.loadManager { manager, error in
         if let error = error {
+          NSLog("[LocalServerBackground] manager load failed: %@", error.localizedDescription)
           self.writeSharedState(running: false, options: self.latestOptions, error: error)
           rejecter("manager_load_failed", error.localizedDescription, error)
           return
         }
         guard let manager = manager else {
+          NSLog("[LocalServerBackground] manager missing")
           self.writeSharedState(running: false, options: self.latestOptions, error: nil)
           rejecter("manager_missing", "Manager unavailable", nil)
           return
@@ -44,12 +47,14 @@ class LocalServerBackground: RCTEventEmitter {
         manager.isEnabled = true
         manager.saveToPreferences { error in
           if let error = error {
+            NSLog("[LocalServerBackground] preferences save failed: %@", error.localizedDescription)
             self.writeSharedState(running: false, options: self.latestOptions, error: error)
             rejecter("preferences_save_failed", error.localizedDescription, error)
             return
           }
           manager.loadFromPreferences { loadError in
             if let loadError = loadError {
+              NSLog("[LocalServerBackground] preferences reload failed: %@", loadError.localizedDescription)
               self.writeSharedState(running: false, options: self.latestOptions, error: loadError)
               rejecter("preferences_reload_failed", loadError.localizedDescription, loadError)
               return
@@ -181,16 +186,39 @@ class LocalServerBackground: RCTEventEmitter {
 
   private func startTunnel(manager: NETunnelProviderManager, options: NSDictionary?, resolver: @escaping RCTPromiseResolveBlock, rejecter: @escaping RCTPromiseRejectBlock) {
     guard let session = manager.connection as? NETunnelProviderSession else {
+      NSLog("[LocalServerBackground] session unavailable")
       writeSharedState(running: false, options: options, error: nil)
       rejecter("session_unavailable", "Session unavailable", nil)
       return
     }
+    
+    let status = session.status
+    NSLog("[LocalServerBackground] starting tunnel, current status: %d", status.rawValue)
+    
+    if status == .connected {
+      NSLog("[LocalServerBackground] tunnel already connected")
+      startMaintenanceTimer()
+      writeSharedState(running: true, options: options, error: nil)
+      resolver(nil)
+      return
+    }
+    
+    if status == .connecting {
+      NSLog("[LocalServerBackground] tunnel already connecting, waiting")
+      startMaintenanceTimer()
+      writeSharedState(running: true, options: options, error: nil)
+      resolver(nil)
+      return
+    }
+    
     do {
-      try session.startTunnel(options: nil)
+      try session.startVPNTunnel()
+      NSLog("[LocalServerBackground] tunnel start call succeeded")
       startMaintenanceTimer()
       writeSharedState(running: true, options: options, error: nil)
       resolver(nil)
     } catch {
+      NSLog("[LocalServerBackground] tunnel start failed: %@", error.localizedDescription)
       writeSharedState(running: false, options: options, error: error)
       rejecter("start_failed", error.localizedDescription, error)
     }

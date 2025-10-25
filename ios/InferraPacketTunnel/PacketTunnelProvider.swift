@@ -37,19 +37,23 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
   private var currentPort: Network.NWEndpoint.Port = Network.NWEndpoint.Port(rawValue: 62000)!
 
   override func startTunnel(options: [String : NSObject]?, completionHandler: @escaping (Error?) -> Void) {
+    NSLog("[PacketTunnel] startTunnel called with options: %@", options ?? [:])
     let settings = NEPacketTunnelNetworkSettings(tunnelRemoteAddress: "127.0.0.1")
     settings.ipv4Settings = NEIPv4Settings(addresses: ["192.0.2.1"], subnetMasks: ["255.255.255.0"])
     settings.ipv4Settings?.includedRoutes = [NEIPv4Route.default()]
     settings.mtu = 1500
     setTunnelNetworkSettings(settings) { error in
       if let error = error {
+        NSLog("[PacketTunnel] setTunnelNetworkSettings failed: %@", error.localizedDescription)
         completionHandler(error)
         return
       }
+      NSLog("[PacketTunnel] network settings configured, starting listener")
       self.queue.async {
         self.refreshSharedState()
         self.startListenerIfNeeded()
         self.startStateTimer()
+        NSLog("[PacketTunnel] tunnel fully started")
       }
       completionHandler(nil)
     }
@@ -73,13 +77,15 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
   }
 
   private func startListener(on port: Network.NWEndpoint.Port) {
+    NSLog("[PacketTunnel] startListener on port: %d", port.rawValue)
     do {
       let listener = try NWListener(using: .tcp, on: port)
       listener.newConnectionHandler = { [weak self] connection in
         self?.handle(connection: connection)
       }
-  listener.stateUpdateHandler = { [weak self] (state: NWListener.State) in
+      listener.stateUpdateHandler = { [weak self] (state: NWListener.State) in
         guard let self = self else { return }
+        NSLog("[PacketTunnel] listener state changed: %@", String(describing: state))
         if case .failed = state {
           self.restartListener(on: port)
         }
@@ -90,7 +96,9 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
       listener.start(queue: queue)
       self.listener = listener
       currentPort = port
+      NSLog("[PacketTunnel] listener started successfully on port: %d", port.rawValue)
     } catch {
+      NSLog("[PacketTunnel] listener failed to start: %@", error.localizedDescription)
       cancelTunnelWithError(error)
     }
   }

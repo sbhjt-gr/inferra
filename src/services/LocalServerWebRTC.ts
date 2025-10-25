@@ -178,11 +178,6 @@ export class LocalServerService extends SimpleEventEmitter {
       });
       this.emit('peerCountChanged', this.peerCount);
 
-      if (this.backgroundKeepAlive) {
-        await enableLocalServerBackgroundSupport().catch(() => {});
-      } else {
-        await disableLocalServerBackgroundSupport().catch(() => {});
-      }
       this.emit('statusChanged', this.getStatus());
 
       logger.info(`webrtc_server_started signaling:${this.signalingURL}`, 'webrtc');
