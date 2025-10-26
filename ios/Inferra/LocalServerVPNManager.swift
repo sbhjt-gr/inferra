@@ -1,9 +1,8 @@
 import Foundation
 import NetworkExtension
-import React
 
-@objc(LocalServerVPNManager)
-class LocalServerVPNManager: RCTEventEmitter {
+@objc(LocalServerVPNManagerImpl)
+class LocalServerVPNManagerImpl: RCTEventEmitter {
     private let providerBundleIdentifier = "com.gorai.inferra.InferraServerExtension"
     private var tunnelManager: NETunnelProviderManager?
     private var cachedStatus: NEVPNStatus = .invalid

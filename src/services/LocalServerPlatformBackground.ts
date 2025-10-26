@@ -47,14 +47,16 @@ class LocalServerPlatformBackground {
     if (Platform.OS === 'ios' && iosNativeModule) {
       this.iosEmitter = new NativeEventEmitter(NativeModules.LocalServerVPNManager);
       this.iosSubscription = this.iosEmitter.addListener('LocalServerVPNStatusChanged', this.handleIosStatus);
-      iosNativeModule.getStatus().then(result => {
-        this.lastStatus = {
-          isRunning: !!result?.isRunning,
-          status: result?.status,
-          url: result?.url,
-        };
-        this.emit();
-      }).catch(() => {});
+      if (typeof iosNativeModule.getStatus === 'function') {
+        iosNativeModule.getStatus().then(result => {
+          this.lastStatus = {
+            isRunning: !!result?.isRunning,
+            status: result?.status,
+            url: result?.url,
+          };
+          this.emit();
+        }).catch(() => {});
+      }
     }
   }
 
