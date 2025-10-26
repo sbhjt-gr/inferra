@@ -4,7 +4,7 @@ import React
 
 @objc(LocalServerVPNManager)
 class LocalServerVPNManager: RCTEventEmitter {
-    private let providerBundleIdentifier = "ai.inferra.InferraServerExtension"
+    private let providerBundleIdentifier = "com.gorai.inferra.InferraServerExtension"
     private var tunnelManager: NETunnelProviderManager?
     private var cachedStatus: NEVPNStatus = .invalid
 

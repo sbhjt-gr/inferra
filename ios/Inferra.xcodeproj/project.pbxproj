@@ -44,10 +44,10 @@
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = Inferra/SplashScreen.storyboard; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
 		E1B0F0022A9F000100000001 /* LocalServerVPNManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LocalServerVPNManager.swift; path = Inferra/LocalServerVPNManager.swift; sourceTree = "<group>"; };
-		E1B0F1022A9F000100000001 /* PacketTunnelProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PacketTunnelProvider.swift; path = PacketTunnelProvider.swift; sourceTree = "<group>"; };
-		E1B0F1032A9F000100000001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; name = Info.plist; path = Info.plist; sourceTree = "<group>"; };
+		E1B0F1022A9F000100000001 /* PacketTunnelProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelProvider.swift; sourceTree = "<group>"; };
+		E1B0F1032A9F000100000001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		E1B0F1042A9F000100000001 /* InferraServerExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = InferraServerExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
-		E1B0F1112A9F000100000001 /* InferraServerExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; name = InferraServerExtension.entitlements; path = InferraServerExtension.entitlements; sourceTree = "<group>"; };
+		E1B0F1112A9F000100000001 /* InferraServerExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = InferraServerExtension.entitlements; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = Inferra/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* Inferra-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "Inferra-Bridging-Header.h"; path = "Inferra/Inferra-Bridging-Header.h"; sourceTree = "<group>"; };
@@ -217,13 +217,9 @@
 				LastUpgradeCheck = 1130;
 				TargetAttributes = {
 					13B07F861A680F5B00A75B9A = {
+						DevelopmentTeam = GXKD77CCQ6;
 						LastSwiftMigration = 1250;
 						ProvisioningStyle = Automatic;
-						DevelopmentTeam = "GXKD77CCQ6";
-					};
-					E1B0F1072A9F000100000001 = {
-						ProvisioningStyle = Automatic;
-						DevelopmentTeam = "GXKD77CCQ6";
 					};
 				};
 			};
@@ -466,7 +462,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "GXKD77CCQ6";
+				DEVELOPMENT_TEAM = GXKD77CCQ6;
 				ENABLE_BITCODE = NO;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(inherited)",
@@ -505,7 +501,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "GXKD77CCQ6";
+				DEVELOPMENT_TEAM = GXKD77CCQ6;
 				INFOPLIST_FILE = Inferra/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -660,7 +656,7 @@
 				CODE_SIGN_ENTITLEMENTS = InferraServerExtension/InferraServerExtension.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = "GXKD77CCQ6";
+				DEVELOPMENT_TEAM = GXKD77CCQ6;
 				INFOPLIST_FILE = InferraServerExtension/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -669,8 +665,9 @@
 					"@executable_path/../../Frameworks",
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
-				PRODUCT_BUNDLE_IDENTIFIER = ai.inferra.InferraServerExtension;
+				PRODUCT_BUNDLE_IDENTIFIER = com.gorai.inferra.InferraServerExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SKIP_INSTALL = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -685,7 +682,7 @@
 				CODE_SIGN_ENTITLEMENTS = InferraServerExtension/InferraServerExtension.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = "GXKD77CCQ6";
+				DEVELOPMENT_TEAM = GXKD77CCQ6;
 				INFOPLIST_FILE = InferraServerExtension/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -694,8 +691,9 @@
 					"@executable_path/../../Frameworks",
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
-				PRODUCT_BUNDLE_IDENTIFIER = ai.inferra.InferraServerExtension;
+				PRODUCT_BUNDLE_IDENTIFIER = com.gorai.inferra.InferraServerExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SKIP_INSTALL = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
