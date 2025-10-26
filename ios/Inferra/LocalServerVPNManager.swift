@@ -1,8 +1,8 @@
 import Foundation
 import NetworkExtension
 
-@objc(LocalServerVPNManagerImpl)
-class LocalServerVPNManagerImpl: RCTEventEmitter {
+@objc(LocalServerVPNManager)
+class LocalServerVPNManager: RCTEventEmitter {
     private let providerBundleIdentifier = "com.gorai.inferra.InferraServerExtension"
     private var tunnelManager: NETunnelProviderManager?
     private var cachedStatus: NEVPNStatus = .invalid
@@ -17,29 +17,28 @@ class LocalServerVPNManagerImpl: RCTEventEmitter {
     }
 
     override func supportedEvents() -> [String]! {
-        return ["LocalServerVPNStatusChanged"]
+        ["LocalServerVPNStatusChanged"]
     }
 
     override class func requiresMainQueueSetup() -> Bool {
-        return true
+        true
     }
 
     @objc override func startObserving() {
         sendStatusEvent()
     }
 
-    @objc override func stopObserving() {
-    }
+    @objc override func stopObserving() {}
 
     @objc
     func startVPNServer(_ options: NSDictionary, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
         loadManager { [weak self] manager, error in
-            guard let self = self else { return }
-            if let error = error {
+            guard let self else { return }
+            if let error {
                 reject("vpn_load_failed", error.localizedDescription, error)
                 return
             }
-            guard let manager = manager else {
+            guard let manager else {
                 reject("vpn_missing_manager", "Manager unavailable", nil)
                 return
             }
@@ -51,7 +50,7 @@ class LocalServerVPNManagerImpl: RCTEventEmitter {
             manager.localizedDescription = "Inferra Local Server"
             manager.isEnabled = true
             manager.saveToPreferences { saveError in
-                if let saveError = saveError {
+                if let saveError {
                     reject("vpn_save_failed", saveError.localizedDescription, saveError)
                     return
                 }
@@ -69,8 +68,8 @@ class LocalServerVPNManagerImpl: RCTEventEmitter {
                         payload["url"] = urlValue
                     }
                     resolve(payload)
-                } catch let startError {
-                    reject("vpn_start_failed", startError.localizedDescription, startError)
+                } catch {
+                    reject("vpn_start_failed", error.localizedDescription, error)
                 }
             }
         }
@@ -79,12 +78,12 @@ class LocalServerVPNManagerImpl: RCTEventEmitter {
     @objc
     func stopVPNServer(_ resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
         loadManager { [weak self] manager, error in
-            guard let self = self else { return }
-            if let error = error {
+            guard let self else { return }
+            if let error {
                 reject("vpn_load_failed", error.localizedDescription, error)
                 return
             }
-            guard let manager = manager else {
+            guard let manager else {
                 resolve(["success": false])
                 return
             }
@@ -98,8 +97,8 @@ class LocalServerVPNManagerImpl: RCTEventEmitter {
     @objc
     func getStatus(_ resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
         loadManager { [weak self] manager, error in
-            guard let self = self else { return }
-            if let error = error {
+            guard let self else { return }
+            if let error {
                 reject("vpn_load_failed", error.localizedDescription, error)
                 return
             }
@@ -117,12 +116,12 @@ class LocalServerVPNManagerImpl: RCTEventEmitter {
     @objc
     func updateVPNConfiguration(_ options: NSDictionary, resolver resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
         loadManager { [weak self] manager, error in
-            guard let self = self else { return }
-            if let error = error {
+            guard let self else { return }
+            if let error {
                 reject("vpn_load_failed", error.localizedDescription, error)
                 return
             }
-            guard let manager = manager else {
+            guard let manager else {
                 resolve(["success": false])
                 return
             }
@@ -137,7 +136,7 @@ class LocalServerVPNManagerImpl: RCTEventEmitter {
             manager.protocolConfiguration = configuration
             manager.isEnabled = true
             manager.saveToPreferences { saveError in
-                if let saveError = saveError {
+                if let saveError {
                     reject("vpn_save_failed", saveError.localizedDescription, saveError)
                     return
                 }
@@ -170,7 +169,7 @@ class LocalServerVPNManagerImpl: RCTEventEmitter {
 
     private func loadManager(completion: @escaping (NETunnelProviderManager?, Error?) -> Void) {
         NETunnelProviderManager.loadAllFromPreferences { managers, error in
-            if let error = error {
+            if let error {
                 completion(nil, error)
                 return
             }
@@ -224,10 +223,9 @@ class LocalServerVPNManagerImpl: RCTEventEmitter {
             "isRunning": status == .connected || status == .connecting,
             "status": statusString(status)
         ]
-        if let configuration = tunnelManager?.protocolConfiguration as? NETunnelProviderProtocol {
-            if let url = configuration.providerConfiguration?["url"] as? String {
-                info["url"] = url
-            }
+        if let configuration = tunnelManager?.protocolConfiguration as? NETunnelProviderProtocol,
+           let url = configuration.providerConfiguration?["url"] as? String {
+            info["url"] = url
         }
         sendEvent(withName: "LocalServerVPNStatusChanged", body: info)
     }

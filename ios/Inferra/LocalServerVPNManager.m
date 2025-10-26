@@ -1,7 +1,7 @@
 #import <React/RCTBridgeModule.h>
 #import <React/RCTEventEmitter.h>
 
-@interface RCT_EXTERN_REMAP_MODULE(LocalServerVPNManager, LocalServerVPNManagerImpl, RCTEventEmitter)
+@interface RCT_EXTERN_MODULE(LocalServerVPNManager, RCTEventEmitter)
 
 RCT_EXTERN_METHOD(startVPNServer:(NSDictionary *)options
                   resolver:(RCTPromiseResolveBlock)resolve
@@ -16,10 +16,5 @@ RCT_EXTERN_METHOD(getStatus:(RCTPromiseResolveBlock)resolve
 RCT_EXTERN_METHOD(updateVPNConfiguration:(NSDictionary *)options
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
-
-+ (BOOL)requiresMainQueueSetup
-{
-    return YES;
-}
 
 @end
