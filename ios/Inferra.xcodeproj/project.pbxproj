@@ -12,7 +12,6 @@
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
 		61A9E0935FCA6B42F98505F6 /* libPods-Inferra.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 821AE3A9A8618269F8B43ACF /* libPods-Inferra.a */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
-		E1B0F0012A9F000100000001 /* LocalServerVPNManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1B0F0022A9F000100000001 /* LocalServerVPNManager.swift */; };
 		E1B0F0032A9F000100000002 /* LocalServerVPNManager.m in Sources */ = {isa = PBXBuildFile; fileRef = E1B0F0042A9F000100000002 /* LocalServerVPNManager.m */; };
 		E1B0F1012A9F000100000001 /* PacketTunnelProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1B0F1022A9F000100000001 /* PacketTunnelProvider.swift */; };
 		E1B0F10C2A9F000100000001 /* InferraServerExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = E1B0F1042A9F000100000001 /* InferraServerExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -44,7 +43,6 @@
 		A77BD33F421407939F971B90 /* Pods-Inferra.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Inferra.release.xcconfig"; path = "Target Support Files/Pods-Inferra/Pods-Inferra.release.xcconfig"; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = Inferra/SplashScreen.storyboard; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
-		E1B0F0022A9F000100000001 /* LocalServerVPNManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LocalServerVPNManager.swift; path = Inferra/LocalServerVPNManager.swift; sourceTree = "<group>"; };
 		E1B0F0042A9F000100000002 /* LocalServerVPNManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = LocalServerVPNManager.m; path = Inferra/LocalServerVPNManager.m; sourceTree = "<group>"; };
 		E1B0F1022A9F000100000001 /* PacketTunnelProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelProvider.swift; sourceTree = "<group>"; };
 		E1B0F1032A9F000100000001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -73,7 +71,6 @@
 			children = (
 				F11748412D0307B40044C1D9 /* AppDelegate.swift */,
 				F11748442D0722820044C1D9 /* Inferra-Bridging-Header.h */,
-				E1B0F0022A9F000100000001 /* LocalServerVPNManager.swift */,
 				E1B0F0042A9F000100000002 /* LocalServerVPNManager.m */,
 				BB2F792B24A3F905000567C9 /* Supporting */,
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
@@ -440,7 +437,6 @@
 			files = (
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
 				2A11FCB4F6FA898AEEB7FD73 /* ExpoModulesProvider.swift in Sources */,
-				E1B0F0012A9F000100000001 /* LocalServerVPNManager.swift in Sources */,
 				E1B0F0032A9F000100000002 /* LocalServerVPNManager.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

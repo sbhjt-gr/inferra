@@ -120,9 +120,6 @@ export default {
         projectId: "5ef5d807-bc8b-4dcb-a3f4-2bad3c098b3e"
       },
     },
-    experiments: {
-      typedRoutes: true
-    },
     plugins: [
       "expo-font",
       "expo-web-browser",
