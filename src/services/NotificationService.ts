@@ -77,7 +77,7 @@ class NotificationService {
 
   private shouldSendNativeNotification(nativeDownloadId?: string): boolean {
     if (Platform.OS === 'android') {
-      return !!nativeDownloadId;
+      return false;
     }
     return true;
   }
