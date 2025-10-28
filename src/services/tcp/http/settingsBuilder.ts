@@ -1,104 +1,69 @@
-import { modelDownloader } from '../../ModelDownloader';
-import type { StoredModel } from '../../ModelDownloaderTypes';
-import { logger } from '../../../utils/logger';
+import type { ModelSettings } from '../../ModelSettingsService';
+import { DEFAULT_SETTINGS } from '../../../config/llamaConfig';
 
-type Context = {
-  getSelectedModelOption: () => any;
-  getSelectedProvider: () => string;
-  resolveProjectorPath: (modelPath: string | null, models: StoredModel[]) => string | null;
-};
+const num = (value: any) => (typeof value === 'number' && Number.isFinite(value) ? value : undefined);
 
-export async function buildCustomSettings(context: Context): Promise<any> {
-  try {
-    const selectedModelOption = context.getSelectedModelOption();
-    const selectedProvider = context.getSelectedProvider();
-    const models = await modelDownloader.getStoredModels();
-
-    const customSettings: any = {
-      model: null,
-      modelPath: null,
-      projectorPath: null,
-      isRemote: false,
-      provider: null,
-      modelType: null,
-      isExternal: false
-    };
-
-    if (selectedProvider === 'openai' || selectedProvider === 'anthropic' || selectedProvider === 'google') {
-      customSettings.isRemote = true;
-      customSettings.provider = selectedProvider;
-      customSettings.model = selectedProvider === 'openai'
-        ? 'gpt-4o-mini'
-        : selectedProvider === 'anthropic'
-          ? 'claude-3-5-sonnet-20241022'
-          : 'gemini-2.0-flash-exp';
-      return customSettings;
-    }
-
-    if (!selectedModelOption || typeof selectedModelOption !== 'object') {
-      return customSettings;
-    }
-
-    const isAppleFoundation = selectedModelOption.category === 'apple-foundation';
-    if (isAppleFoundation) {
-      customSettings.isRemote = true;
-      customSettings.provider = 'apple-foundation';
-      customSettings.model = selectedModelOption.modelId || selectedModelOption.name || 'apple-foundation';
-      return customSettings;
-    }
-
-    const hasPath = typeof selectedModelOption.path === 'string' && selectedModelOption.path.length > 0;
-    const hasUrl = typeof selectedModelOption.url === 'string' && selectedModelOption.url.length > 0;
-    const hasModelId = typeof selectedModelOption.modelId === 'string' && selectedModelOption.modelId.length > 0;
-    const isRemoteEntry = selectedModelOption.isRemote === true;
-
-    if (isRemoteEntry && hasModelId) {
-      customSettings.isRemote = true;
-      customSettings.provider = selectedModelOption.provider || 'unknown';
-      customSettings.model = selectedModelOption.modelId;
-      return customSettings;
-    }
-
-    if (!hasPath && !hasUrl) {
-      return customSettings;
-    }
-
-    let resolvedPath: string | null = null;
-    let targetModel: StoredModel | null = null;
-
-    if (hasPath) {
-      resolvedPath = selectedModelOption.path;
-      targetModel = models.find(model => model.path === resolvedPath) || null;
-    } else if (hasUrl) {
-      // URL matching not available in StoredModel type
-      targetModel = models.find(model => model.name === selectedModelOption.name) || null;
-      resolvedPath = targetModel?.path || null;
-    }
-
-    if (!resolvedPath) {
-      return customSettings;
-    }
-
-    customSettings.modelPath = resolvedPath;
-    customSettings.model = targetModel?.name || resolvedPath.split('/').pop() || 'model';
-    customSettings.modelType = targetModel?.modelType || null;
-    customSettings.isExternal = targetModel?.isExternal === true;
-
-    const projectorPath = context.resolveProjectorPath(resolvedPath, models);
-    customSettings.projectorPath = projectorPath;
-
-    return customSettings;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'settings_build_failed';
-    logger.error(`build_settings_failed:${message.replace(/\s+/g, '_')}`, 'webrtc');
-    return {
-      model: null,
-      modelPath: null,
-      projectorPath: null,
-      isRemote: false,
-      provider: null,
-      modelType: null,
-      isExternal: false
-    };
+export function buildCustomSettings(opts: any): ModelSettings | undefined {
+  if (!opts || typeof opts !== 'object') {
+    return undefined;
   }
+
+  const cfg: ModelSettings = {
+    ...DEFAULT_SETTINGS,
+    stopWords: [...DEFAULT_SETTINGS.stopWords],
+    drySequenceBreakers: [...DEFAULT_SETTINGS.drySequenceBreakers],
+    logitBias: DEFAULT_SETTINGS.logitBias.map(entry => [...entry])
+  };
+  let changed = false;
+
+  const apply = (key: keyof ModelSettings, val: any) => {
+    const v = num(val);
+    if (v === undefined) {
+      return;
+    }
+    (cfg as any)[key] = v;
+    changed = true;
+  };
+
+  apply('temperature', opts.temperature ?? opts.temp);
+  apply('topP', opts.top_p);
+  apply('topK', opts.top_k);
+  apply('minP', opts.min_p);
+  apply('maxTokens', opts.max_tokens);
+  apply('seed', opts.seed);
+  apply('mirostat', opts.mirostat);
+  apply('mirostatTau', opts.mirostat_tau);
+  apply('mirostatEta', opts.mirostat_eta);
+  apply('penaltyRepeat', opts.penalty_repeat);
+  apply('penaltyFreq', opts.frequency_penalty ?? opts.penalty_freq);
+  apply('penaltyPresent', opts.presence_penalty ?? opts.penalty_present);
+  apply('penaltyLastN', opts.penalty_last_n);
+  apply('dryMultiplier', opts.dry_multiplier);
+  apply('dryBase', opts.dry_base);
+  apply('dryAllowedLength', opts.dry_allowed_length);
+  apply('dryPenaltyLastN', opts.dry_penalty_last_n);
+  apply('xtcProbability', opts.xtc_probability);
+  apply('xtcThreshold', opts.xtc_threshold);
+  apply('typicalP', opts.typical_p);
+
+  if (Array.isArray(opts.stop)) {
+    const list = opts.stop.filter((item: any) => typeof item === 'string' && item.length > 0);
+    if (list.length > 0) {
+      cfg.stopWords = list;
+      changed = true;
+    }
+  } else if (typeof opts.stop === 'string' && opts.stop.length > 0) {
+    cfg.stopWords = [opts.stop];
+    changed = true;
+  }
+
+  if (typeof opts.system_prompt === 'string') {
+    cfg.systemPrompt = opts.system_prompt;
+    changed = true;
+  }
+
+  if (changed) {
+    return cfg;
+  }
+  return undefined;
 }
