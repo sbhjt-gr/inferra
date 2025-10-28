@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, StyleSheet, ScrollView, Text, TouchableOpacity, Alert, Switch, Clipboard, Share, Platform } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import QRCodeStyled from 'react-native-qrcode-styled';
@@ -12,6 +12,7 @@ import AppHeader from '../components/AppHeader';
 import SettingsSection from '../components/settings/SettingsSection';
 import { localServerWebRTC } from '../services/LocalServerWebRTC';
 import { localServerPlatformBackground } from '../services/LocalServerPlatformBackground';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface ServerStatus {
   isRunning: boolean;
@@ -20,6 +21,22 @@ interface ServerStatus {
   peerCount: number;
   startTime?: Date;
 }
+
+const AUTO_START_KEY = 'local_server_auto_start';
+
+const parsePortFromURL = (value?: string) => {
+  if (!value) return undefined;
+  try {
+    const parsed = new URL(value);
+    if (parsed.port) {
+      const resolved = Number(parsed.port);
+      return Number.isFinite(resolved) ? resolved : undefined;
+    }
+    return parsed.protocol === 'https:' ? 443 : 80;
+  } catch (error) {
+    return undefined;
+  }
+};
 
 export default function LocalServerScreen() {
   const { theme: currentTheme } = useTheme();
@@ -93,31 +110,133 @@ export default function LocalServerScreen() {
     };
   }, []);
 
-  const handleToggleServer = async () => {
+  const startServer = useCallback(async () => {
+    if (isLoading) {
+      return localServerWebRTC.isServerRunning();
+    }
+
+    if (localServerWebRTC.isServerRunning()) {
+      return true;
+    }
+
     setIsLoading(true);
 
     try {
-      if (serverStatus.isRunning) {
-        await localServerPlatformBackground.stop();
-        const result = await localServerWebRTC.stop();
-        if (!result.success) {
-          Alert.alert('Error', result.error || 'Failed to stop server');
-        }
-      } else {
-        const result = await localServerWebRTC.start();
-        if (!result.success) {
-          Alert.alert('Error', result.error || 'Failed to start server');
-        } else if (allowExternalAccess) {
-          const port = parsePortFromURL(result.signalingURL);
-          await localServerPlatformBackground.start({ port, url: result.signalingURL });
-        }
+      const result = await localServerWebRTC.start();
+      if (!result.success) {
+        Alert.alert('Error', result.error || 'Failed to start server');
+        return false;
       }
+
+      if (allowExternalAccess) {
+        const port = parsePortFromURL(result.signalingURL);
+        await localServerPlatformBackground.start({ port, url: result.signalingURL });
+      }
+
+      return true;
     } catch (error) {
       Alert.alert('Error', 'An unexpected error occurred');
+      return false;
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [allowExternalAccess, isLoading]);
+
+  const stopServer = useCallback(async () => {
+    if (isLoading) {
+      return !localServerWebRTC.isServerRunning();
+    }
+
+    if (!localServerWebRTC.isServerRunning()) {
+      return true;
+    }
+
+    setIsLoading(true);
+
+    try {
+      await localServerPlatformBackground.stop();
+      const result = await localServerWebRTC.stop();
+      if (!result.success) {
+        Alert.alert('Error', result.error || 'Failed to stop server');
+        return false;
+      }
+      return true;
+    } catch (error) {
+      Alert.alert('Error', 'An unexpected error occurred');
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isLoading]);
+
+  const handleToggleServer = useCallback(async () => {
+    if (isLoading) {
+      return;
+    }
+
+    if (serverStatus.isRunning) {
+      await stopServer();
+    } else {
+      await startServer();
+    }
+  }, [isLoading, serverStatus.isRunning, startServer, stopServer]);
+
+  const handleAutoStartChange = useCallback(async (value: boolean) => {
+    setAutoStart(value);
+    try {
+      await AsyncStorage.setItem(AUTO_START_KEY, value ? 'true' : 'false');
+    } catch {
+      // Swallow persistence errors silently
+    }
+
+    if (value && !serverStatus.isRunning) {
+      const started = await startServer();
+      if (!started) {
+        setAutoStart(false);
+        try {
+          await AsyncStorage.setItem(AUTO_START_KEY, 'false');
+        } catch {
+          // Ignore storage rollback error
+        }
+      }
+    }
+  }, [serverStatus.isRunning, startServer]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadAutoStartPreference = async () => {
+      try {
+        const stored = await AsyncStorage.getItem(AUTO_START_KEY);
+        if (cancelled) {
+          return;
+        }
+
+        const enabled = stored === 'true';
+        setAutoStart(enabled);
+
+        if (enabled && !localServerWebRTC.isServerRunning()) {
+          const started = await startServer();
+          if (!started && !cancelled) {
+            setAutoStart(false);
+            try {
+              await AsyncStorage.setItem(AUTO_START_KEY, 'false');
+            } catch {
+              // Ignore storage rollback error
+            }
+          }
+        }
+      } catch {
+        // Ignore preference load failures
+      }
+    };
+
+    loadAutoStartPreference();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [startServer]);
 
   const handleRequestBackgroundPermission = async () => {
     if (isRequestingVpn) {
@@ -187,20 +306,6 @@ export default function LocalServerScreen() {
       return `${hours}h ${minutes % 60}m`;
     }
     return `${minutes}m`;
-  };
-
-  const parsePortFromURL = (value?: string) => {
-    if (!value) return undefined;
-    try {
-      const parsed = new URL(value);
-      if (parsed.port) {
-        const resolved = Number(parsed.port);
-        return Number.isFinite(resolved) ? resolved : undefined;
-      }
-      return parsed.protocol === 'https:' ? 443 : 80;
-    } catch (error) {
-      return undefined;
-    }
   };
 
   const ProfileButton = () => {
@@ -492,7 +597,7 @@ export default function LocalServerScreen() {
             </View>
             <Switch
               value={autoStart}
-              onValueChange={setAutoStart}
+              onValueChange={handleAutoStartChange}
               thumbColor={autoStart ? themeColors.primary : themeColors.secondaryText}
               trackColor={{ false: themeColors.borderColor, true: themeColors.primary + '40' }}
             />
