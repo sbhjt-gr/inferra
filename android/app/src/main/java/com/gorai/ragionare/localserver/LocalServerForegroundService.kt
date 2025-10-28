@@ -117,14 +117,6 @@ class LocalServerForegroundService : Service() {
         } else {
             null
         }
-        val stopIntent = Intent(this, LocalServerForegroundService::class.java)
-        stopIntent.action = actionStop
-        val stopPendingIntent = PendingIntent.getService(
-            this,
-            1,
-            stopIntent,
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        )
         val contentParts = mutableListOf<String>()
         if (currentPeerCount > 0) {
             val peers = if (currentPeerCount == 1) "1 peer" else "$currentPeerCount peers"
@@ -143,7 +135,6 @@ class LocalServerForegroundService : Service() {
         builder.setPriority(NotificationCompat.PRIORITY_LOW)
         builder.setCategory(NotificationCompat.CATEGORY_SERVICE)
         pendingIntent?.let { builder.setContentIntent(it) }
-        builder.addAction(android.R.drawable.ic_media_pause, "Stop", stopPendingIntent)
         return builder.build()
     }
 
