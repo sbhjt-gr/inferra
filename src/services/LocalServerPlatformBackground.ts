@@ -18,6 +18,7 @@ interface IosModule {
   stopVPNServer(): Promise<{ success: boolean }>;
   getStatus(): Promise<IosStatusResult>;
   updateVPNConfiguration(options: { port?: number; url?: string }): Promise<{ success: boolean }>;
+  requestVPNPermission?(): Promise<{ success: boolean; status?: string; error?: string }>;
 }
 
 interface AndroidModule {
@@ -178,6 +179,32 @@ class LocalServerPlatformBackground {
         return;
       }
     }
+  }
+
+  async requestPermission() {
+    if (Platform.OS === 'ios') {
+      if (!iosNativeModule || typeof iosNativeModule.requestVPNPermission !== 'function') {
+        return { success: false, error: 'unsupported_platform' };
+      }
+      try {
+        const result = await iosNativeModule.requestVPNPermission();
+        if (result?.status) {
+          this.lastStatus = {
+            ...this.lastStatus,
+            status: result.status,
+          };
+          this.emit();
+        }
+        return result ?? { success: false };
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : 'unknown_error' };
+      }
+    }
+    return { success: true };
+  }
+
+  getSnapshot() {
+    return this.lastStatus;
   }
 }
 

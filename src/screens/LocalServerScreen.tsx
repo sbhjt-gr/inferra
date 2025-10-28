@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Text, TouchableOpacity, Alert, Switch, Clipboard, Share } from 'react-native';
+import { View, StyleSheet, ScrollView, Text, TouchableOpacity, Alert, Switch, Clipboard, Share, Platform } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import QRCodeStyled from 'react-native-qrcode-styled';
 import { useNavigation } from '@react-navigation/native';
@@ -35,6 +35,8 @@ export default function LocalServerScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [autoStart, setAutoStart] = useState(false);
   const [allowExternalAccess, setAllowExternalAccess] = useState(true);
+  const [vpnPermissionGranted, setVpnPermissionGranted] = useState(false);
+  const [isRequestingVpn, setIsRequestingVpn] = useState(false);
 
   useEffect(() => {
     const server = localServerWebRTC;
@@ -68,6 +70,23 @@ export default function LocalServerScreen() {
     const status = server.getStatus();
     setServerStatus(status);
 
+    if (Platform.OS === 'ios') {
+      const snapshot = localServerPlatformBackground.getSnapshot();
+      if (snapshot.status && snapshot.status !== 'invalid') {
+        setVpnPermissionGranted(true);
+      }
+      const off = localServerPlatformBackground.onStatus(next => {
+        if (next.status && next.status !== 'invalid') {
+          setVpnPermissionGranted(true);
+        }
+      });
+      return () => {
+        server.off('serverStarted', handleServerStarted);
+        server.off('serverStopped', handleServerStopped);
+        off();
+      };
+    }
+
     return () => {
       server.off('serverStarted', handleServerStarted);
       server.off('serverStopped', handleServerStopped);
@@ -97,6 +116,25 @@ export default function LocalServerScreen() {
       Alert.alert('Error', 'An unexpected error occurred');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleRequestBackgroundPermission = async () => {
+    if (isRequestingVpn) {
+      return;
+    }
+    setIsRequestingVpn(true);
+    try {
+      const result = await localServerPlatformBackground.requestPermission();
+      if (!result?.success) {
+        Alert.alert('Error', result?.error || 'Unable to request permission');
+        return;
+      }
+      setVpnPermissionGranted(true);
+    } catch (error) {
+      Alert.alert('Error', 'Unable to request permission');
+    } finally {
+      setIsRequestingVpn(false);
     }
   };
 
@@ -201,6 +239,57 @@ export default function LocalServerScreen() {
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
       >
+        {Platform.OS === 'ios' && (
+          <SettingsSection title="BACKGROUND ACCESS">
+            <View
+              style={[
+                styles.backgroundCard,
+                {
+                  backgroundColor:
+                    currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : themeColors.primary + '10',
+                },
+              ]}
+            >
+              <View style={styles.backgroundCardHeader}>
+                <View
+                  style={[
+                    styles.iconContainer,
+                    {
+                      backgroundColor:
+                        currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20',
+                    },
+                  ]}
+                >
+                  <MaterialCommunityIcons name="shield-lock" size={22} color={iconColor} />
+                </View>
+                <Text style={[styles.backgroundCardTitle, { color: themeColors.text }]}>Run in the background</Text>
+              </View>
+              <Text style={[styles.backgroundCardDescription, { color: themeColors.secondaryText }]}>Grant VPN access so Inferra can keep the local server reachable while the app is in the background.</Text>
+              <TouchableOpacity
+                style={[
+                  styles.backgroundCardButton,
+                  {
+                    backgroundColor: vpnPermissionGranted ? themeColors.borderColor : themeColors.primary,
+                  },
+                  (vpnPermissionGranted || isRequestingVpn) && styles.backgroundCardButtonDisabled,
+                ]}
+                disabled={vpnPermissionGranted || isRequestingVpn}
+                onPress={handleRequestBackgroundPermission}
+              >
+                <Text
+                  style={[
+                    styles.backgroundCardButtonText,
+                    {
+                      color: vpnPermissionGranted ? themeColors.secondaryText : '#FFFFFF',
+                    },
+                  ]}
+                >
+                    {vpnPermissionGranted ? 'Granted' : isRequestingVpn ? 'Requesting...' : 'Grant Access'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </SettingsSection>
+        )}
         <SettingsSection title="SERVER STATUS">
           <View style={styles.settingItem}>
             <View style={styles.settingLeft}>
@@ -524,5 +613,37 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     lineHeight: 20,
+  },
+  backgroundCard: {
+    borderRadius: 16,
+    padding: 16,
+  },
+  backgroundCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  backgroundCardTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 12,
+  },
+  backgroundCardDescription: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  backgroundCardButton: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  backgroundCardButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  backgroundCardButtonDisabled: {
+    opacity: 0.6,
   },
 });

@@ -169,6 +169,46 @@ RCT_EXPORT_METHOD(updateVPNConfiguration:(NSDictionary *)options
     }];
 }
 
+RCT_EXPORT_METHOD(requestVPNPermission:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    [self loadManagerWithCompletion:^(NETunnelProviderManager *manager, NSError *error) {
+        if (error) {
+            reject(@"vpn_permission_failed", error.localizedDescription, error);
+            return;
+        }
+        if (!manager) {
+            reject(@"vpn_permission_failed", @"Manager unavailable", nil);
+            return;
+        }
+        NETunnelProviderProtocol *protocol = (NETunnelProviderProtocol *)manager.protocolConfiguration;
+        if (!protocol) {
+            protocol = [NETunnelProviderProtocol new];
+        }
+        protocol.providerBundleIdentifier = kLocalServerVPNBundleId;
+        protocol.serverAddress = @"127.0.0.1";
+        if (!protocol.providerConfiguration) {
+            protocol.providerConfiguration = @{};
+        }
+        manager.protocolConfiguration = protocol;
+        manager.enabled = NO;
+        [manager saveToPreferencesWithCompletionHandler:^(NSError *saveError) {
+            if (saveError) {
+                reject(@"vpn_permission_failed", saveError.localizedDescription, saveError);
+                return;
+            }
+            [manager loadFromPreferencesWithCompletionHandler:^(NSError *loadError) {
+                if (loadError) {
+                    reject(@"vpn_permission_failed", loadError.localizedDescription, loadError);
+                    return;
+                }
+                self.cachedStatus = manager.connection.status;
+                resolve(@{ @"success": @YES, @"status": [self statusStringForStatus:self.cachedStatus] });
+            }];
+        }];
+    }];
+}
+
 - (void)loadManagerWithCompletion:(void (^)(NETunnelProviderManager *manager, NSError *error))completion
 {
     [NETunnelProviderManager loadAllFromPreferencesWithCompletionHandler:^(NSArray<NETunnelProviderManager *> *managers, NSError *error) {
