@@ -28,6 +28,11 @@
     <meta-data android:name="expo.modules.updates.EXPO_UPDATES_LAUNCH_WAIT_MS" android:value="30000"/>
     <meta-data android:name="expo.modules.updates.EXPO_UPDATE_URL" android:value="https://u.expo.dev/5ef5d807-bc8b-4dcb-a3f4-2bad3c098b3e"/>
     <service android:name=".localserver.LocalServerForegroundService" android:enabled="true" android:exported="false" android:foregroundServiceType="dataSync"/>
+    <service
+      android:name="androidx.work.impl.foreground.SystemForegroundService"
+      android:exported="false"
+      android:foregroundServiceType="dataSync"
+      tools:targetApi="q"/>
     <activity android:name=".MainActivity" android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|uiMode" android:launchMode="singleTask" android:windowSoftInputMode="adjustResize" android:theme="@style/Theme.App.SplashScreen" android:exported="true" android:screenOrientation="portrait">
       <intent-filter>
         <action android:name="android.intent.action.MAIN"/>

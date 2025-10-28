@@ -11,6 +11,7 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.work.ForegroundInfo
 import com.gorai.ragionare.MainActivity
 import com.gorai.ragionare.R
+import android.content.pm.ServiceInfo
 import java.text.DecimalFormat
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -101,7 +102,16 @@ object DownloadNotificationHelper {
       bytesDownloaded,
       totalBytes,
     )
-    return ForegroundInfo(transferId.hashCode(), notification)
+    val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+      ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+    } else {
+      0
+    }
+    return if (type == 0) {
+      ForegroundInfo(transferId.hashCode(), notification)
+    } else {
+      ForegroundInfo(transferId.hashCode(), notification, type)
+    }
   }
 
   fun createProgressNotification(
@@ -157,12 +167,7 @@ object DownloadNotificationHelper {
   }
 
   fun showCompletionNotification(context: Context, transferId: String, modelName: String) {
-    val builder = createBaseBuilder(context, transferId, modelName)
-      .setContentText("Download complete")
-      .setProgress(0, 0, false)
-      .setOngoing(false)
-
-    NotificationManagerCompat.from(context).notify(transferId.hashCode(), builder.build())
+    cancelNotification(context, transferId)
   }
 
   fun showFailureNotification(
