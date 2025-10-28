@@ -162,6 +162,7 @@ dependencies {
 
     // AndroidX WorkManager for background tasks
     implementation("androidx.work:work-runtime-ktx:2.9.0")
+    implementation("com.google.guava:guava:31.1-android")
 
     def isGifEnabled = (findProperty('expo.gif.enabled') ?: "") == "true";
     def isWebpEnabled = (findProperty('expo.webp.enabled') ?: "") == "true";
