@@ -187,49 +187,12 @@ function handleStreamError(error: Error) {
 
 This attribution is in addition to Git commit history and helps identify contributions at the code level.
 
-## Git Workflow
-
-### Branch Naming
-Use descriptive branch names that indicate the type of change:
-- `feature/add-rag-support`
-- `fix/model-loading-crash`
-- `docs/update-api-reference`
-- `refactor/extract-chat-handlers`
-
-### Commit Messages
-Write clear, concise commit messages following this format:
-
-```
-type(scope): brief description
-
-Longer explanation if needed
-
-Fixes #123
-```
-
-Types:
-- `feat`: New feature
-- `fix`: Bug fix
-- `docs`: Documentation changes
-- `refactor`: Code refactoring
-- `test`: Adding or updating tests
-- `chore`: Maintenance tasks
-
-Examples:
-```
-feat(rag): add document ingestion endpoint
-fix(server): resolve buffer encoding in streaming
-docs(api): add embeddings endpoint documentation
-refactor(tcp): extract model operations to separate file
-```
-
 ### Pull Request Process
 
 1. **Fork and Clone**: Fork the repository and clone it locally
 2. **Create Branch**: Create a new branch for your feature or fix
 3. **Make Changes**: Implement your changes following the guidelines
 4. **Test**: Test your changes thoroughly
-5. **Commit**: Make clean, logical commits with good messages
 6. **Push**: Push your branch to your fork
 7. **Pull Request**: Open a PR against the `main` branch
 
