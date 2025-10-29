@@ -438,7 +438,6 @@ export class BackgroundDownloadService {
         transferOptions.url,
         transferOptions.destination,
         transferOptions.headers,
-        model.name,
       );
 
       console.log(`${LOG_TAG}: beginTransfer_result:`, JSON.stringify(result, null, 2));
