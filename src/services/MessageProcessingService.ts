@@ -207,8 +207,9 @@ export class MessageProcessingService {
         
         if (parsed && parsed.type === 'ocr_result') {
           if (parsed.metadata?.ragDocumentId) {
+            const fileName = parsed.fileName ? ` from ${parsed.fileName}` : '';
             const userPrompt = parsed.userPrompt || 'Please process this extracted text';
-            content = userPrompt;
+            content = `User uploaded an image${fileName} and extracted text from it. The text has been stored for retrieval.\n\nUser request: ${userPrompt}`;
           } else {
             const instruction = parsed.internalInstruction || '';
             const userPrompt = parsed.userPrompt || '';
@@ -216,8 +217,9 @@ export class MessageProcessingService {
           }
         } else if (parsed && parsed.type === 'file_upload') {
           if (parsed.metadata?.ragDocumentId) {
-            const userContent = parsed.userContent || '';
-            content = userContent;
+            const fileName = parsed.fileName || 'a file';
+            const userContent = parsed.userContent || `File uploaded: ${fileName}`;
+            content = `User uploaded ${fileName}. The content has been stored for retrieval.\n\nUser request: ${userContent}`;
           } else {
             content = parsed.internalInstruction || msg.content;
           }
@@ -455,8 +457,9 @@ export class MessageProcessingService {
         
         if (parsed && parsed.type === 'ocr_result') {
           if (parsed.metadata?.ragDocumentId) {
+            const fileName = parsed.fileName ? ` from ${parsed.fileName}` : '';
             const userPrompt = parsed.userPrompt || 'Please process this extracted text';
-            content = userPrompt;
+            content = `User uploaded an image${fileName} and extracted text from it. The text has been stored for retrieval.\n\nUser request: ${userPrompt}`;
           } else {
             const instruction = parsed.internalInstruction || '';
             const userPrompt = parsed.userPrompt || '';
@@ -464,8 +467,9 @@ export class MessageProcessingService {
           }
         } else if (parsed && parsed.type === 'file_upload') {
           if (parsed.metadata?.ragDocumentId) {
-            const userContent = parsed.userContent || '';
-            content = userContent;
+            const fileName = parsed.fileName || 'a file';
+            const userContent = parsed.userContent || `File uploaded: ${fileName}`;
+            content = `User uploaded ${fileName}. The content has been stored for retrieval.\n\nUser request: ${userContent}`;
           } else {
             content = parsed.internalInstruction || msg.content;
           }
@@ -689,8 +693,9 @@ export class MessageProcessingService {
         
         if (parsed && parsed.type === 'ocr_result') {
           if (parsed.metadata?.ragDocumentId) {
+            const fileName = parsed.fileName ? ` from ${parsed.fileName}` : '';
             const userPrompt = parsed.userPrompt || 'Please process this extracted text';
-            content = userPrompt;
+            content = `User uploaded an image${fileName} and extracted text from it. The text has been stored for retrieval.\n\nUser request: ${userPrompt}`;
           } else {
             const instruction = parsed.internalInstruction || '';
             const userPrompt = parsed.userPrompt || '';
@@ -698,8 +703,9 @@ export class MessageProcessingService {
           }
         } else if (parsed && parsed.type === 'file_upload') {
           if (parsed.metadata?.ragDocumentId) {
-            const userContent = parsed.userContent || '';
-            content = userContent;
+            const fileName = parsed.fileName || 'a file';
+            const userContent = parsed.userContent || `File uploaded: ${fileName}`;
+            content = `User uploaded ${fileName}. The content has been stored for retrieval.\n\nUser request: ${userContent}`;
           } else {
             content = parsed.internalInstruction || msg.content;
           }
@@ -714,7 +720,9 @@ export class MessageProcessingService {
     try {
       const ragEnabled = await RAGService.isEnabled();
       if (ragEnabled && llamaManager.isInitialized()) {
-        await RAGService.initialize('local');
+        if (!RAGService.isReady()) {
+          await RAGService.initialize();
+        }
         if (RAGService.isReady()) {
           await RAGService.generate({ input: baseMessages, settings, callback: streamCallback });
           usedRAG = true;

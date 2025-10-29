@@ -1,0 +1,55 @@
+import { ModelSettings } from '../services/ModelSettingsService';
+import { Platform } from 'react-native';
+export const DEFAULT_SETTINGS: ModelSettings = {
+  maxTokens: 1200,
+  temperature: 0.7,
+  topK: 40,
+  topP: 0.9,
+  minP: 0.05,
+  stopWords: ['<|end|>', '<end_of_turn>', '<|im_end|>', '<|endoftext|>', '<end_of_utterance>'],
+  systemPrompt: 'You are a helpful, honest, and safe AI assistant. Maintain a neutral and professional tone while responding to user queries.',
+  jinja: true,
+  grammar: '',
+  nProbs: 0,
+  penaltyLastN: 64,
+  penaltyRepeat: 1.0,
+  penaltyFreq: 0.0,
+  penaltyPresent: 0.0,
+  mirostat: 2,
+  mirostatTau: 5.0,
+  mirostatEta: 0.1,
+  dryMultiplier: 0.0,
+  dryBase: 1.75,
+  dryAllowedLength: 2,
+  dryPenaltyLastN: -1,
+  drySequenceBreakers: ['\n', ':', '"', '*'],
+  ignoreEos: false,
+  logitBias: [],
+  seed: -1,
+  xtcProbability: 0.0,
+  xtcThreshold: 0.1,
+  typicalP: 1.0,
+  enableThinking: true,
+};
+export const LLAMA_INIT_CONFIG = {
+  use_mlock: true,
+  n_ctx: 6144,
+  n_batch: 512,
+  n_threads: Platform.OS === 'ios' ? 6 : 4,
+  embedding: true,
+  rope_freq_base: 10000,
+  rope_freq_scale: 1,
+  ctx_shift: false,
+};
+export const TOKEN_PROCESSING_CONFIG = {
+  maxWaitTime: 5000,
+  checkInterval: 50,
+};
+export const TITLE_GENERATION_CONFIG = {
+  maxTokens: 50,
+  temperature: 0.3,
+  topK: 30,
+  topP: 0.8,
+  minP: 0.05,
+  maxTitleLength: 50,
+};
