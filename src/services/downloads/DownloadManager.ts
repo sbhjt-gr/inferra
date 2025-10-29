@@ -31,22 +31,29 @@ export class BackgroundDownloadService {
     this.nativeEventEmitter = new NativeEventEmitter(TransferModule);
 
     this.nativeEventEmitter.addListener('onTransferProgress', event => {
-      const modelName = event.modelName || this.extractModelName(event.destination, event.url);
+      let derivedModelName = event.modelName || this.extractModelName(event.destination, event.url);
 
-      if (!modelName) {
+      let transfer = derivedModelName ? this.activeTransfers.get(derivedModelName) : undefined;
+
+      if (!transfer && event.downloadId) {
+        const entry = Array.from(this.activeTransfers.entries()).find(([, job]) => job.downloadId === event.downloadId);
+        if (entry) {
+          derivedModelName = entry[0];
+          transfer = entry[1];
+        }
+      }
+
+      if (!transfer && derivedModelName) {
+        transfer = this.createTransferJobFromNativeEvent(derivedModelName, event);
+      }
+
+      if (!transfer || !derivedModelName) {
         return;
       }
 
-      let transfer = this.activeTransfers.get(modelName);
-      if (!transfer) {
-        transfer = this.createTransferJobFromNativeEvent(modelName, event);
+      if (event.downloadId) {
+        transfer.downloadId = event.downloadId;
       }
-
-      if (!transfer) {
-        return;
-      }
-
-      transfer.downloadId = event.downloadId;
 
       const bytesWritten = event.bytesWritten ?? transfer.state.progress?.bytesDownloaded ?? 0;
       const totalBytes = event.totalBytes ?? transfer.state.progress?.bytesTotal ?? 0;
@@ -81,7 +88,7 @@ export class BackgroundDownloadService {
       transfer.lastBytesWritten = bytesWritten;
       transfer.lastUpdateTime = currentTimestamp;
 
-      this.eventCallbacks.onProgress?.(modelName, transfer.state.progress);
+      this.eventCallbacks.onProgress?.(derivedModelName, transfer.state.progress);
     });
 
     this.nativeEventEmitter.addListener('onTransferComplete', event => {
@@ -431,6 +438,7 @@ export class BackgroundDownloadService {
         transferOptions.url,
         transferOptions.destination,
         transferOptions.headers,
+        model.name,
       );
 
       console.log(`${LOG_TAG}: beginTransfer_result:`, JSON.stringify(result, null, 2));

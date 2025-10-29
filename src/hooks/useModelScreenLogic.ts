@@ -275,6 +275,9 @@ export const useModelScreenLogic = (navigation: any) => {
 
   useEffect(() => {
     const handleProgress = async ({ modelName, ...progress }: any) => {
+      if (!modelName || modelName.startsWith('com.inferra.transfer.')) {
+        return;
+      }
       const filename = modelName.split('/').pop() || modelName;
       const bytesDownloaded = typeof progress.bytesDownloaded === 'number' ? progress.bytesDownloaded : 0;
       const totalBytes = typeof progress.totalBytes === 'number' ? progress.totalBytes : 0;

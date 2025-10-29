@@ -31,6 +31,9 @@ export const DownloadProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           const parsedProgress = JSON.parse(savedProgress);
           
           const filteredProgress = Object.entries(parsedProgress).reduce((acc, [key, value]) => {
+            if (key.startsWith('com.inferra.transfer.')) {
+              return acc;
+            }
             if (value && typeof value === 'object' &&
                 'status' in value &&
                 value.status !== 'completed' &&
@@ -59,6 +62,9 @@ export const DownloadProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     const handleDownloadStarted = (data: any) => {
       console.log('DownloadContext: download_started:', data);
+      if (!data.modelName || data.modelName.startsWith('com.inferra.transfer.')) {
+        return;
+      }
       setDownloadProgress(prev => ({
         ...prev,
         [data.modelName]: {
@@ -74,6 +80,9 @@ export const DownloadProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     const handleDownloadCompleted = (data: any) => {
       console.log('DownloadContext: download_completed:', data);
+      if (!data.modelName || data.modelName.startsWith('com.inferra.transfer.')) {
+        return;
+      }
       setDownloadProgress(prev => {
         const newProgress = { ...prev };
         if (newProgress[data.modelName]) {
@@ -89,6 +98,9 @@ export const DownloadProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     const handleDownloadFailed = (data: any) => {
       console.log('DownloadContext: download_failed:', data);
+      if (!data.modelName || data.modelName.startsWith('com.inferra.transfer.')) {
+        return;
+      }
       setDownloadProgress(prev => {
         const newProgress = { ...prev };
         if (newProgress[data.modelName]) {
@@ -102,6 +114,9 @@ export const DownloadProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
 
     const handleDownloadCancelled = (data: any) => {
+      if (!data.modelName || data.modelName.startsWith('com.inferra.transfer.')) {
+        return;
+      }
       setDownloadProgress(prev => {
         const newProgress = { ...prev };
         delete newProgress[data.modelName];
