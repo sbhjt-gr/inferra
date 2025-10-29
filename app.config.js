@@ -133,7 +133,8 @@ export default {
         "expo-build-properties",
         {
           "android": {
-            "minSdkVersion": 28
+            "minSdkVersion": 28,
+            "targetSdkVersion": 36
           },
           "ios": {
             "deploymentTarget": "17.0"
