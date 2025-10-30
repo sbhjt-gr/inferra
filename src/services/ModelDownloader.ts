@@ -4,7 +4,7 @@ import { EventEmitter } from './EventEmitter';
 import { FileManager } from './FileManager';
 import { StoredModelsManager } from './StoredModelsManager';
 import { DownloadTaskManager } from './DownloadTaskManager';
-import { downloadNotificationService } from './DownloadNotificationService';
+import { downloadNotificationService } from './DownloadNotifier';
 import { StoredModel } from './ModelDownloaderTypes';
 import { notificationService } from './NotificationService';
 

@@ -7,7 +7,7 @@ interface BackgroundWebViewProps {
   onMessage: (message: string) => void;
 }
 
-export class BackgroundWebViewManager {
+export class WebViewManager {
   private webViewInstance: any = null;
   private htmlContent: string = '';
   private isReady: boolean = false;
@@ -66,4 +66,4 @@ export class BackgroundWebViewManager {
   }
 }
 
-export const backgroundWebViewManager = new BackgroundWebViewManager();
+export const backgroundWebViewManager = new WebViewManager();

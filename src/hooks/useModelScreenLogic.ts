@@ -9,7 +9,7 @@ import { useDownloads } from '../context/DownloadContext';
 import { useRemoteModel } from '../context/RemoteModelContext';
 import { useStoredModels } from './useStoredModels';
 import { modelDownloader } from '../services/ModelDownloader';
-import { downloadNotificationService } from '../services/DownloadNotificationService';
+import { downloadNotificationService } from '../services/DownloadNotifier';
 import { onlineModelService } from '../services/OnlineModelService';
 import { modelSettingsService } from '../services/ModelSettingsService';
 import { getUserFromSecureStorage, logoutUser } from '../services/FirebaseService';

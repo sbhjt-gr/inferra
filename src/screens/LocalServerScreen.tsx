@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, StyleSheet, ScrollView, Text, TouchableOpacity, Alert, Switch, Clipboard, Share, Platform } from 'react-native';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import QRCodeStyled from 'react-native-qrcode-styled';
 import { useNavigation } from '@react-navigation/native';
@@ -11,7 +12,7 @@ import { RootStackParamList } from '../types/navigation';
 import AppHeader from '../components/AppHeader';
 import SettingsSection from '../components/settings/SettingsSection';
 import { localServerWebRTC } from '../services/LocalServerWebRTC';
-import { localServerPlatformBackground } from '../services/LocalServerPlatformBackground';
+import { localServerPlatformBackground } from '../services/LocalServerBackground';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface ServerStatus {
@@ -23,6 +24,8 @@ interface ServerStatus {
 }
 
 const AUTO_START_KEY = 'local_server_auto_start';
+const KEEP_AWAKE_KEY = 'local_server_keep_awake';
+const KEEP_AWAKE_TAG = 'local-server';
 
 const parsePortFromURL = (value?: string) => {
   if (!value) return undefined;
@@ -52,8 +55,7 @@ export default function LocalServerScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [autoStart, setAutoStart] = useState(false);
   const [allowExternalAccess, setAllowExternalAccess] = useState(true);
-  const [vpnPermissionGranted, setVpnPermissionGranted] = useState(false);
-  const [isRequestingVpn, setIsRequestingVpn] = useState(false);
+  const [keepAwake, setKeepAwake] = useState(false);
 
   useEffect(() => {
     const server = localServerWebRTC;
@@ -87,23 +89,6 @@ export default function LocalServerScreen() {
     const status = server.getStatus();
     setServerStatus(status);
 
-    if (Platform.OS === 'ios') {
-      const snapshot = localServerPlatformBackground.getSnapshot();
-      if (snapshot.status && snapshot.status !== 'invalid') {
-        setVpnPermissionGranted(true);
-      }
-      const off = localServerPlatformBackground.onStatus(next => {
-        if (next.status && next.status !== 'invalid') {
-          setVpnPermissionGranted(true);
-        }
-      });
-      return () => {
-        server.off('serverStarted', handleServerStarted);
-        server.off('serverStopped', handleServerStopped);
-        off();
-      };
-    }
-
     return () => {
       server.off('serverStarted', handleServerStarted);
       server.off('serverStopped', handleServerStopped);
@@ -128,7 +113,7 @@ export default function LocalServerScreen() {
         return false;
       }
 
-      if (allowExternalAccess) {
+      if (allowExternalAccess && Platform.OS === 'android') {
         const port = parsePortFromURL(result.signalingURL);
         await localServerPlatformBackground.start({ port, url: result.signalingURL });
       }
@@ -202,6 +187,13 @@ export default function LocalServerScreen() {
     }
   }, [serverStatus.isRunning, startServer]);
 
+  const handleKeepAwakeChange = useCallback(async (value: boolean) => {
+    setKeepAwake(value);
+    try {
+      await AsyncStorage.setItem(KEEP_AWAKE_KEY, value ? 'true' : 'false');
+    } catch {}
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -238,31 +230,50 @@ export default function LocalServerScreen() {
     };
   }, [startServer]);
 
-  const handleRequestBackgroundPermission = async () => {
-    if (isRequestingVpn) {
-      return;
-    }
-    setIsRequestingVpn(true);
-    try {
-      const result = await localServerPlatformBackground.requestPermission();
-      if (!result?.success) {
-        Alert.alert('Error', result?.error || 'Unable to request permission');
-        return;
-      }
-      setVpnPermissionGranted(true);
-    } catch (error) {
-      Alert.alert('Error', 'Unable to request permission');
-    } finally {
-      setIsRequestingVpn(false);
-    }
-  };
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadKeepAwakePreference = async () => {
+      try {
+        const stored = await AsyncStorage.getItem(KEEP_AWAKE_KEY);
+        if (cancelled) {
+          return;
+        }
+        setKeepAwake(stored === 'true');
+      } catch {}
+    };
+
+    loadKeepAwakePreference();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const syncKeepAwake = async () => {
+      try {
+        if (keepAwake && serverStatus.isRunning) {
+          await activateKeepAwakeAsync(KEEP_AWAKE_TAG);
+        } else {
+          await deactivateKeepAwake(KEEP_AWAKE_TAG);
+        }
+      } catch {}
+    };
+
+    syncKeepAwake();
+
+    return () => {
+      deactivateKeepAwake(KEEP_AWAKE_TAG).catch(() => {});
+    };
+  }, [keepAwake, serverStatus.isRunning]);
 
   useEffect(() => {
     if (!serverStatus.isRunning) {
       localServerPlatformBackground.stop().catch(() => {});
       return;
     }
-    if (allowExternalAccess) {
+    if (allowExternalAccess && Platform.OS === 'android') {
       const port = parsePortFromURL(serverStatus.signalingURL);
       localServerPlatformBackground.start({ port, url: serverStatus.signalingURL }).catch(() => {});
     } else {
@@ -271,7 +282,7 @@ export default function LocalServerScreen() {
   }, [allowExternalAccess, serverStatus.isRunning, serverStatus.signalingURL]);
 
   useEffect(() => {
-    if (!serverStatus.isRunning) {
+    if (!serverStatus.isRunning || Platform.OS !== 'android') {
       return;
     }
     const port = parsePortFromURL(serverStatus.signalingURL);
@@ -344,57 +355,6 @@ export default function LocalServerScreen() {
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
       >
-        {Platform.OS === 'ios' && (
-          <SettingsSection title="BACKGROUND ACCESS">
-            <View
-              style={[
-                styles.backgroundCard,
-                {
-                  backgroundColor:
-                    currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : themeColors.primary + '10',
-                },
-              ]}
-            >
-              <View style={styles.backgroundCardHeader}>
-                <View
-                  style={[
-                    styles.iconContainer,
-                    {
-                      backgroundColor:
-                        currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20',
-                    },
-                  ]}
-                >
-                  <MaterialCommunityIcons name="shield-lock" size={22} color={iconColor} />
-                </View>
-                <Text style={[styles.backgroundCardTitle, { color: themeColors.text }]}>Run in the background</Text>
-              </View>
-              <Text style={[styles.backgroundCardDescription, { color: themeColors.secondaryText }]}>Grant VPN access so Inferra can keep the local server reachable while the app is in the background.</Text>
-              <TouchableOpacity
-                style={[
-                  styles.backgroundCardButton,
-                  {
-                    backgroundColor: vpnPermissionGranted ? themeColors.borderColor : themeColors.primary,
-                  },
-                  (vpnPermissionGranted || isRequestingVpn) && styles.backgroundCardButtonDisabled,
-                ]}
-                disabled={vpnPermissionGranted || isRequestingVpn}
-                onPress={handleRequestBackgroundPermission}
-              >
-                <Text
-                  style={[
-                    styles.backgroundCardButtonText,
-                    {
-                      color: vpnPermissionGranted ? themeColors.secondaryText : '#FFFFFF',
-                    },
-                  ]}
-                >
-                    {vpnPermissionGranted ? 'Granted' : isRequestingVpn ? 'Requesting...' : 'Grant Access'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </SettingsSection>
-        )}
         <SettingsSection title="SERVER STATUS">
           <View style={styles.settingItem}>
             <View style={styles.settingLeft}>
@@ -583,6 +543,29 @@ export default function LocalServerScreen() {
           <View style={[styles.separator, { backgroundColor: themeColors.background }]} />
           <View style={styles.settingItem}>
             <View style={styles.settingLeft}>
+              <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}> 
+                <MaterialCommunityIcons name="brightness-7" size={22} color={iconColor} />
+              </View>
+              <View style={styles.settingTextContainer}>
+                <Text style={[styles.settingText, { color: themeColors.text }]}> 
+                  Keep Screen Awake
+                </Text>
+                <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}> 
+                  Prevent sleep while the server is active
+                </Text>
+              </View>
+            </View>
+            <Switch
+              value={keepAwake}
+              onValueChange={handleKeepAwakeChange}
+              thumbColor={keepAwake ? themeColors.primary : themeColors.secondaryText}
+              trackColor={{ false: themeColors.borderColor, true: themeColors.primary + '40' }}
+            />
+          </View>
+
+          <View style={[styles.separator, { backgroundColor: themeColors.background }]} />
+          <View style={styles.settingItem}>
+            <View style={styles.settingLeft}>
               <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
                 <MaterialCommunityIcons name="play-circle-outline" size={22} color={iconColor} />
               </View>
@@ -718,37 +701,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     lineHeight: 20,
-  },
-  backgroundCard: {
-    borderRadius: 16,
-    padding: 16,
-  },
-  backgroundCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  backgroundCardTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 12,
-  },
-  backgroundCardDescription: {
-    fontSize: 14,
-    lineHeight: 20,
-    marginBottom: 16,
-  },
-  backgroundCardButton: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 12,
-  },
-  backgroundCardButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  backgroundCardButtonDisabled: {
-    opacity: 0.6,
   },
 });

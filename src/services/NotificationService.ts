@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { downloadNotificationService } from './DownloadNotificationService';
+import { downloadNotificationService } from './DownloadNotifier';
 
 interface StoredNotification {
   id: string;
