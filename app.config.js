@@ -31,7 +31,7 @@ export default {
       bundleIdentifier: "com.gorai.inferra",
       buildNumber: "266",
       runtimeVersion: "2.6.6",
-      deploymentTarget: "17.0",
+      deploymentTarget: "26.0",
       updates: {
         enabled: false
       },
@@ -136,7 +136,7 @@ export default {
             "targetSdkVersion": 36
           },
           "ios": {
-            "deploymentTarget": "17.0"
+            "deploymentTarget": "26.0"
           }
         }
       ],
