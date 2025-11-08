@@ -37,8 +37,6 @@ export const LLAMA_INIT_CONFIG = {
   n_batch: 512,
   n_threads: Platform.OS === 'ios' ? 6 : 4,
   embedding: true,
-  rope_freq_base: 10000,
-  rope_freq_scale: 1,
   ctx_shift: false,
 };
 export const TOKEN_PROCESSING_CONFIG = {
