@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Animated, AppState, AppStateStatus } from 'react-native';
+import { Animated, AppState, AppStateStatus, Platform } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as BackgroundTask from 'expo-background-task';
@@ -9,7 +9,7 @@ import { useDownloads } from '../context/DownloadContext';
 import { useRemoteModel } from '../context/RemoteModelContext';
 import { useStoredModels } from './useStoredModels';
 import { modelDownloader } from '../services/ModelDownloader';
-import { downloadNotificationService } from '../services/DownloadNotificationService';
+import { downloadNotificationService } from '../services/DownloadNotifier';
 import { onlineModelService } from '../services/OnlineModelService';
 import { modelSettingsService } from '../services/ModelSettingsService';
 import { getUserFromSecureStorage, logoutUser } from '../services/FirebaseService';
@@ -17,6 +17,7 @@ import { getActiveDownloadsCount } from '../utils/ModelUtils';
 import { StoredModel } from '../services/ModelDownloaderTypes';
 
 const BACKGROUND_DOWNLOAD_TASK = 'background-download-task';
+const isAndroid = Platform.OS === 'android';
 
 TaskManager.defineTask(BACKGROUND_DOWNLOAD_TASK, async ({ data, error }) => {
   if (error) {
@@ -274,13 +275,18 @@ export const useModelScreenLogic = (navigation: any) => {
 
   useEffect(() => {
     const handleProgress = async ({ modelName, ...progress }: any) => {
+      if (!modelName || modelName.startsWith('com.inferra.transfer.')) {
+        return;
+      }
       const filename = modelName.split('/').pop() || modelName;
       const bytesDownloaded = typeof progress.bytesDownloaded === 'number' ? progress.bytesDownloaded : 0;
       const totalBytes = typeof progress.totalBytes === 'number' ? progress.totalBytes : 0;
       const progressValue = typeof progress.progress === 'number' ? progress.progress : 0;
 
       if (progress.status === 'completed') {
-        await downloadNotificationService.showNotification(filename, progress.downloadId, 100, bytesDownloaded, totalBytes);
+        if (!isAndroid) {
+          await downloadNotificationService.showNotification(filename, progress.downloadId, 100, bytesDownloaded, totalBytes);
+        }
         setDownloadProgress(prev => ({
           ...prev,
           [filename]: { progress: 100, bytesDownloaded, totalBytes, status: 'completed', downloadId: progress.downloadId }
@@ -294,7 +300,9 @@ export const useModelScreenLogic = (navigation: any) => {
           });
         }, 1000);
       } else if (progress.status === 'failed') {
-        await downloadNotificationService.cancelNotification(progress.downloadId);
+        if (!isAndroid) {
+          await downloadNotificationService.cancelNotification(progress.downloadId);
+        }
         setDownloadProgress(prev => ({
           ...prev,
           [filename]: { progress: 0, bytesDownloaded: 0, totalBytes: 0, status: 'failed', downloadId: progress.downloadId, error: progress.error }
@@ -307,7 +315,9 @@ export const useModelScreenLogic = (navigation: any) => {
           });
         }, 1000);
       } else {
-        await downloadNotificationService.updateProgress(progress.downloadId, progressValue, bytesDownloaded, totalBytes, filename);
+        if (!isAndroid) {
+          await downloadNotificationService.updateProgress(progress.downloadId, progressValue, bytesDownloaded, totalBytes, filename);
+        }
         setDownloadProgress(prev => ({
           ...prev,
           [filename]: { progress: progressValue, bytesDownloaded, totalBytes, status: progress.status, downloadId: progress.downloadId }

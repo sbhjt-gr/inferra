@@ -12,7 +12,6 @@ import {
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
-import { useAudioRecorder, AudioModule, RecordingPresets } from 'expo-audio';
 import * as FileSystem from 'expo-file-system';
 import { useTheme } from '../../context/ThemeContext';
 import { useModel } from '../../context/ModelContext';
@@ -81,7 +80,6 @@ export default function ChatInput({
   const [useRagForUpload, setUseRagForUpload] = useState(true);
   
   const inputRef = useRef<TextInput>(null);
-  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const attachmentMenuAnim = useRef(new Animated.Value(0)).current;
   
@@ -209,25 +207,11 @@ export default function ChatInput({
   };
 
   const checkAudioPermissions = async (): Promise<boolean> => {
-    try {
-      const { granted } = await AudioModule.getRecordingPermissionsAsync();
-      setRecordingPermission(granted);
-      return granted;
-    } catch (error) {
-      setRecordingPermission(false);
-      return false;
-    }
+    return false;
   };
 
   const requestAudioPermissions = async (): Promise<boolean> => {
-    try {
-      const { granted } = await AudioModule.requestRecordingPermissionsAsync();
-      setRecordingPermission(granted);
-      return granted;
-    } catch (error) {
-      setRecordingPermission(false);
-      return false;
-    }
+    return false;
   };
 
   const showDialog = useCallback((title: string, message: string) => {
@@ -252,21 +236,7 @@ export default function ChatInput({
     }
   };
 
-  const safeAudioRecorderAccess = useCallback((operation: () => any) => {
-    try {
-      return operation();
-    } catch (error) {
-      return null;
-    }
-  }, []);
 
-  const safeAsyncAudioRecorderAccess = useCallback(async (operation: () => Promise<any>) => {
-    try {
-      return await operation();
-    } catch (error) {
-      return null;
-    }
-  }, []);
 
   const checkMultimodalSupport = (): boolean => {
     if (!selectedModelPath) return false;
@@ -637,113 +607,10 @@ export default function ChatInput({
   }, [onSend]);
 
   const startRecording = async () => {
-    try {
-      let hasPermission = recordingPermission;
-      
-      if (hasPermission === null) {
-        hasPermission = await checkAudioPermissions();
-      }
-      
-      if (!hasPermission) {
-        hasPermission = await requestAudioPermissions();
-        if (!hasPermission) {
-          showDialog(
-            'Permission Required',
-            'Microphone permission is required to record audio.'
-          );
-          return;
-        }
-      }
-
-      if (!selectedModelPath) {
-        showDialog(
-          'No Model Selected',
-          'Please select a model before recording audio.'
-        );
-        return;
-      }
-
-      const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude', 'apple-foundation'].includes(selectedModelPath);
-      if (!isOnlineModel && !checkMultimodalSupport()) {
-        showDialog(
-          'Multimodal Support Required',
-          'This local model needs a projector (mmproj) file to process audio. Please load a multimodal-capable model first.'
-        );
-        return;
-      }
-
-      
-      await AudioModule.setAudioModeAsync({
-        allowsRecording: true,
-        playsInSilentMode: true,
-      });
-
-      if (audioRecorder) {
-        const success = await safeAsyncAudioRecorderAccess(async () => {
-          await audioRecorder.prepareToRecordAsync();
-          audioRecorder.record();
-          return true;
-        });
-
-        if (success) {
-          setIsRecording(true);
-          setShowAttachmentMenu(false);
-        }
-      }
-    } catch (error) {
-      showDialog(
-        'Recording Error',
-        'Failed to start audio recording. Please try again.'
-      );
-    }
+    Alert.alert('Feature Disabled', 'Audio recording is temporarily disabled');
   };
 
   const stopRecording = async () => {
-    try {
-      const isCurrentlyRecording = safeAudioRecorderAccess(() => audioRecorder?.isRecording);
-      if (!isCurrentlyRecording || !audioRecorder) return;
-
-      await safeAsyncAudioRecorderAccess(async () => {
-        await audioRecorder.stop();
-      });
-      
-      const uri = safeAudioRecorderAccess(() => audioRecorder?.uri);
-      setIsRecording(false);
-
-      if (uri) {
-        
-        const fileInfo = await FileSystem.getInfoAsync(uri);
-        if (fileInfo.exists) {
-          const audioDir = `${FileSystem.documentDirectory}audio/`;
-          const audioFileName = `recording_${Date.now()}.m4a`;
-          const finalUri = `${audioDir}${audioFileName}`;
-
-          await FileSystem.makeDirectoryAsync(audioDir, { intermediates: true });
-          await FileSystem.moveAsync({
-            from: uri,
-            to: finalUri,
-          });
-
-          handleAudioRecorded(finalUri);
-        } else {
-          showDialog(
-            'Recording Error',
-            'Audio file could not be saved. Please try again.'
-          );
-        }
-      } else {
-        showDialog(
-          'Recording Error',
-          'No audio was recorded. Please try again.'
-        );
-      }
-    } catch (error) {
-      showDialog(
-        'Recording Error',
-        'Failed to save audio recording. Please try again.'
-      );
-      setIsRecording(false);
-    }
   };
 
   const handleMicrophonePress = useCallback(() => {
@@ -837,15 +704,7 @@ export default function ChatInput({
     }
   };
 
-  useEffect(() => {
-    return () => {
-      if (isRecording && audioRecorder) {
-        safeAsyncAudioRecorderAccess(async () => {
-          await audioRecorder.stop();
-        });
-      }
-    };
-  }, [isRecording, safeAsyncAudioRecorderAccess]);
+
 
   const inputContainerStyle = useMemo(() => [
     styles.inputContainer,

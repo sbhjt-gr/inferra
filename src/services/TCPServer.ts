@@ -31,12 +31,6 @@ import { handleCopyRequest, handleTagsRequest, handlePullRequest, handleDeleteRe
 import { sendChunkedResponseStart, writeChunk, endChunkedResponse } from './tcp/http/responseUtils';
 import { getFileSize, findStoredModel } from './tcp/http/modelUtils';
 
-interface SignalingMessage {
-  type: 'offer' | 'answer' | 'ice' | 'ping' | 'connected';
-  data?: any;
-  peerId?: string;
-}
-
 interface ServerStatus {
   isRunning: boolean;
   url: string;
@@ -46,18 +40,13 @@ interface ServerStatus {
 
 type ConnectionState = {
   isHTTP: boolean;
-  hasSentOffer: boolean;
-  offerTimer: ReturnType<typeof setTimeout> | null;
   buffer: string;
 };
 
-export class TCPSignalingServer {
+export class TCPServer {
   private server: any = null;
   private port: number = 8889;
   private clients: Map<string, any> = new Map();
-  private offerSDP: string = '';
-  private offerPeerId: string = '';
-  private onAnswerReceived: ((answer: string, peerId: string) => void | Promise<void>) | null = null;
   private isRunning: boolean = false;
   private localIP: string = '';
   private connectionStates: Map<string, ConnectionState> = new Map();
@@ -106,15 +95,8 @@ export class TCPSignalingServer {
     });
   }
 
-  async start(
-    offerSDP: string,
-    offerPeerId: string,
-    onAnswer: (answer: string, peerId: string) => void | Promise<void>
-  ): Promise<ServerStatus> {
+  async start(): Promise<ServerStatus> {
     if (this.isRunning) {
-      this.offerSDP = offerSDP;
-      this.offerPeerId = offerPeerId;
-      this.onAnswerReceived = onAnswer;
       return {
         isRunning: true,
         url: `http://${this.localIP}:${this.port}`,
@@ -122,10 +104,6 @@ export class TCPSignalingServer {
         clientCount: this.clients.size
       };
     }
-
-    this.offerSDP = offerSDP;
-    this.offerPeerId = offerPeerId;
-    this.onAnswerReceived = onAnswer;
 
     try {
       this.server = TcpSocket.createServer((socket) => {
@@ -136,11 +114,11 @@ export class TCPSignalingServer {
         this.localIP = await this.detectLocalIP();
         this.isRunning = true;
         
-        logger.info(`tcp_signaling_server_started port:${this.port} ip:${this.localIP}`, 'webrtc');
+        logger.info(`tcp_server_started port:${this.port} ip:${this.localIP}`, 'server');
       });
 
       this.server.on('error', (error: Error) => {
-        logger.error(`tcp_server_error: ${error.message}`, 'webrtc');
+        logger.error(`tcp_server_error: ${error.message}`, 'server');
       });
 
       await this.waitForServerStart();
@@ -153,7 +131,7 @@ export class TCPSignalingServer {
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'unknown_error';
-      logger.error(`tcp_signaling_start_failed: ${errorMessage}`, 'webrtc');
+      logger.error(`tcp_start_failed: ${errorMessage}`, 'server');
       throw error;
     }
   }
@@ -203,18 +181,10 @@ export class TCPSignalingServer {
   private handleConnection(socket: any): void {
     const peerId = this.generatePeerId();
     this.clients.set(peerId, socket);
-  const state: ConnectionState = { isHTTP: false, hasSentOffer: false, offerTimer: null, buffer: '' };
+    const state: ConnectionState = { isHTTP: false, buffer: '' };
     this.connectionStates.set(peerId, state);
 
-    logger.info(`tcp_client_connected peer:${peerId} total:${this.clients.size}`, 'webrtc');
-
-    state.offerTimer = setTimeout(() => {
-      if (!state.isHTTP && !state.hasSentOffer) {
-        this.sendOffer(socket, peerId);
-        state.hasSentOffer = true;
-        state.offerTimer = null;
-      }
-    }, 20);
+    logger.info(`tcp_client_connected peer:${peerId} total:${this.clients.size}`, 'server');
 
     socket.on('data', (data: Buffer) => {
       this.handleMessage(peerId, socket, data);
@@ -222,21 +192,13 @@ export class TCPSignalingServer {
 
     socket.on('close', () => {
       this.clients.delete(peerId);
-      const connectionState = this.connectionStates.get(peerId);
-      if (connectionState?.offerTimer) {
-        clearTimeout(connectionState.offerTimer);
-      }
       this.connectionStates.delete(peerId);
-      logger.info(`tcp_client_disconnected peer:${peerId} total:${this.clients.size}`, 'webrtc');
+      logger.info(`tcp_client_disconnected peer:${peerId} total:${this.clients.size}`, 'server');
     });
 
     socket.on('error', (error: Error) => {
-      logger.error(`tcp_socket_error peer:${peerId} error:${error.message}`, 'webrtc');
+      logger.error(`tcp_socket_error peer:${peerId} error:${error.message}`, 'server');
       this.clients.delete(peerId);
-      const connectionState = this.connectionStates.get(peerId);
-      if (connectionState?.offerTimer) {
-        clearTimeout(connectionState.offerTimer);
-      }
       this.connectionStates.delete(peerId);
     });
   }
@@ -253,47 +215,11 @@ export class TCPSignalingServer {
       void this.handleHTTPData(peerId, socket, text);
       return;
     }
-
-    this.handleJSONMessage(peerId, socket, text);
   }
 
   private isHTTPRequest(data: string): boolean {
     const trimmed = data.trimStart();
     return trimmed.startsWith('GET ') || trimmed.startsWith('POST ') || trimmed.startsWith('DELETE ') || trimmed.startsWith('OPTIONS ') || trimmed.startsWith('HEAD ') || trimmed.startsWith('PUT ');
-  }
-
-  private handleJSONMessage(peerId: string, socket: any, rawData: string): void {
-    try {
-      const lines = rawData.split('\n').filter(line => line.trim().length > 0);
-
-      for (const line of lines) {
-        try {
-          const message: SignalingMessage = JSON.parse(line);
-
-          if (message.type === 'answer') {
-            if (message.data && this.onAnswerReceived) {
-              const targetPeerId = this.offerPeerId || message.peerId || peerId;
-              this.onAnswerReceived(message.data, targetPeerId);
-              this.sendMessage(socket, {
-                type: 'connected',
-                data: { success: true }
-              });
-              logger.info(`answer_received_from_peer peer:${targetPeerId}`, 'webrtc');
-            }
-          } else if (message.type === 'ice') {
-            logger.debug(`ice_candidate_received peer:${peerId}`, 'webrtc');
-          } else if (message.type === 'ping') {
-            this.sendMessage(socket, { type: 'ping', data: 'pong' });
-          } else {
-            logger.warn(`unknown_message_type type:${message.type} peer:${peerId}`, 'webrtc');
-          }
-        } catch (parseError) {
-          continue;
-        }
-      }
-    } catch (error) {
-      logger.error(`message_parse_error peer:${peerId}`, 'webrtc');
-    }
   }
 
   private createHttpError(status: number, code: string): never {
@@ -414,11 +340,6 @@ export class TCPSignalingServer {
     }
 
     state.isHTTP = true;
-    state.hasSentOffer = true;
-    if (state.offerTimer) {
-      clearTimeout(state.offerTimer);
-      state.offerTimer = null;
-    }
 
     state.buffer += chunk;
 
@@ -483,57 +404,7 @@ export class TCPSignalingServer {
       return;
     }
 
-
     if (await this.handleExtendedApiRequest(method, path, segments, body, socket)) {
-      return;
-    }
-
-    if (method === 'GET' && (path === '/offer' || path === '/webrtc/offer')) {
-      if (!this.offerSDP || !this.offerPeerId) {
-        this.sendJSONResponse(socket, 503, { error: 'offer_unavailable' });
-        logger.logWebRequest(method, path, 503);
-        return;
-      }
-
-      this.sendJSONResponse(socket, 200, {
-        type: 'offer',
-        data: this.offerSDP,
-        peerId: this.offerPeerId
-      });
-      logger.logWebRequest(method, path, 200);
-      return;
-    }
-
-    if (method === 'POST' && path === '/webrtc/answer') {
-      const { payload, error: parseError } = parseJsonBody(body);
-      if (parseError) {
-        this.sendJSONResponse(socket, 400, { error: parseError });
-        logger.logWebRequest(method, path, 400);
-        return;
-      }
-
-      if (!payload || typeof payload.sdp !== 'string') {
-        this.sendJSONResponse(socket, 400, { error: 'missing_sdp' });
-        logger.logWebRequest(method, path, 400);
-        return;
-      }
-
-      const targetPeerId = typeof payload.peerId === 'string' && payload.peerId.length > 0 ? payload.peerId : this.offerPeerId;
-
-      if (!targetPeerId || !this.onAnswerReceived) {
-        this.sendJSONResponse(socket, 503, { error: 'peer_unavailable' });
-        logger.logWebRequest(method, path, 503);
-        return;
-      }
-
-      try {
-        await this.onAnswerReceived(payload.sdp, targetPeerId);
-        this.sendJSONResponse(socket, 200, { status: 'connected', peerId: targetPeerId });
-        logger.logWebRequest(method, path, 200);
-      } catch (error) {
-        this.sendJSONResponse(socket, 500, { error: 'answer_failed' });
-        logger.logWebRequest(method, path, 500);
-      }
       return;
     }
 
@@ -727,27 +598,6 @@ export class TCPSignalingServer {
     this.sendHTTPResponse(socket, status, { 'Content-Type': 'application/json; charset=utf-8' }, body);
   }
 
-  private sendMessage(socket: any, message: SignalingMessage): void {
-    try {
-      const data = JSON.stringify(message) + '\n';
-      socket.write(data);
-    } catch (error) {
-      logger.error('tcp_send_error', 'webrtc');
-    }
-  }
-
-  private sendOffer(socket: any, peerId: string): void {
-    if (!this.offerSDP) {
-      return;
-    }
-    const targetPeerId = this.offerPeerId || peerId;
-    this.sendMessage(socket, {
-      type: 'offer',
-      data: this.offerSDP,
-      peerId: targetPeerId
-    });
-  }
-
   private generatePeerId(): string {
     return `peer_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
@@ -770,16 +620,13 @@ export class TCPSignalingServer {
         this.server.close();
         this.server = null;
       } catch (error) {
-        logger.error('tcp_server_close_error', 'webrtc');
+        logger.error('tcp_server_close_error', 'server');
       }
     }
 
     this.isRunning = false;
-    this.offerSDP = '';
-    this.offerPeerId = '';
-    this.onAnswerReceived = null;
 
-    logger.info('tcp_signaling_server_stopped', 'webrtc');
+    logger.info('tcp_server_stopped', 'server');
   }
 
   getStatus(): ServerStatus {
@@ -796,4 +643,4 @@ export class TCPSignalingServer {
   }
 }
 
-export const tcpSignalingServer = new TCPSignalingServer();
+export const tcpServer = new TCPServer();

@@ -116,7 +116,6 @@ Once the server is running, you can access the complete API documentation by ope
 - Model management operations
 - RAG and embeddings APIs
 - Server configuration and status
-- WebRTC signaling for peer-to-peer connections
 
 For detailed API reference, see the [REST API Documentation](docs/REST_APIs.md).
 
@@ -167,7 +166,7 @@ If you're interested in working on these or have other ideas, open an issue to d
 
 - [llama.cpp](https://github.com/ggerganov/llama.cpp) - The default underlying engine for running local LLMs and it's the only one that's been implemented yet.
 - [inferra-llama.rn](https://github.com/sbhjt-gr/inferra-llama.rn) - The customized React Native adapter which provides the bridge for llama.cpp. Originally forked and self-hosted from [llama.rn](https://github.com/mybigday/llama.rn) for updating llama.cpp more frequently.
-- [react-native-rag](https://github.com/software-mansion-labs/react-native-rag) - RAG implementation for React Native that powers the document retrieval and ingestion features.
+- [react-native-rag](https://github.com/software-mansion-labs/react-native-rag) + [@langchain/textsplitters](https://github.com/langchain-ai/langchainjs) - RAG implementation for React Native that powers the document retrieval and ingestion features using LangChain.
 - [react-native-ai](https://github.com/callstackincubator/ai) - Inspiration and reference for AI integration patterns in React Native applications.
 - If someone thinks they also need to be mentioned here, please let me know.
 
@@ -181,7 +180,6 @@ If you're interested in working on these or have other ideas, open an issue to d
 - **React Native Paper**: Used for many Material Design UI components, although the whole UI is not purely based on the Material design.
 - **React Native ML Kit**: For on-device text recognition and OCR.
 - **react-native-tcp-socket**: For HTTP server implementation and network communication.
-- **react-native-webrtc**: For WebRTC peer-to-peer connections and signaling.
 - **ESLint**: For code quality.
 - **Some Expo Modules**: For camera, file system, notifications, device APIs etc.
 

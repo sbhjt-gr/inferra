@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { downloadNotificationService } from './DownloadNotificationService';
+import { downloadNotificationService } from './DownloadNotifier';
 
 interface StoredNotification {
   id: string;
@@ -77,7 +77,7 @@ class NotificationService {
 
   private shouldSendNativeNotification(nativeDownloadId?: string): boolean {
     if (Platform.OS === 'android') {
-      return !!nativeDownloadId;
+      return false;
     }
     return true;
   }

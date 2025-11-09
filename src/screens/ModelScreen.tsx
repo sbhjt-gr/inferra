@@ -67,13 +67,14 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
       'Delete Model',
       `Are you sure you want to delete ${model.name}?`,
       [
-        <Button key="cancel" onPress={hideDialog}>Cancel</Button>,
+        <Button key="cancel" onPress={hideDialog} textColor={themeColors.text}>Cancel</Button>,
         <Button
           key="delete"
           onPress={async () => {
             hideDialog();
             await logic.confirmDelete(model, showDialog);
           }}
+          textColor="#FF5C5C"
         >
           Delete
         </Button>
@@ -174,16 +175,16 @@ export default function ModelScreen({ navigation }: ModelScreenProps) {
 
       <Portal>
         <Dialog visible={dialogVisible} onDismiss={hideDialog}>
-          <Dialog.Title>{dialogTitle}</Dialog.Title>
+          <Dialog.Title style={{ color: themeColors.text }}>{dialogTitle}</Dialog.Title>
           <Dialog.Content>
-            <Text>{dialogMessage}</Text>
+            <Text style={{ color: themeColors.text }}>{dialogMessage}</Text>
           </Dialog.Content>
           <Dialog.Actions>
             {dialogActions.length > 0 
               ? dialogActions.map((ActionComponent, index) =>
                   React.isValidElement(ActionComponent) ? React.cloneElement(ActionComponent, { key: index }) : null
                 )
-              : <Button key="ok" onPress={hideDialog}>OK</Button>
+              : <Button key="ok" onPress={hideDialog} textColor={themeColors.text}>OK</Button>
             }
           </Dialog.Actions>
         </Dialog>

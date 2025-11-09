@@ -17,6 +17,7 @@ import java.io.*
 import java.net.HttpURLConnection
 import java.net.URL
 import com.gorai.ragionare.notifications.DownloadNotificationHelper
+import org.json.JSONObject
 
 class TransferModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
     
@@ -25,6 +26,7 @@ class TransferModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
     private val ongoingTransfers = ConcurrentHashMap<String, OngoingTransfer>()
     private val transferScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var progressReceiver: BroadcastReceiver? = null
+    private val transferStore = reactApplicationContext.getSharedPreferences("transfer_module_store", Context.MODE_PRIVATE)
     
     companion object {
         private const val LOG_TAG = "TransferModule"
@@ -33,7 +35,6 @@ class TransferModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
         const val ACTION_TRANSFER_COMPLETE = "com.inferra.transfer.COMPLETE" 
         const val ACTION_TRANSFER_ERROR = "com.inferra.transfer.ERROR"
         const val ACTION_TRANSFER_CANCELLED = "com.inferra.transfer.CANCELLED"
-        restoreOngoingTransfers()
     }
 
     private fun extractModelName(path: String?): String? {
@@ -51,24 +52,58 @@ class TransferModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
         return segments.lastOrNull()
     }
 
+    private fun storeTransfer(transferId: String, transfer: OngoingTransfer) {
+        val data = JSONObject().apply {
+            put("destination", transfer.destination)
+            put("modelName", transfer.modelName)
+            put("url", transfer.url)
+        }.toString()
+        transferStore.edit().putString(transferId, data).apply()
+    }
+
+    private fun readStoredTransfer(transferId: String): OngoingTransfer? {
+        val data = transferStore.getString(transferId, null) ?: return null
+        return try {
+            val obj = JSONObject(data)
+            val destination = obj.optString("destination", "")
+            val modelName = obj.optString("modelName", transferId)
+            val url = if (obj.isNull("url")) null else obj.optString("url", null)
+            OngoingTransfer(destination, modelName, url)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun removeStoredTransfer(transferId: String) {
+        transferStore.edit().remove(transferId).apply()
+    }
+
     private fun restoreOngoingTransfers() {
         transferScope.launch(Dispatchers.IO) {
             try {
-                val workInfos = WorkManager.getInstance(reactApplicationContext)
-                    .getWorkInfosByTag(FileTransferWorker.WORK_TAG)
-                    .get()
+                val workManager = WorkManager.getInstance(reactApplicationContext)
+                val workInfosFuture = workManager.getWorkInfosByTag(FileTransferWorker.WORK_TAG)
+                val workInfos: List<WorkInfo> = workInfosFuture.get()
+                val activeIds = mutableSetOf<String>()
 
                 for (info in workInfos) {
                     if (info.state.isFinished) continue
+                    val transferId = info.tags.firstOrNull { it != FileTransferWorker.WORK_TAG } ?: continue
+                    activeIds += transferId
+                    val stored = readStoredTransfer(transferId) ?: OngoingTransfer("", transferId, null)
+                    ongoingTransfers[transferId] = stored
+                }
 
-                    val transferId = info.inputData.getString(FileTransferWorker.KEY_TRANSFER_ID) ?: continue
-                    val destination = info.inputData.getString(FileTransferWorker.KEY_DESTINATION) ?: ""
-                    val modelName = info.inputData.getString(FileTransferWorker.KEY_MODEL_NAME)
-                        ?: extractModelName(destination)
-                        ?: transferId
-                    val url = info.inputData.getString(FileTransferWorker.KEY_URL)
-
-                    ongoingTransfers[transferId] = OngoingTransfer(destination, modelName, url)
+                if (transferStore.all.isNotEmpty()) {
+                    val editor = transferStore.edit()
+                    var modified = false
+                    for (entry in transferStore.all.keys) {
+                        if (!activeIds.contains(entry)) {
+                            editor.remove(entry)
+                            modified = true
+                        }
+                    }
+                    if (modified) editor.apply()
                 }
             } catch (e: Exception) {
                 Log.w(LOG_TAG, "Failed to restore transfers", e)
@@ -80,6 +115,7 @@ class TransferModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
 
     init {
         setupBroadcastReceiver()
+        restoreOngoingTransfers()
     }
 
     private fun setupBroadcastReceiver() {
@@ -158,12 +194,10 @@ class TransferModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
 
     @ReactMethod
     fun addListener(eventName: String?) {
-        // Required for NativeEventEmitter
     }
 
     @ReactMethod
     fun removeListeners(count: Int?) {
-        // Required for NativeEventEmitter  
     }
 
     private fun emitEvent(eventName: String, params: WritableMap?) {
@@ -181,7 +215,7 @@ class TransferModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
     ) {
         try {
             val transferId = System.currentTimeMillis().toString()
-            
+
             val headersMap = hashMapOf<String, String>()
             headers?.let { h ->
                 val iterator = h.keySetIterator()
@@ -213,14 +247,15 @@ class TransferModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
             WorkManager.getInstance(reactApplicationContext)
                 .enqueue(transferRequest)
 
-            ongoingTransfers[transferId] = OngoingTransfer(destination, modelName, url)
+            val transferInfo = OngoingTransfer(destination, modelName, url)
+            ongoingTransfers[transferId] = transferInfo
+            storeTransfer(transferId, transferInfo)
 
             val result = Arguments.createMap().apply {
                 putString("transferId", transferId)
             }
-            
-            promise.resolve(result)
 
+            promise.resolve(result)
         } catch (e: Exception) {
             Log.e(LOG_TAG, "Failed to begin transfer", e)
             promise.reject("TRANSFER_START_FAILED", e.message, e)
@@ -232,10 +267,10 @@ class TransferModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
         try {
             WorkManager.getInstance(reactApplicationContext)
                 .cancelAllWorkByTag(transferId)
-            
+
             ongoingTransfers.remove(transferId)
+            removeStoredTransfer(transferId)
             promise.resolve(null)
-            
         } catch (e: Exception) {
             Log.e(LOG_TAG, "Failed to cancel transfer", e)
             promise.reject("TRANSFER_CANCEL_FAILED", e.message, e)
@@ -247,44 +282,46 @@ class TransferModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
         try {
             transferScope.launch {
                 try {
-                    val workInfos = withContext(Dispatchers.IO) {
-                        WorkManager.getInstance(reactApplicationContext)
-                            .getWorkInfosByTag(FileTransferWorker.WORK_TAG)
-                            .get()
+                    val workInfos: List<WorkInfo> = withContext(Dispatchers.IO) {
+                        val workManager = WorkManager.getInstance(reactApplicationContext)
+                        val workInfosFuture = workManager.getWorkInfosByTag(FileTransferWorker.WORK_TAG)
+                        workInfosFuture.get()
                     }
 
                     val ongoingTransfersList = Arguments.createArray()
 
-                    workInfos
-                        .filter { !it.state.isFinished }
-                        .forEach { workInfo ->
-                            val transferId = workInfo.inputData.getString(FileTransferWorker.KEY_TRANSFER_ID) ?: return@forEach
-                            val destination = workInfo.inputData.getString(FileTransferWorker.KEY_DESTINATION) ?: ""
-                            val modelName = workInfo.inputData.getString(FileTransferWorker.KEY_MODEL_NAME)
-                                ?: extractModelName(destination)
-                                ?: transferId
-                            val url = workInfo.inputData.getString(FileTransferWorker.KEY_URL)
+                    for (workInfo in workInfos) {
+                        if (workInfo.state.isFinished) continue
 
-                            val progressData = workInfo.progress
-                            val bytesWritten = progressData.getLong(FileTransferWorker.KEY_PROGRESS_BYTES, 0L)
-                            val totalBytes = progressData.getLong(FileTransferWorker.KEY_PROGRESS_TOTAL, 0L)
-                            val progressPercent = progressData.getInt(FileTransferWorker.KEY_PROGRESS_PERCENT, 0)
+                        val transferId = workInfo.tags.firstOrNull { it != FileTransferWorker.WORK_TAG } ?: continue
+                        val storedTransfer = ongoingTransfers[transferId]
+                            ?: readStoredTransfer(transferId)
+                            ?: OngoingTransfer("", transferId, null)
 
-                            val transferInfo = Arguments.createMap().apply {
-                                putString("id", transferId)
-                                putString("destination", destination)
-                                putString("modelName", modelName)
-                                if (!url.isNullOrEmpty()) {
-                                    putString("url", url)
-                                }
-                                putDouble("bytesWritten", bytesWritten.toDouble())
-                                putDouble("totalBytes", totalBytes.toDouble())
-                                putInt("progress", progressPercent)
-                            }
-
-                            ongoingTransfers[transferId] = OngoingTransfer(destination, modelName, url)
-                            ongoingTransfersList.pushMap(transferInfo)
+                        val destination = storedTransfer.destination
+                        val modelName = storedTransfer.modelName.ifEmpty {
+                            extractModelName(destination) ?: transferId
                         }
+                        val url = storedTransfer.url
+
+                        val progressData = workInfo.progress
+                        val bytesWritten = progressData.getLong(FileTransferWorker.KEY_PROGRESS_BYTES, 0L)
+                        val totalBytes = progressData.getLong(FileTransferWorker.KEY_PROGRESS_TOTAL, 0L)
+                        val progressPercent = progressData.getInt(FileTransferWorker.KEY_PROGRESS_PERCENT, 0)
+
+                        val transferInfo = Arguments.createMap().apply {
+                            putString("id", transferId)
+                            putString("destination", destination)
+                            putString("modelName", modelName)
+                            url?.let { putString("url", it) }
+                            putDouble("bytesWritten", bytesWritten.toDouble())
+                            putDouble("totalBytes", totalBytes.toDouble())
+                            putInt("progress", progressPercent)
+                        }
+
+                        ongoingTransfers[transferId] = OngoingTransfer(destination, modelName, url)
+                        ongoingTransfersList.pushMap(transferInfo)
+                    }
 
                     withContext(Dispatchers.Main) {
                         promise.resolve(ongoingTransfersList)
@@ -295,7 +332,6 @@ class TransferModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
                     }
                 }
             }
-            
         } catch (e: Exception) {
             Log.e(LOG_TAG, "Failed to get ongoing transfers", e)
             promise.reject("GET_TRANSFERS_FAILED", e.message, e)
@@ -320,7 +356,9 @@ class TransferModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
         val resolvedDestination = destination ?: transferInfo?.destination ?: ""
         val resolvedUrl = url ?: transferInfo?.url
 
-        ongoingTransfers[transferId] = OngoingTransfer(resolvedDestination, resolvedModelName, resolvedUrl)
+        val transfer = OngoingTransfer(resolvedDestination, resolvedModelName, resolvedUrl)
+        ongoingTransfers[transferId] = transfer
+        storeTransfer(transferId, transfer)
 
         val params = Arguments.createMap().apply {
             putString("downloadId", transferId)
@@ -356,6 +394,8 @@ class TransferModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
         val resolvedDestination = destination ?: transferInfo?.destination
         val resolvedUrl = url ?: transferInfo?.url
 
+        removeStoredTransfer(transferId)
+
         val params = Arguments.createMap().apply {
             putString("downloadId", transferId)
             putString("modelName", resolvedModelName)
@@ -385,6 +425,8 @@ class TransferModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
         val resolvedDestination = destination ?: transferInfo?.destination
         val resolvedUrl = url ?: transferInfo?.url
 
+        removeStoredTransfer(transferId)
+
         val params = Arguments.createMap().apply {
             putString("downloadId", transferId)
             putString("error", error)
@@ -413,8 +455,9 @@ class TransferModule(reactContext: ReactApplicationContext) : ReactContextBaseJa
         val resolvedDestination = destination ?: transferInfo?.destination
         val resolvedUrl = url ?: transferInfo?.url
 
+        removeStoredTransfer(transferId)
+
         val params = Arguments.createMap().apply {
-            putString("downloadId", transferId)
             putString("modelName", resolvedModelName)
             resolvedDestination?.let { putString("destination", it) }
             resolvedUrl?.let { putString("url", it) }
@@ -671,7 +714,7 @@ class FileTransferWorker(
             dataInputStream = httpConnection.inputStream
 
             val actualDestinationPath = if (destinationPath.startsWith("file://")) {
-                destinationPath.substring(7) // Remove "file://" prefix
+                destinationPath.substring(7)
             } else {
                 destinationPath
             }

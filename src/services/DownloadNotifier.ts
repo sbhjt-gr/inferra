@@ -33,7 +33,7 @@ const nativeModule: DownloadNotificationModuleInterface =
     ? DownloadNotificationModule 
     : mockImplementation;
 
-class DownloadNotificationService {
+class DownloadNotifier {
   private hasPermission: boolean = false;
 
   async requestPermissions(): Promise<boolean> {
@@ -142,4 +142,4 @@ class DownloadNotificationService {
   }
 }
 
-export const downloadNotificationService = new DownloadNotificationService(); 
+export const downloadNotificationService = new DownloadNotifier(); 

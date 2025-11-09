@@ -18,6 +18,7 @@ import expo.modules.ReactNativeHostWrapper
 
 import com.inferra.transfer.TransferPackage
 import com.gorai.ragionare.notifications.DownloadNotificationPackage
+import com.gorai.ragionare.localserver.LocalServerPackage
 
 class MainApplication : Application(), ReactApplication {
 
@@ -28,6 +29,7 @@ class MainApplication : Application(), ReactApplication {
             val packages = PackageList(this).packages.toMutableList()
             packages.add(TransferPackage())
             packages.add(DownloadNotificationPackage())
+            packages.add(LocalServerPackage())
             return packages
           }
 

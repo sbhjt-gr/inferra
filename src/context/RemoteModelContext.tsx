@@ -11,7 +11,7 @@ interface RemoteModelContextType {
   toggleRemoteModels: () => Promise<{ success: boolean, requiresLogin?: boolean, emailNotVerified?: boolean }>;
   isLoggedIn: boolean;
   checkLoginStatus: () => Promise<boolean>;
-  disableRemoteModels: () => Promise<void>;
+  disableRemoteModels: (persist?: boolean) => Promise<void>;
 }
 
 const RemoteModelContext = createContext<RemoteModelContextType>({
@@ -26,14 +26,34 @@ export const RemoteModelProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [enableRemoteModels, setEnableRemoteModels] = useState<boolean>(false);
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
 
-  const disableRemoteModels = async (): Promise<void> => {
-    setEnableRemoteModels(false);
+  const loadPref = useCallback(async () => {
     try {
       await providerKeyStorage.initialize();
-      await providerKeyStorage.setPreference(REMOTE_MODELS_KEY, 'false');
+      const saved = await providerKeyStorage.getPreference(REMOTE_MODELS_KEY);
+      if (saved !== null) {
+        setEnableRemoteModels(saved === 'true');
+      }
     } catch {
     }
-  };
+  }, []);
+
+  const setPref = useCallback(async (val: boolean, persist: boolean): Promise<boolean> => {
+    setEnableRemoteModels(val);
+    if (!persist) {
+      return true;
+    }
+    try {
+      await providerKeyStorage.initialize();
+      await providerKeyStorage.setPreference(REMOTE_MODELS_KEY, val ? 'true' : 'false');
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const disableRemoteModels = useCallback(async (persist: boolean = true): Promise<void> => {
+    await setPref(false, persist);
+  }, [setPref]);
 
   const checkLoginStatus = useCallback(async () => {
     try {
@@ -44,88 +64,77 @@ export const RemoteModelProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
       const authenticated = await isAuthenticated();
       setIsLoggedIn(authenticated);
-      
+
       if (!authenticated) {
-        const userData = await getUserFromSecureStorage();
-        const isLoggedInFromStorage = !!userData;
-        setIsLoggedIn(isLoggedInFromStorage);
-        
-        if (!isLoggedInFromStorage) {
-          await disableRemoteModels();
+        const storedUser = await getUserFromSecureStorage();
+        const logged = !!storedUser;
+        setIsLoggedIn(logged);
+
+        if (!logged) {
+          await disableRemoteModels(false);
+          return false;
         }
-        
-        return isLoggedInFromStorage;
+
+        await loadPref();
+        return true;
       }
-      
-      return authenticated;
+
+      await loadPref();
+      return true;
     } catch {
       setIsLoggedIn(false);
-      await disableRemoteModels();
+      await disableRemoteModels(false);
       return false;
     }
-  }, []);
+  }, [disableRemoteModels, loadPref]);
 
   useEffect(() => {
-    loadRemoteModelPreference();
+    loadPref();
     checkLoginStatus();
-    
+
     if (!isFirebaseReady()) {
       return;
     }
 
     try {
       const unsubscribe = onAuthStateChange(async (user: FirebaseUser | null) => {
-        const newLoginState = !!user;
-        setIsLoggedIn(newLoginState);
-        
-        if (!newLoginState) {
-          await disableRemoteModels();
+        const logged = !!user;
+        setIsLoggedIn(logged);
+
+        if (!logged) {
+          await disableRemoteModels(false);
+          return;
         }
+
+        await loadPref();
       });
 
       return () => unsubscribe();
     } catch {
       
     }
-  }, [checkLoginStatus]);
-
-  const loadRemoteModelPreference = async () => {
-    try {
-      await providerKeyStorage.initialize();
-      const savedPreference = await providerKeyStorage.getPreference(REMOTE_MODELS_KEY);
-      if (savedPreference !== null) {
-        setEnableRemoteModels(savedPreference === 'true');
-      }
-    } catch {
-    }
-  };
+  }, [checkLoginStatus, disableRemoteModels, loadPref]);
 
   const toggleRemoteModels = async () => {
     if (!enableRemoteModels) {
-      const isUserLoggedIn = await checkLoginStatus();
-      if (!isUserLoggedIn) {
+      const logged = await checkLoginStatus();
+      if (!logged) {
         return { success: false, requiresLogin: true };
       }
-      
+
       const user = getCurrentUser();
       if (user && !user.emailVerified) {
         return { success: false, emailNotVerified: true };
       }
     }
-    
-    const newValue = !enableRemoteModels;
-    setEnableRemoteModels(newValue);
-    try {
-      await providerKeyStorage.initialize();
-      await providerKeyStorage.setPreference(REMOTE_MODELS_KEY, newValue.toString());
-      return { success: true };
-    } catch {
-      return { success: false };
-    }
+
+    const next = !enableRemoteModels;
+    const ok = await setPref(next, true);
+    return { success: ok };
   };
 
   return (
-    <RemoteModelContext.Provider value={{ 
+    <RemoteModelContext.Provider value={{
       enableRemoteModels,
       toggleRemoteModels,
       isLoggedIn,
@@ -143,4 +152,4 @@ export const useRemoteModel = () => {
     throw new Error('useRemoteModel must be used within a RemoteModelProvider');
   }
   return context;
-}; 
+};

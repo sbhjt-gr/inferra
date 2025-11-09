@@ -23,11 +23,11 @@ import { getThemeAwareColor } from '../utils/ColorUtils';
 import { Dialog, Portal, Text, Button } from 'react-native-paper';
 
 const formatBytes = (bytes: number) => {
-  if (bytes === undefined || bytes === null || isNaN(bytes) || bytes === 0) return '0 B';
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
   const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1);
+  return `${(bytes / Math.pow(k, index)).toFixed(2)} ${sizes[index]}`;
 };
 
 interface DownloadItem {
@@ -149,7 +149,19 @@ export default function DownloadsScreen() {
       
       const savedStates = await AsyncStorage.getItem('active_downloads');
       if (savedStates) {
-        const parsedStates = JSON.parse(savedStates);
+        let parsedStates = JSON.parse(savedStates);
+
+        const entries = Object.entries(parsedStates);
+        const validEntries = entries.filter(([name]) => !name.startsWith('com.inferra.transfer.'));
+        if (validEntries.length !== entries.length) {
+          if (validEntries.length > 0) {
+            parsedStates = Object.fromEntries(validEntries);
+            await AsyncStorage.setItem('active_downloads', JSON.stringify(parsedStates));
+          } else {
+            await AsyncStorage.removeItem('active_downloads');
+            return;
+          }
+        }
         
         for (const [modelName, state] of Object.entries(parsedStates)) {
           const downloadState = state as DownloadState;

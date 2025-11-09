@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Text, TouchableOpacity, Alert, Switch, Clipboard, Share } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, StyleSheet, ScrollView, Text, TouchableOpacity, Alert, Switch, Clipboard, Share, Platform } from 'react-native';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import QRCodeStyled from 'react-native-qrcode-styled';
 import { useNavigation } from '@react-navigation/native';
@@ -10,15 +11,34 @@ import { theme } from '../constants/theme';
 import { RootStackParamList } from '../types/navigation';
 import AppHeader from '../components/AppHeader';
 import SettingsSection from '../components/settings/SettingsSection';
-import { localServerWebRTC } from '../services/LocalServerWebRTC';
+import { localServer } from '../services/LocalServer';
+import { localServerPlatformBackground } from '../services/LocalServerBackground';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface ServerStatus {
   isRunning: boolean;
-  offerSDP?: string;
   signalingURL?: string;
   peerCount: number;
   startTime?: Date;
 }
+
+const AUTO_START_KEY = 'local_server_auto_start';
+const KEEP_AWAKE_KEY = 'local_server_keep_awake';
+const KEEP_AWAKE_TAG = 'local-server';
+
+const parsePortFromURL = (value?: string) => {
+  if (!value) return undefined;
+  try {
+    const parsed = new URL(value);
+    if (parsed.port) {
+      const resolved = Number(parsed.port);
+      return Number.isFinite(resolved) ? resolved : undefined;
+    }
+    return parsed.protocol === 'https:' ? 443 : 80;
+  } catch (error) {
+    return undefined;
+  }
+};
 
 export default function LocalServerScreen() {
   const { theme: currentTheme } = useTheme();
@@ -34,15 +54,15 @@ export default function LocalServerScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [autoStart, setAutoStart] = useState(false);
   const [allowExternalAccess, setAllowExternalAccess] = useState(true);
+  const [keepAwake, setKeepAwake] = useState(false);
 
   useEffect(() => {
-    const server = localServerWebRTC;
+    const server = localServer;
 
     const handleServerStarted = (data: any) => {
       setServerStatus(prev => ({
         ...prev,
         isRunning: true,
-        offerSDP: data.offerSDP,
         signalingURL: data.signalingURL,
         peerCount: 0,
         startTime: new Date(),
@@ -54,7 +74,6 @@ export default function LocalServerScreen() {
       setServerStatus(prev => ({
         ...prev,
         isRunning: false,
-        offerSDP: undefined,
         signalingURL: undefined,
         startTime: undefined,
       }));
@@ -73,27 +92,205 @@ export default function LocalServerScreen() {
     };
   }, []);
 
-  const handleToggleServer = async () => {
+  const startServer = useCallback(async () => {
+    if (isLoading) {
+      return localServer.isServerRunning();
+    }
+
+    if (localServer.isServerRunning()) {
+      return true;
+    }
+
     setIsLoading(true);
 
     try {
-      if (serverStatus.isRunning) {
-        const result = await localServerWebRTC.stop();
-        if (!result.success) {
-          Alert.alert('Error', result.error || 'Failed to stop server');
-        }
-      } else {
-        const result = await localServerWebRTC.start();
-        if (!result.success) {
-          Alert.alert('Error', result.error || 'Failed to start server');
-        }
+      const result = await localServer.start();
+      if (!result.success) {
+        Alert.alert('Error', result.error || 'Failed to start server');
+        return false;
       }
+
+      if (allowExternalAccess && Platform.OS === 'android' && result.signalingURL) {
+        const port = parsePortFromURL(result.signalingURL);
+        await localServerPlatformBackground.start({ port, url: result.signalingURL });
+      }
+
+      return true;
     } catch (error) {
       Alert.alert('Error', 'An unexpected error occurred');
+      return false;
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [allowExternalAccess, isLoading]);
+
+  const stopServer = useCallback(async () => {
+    if (isLoading) {
+      return !localServer.isServerRunning();
+    }
+
+    if (!localServer.isServerRunning()) {
+      return true;
+    }
+
+    setIsLoading(true);
+
+    try {
+      await localServerPlatformBackground.stop();
+      const result = await localServer.stop();
+      if (!result.success) {
+        Alert.alert('Error', result.error || 'Failed to stop server');
+        return false;
+      }
+      return true;
+    } catch (error) {
+      Alert.alert('Error', 'An unexpected error occurred');
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isLoading]);
+
+  const handleToggleServer = useCallback(async () => {
+    if (isLoading) {
+      return;
+    }
+
+    if (serverStatus.isRunning) {
+      await stopServer();
+    } else {
+      await startServer();
+    }
+  }, [isLoading, serverStatus.isRunning, startServer, stopServer]);
+
+  const handleAutoStartChange = useCallback(async (value: boolean) => {
+    setAutoStart(value);
+    try {
+      await AsyncStorage.setItem(AUTO_START_KEY, value ? 'true' : 'false');
+    } catch {
+      // Swallow persistence errors silently
+    }
+
+    if (value && !serverStatus.isRunning) {
+      const started = await startServer();
+      if (!started) {
+        setAutoStart(false);
+        try {
+          await AsyncStorage.setItem(AUTO_START_KEY, 'false');
+        } catch {
+          // Ignore storage rollback error
+        }
+      }
+    }
+  }, [serverStatus.isRunning, startServer]);
+
+  const handleKeepAwakeChange = useCallback(async (value: boolean) => {
+    setKeepAwake(value);
+    try {
+      await AsyncStorage.setItem(KEEP_AWAKE_KEY, value ? 'true' : 'false');
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadAutoStartPreference = async () => {
+      try {
+        const stored = await AsyncStorage.getItem(AUTO_START_KEY);
+        if (cancelled) {
+          return;
+        }
+
+        const enabled = stored === 'true';
+        setAutoStart(enabled);
+
+        if (enabled && !localServer.isServerRunning()) {
+          const started = await startServer();
+          if (!started && !cancelled) {
+            setAutoStart(false);
+            try {
+              await AsyncStorage.setItem(AUTO_START_KEY, 'false');
+            } catch {
+              // Ignore storage rollback error
+            }
+          }
+        }
+      } catch {
+        // Ignore preference load failures
+      }
+    };
+
+    loadAutoStartPreference();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [startServer]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadKeepAwakePreference = async () => {
+      try {
+        const stored = await AsyncStorage.getItem(KEEP_AWAKE_KEY);
+        if (cancelled) {
+          return;
+        }
+        setKeepAwake(stored === 'true');
+      } catch {}
+    };
+
+    loadKeepAwakePreference();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const syncKeepAwake = async () => {
+      try {
+        if (keepAwake && serverStatus.isRunning) {
+          await activateKeepAwakeAsync(KEEP_AWAKE_TAG);
+        } else {
+          await deactivateKeepAwake(KEEP_AWAKE_TAG);
+        }
+      } catch {}
+    };
+
+    syncKeepAwake();
+
+    return () => {
+      deactivateKeepAwake(KEEP_AWAKE_TAG).catch(() => {});
+    };
+  }, [keepAwake, serverStatus.isRunning]);
+
+  useEffect(() => {
+    if (!serverStatus.isRunning) {
+      localServerPlatformBackground.stop().catch(() => {});
+      return;
+    }
+    if (allowExternalAccess && Platform.OS === 'android' && serverStatus.signalingURL) {
+      const port = parsePortFromURL(serverStatus.signalingURL);
+      localServerPlatformBackground.start({ port, url: serverStatus.signalingURL }).catch(() => {});
+    } else {
+      localServerPlatformBackground.stop().catch(() => {});
+    }
+  }, [allowExternalAccess, serverStatus.isRunning, serverStatus.signalingURL]);
+
+  useEffect(() => {
+    if (!serverStatus.isRunning || Platform.OS !== 'android' || !serverStatus.signalingURL) {
+      return;
+    }
+    const port = parsePortFromURL(serverStatus.signalingURL);
+    localServerPlatformBackground.update({ peerCount: serverStatus.peerCount, url: serverStatus.signalingURL, port }).catch(() => {});
+  }, [serverStatus.peerCount, serverStatus.isRunning, serverStatus.signalingURL]);
+
+  useEffect(() => {
+    return () => {
+      localServerPlatformBackground.stop().catch(() => {});
+    };
+  }, []);
 
   const getStatusText = () => {
     if (isLoading) return 'Starting...';
@@ -343,6 +540,29 @@ export default function LocalServerScreen() {
           <View style={[styles.separator, { backgroundColor: themeColors.background }]} />
           <View style={styles.settingItem}>
             <View style={styles.settingLeft}>
+              <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}> 
+                <MaterialCommunityIcons name="brightness-7" size={22} color={iconColor} />
+              </View>
+              <View style={styles.settingTextContainer}>
+                <Text style={[styles.settingText, { color: themeColors.text }]}> 
+                  Keep Screen Awake
+                </Text>
+                <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}> 
+                  Prevent sleep while the server is active
+                </Text>
+              </View>
+            </View>
+            <Switch
+              value={keepAwake}
+              onValueChange={handleKeepAwakeChange}
+              thumbColor={keepAwake ? themeColors.primary : themeColors.secondaryText}
+              trackColor={{ false: themeColors.borderColor, true: themeColors.primary + '40' }}
+            />
+          </View>
+
+          <View style={[styles.separator, { backgroundColor: themeColors.background }]} />
+          <View style={styles.settingItem}>
+            <View style={styles.settingLeft}>
               <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
                 <MaterialCommunityIcons name="play-circle-outline" size={22} color={iconColor} />
               </View>
@@ -357,7 +577,7 @@ export default function LocalServerScreen() {
             </View>
             <Switch
               value={autoStart}
-              onValueChange={setAutoStart}
+              onValueChange={handleAutoStartChange}
               thumbColor={autoStart ? themeColors.primary : themeColors.secondaryText}
               trackColor={{ false: themeColors.borderColor, true: themeColors.primary + '40' }}
             />

@@ -91,9 +91,19 @@ android {
         applicationId 'com.gorai.ragionare'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 264
-        versionName "2.6.4"
+        versionCode 267
+        versionName "2.6.7"
     }
+    
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+    
     signingConfigs {
         debug {
             storeFile file('debug.keystore')
@@ -152,6 +162,7 @@ dependencies {
 
     // AndroidX WorkManager for background tasks
     implementation("androidx.work:work-runtime-ktx:2.9.0")
+    implementation("com.google.guava:guava:31.1-android")
 
     def isGifEnabled = (findProperty('expo.gif.enabled') ?: "") == "true";
     def isWebpEnabled = (findProperty('expo.webp.enabled') ?: "") == "true";

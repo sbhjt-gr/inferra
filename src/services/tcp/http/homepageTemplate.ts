@@ -175,7 +175,6 @@ export function getHomepageHTML(): string {
       <button class="nav-btn" onclick="document.getElementById('models').scrollIntoView({behavior:'smooth'})">Models</button>
       <button class="nav-btn" onclick="document.getElementById('rag').scrollIntoView({behavior:'smooth'})">RAG</button>
       <button class="nav-btn" onclick="document.getElementById('server').scrollIntoView({behavior:'smooth'})">Server</button>
-      <button class="nav-btn" onclick="document.getElementById('webrtc').scrollIntoView({behavior:'smooth'})">WebRTC</button>
     </div>
 
     <div id="chat" class="section">
@@ -608,60 +607,10 @@ export function getHomepageHTML(): string {
       </div>
     </div>
 
-    <div id="webrtc" class="section">
-      <h2 class="section-title">WebRTC Signaling</h2>
-
-      <div class="endpoint-card">
-        <div class="endpoint-header">
-          <span class="method get">GET</span>
-          <span class="endpoint-path">/offer</span>
-        </div>
-        <p class="endpoint-desc">Get WebRTC offer for peer-to-peer connection</p>
-        <div class="code-label">Response:</div>
-        <pre class="code-block">{
-  "type": "offer",
-  "data": "v=0\\r\\no=- ...SDP offer data...",
-  "peerId": "peer-12345"
-}</pre>
-      </div>
-
-      <div class="endpoint-card">
-        <div class="endpoint-header">
-          <span class="method get">GET</span>
-          <span class="endpoint-path">/webrtc/offer</span>
-        </div>
-        <p class="endpoint-desc">Alternative endpoint for WebRTC offer</p>
-        <div class="code-label">Response:</div>
-        <pre class="code-block">{
-  "type": "offer",
-  "data": "v=0\\r\\no=- ...SDP offer data...",
-  "peerId": "peer-12345"
-}</pre>
-      </div>
-
-      <div class="endpoint-card">
-        <div class="endpoint-header">
-          <span class="method post">POST</span>
-          <span class="endpoint-path">/webrtc/answer</span>
-        </div>
-        <p class="endpoint-desc">Submit WebRTC answer for peer-to-peer connection</p>
-        <div class="code-label">Request:</div>
-        <pre class="code-block">{
-  "data": "v=0\\r\\no=- ...SDP answer data...",
-  "peerId": "peer-12345"
-}</pre>
-        <div class="code-label">Response:</div>
-        <pre class="code-block">{
-  "success": true
-}</pre>
-      </div>
-    </div>
-
     <div class="footer">
       <p style="margin-bottom: 10px;"><strong>Base URL:</strong> Use the server URL shown in the status section above</p>
       <p style="margin-bottom: 10px;"><strong>Headers:</strong> Content-Type: application/json</p>
       <p style="margin-bottom: 10px;"><strong>CORS:</strong> Enabled for all origins</p>
-      <p style="margin-top: 20px;">Powered by Inferra - Local AI Inference Server</p>
     </div>
   </div>
 </body>

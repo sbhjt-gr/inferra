@@ -170,10 +170,6 @@ jspm_packages/
 # eas
 eas.json
 
-# App specific
-app-example
-config/
-
 # Misc
 package-lock.json
 yarn.lock

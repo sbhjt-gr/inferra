@@ -1,8 +1,9 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { View, StyleSheet, ScrollView, Text, TouchableOpacity, Alert, RefreshControl } from 'react-native';
+import { View, StyleSheet, ScrollView, Text, TouchableOpacity, RefreshControl } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Dialog, Portal, Button } from 'react-native-paper';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import { RootStackParamList } from '../types/navigation';
@@ -26,6 +27,7 @@ export default function ServerLogsScreen() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
+  const [clearDialogVisible, setClearDialogVisible] = useState(false);
 
   const maskSensitiveData = useCallback((value: string) => {
     if (!value) {
@@ -98,26 +100,14 @@ export default function ServerLogsScreen() {
     setIsRefreshing(false);
   }, [loadLogs]);
 
-  const clearLogs = () => {
-    Alert.alert(
-      'Clear Logs',
-      'Are you sure you want to clear all server logs?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Clear',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await logger.clearLogs();
-              setLogs([]);
-            } catch (error) {
-              Alert.alert('Error', 'Failed to clear logs');
-            }
-          }
-        }
-      ]
-    );
+  const handleClearLogs = async () => {
+    try {
+      await logger.clearLogs();
+      setLogs([]);
+      setClearDialogVisible(false);
+    } catch (error) {
+      setClearDialogVisible(false);
+    }
   };
 
   const getLevelColor = (level: string) => {
@@ -175,7 +165,7 @@ export default function ServerLogsScreen() {
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.headerButton}
-              onPress={clearLogs}
+              onPress={() => setClearDialogVisible(true)}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
               <MaterialCommunityIcons name="delete-outline" size={20} color="#FFFFFF" />
@@ -238,6 +228,21 @@ export default function ServerLogsScreen() {
         </TouchableOpacity>
         <Text style={styles.autoScrollText}>Auto-scroll: {autoScroll ? 'ON' : 'OFF'}</Text>
       </View>
+
+      <Portal>
+        <Dialog visible={clearDialogVisible} onDismiss={() => setClearDialogVisible(false)}>
+          <Dialog.Title style={{ color: themeColors.text }}>Clear Logs</Dialog.Title>
+          <Dialog.Content>
+            <Text style={{ color: themeColors.text }}>
+              Are you sure you want to clear all server logs?
+            </Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setClearDialogVisible(false)}>Cancel</Button>
+            <Button onPress={handleClearLogs} textColor="#FF5C5C">Clear</Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
     </View>
   );
 }
