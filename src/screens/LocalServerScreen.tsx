@@ -11,13 +11,12 @@ import { theme } from '../constants/theme';
 import { RootStackParamList } from '../types/navigation';
 import AppHeader from '../components/AppHeader';
 import SettingsSection from '../components/settings/SettingsSection';
-import { localServerWebRTC } from '../services/LocalServerWebRTC';
+import { localServer } from '../services/LocalServer';
 import { localServerPlatformBackground } from '../services/LocalServerBackground';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface ServerStatus {
   isRunning: boolean;
-  offerSDP?: string;
   signalingURL?: string;
   peerCount: number;
   startTime?: Date;
@@ -58,13 +57,12 @@ export default function LocalServerScreen() {
   const [keepAwake, setKeepAwake] = useState(false);
 
   useEffect(() => {
-    const server = localServerWebRTC;
+    const server = localServer;
 
     const handleServerStarted = (data: any) => {
       setServerStatus(prev => ({
         ...prev,
         isRunning: true,
-        offerSDP: data.offerSDP,
         signalingURL: data.signalingURL,
         peerCount: 0,
         startTime: new Date(),
@@ -76,7 +74,6 @@ export default function LocalServerScreen() {
       setServerStatus(prev => ({
         ...prev,
         isRunning: false,
-        offerSDP: undefined,
         signalingURL: undefined,
         startTime: undefined,
       }));
@@ -97,23 +94,23 @@ export default function LocalServerScreen() {
 
   const startServer = useCallback(async () => {
     if (isLoading) {
-      return localServerWebRTC.isServerRunning();
+      return localServer.isServerRunning();
     }
 
-    if (localServerWebRTC.isServerRunning()) {
+    if (localServer.isServerRunning()) {
       return true;
     }
 
     setIsLoading(true);
 
     try {
-      const result = await localServerWebRTC.start();
+      const result = await localServer.start();
       if (!result.success) {
         Alert.alert('Error', result.error || 'Failed to start server');
         return false;
       }
 
-      if (allowExternalAccess && Platform.OS === 'android') {
+      if (allowExternalAccess && Platform.OS === 'android' && result.signalingURL) {
         const port = parsePortFromURL(result.signalingURL);
         await localServerPlatformBackground.start({ port, url: result.signalingURL });
       }
@@ -129,10 +126,10 @@ export default function LocalServerScreen() {
 
   const stopServer = useCallback(async () => {
     if (isLoading) {
-      return !localServerWebRTC.isServerRunning();
+      return !localServer.isServerRunning();
     }
 
-    if (!localServerWebRTC.isServerRunning()) {
+    if (!localServer.isServerRunning()) {
       return true;
     }
 
@@ -140,7 +137,7 @@ export default function LocalServerScreen() {
 
     try {
       await localServerPlatformBackground.stop();
-      const result = await localServerWebRTC.stop();
+      const result = await localServer.stop();
       if (!result.success) {
         Alert.alert('Error', result.error || 'Failed to stop server');
         return false;
@@ -207,7 +204,7 @@ export default function LocalServerScreen() {
         const enabled = stored === 'true';
         setAutoStart(enabled);
 
-        if (enabled && !localServerWebRTC.isServerRunning()) {
+        if (enabled && !localServer.isServerRunning()) {
           const started = await startServer();
           if (!started && !cancelled) {
             setAutoStart(false);
@@ -273,7 +270,7 @@ export default function LocalServerScreen() {
       localServerPlatformBackground.stop().catch(() => {});
       return;
     }
-    if (allowExternalAccess && Platform.OS === 'android') {
+    if (allowExternalAccess && Platform.OS === 'android' && serverStatus.signalingURL) {
       const port = parsePortFromURL(serverStatus.signalingURL);
       localServerPlatformBackground.start({ port, url: serverStatus.signalingURL }).catch(() => {});
     } else {
@@ -282,7 +279,7 @@ export default function LocalServerScreen() {
   }, [allowExternalAccess, serverStatus.isRunning, serverStatus.signalingURL]);
 
   useEffect(() => {
-    if (!serverStatus.isRunning || Platform.OS !== 'android') {
+    if (!serverStatus.isRunning || Platform.OS !== 'android' || !serverStatus.signalingURL) {
       return;
     }
     const port = parsePortFromURL(serverStatus.signalingURL);

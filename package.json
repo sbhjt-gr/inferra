@@ -81,7 +81,6 @@
     "react-native-screens": "~4.11.1",
     "react-native-svg": "15.11.2",
     "react-native-tcp-socket": "^6.3.0",
-    "react-native-webrtc": "^124.0.7",
     "react-native-webview": "13.13.5",
     "react-syntax-highlighter": "^15.6.6"
   },

@@ -145,13 +145,6 @@ const licenses: License[] = [
     repositoryUrl: 'https://github.com/react-native-webview/react-native-webview'
   },
   {
-    name: 'React Native WebRTC',
-    description: 'WebRT\C module for React Native',
-    licenseType: 'MIT License',
-    licenseUrl: 'https://github.com/react-native-webrtc/react-native-webrtc/blob/master/LICENSE.md',
-    repositoryUrl: 'https://github.com/react-native-webrtc/react-native-webrtc'
-  },
-  {
     name: 'OP SQLite',
     description: 'Fast SQLite implementation for React Native',
     licenseType: 'MIT License',
