@@ -19,6 +19,7 @@ import expo.modules.ReactNativeHostWrapper
 import com.inferra.transfer.TransferPackage
 import com.gorai.ragionare.notifications.DownloadNotificationPackage
 import com.gorai.ragionare.localserver.LocalServerPackage
+import com.gorai.ragionare.device.SystemCapabilitiesPackage
 
 class MainApplication : Application(), ReactApplication {
 
@@ -30,6 +31,7 @@ class MainApplication : Application(), ReactApplication {
             packages.add(TransferPackage())
             packages.add(DownloadNotificationPackage())
             packages.add(LocalServerPackage())
+            packages.add(SystemCapabilitiesPackage())
             return packages
           }
 

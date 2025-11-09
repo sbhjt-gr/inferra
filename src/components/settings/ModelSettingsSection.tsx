@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View, Switch, Modal, TextInput, ScrollView, Dimensions, Platform, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View, Switch, Modal, TextInput, ScrollView, Dimensions, Platform, ActivityIndicator, Linking } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../constants/theme';
 import SettingsSection from './SettingsSection';
 import SettingSlider from '../SettingSlider';
 import * as Device from 'expo-device';
+
+const OPENCL_DOCS_URL = 'https://github.com/ggml-org/llama.cpp/blob/master/docs/backend/OPENCL.md#model-preparation';
 
 type ModelSettings = {
   maxTokens: number;
@@ -409,6 +411,27 @@ const ModelSettingsSection = ({
                 <Text style={[styles.settingDescription, { color: themeColors.secondaryText }]}>
                   Higher values push more transformer layers to the GPU for faster inference.
                 </Text>
+                {Platform.OS === 'android' && gpuConfig.supported && (
+                  <View>
+                    <Text style={[styles.settingDescription, { color: themeColors.secondaryText, marginTop: 8 }]}>
+                      Note: Pure Q4_0 quantized models perform best with OpenCL.
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => Linking.openURL(OPENCL_DOCS_URL)}
+                      style={styles.linkContainer}
+                    >
+                      <Text style={[styles.settingDescription, { color: themeColors.primary }]}>
+                        See llama.cpp OpenCL docs for details
+                      </Text>
+                      <MaterialCommunityIcons
+                        name="open-in-new"
+                        size={12}
+                        color={themeColors.primary}
+                        style={styles.linkIcon}
+                      />
+                    </TouchableOpacity>
+                  </View>
+                )}
                 {gpuConfig.value !== gpuConfig.defaultValue && (
                   <TouchableOpacity
                     onPress={handleGpuLayersReset}
@@ -1891,6 +1914,14 @@ const styles = StyleSheet.create({
   },
   selectedIndicator: {
     marginLeft: 12,
+  },
+  linkContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  linkIcon: {
+    marginLeft: 4,
   },
 });
 
