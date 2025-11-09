@@ -386,7 +386,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           description = 'Requires an Adreno GPU to enable OpenCL acceleration.';
           break;
         case 'missing_cpu_features':
-          description = 'Requires CPU support for i8mm and dot product instructions.';
+          description = 'This CPU has missing required features for acceleration.';
           break;
         default:
           description = 'GPU acceleration is not available on this device.';

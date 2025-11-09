@@ -160,7 +160,7 @@ const ModelSettingsSection = ({
       case 'no_adreno':
         return 'OpenCL acceleration needs an Adreno GPU.';
       case 'missing_cpu_features':
-        return 'OpenCL acceleration needs i8mm and dot product CPU instructions.';
+        return 'This CPU has missing required features for acceleration.';
       case 'unknown':
         return Platform.OS === 'android'
           ? 'Device GPU capabilities could not be verified. Results may vary.'
