@@ -45,6 +45,7 @@ If you want to support me and the development of this project, you can donate to
 - Server can be started from the Server tab with configuration options for network access and auto-start.
 - Share your Inferra chat interface with computers, tablets, or other devices through a simple URL or QR code.
 - Full API documentation is available [HERE](docs/REST_APIs.md) and at the server homepage when running.
+- A command-line interface tool is available in the [inferra-cli](../inferra-cli) directory that demonstrates how to build applications using these REST APIs.
 
 ### Model Management
 - Download manager that fetches models directly from HuggingFace. Cherry-picked model list optimized for running on edge devices available in Models -> Download Models tab.
@@ -96,6 +97,14 @@ If you want to contribute or just try to run it locally, follow the guide below.
    # For iOS
    npx expo run:ios
    ```
+
+## Command Line Interface
+
+The inferra-cli tool is a terminal-based client that connects to your Inferra server and provides an interactive chat interface directly from your command line. This serves as both a functional tool and a reference implementation for developers who want to build applications using the Inferra REST APIs.
+
+The CLI is built with React and Ink to provide a modern terminal UI with features like streaming responses, conversation history, and an interactive setup flow. You can find the complete source code and installation instructions in the [inferra-cli](../inferra-cli) directory.
+
+To get started with the CLI, make sure your Inferra server is running on your mobile device, then navigate to the inferra-cli directory and follow the setup instructions in its README file.
 
 ## REST API
 
@@ -167,7 +176,7 @@ If you're interested in working on these or have other ideas, open an issue to d
 - [llama.cpp](https://github.com/ggerganov/llama.cpp) - The default underlying engine for running local LLMs and it's the only one that's been implemented yet.
 - [inferra-llama.rn](https://github.com/sbhjt-gr/inferra-llama.rn) - The customized React Native adapter which provides the bridge for llama.cpp. Originally forked and self-hosted from [llama.rn](https://github.com/mybigday/llama.rn) for updating llama.cpp more frequently.
 - [react-native-rag](https://github.com/software-mansion-labs/react-native-rag) + [@langchain/textsplitters](https://github.com/langchain-ai/langchainjs) - RAG implementation for React Native that powers the document retrieval and ingestion features using LangChain.
-- [react-native-ai](https://github.com/callstackincubator/ai) - Inspiration and reference for AI integration patterns in React Native applications.
+- [react-native-ai](https://github.com/callstackincubator/ai) - Adaptor that provides Apple Foundation bridge from Swift to JavaScript.
 - If someone thinks they also need to be mentioned here, please let me know.
 
 ## Tech Stack

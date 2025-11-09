@@ -3,10 +3,30 @@ import * as Device from 'expo-device';
 
 const { DeviceInfoModule } = NativeModules as {
   DeviceInfoModule?: {
-    getGPUInfo?: () => Promise<{ hasAdreno?: boolean }>;
+    getGPUInfo?: () => Promise<{ 
+      hasAdreno?: boolean;
+      renderer?: string;
+      vendor?: string;
+      version?: string;
+      hasMali?: boolean;
+      hasPowerVR?: boolean;
+      supportsOpenCL?: boolean;
+      gpuType?: string;
+    }>;
     getCPUInfo?: () => Promise<{
+      cores?: number;
       hasI8mm?: boolean;
       hasDotProd?: boolean;
+      hasFp16?: boolean;
+      hasSve?: boolean;
+      socModel?: string;
+      features?: string[];
+      processors?: Array<{
+        processor?: string;
+        'model name'?: string;
+        'cpu MHz'?: string;
+        vendor_id?: string;
+      }>;
     }>;
   };
 };
@@ -22,6 +42,14 @@ export interface GpuSupport {
     hasI8mm?: boolean;
     hasDotProd?: boolean;
   };
+}
+
+export interface CpuInfo {
+  cores: number;
+  hasFp16?: boolean;
+  hasDotProd?: boolean;
+  hasSve?: boolean;
+  hasI8mm?: boolean;
 }
 
 const parseIosMajorVersion = (): number => {
@@ -99,4 +127,67 @@ export const checkGpuSupport = async (): Promise<GpuSupport> => {
     isSupported: false,
     reason: 'unknown',
   };
+};
+
+export const getCpuInfo = async (): Promise<CpuInfo | null> => {
+  if (!DeviceInfoModule?.getCPUInfo) {
+    return null;
+  }
+
+  try {
+    const info = await DeviceInfoModule.getCPUInfo();
+    if (!info) {
+      return null;
+    }
+
+    if (Platform.OS === 'ios') {
+      return {
+        cores: info.cores || 0,
+        hasFp16: false,
+        hasDotProd: false,
+        hasSve: false,
+        hasI8mm: false,
+      };
+    }
+
+    return {
+      cores: info.cores || 4,
+      hasFp16: info.hasFp16,
+      hasDotProd: info.hasDotProd,
+      hasSve: info.hasSve,
+      hasI8mm: info.hasI8mm,
+    };
+  } catch (error) {
+    return null;
+  }
+};
+
+export const getCpuCoreCount = async (): Promise<number> => {
+  const cpuInfo = await getCpuInfo();
+  return cpuInfo?.cores || 4;
+};
+
+export const getRecommendedThreadCount = async (): Promise<number> => {
+  const cores = await getCpuCoreCount();
+  return cores <= 4 ? cores : Math.floor(cores * 0.8);
+};
+
+export const isHighEndDevice = async (): Promise<boolean> => {
+  try {
+    const ram = Device.totalMemory;
+    if (!ram) {
+      return false;
+    }
+    const ramGB = ram / 1000 / 1000 / 1000;
+
+    const cpuInfo = await getCpuInfo();
+    const cpuCount = cpuInfo?.cores || 4;
+
+    const ramOK = ramGB >= 5.5;
+    const cpuOK = cpuCount >= 6;
+
+    return ramOK && cpuOK;
+  } catch (error) {
+    return false;
+  }
 };

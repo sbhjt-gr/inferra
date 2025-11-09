@@ -57,7 +57,7 @@ export const CuratedModelsList: React.FC<CuratedModelsListProps> = ({
         <View style={styles.guidanceButtonContent}>
           <MaterialCommunityIcons name="help-circle-outline" size={24} color={getThemeAwareColor('#4a0660', currentTheme)} />
           <Text style={[styles.guidanceButtonText, { color: themeColors.text }]}>
-            We don't know what to download
+            I don't know what to download
           </Text>
         </View>
       </TouchableOpacity>

@@ -13,6 +13,16 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "tags": ["fastest"]
   },
   {
+    "name": "Granite 4.0 Helper 1B",
+    "description": "IBM's efficient helper model with 1B parameters optimized for fast on-device inference and instruction following.",
+    "size": "1.1 GB",
+    "huggingFaceLink": "https://huggingface.co/unsloth/granite-4.0-h-1b-GGUF/resolve/main/granite-4.0-h-1b-Q8_0.gguf",
+    "licenseLink": "https://www.apache.org/licenses/LICENSE-2.0",
+    "modelFamily": "1 Billion",
+    "quantization": "Q8_0",
+    "tags": ["fastest", "recommended"]
+  },
+  {
     "name": "MiniCPM4.1 Instruct",
     "description": "OpenBMB's ultra-efficient large language model with hybrid reasoning capabilities and optimized end-side deployment.",
     "size": "4.97 GB",
@@ -93,6 +103,16 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "tags": ["recommended"]
   },
   {
+    "name": "Qwen3 4B Instruct",
+    "description": "Alibaba's latest Qwen3 generation with 4B parameters, enhanced reasoning and 128K context length.",
+    "size": "2.9 GB",
+    "huggingFaceLink": "https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen3-4B-Instruct-2507-Q5_K_M.gguf",
+    "licenseLink": "https://www.apache.org/licenses/LICENSE-2.0",
+    "modelFamily": "4 Billion",
+    "quantization": "Q5_K_M",
+    "tags": ["recommended"]
+  },
+  {
     "name": "Gemma 3n-E4B Instruct (Q4_K_S)",
     "description": "Google's enhanced Gemma 3 variant with balanced performance and quality optimization.",
     "size": "4.1 GB",
@@ -122,6 +142,16 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "tags": ["fastest"]
   },
   {
+    "name": "Phi-4 Mini Reasoning",
+    "description": "Microsoft's latest mini reasoning model with enhanced logic and problem-solving in a compact 4B parameter size.",
+    "size": "2.5 GB",
+    "huggingFaceLink": "https://huggingface.co/unsloth/Phi-4-mini-reasoning-GGUF/resolve/main/Phi-4-mini-reasoning-Q4_K_M.gguf",
+    "licenseLink": "https://huggingface.co/microsoft/Phi-3-mini-4k-instruct/resolve/main/LICENSE",
+    "modelFamily": "4 Billion",
+    "quantization": "Q4_K_M",
+    "tags": ["reasoning", "fastest"]
+  },
+  {
     "name": "Qwen 2.5 Coder Instruct",
     "description": "Alibaba's specialized coding model with excellent code completion and explanation abilities.",
     "size": "2.27 GB",
@@ -130,6 +160,16 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "modelFamily": "7 Billion",
     "quantization": "Q5_K_M",
     "tags": ["fastest"]
+  },
+  {
+    "name": "Qwen 2.5 Coder 7B Instruct",
+    "description": "Alibaba's larger coding model with superior code generation and 128K context length for complex projects.",
+    "size": "4.5 GB",
+    "huggingFaceLink": "https://huggingface.co/Qwen/Qwen2.5-Coder-7B-Instruct-GGUF/resolve/main/qwen2.5-coder-7b-instruct-q4_k_m.gguf",
+    "licenseLink": "https://www.apache.org/licenses/LICENSE-2.0",
+    "modelFamily": "7 Billion",
+    "quantization": "Q4_K_M",
+    "tags": ["recommended"]
   },
   {
     "name": "CodeLlama",
@@ -148,6 +188,16 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "licenseLink": "https://github.com/deepseek-ai/DeepSeek-LLM/blob/main/LICENSE-MODEL",
     "modelFamily": "7 Billion",
     "quantization": "Q4_K_M"
+  },
+  {
+    "name": "DeepSeek-R1-0528 Qwen3 8B",
+    "description": "Latest DeepSeek R1 reasoning model based on Qwen3 architecture with enhanced logical thinking capabilities.",
+    "size": "4.8 GB",
+    "huggingFaceLink": "https://huggingface.co/unsloth/DeepSeek-R1-0528-Qwen3-8B-GGUF/resolve/main/DeepSeek-R1-0528-Qwen3-8B-Q4_K_M.gguf",
+    "licenseLink": "https://github.com/deepseek-ai/DeepSeek-LLM/blob/main/LICENSE-MODEL",
+    "modelFamily": "8 Billion",
+    "quantization": "Q4_K_M",
+    "tags": ["reasoning"]
   },
   {
     "name": "Mistral Instruct",
@@ -213,6 +263,26 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "quantization": "Q6_K"
   },
   {
+    "name": "Qwen3-VL 4B Instruct",
+    "description": "Alibaba's latest vision-language model with 4B parameters for multimodal understanding and generation.",
+    "size": "2.8 GB",
+    "huggingFaceLink": "https://huggingface.co/unsloth/Qwen3-VL-4B-Instruct-GGUF/resolve/main/Qwen3-VL-4B-Instruct-Q4_K_M.gguf",
+    "licenseLink": "https://www.apache.org/licenses/LICENSE-2.0",
+    "modelFamily": "4 Billion",
+    "quantization": "Q4_K_M",
+    "tags": ["vision"],
+    "modelType": ModelType.VISION,
+    "capabilities": ["vision", "text"],
+    "supportsMultimodal": true,
+    "additionalFiles": [
+      {
+        "name": "mmproj-Qwen3-VL-4B-Instruct-Q4_K_M.gguf",
+        "url": "https://huggingface.co/unsloth/Qwen3-VL-4B-Instruct-GGUF/resolve/main/mmproj-Qwen3-VL-4B-Instruct-Q4_K_M.gguf",
+        "description": "Multimodal projector for Qwen3-VL 4B"
+      }
+    ]
+  },
+  {
     "name": "Gemma 2 Instruct",
     "description": "Google's previous instruction-tuned model with excellent reasoning and helpfulness.",
     "size": "5.4 GB",
@@ -222,6 +292,16 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "quantization": "Q4_K_M"
   },
   {
+    "name": "Phi-4 Reasoning Plus",
+    "description": "Microsoft's enhanced reasoning model with 15B parameters for complex problem-solving and logic tasks.",
+    "size": "8.2 GB",
+    "huggingFaceLink": "https://huggingface.co/unsloth/Phi-4-reasoning-plus-GGUF/resolve/main/Phi-4-reasoning-plus-Q3_K_M.gguf",
+    "licenseLink": "https://huggingface.co/microsoft/Phi-3-mini-4k-instruct/resolve/main/LICENSE",
+    "modelFamily": "15 Billion",
+    "quantization": "Q3_K_M",
+    "tags": ["reasoning"]
+  },
+  {
     "name": "LLaMA 2 Chat",
     "description": "Meta's larger chat-optimized model with enhanced reasoning and instruction following.",
     "size": "8.7 GB",
@@ -229,5 +309,24 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "licenseLink": "https://ai.meta.com/llama/license/",
     "modelFamily": "13 Billion",
     "quantization": "Q5_K_M"
+  },
+  {
+    "name": "QwQ 32B Reasoning",
+    "description": "Qwen's dedicated reasoning model with 32B parameters optimized for complex logical thinking and problem-solving.",
+    "size": "19 GB",
+    "huggingFaceLink": "https://huggingface.co/unsloth/QwQ-32B-GGUF/resolve/main/QwQ-32B-Q4_K_M.gguf",
+    "licenseLink": "https://www.apache.org/licenses/LICENSE-2.0",
+    "modelFamily": "32 Billion",
+    "quantization": "Q4_K_M",
+    "tags": ["reasoning"]
+  },
+  {
+    "name": "Llama 3.3 70B Instruct",
+    "description": "Meta's latest Llama 3.3 with 70B parameters featuring improved reasoning and instruction following over 3.1.",
+    "size": "40 GB",
+    "huggingFaceLink": "https://huggingface.co/unsloth/Llama-3.3-70B-Instruct-GGUF/resolve/main/Llama-3.3-70B-Instruct-Q3_K_M.gguf",
+    "licenseLink": "https://ai.meta.com/llama/license/",
+    "modelFamily": "70 Billion",
+    "quantization": "Q3_K_M"
   }
 ]; 
