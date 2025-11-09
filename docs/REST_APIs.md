@@ -848,7 +848,7 @@ The Inferra CLI is a command-line interface tool that demonstrates how to build 
 
 The CLI is built using React and Ink for the terminal UI, with TypeScript for type safety. It connects to your Inferra server and allows you to chat with your local models directly from the command line. This serves as a practical reference implementation for developers who want to integrate Inferra into their own applications.
 
-You can find the complete source code in the inferra-cli directory of the repository. The implementation shows how to handle streaming responses, manage conversation state, and provide a smooth user experience when working with the Inferra APIs.
+You can find the complete source code at [github.com/sbhjt-gr/inferra-cli](https://github.com/sbhjt-gr/inferra-cli). The implementation shows how to handle streaming responses, manage conversation state, and provide a smooth user experience when working with the Inferra APIs.
 
 To use the CLI, start your Inferra server on your mobile device, then run the CLI tool on any computer connected to the same WiFi network. The tool will guide you through connecting to your server and selecting a model to chat with.
 
@@ -857,7 +857,7 @@ To use the CLI, start your Inferra server on your mobile device, then run the CL
 ## Additional Resources
 
 - [Inferra GitHub Repository](https://github.com/sbhjt-gr/inferra)
-- [Inferra CLI Tool](../../inferra-cli)
+- [Inferra CLI Tool](https://github.com/sbhjt-gr/inferra-cli)
 - [Contributing Guide](CONTRIBUTING.md)
 - [License](../LICENSE)
 
