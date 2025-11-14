@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, AppState, AppStateStatus, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, AppState, AppStateStatus, ActivityIndicator, Linking } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import AppHeader from '../components/AppHeader';
@@ -332,6 +332,34 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
     }
   };
 
+  const handleDeleteAccount = async () => {
+    showDialog({
+      title: 'Delete Account',
+      message: 'This will open our website where you can request account deletion. Continue?',
+      confirmText: 'Continue',
+      cancelText: 'Cancel',
+      onConfirm: async () => {
+        try {
+          const url = 'https://inferra.app/delete-account';
+          const supported = await Linking.canOpenURL(url);
+          if (supported) {
+            await Linking.openURL(url);
+          } else {
+            showDialog({
+              title: 'Error',
+              message: 'Unable to open browser'
+            });
+          }
+        } catch (error) {
+          showDialog({
+            title: 'Error',
+            message: 'Failed to open browser'
+          });
+        }
+      }
+    });
+  };
+
   const handleSignOut = async () => {
     showDialog({
       title: 'Sign Out',
@@ -460,6 +488,16 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
         </View>
 
         <TouchableOpacity 
+          style={[styles.deleteAccountButton, { backgroundColor: '#FF5252' + '15', borderColor: '#FF5252' + '30', borderWidth: 1 }]}
+          onPress={handleDeleteAccount}
+        >
+          <MaterialCommunityIcons name="account-remove" size={20} color="#FF5252" />
+          <Text style={[styles.deleteAccountText, { color: '#FF5252' }]}>
+            Delete Account
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
           style={[styles.signOutButton, { backgroundColor: '#FF5252' + '20' }]}
           onPress={handleSignOut}
         >
@@ -555,6 +593,18 @@ const styles = StyleSheet.create({
   infoValue: {
     fontSize: 15,
     fontWeight: '500',
+  },
+  deleteAccountButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    borderRadius: 12,
+    gap: 8,
+  },
+  deleteAccountText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
   signOutButton: {
     flexDirection: 'row',
