@@ -405,7 +405,6 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
       min: GPU_LAYER_MIN,
       max: GPU_LAYER_MAX,
       reason: support.reason,
-      experimental: Platform.OS === 'android',
     };
 
     return config;

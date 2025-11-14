@@ -92,7 +92,7 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 268
-        versionName "1.6.8"
+        versionName "0.6.8"
     }
     
     compileOptions {
