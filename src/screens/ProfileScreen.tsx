@@ -335,12 +335,12 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
   const handleDeleteAccount = async () => {
     showDialog({
       title: 'Delete Account',
-      message: 'This will open our website where you can request account deletion. Continue?',
+      message: 'This will open our account deletion page where you can request your account to be deleted. Continue?',
       confirmText: 'Continue',
       cancelText: 'Cancel',
       onConfirm: async () => {
         try {
-          const url = 'https://inferra.app/delete-account';
+          const url = 'https://inferra.me/delete-account';
           const supported = await Linking.canOpenURL(url);
           if (supported) {
             await Linking.openURL(url);
@@ -488,22 +488,22 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
         </View>
 
         <TouchableOpacity 
-          style={[styles.deleteAccountButton, { backgroundColor: '#FF5252' + '15', borderColor: '#FF5252' + '30', borderWidth: 1 }]}
-          onPress={handleDeleteAccount}
-        >
-          <MaterialCommunityIcons name="account-remove" size={20} color="#FF5252" />
-          <Text style={[styles.deleteAccountText, { color: '#FF5252' }]}>
-            Delete Account
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity 
           style={[styles.signOutButton, { backgroundColor: '#FF5252' + '20' }]}
           onPress={handleSignOut}
         >
           <MaterialCommunityIcons name="logout" size={20} color="#FF5252" />
           <Text style={[styles.signOutText, { color: '#FF5252' }]}>
             Sign Out
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={[styles.deleteAccountButton, { backgroundColor: '#FF5252' + '15', borderColor: '#FF5252' + '30', borderWidth: 1 }]}
+          onPress={handleDeleteAccount}
+        >
+          <MaterialCommunityIcons name="account-remove" size={20} color="#FF5252" />
+          <Text style={[styles.deleteAccountText, { color: '#FF5252' }]}>
+            Delete Account
           </Text>
         </TouchableOpacity>
       </ScrollView>
