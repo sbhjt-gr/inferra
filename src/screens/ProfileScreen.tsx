@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, AppState, AppStateStatus, ActivityIndicator, Linking } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, AppState, AppStateStatus, ActivityIndicator } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import AppHeader from '../components/AppHeader';
@@ -13,6 +13,7 @@ import { useRemoteModel } from '../context/RemoteModelContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDialog } from '../context/DialogContext';
 import { User as FirebaseUser } from 'firebase/auth';
+import * as WebBrowser from 'expo-web-browser';
 
 type ProfileScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList>;
@@ -37,6 +38,13 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
 
   const verificationCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+  
+  useEffect(() => {
+    WebBrowser.warmUpAsync();
+    return () => {
+      WebBrowser.coolDownAsync();
+    };
+  }, []);
   
   const formatFirestoreDate = (timestamp: any): string => {
     if (!timestamp) return '';
@@ -335,21 +343,17 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
   const handleDeleteAccount = async () => {
     showDialog({
       title: 'Delete Account',
-      message: 'This will open our account deletion page where you can request your account to be deleted. Continue?',
+      message: 'Go to our page to request account deletion?',
       confirmText: 'Continue',
       cancelText: 'Cancel',
       onConfirm: async () => {
         try {
           const url = 'https://inferra.me/delete-account';
-          const supported = await Linking.canOpenURL(url);
-          if (supported) {
-            await Linking.openURL(url);
-          } else {
-            showDialog({
-              title: 'Error',
-              message: 'Unable to open browser'
-            });
-          }
+          await WebBrowser.openBrowserAsync(url, {
+            presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
+            controlsColor: themeColors.primary,
+            toolbarColor: themeColors.background,
+          });
         } catch (error) {
           showDialog({
             title: 'Error',
