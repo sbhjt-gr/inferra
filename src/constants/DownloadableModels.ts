@@ -23,6 +23,16 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "tags": ["fastest", "recommended"]
   },
   {
+    "name": "VibeThinker 1.5B",
+    "description": "WeiboAI's specialized reasoning model for competitive math and coding problems, achieving performance comparable to 20B models.",
+    "size": "1.12 GB",
+    "huggingFaceLink": "https://huggingface.co/MaziyarPanahi/VibeThinker-1.5B-GGUF/resolve/main/VibeThinker-1.5B.Q4_K_M.gguf",
+    "licenseLink": "https://opensource.org/licenses/MIT",
+    "modelFamily": "1.5 Billion",
+    "quantization": "Q4_K_M",
+    "tags": ["reasoning", "fastest"]
+  },
+  {
     "name": "MiniCPM4.1 Instruct",
     "description": "OpenBMB's ultra-efficient large language model with hybrid reasoning capabilities and optimized end-side deployment.",
     "size": "4.97 GB",
@@ -110,16 +120,6 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "licenseLink": "https://ai.google.dev/gemma/terms",
     "modelFamily": "4 Billion",
     "quantization": "Q4_K_S",
-  },
-  {
-    "name": "VibeThinker 1.5B",
-    "description": "WeiboAI's specialized reasoning model for competitive math and coding problems, achieving performance comparable to 20B models.",
-    "size": "1.12 GB",
-    "huggingFaceLink": "https://huggingface.co/MaziyarPanahi/VibeThinker-1.5B-GGUF/resolve/main/VibeThinker-1.5B.Q4_K_M.gguf",
-    "licenseLink": "https://opensource.org/licenses/MIT",
-    "modelFamily": "1.5 Billion",
-    "quantization": "Q4_K_M",
-    "tags": ["reasoning", "fastest"]
   },
   {
     "name": "DeepSeek-R1 Distill Qwen",

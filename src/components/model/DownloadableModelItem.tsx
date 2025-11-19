@@ -145,6 +145,12 @@ const DownloadableModelItem: React.FC<DownloadableModelItemProps> = ({
                     <Text style={styles.modelTagText}>Vision</Text>
                   </View>
                 )}
+                {model.tags?.includes('reasoning') && (
+                  <View style={[styles.modelTag, { backgroundColor: getThemeAwareColor('#E91E63', currentTheme) }]}>
+                    <MaterialCommunityIcons name="brain" size={12} color={themeColors.headerText} style={{ marginRight: 4 }} />
+                    <Text style={styles.modelTagText}>Reasoning</Text>
+                  </View>
+                )}
                 {isDownloaded && (
                   <View style={[styles.modelTag, { backgroundColor: getThemeAwareColor('#666', currentTheme) }]}>
                     <MaterialCommunityIcons name="check" size={12} color={themeColors.headerText} style={{ marginRight: 4 }} />
