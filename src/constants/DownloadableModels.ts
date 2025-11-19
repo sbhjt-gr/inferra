@@ -112,6 +112,16 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "quantization": "Q4_K_S",
   },
   {
+    "name": "VibeThinker 1.5B",
+    "description": "WeiboAI's specialized reasoning model for competitive math and coding problems, achieving performance comparable to 20B models.",
+    "size": "1.12 GB",
+    "huggingFaceLink": "https://huggingface.co/MaziyarPanahi/VibeThinker-1.5B-GGUF/resolve/main/VibeThinker-1.5B.Q4_K_M.gguf",
+    "licenseLink": "https://opensource.org/licenses/MIT",
+    "modelFamily": "1.5 Billion",
+    "quantization": "Q4_K_M",
+    "tags": ["reasoning", "fastest"]
+  },
+  {
     "name": "DeepSeek-R1 Distill Qwen",
     "description": "Highly optimized distillation of DeepSeek's R1 model using Qwen architecture for improved efficiency.",
     "size": "1.89 GB",
