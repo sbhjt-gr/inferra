@@ -12,7 +12,7 @@ Inferra is a mobile application built on React Native and Expo that brings large
 
 [<img src="https://github.com/user-attachments/assets/bdc18fc5-5a99-410c-b383-eaf9c737176e" alt="Get it on Google Play" width="150">](https://play.google.com/store/apps/details?id=com.gorai.ragionare)
 
-[<img src="https://github.com/user-attachments/assets/9274a034-3fed-4ed9-bad9-d99e55064e8f" alt="Get it on App Store" width="150">](https://apps.apple.com/app/inferra-local-ai-chat/id6736842393)
+[<img src="https://github.com/user-attachments/assets/9274a034-3fed-4ed9-bad9-d99e55064e8f" alt="Get it on App Store" width="150">](https://apps.apple.com/us/app/inferra/id6754396856)
 
 If you want to support me and the development of this project, you can donate to me through [Ko-fi](https://ko-fi.com/subhajitgorai). Any amount is appreciated.
 
