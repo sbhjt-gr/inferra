@@ -5,6 +5,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import QRCodeStyled from 'react-native-qrcode-styled';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Dialog, Portal, Button } from 'react-native-paper';
 import { useTheme } from '../context/ThemeContext';
 import { useRemoteModel } from '../context/RemoteModelContext';
 import { theme } from '../constants/theme';
@@ -55,6 +56,7 @@ export default function LocalServerScreen() {
   const [autoStart, setAutoStart] = useState(false);
   const [allowExternalAccess, setAllowExternalAccess] = useState(true);
   const [keepAwake, setKeepAwake] = useState(false);
+  const [copiedDialogVisible, setCopiedDialogVisible] = useState(false);
 
   useEffect(() => {
     const server = localServer;
@@ -384,7 +386,7 @@ export default function LocalServerScreen() {
               <View style={[styles.separator, { backgroundColor: themeColors.background }]} />
               <TouchableOpacity style={styles.settingItem} onPress={() => {
                 Clipboard.setString(serverStatus.signalingURL || '');
-                Alert.alert('Copied', 'Server URL copied to clipboard');
+                setCopiedDialogVisible(true);
               }}>
                 <View style={styles.settingLeft}>
                   <View style={[styles.iconContainer, { backgroundColor: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.primary + '20' }]}>
@@ -602,6 +604,18 @@ export default function LocalServerScreen() {
           </View>
         </SettingsSection>
       </ScrollView>
+
+      <Portal>
+        <Dialog visible={copiedDialogVisible} onDismiss={() => setCopiedDialogVisible(false)}>
+          <Dialog.Title>Copied</Dialog.Title>
+          <Dialog.Content>
+            <Text>Server URL copied to clipboard</Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setCopiedDialogVisible(false)}>OK</Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
     </View>
   );
 }
