@@ -172,7 +172,7 @@ export class TCPServer {
         return ip;
       }
     } catch (error) {
-      logger.warn('network_ip_detection_failed', 'webrtc');
+      logger.warn('network_ip_detection_failed', 'http');
     }
 
     return this.getLocalIPAddress();
@@ -360,12 +360,12 @@ export class TCPServer {
         await this.handleHTTPRequest(peerId, socket, parsed.request.requestLine, parsed.request.headers, parsed.request.body);
       } catch (error) {
         const message = error instanceof Error ? error.message : 'unknown_error';
-        logger.error(`http_request_failed:${message}`, 'webrtc');
+        logger.error(`http_request_failed:${message}`, 'http');
         try {
           this.sendJSONResponse(socket, 500, { error: 'server_error' });
         } catch (writeError) {
           const writeMessage = writeError instanceof Error ? writeError.message : 'write_failed';
-          logger.error(`http_response_failed:${writeMessage}`, 'webrtc');
+          logger.error(`http_response_failed:${writeMessage}`, 'http');
           try {
             socket.destroy();
           } catch {}
@@ -380,7 +380,7 @@ export class TCPServer {
   }
 
   private async handleHTTPRequest(peerId: string, socket: any, requestLine: string, headers: HTTPHeaders, body: string): Promise<void> {
-    logger.info(`http_request_received: ${requestLine} peer:${peerId}`, 'webrtc');
+    logger.info(`http_request_received: ${requestLine} peer:${peerId}`, 'http');
 
     const parts = requestLine.split(' ');
     const method = parts[0] || '';
@@ -586,7 +586,7 @@ export class TCPServer {
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'write_failed';
-      logger.error(`http_write_error:${message}`, 'webrtc');
+      logger.error(`http_write_error:${message}`, 'http');
       try {
         socket.destroy();
       } catch {}
