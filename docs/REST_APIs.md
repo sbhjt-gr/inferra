@@ -34,13 +34,28 @@ Once the server is running, you can access it from any device on the same WiFi n
 **Content-Type**: `application/json`  
 **CORS**: Enabled for all origins
 
+### Selecting a Model Target
+
+Every request that generates text includes a `model` string that determines which execution backend handles the workload:
+
+| Model value | Routed backend | Notes |
+|-------------|----------------|-------|
+| Stored model name (for example `llama-3.2-1b`) | Local GGUF running on-device | Download the GGUF via the Inferra app and load it if you plan to stream responses repeatedly. |
+| `apple-foundation` | Apple Intelligence Foundation model | Available on iOS 26+ devices that have enabled Apple Foundation inside the app (`/api/models/apple-foundation`). |
+| `gemini` | Google Gemini via your API key | Configure with `/api/models/remote` (`provider: "gemini"`) and enable remote models before sending requests. |
+| `chatgpt` | OpenAI ChatGPT or GPT-4o | Configure with `provider: "chatgpt"` plus your OpenAI key. |
+| `claude` | Anthropic Claude | Configure with `provider: "claude"` and an Anthropic key. |
+| `deepseek` | DeepSeek API | Configure with `provider: "deepseek"` and an API key. |
+
+Remote providers share the same NDJSON streaming responses as local models. If remote models are disabled or an API key has not been saved, the server responds with `remote_models_disabled` or `api_key_missing`, so make sure the Inferra settings page shows the provider as configured before calling `/api/chat` or `/api/generate`.
+
 ---
 
 ## Chat & Completion APIs
 
 ### POST /api/chat
 
-Stream chat completions with full conversation history support.
+Stream chat completions with full conversation history support. Set the `model` field to a local GGUF name, `apple-foundation`, or one of the remote provider identifiers described above.
 
 **Request Body:**
 ```json
@@ -55,6 +70,29 @@ Stream chat completions with full conversation history support.
 }
 ```
 
+**Request Body (Apple Foundation, streaming):**
+```json
+{
+  "model": "apple-foundation",
+  "messages": [
+    {"role": "user", "content": "Summarize this meeting"}
+  ],
+  "stream": true
+}
+```
+
+**Request Body (remote provider, non-streaming):**
+```json
+{
+  "model": "gemini",
+  "messages": [
+    {"role": "system", "content": "You are a travel assistant"},
+    {"role": "user", "content": "Plan a 3 day trip to Tokyo"}
+  ],
+  "stream": false
+}
+```
+
 **Response (streaming):**
 ```json
 {"message": {"role": "assistant", "content": "Hi"}, "done": false}
@@ -63,7 +101,7 @@ Stream chat completions with full conversation history support.
 ```
 
 **Parameters:**
-- `model` (string, required): Name of the model to use
+- `model` (string, required): Target backend (`apple-foundation`, `gemini`, `chatgpt`, `claude`, `deepseek`, or any stored model name)
 - `messages` (array, required): Conversation history with role and content
 - `stream` (boolean, optional): Enable streaming responses (default: true)
 - `temperature` (number, optional): Sampling temperature 0.0-2.0 (default: 0.7)
@@ -74,7 +112,7 @@ Stream chat completions with full conversation history support.
 curl -X POST http://YOUR_DEVICE_IP:8889/api/chat \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "llama-3.2-1b",
+    "model": "chatgpt",
     "messages": [{"role": "user", "content": "Explain AI"}],
     "stream": false
   }'
@@ -84,7 +122,7 @@ curl -X POST http://YOUR_DEVICE_IP:8889/api/chat \
 
 ### POST /api/generate
 
-Generate completion from a single prompt without conversation context.
+Generate completion from a single prompt without conversation context. Provide the `model` string for a local GGUF, `apple-foundation`, or a remote provider identifier.
 
 **Request Body:**
 ```json
@@ -93,6 +131,15 @@ Generate completion from a single prompt without conversation context.
   "prompt": "Explain quantum computing in simple terms",
   "stream": false,
   "max_tokens": 500
+}
+```
+
+**Request Body (remote provider, streaming):**
+```json
+{
+  "model": "claude",
+  "prompt": "Write a haiku about the ocean",
+  "stream": true
 }
 ```
 
@@ -106,7 +153,7 @@ Generate completion from a single prompt without conversation context.
 ```
 
 **Parameters:**
-- `model` (string, required): Name of the model to use
+- `model` (string, required): Backend identifier (`apple-foundation`, `gemini`, `chatgpt`, `claude`, `deepseek`, or stored model name)
 - `prompt` (string, required): Input prompt for generation
 - `stream` (boolean, optional): Enable streaming responses
 - `max_tokens` (number, optional): Maximum tokens to generate
@@ -116,7 +163,7 @@ Generate completion from a single prompt without conversation context.
 ```bash
 curl -X POST http://YOUR_DEVICE_IP:8889/api/generate \
   -H "Content-Type: application/json" \
-  -d '{"model": "llama-3.2-1b", "prompt": "Hello world", "stream": false}'
+  -d '{"model": "apple-foundation", "prompt": "Hello world", "stream": false}'
 ```
 
 ---
@@ -502,6 +549,8 @@ Configure remote model provider settings.
 - `gemini`: Google Gemini models
 - `claude`: Anthropic Claude models
 - `deepseek`: DeepSeek models
+
+Once configured, use these provider names directly in the `model` field when calling `/api/chat` or `/api/generate`.
 
 **Example:**
 ```bash

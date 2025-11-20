@@ -168,6 +168,14 @@ export function getHomepageHTML(): string {
         <span class="status-label">API Version</span>
         <span class="status-value">v1</span>
       </div>
+      <div class="status-item">
+        <span class="status-label">Remote Models</span>
+        <span class="status-value">gemini • chatgpt • claude • deepseek</span>
+      </div>
+      <div class="status-item">
+        <span class="status-label">Apple Foundation</span>
+        <span class="status-value">Available on iOS 18+</span>
+      </div>
     </div>
 
     <div class="nav">
@@ -185,10 +193,10 @@ export function getHomepageHTML(): string {
           <span class="method post">POST</span>
           <span class="endpoint-path">/api/chat</span>
         </div>
-        <p class="endpoint-desc">Stream chat completions with conversation history</p>
+        <p class="endpoint-desc">Stream chat completions with conversation history. Use local GGUF names, <code>apple-foundation</code>, or remote provider identifiers in the <code>model</code> field.</p>
         <div class="code-label">Request:</div>
         <pre class="code-block">{
-  "model": "llama-3.2-1b",
+  "model": "gemini",
   "messages": [
     {"role": "system", "content": "You are a helpful assistant"},
     {"role": "user", "content": "Hello!"}
@@ -207,10 +215,10 @@ export function getHomepageHTML(): string {
           <span class="method post">POST</span>
           <span class="endpoint-path">/api/generate</span>
         </div>
-        <p class="endpoint-desc">Generate completion from a prompt without conversation context</p>
+        <p class="endpoint-desc">Generate completion from a prompt without conversation context using local, Apple Foundation, or remote providers.</p>
         <div class="code-label">Request:</div>
         <pre class="code-block">{
-  "model": "llama-3.2-1b",
+  "model": "apple-foundation",
   "prompt": "Explain quantum computing",
   "stream": false,
   "max_tokens": 500
@@ -458,7 +466,7 @@ export function getHomepageHTML(): string {
           <span class="method post">POST</span>
           <span class="endpoint-path">/api/models/remote</span>
         </div>
-        <p class="endpoint-desc">Configure remote model provider settings</p>
+  <p class="endpoint-desc">Configure remote model provider settings; use the same provider name in the <code>model</code> field of /api/chat or /api/generate.</p>
         <div class="code-label">Request:</div>
         <pre class="code-block">{
   "provider": "gemini",
