@@ -158,25 +158,6 @@ export function getHomepageHTML(): string {
   <div class="container">
     <h1>Inferra API Documentation</h1>
     <p class="subtitle">Complete API reference for local AI inference</p>
-    
-    <div class="status">
-      <div class="status-item">
-        <span class="status-label">Server Status</span>
-        <span class="status-value active">● Online</span>
-      </div>
-      <div class="status-item">
-        <span class="status-label">API Version</span>
-        <span class="status-value">v1</span>
-      </div>
-      <div class="status-item">
-        <span class="status-label">Remote Models</span>
-        <span class="status-value">gemini • chatgpt • claude • deepseek</span>
-      </div>
-      <div class="status-item">
-        <span class="status-label">Apple Foundation</span>
-        <span class="status-value">Available on iOS 18+</span>
-      </div>
-    </div>
 
     <div class="nav">
       <button class="nav-btn" onclick="document.getElementById('chat').scrollIntoView({behavior:'smooth'})">Chat</button>

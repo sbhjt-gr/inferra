@@ -46,6 +46,8 @@ export class LocalServerService extends SimpleEventEmitter {
   private isRunning: boolean = false;
   private signalingURL: string | null = null;
   private startTime: Date | null = null;
+  private peerCount: number = 0;
+  private peerWatcher: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
     super();
@@ -62,10 +64,14 @@ export class LocalServerService extends SimpleEventEmitter {
       this.signalingURL = serverResult.url;
       this.isRunning = true;
       this.startTime = new Date();
+      this.peerCount = tcpServer.getClientCount();
+      this.emit('peerCountChanged', { peerCount: this.peerCount });
+      this.startPeerWatcher();
 
       this.emit('serverStarted', {
         signalingURL: this.signalingURL,
-        isRunning: true
+        isRunning: true,
+        peerCount: this.peerCount
       });
 
       logger.info(`server_started url:${this.signalingURL}`, 'server');
@@ -95,6 +101,9 @@ export class LocalServerService extends SimpleEventEmitter {
       this.isRunning = false;
       this.startTime = null;
       this.signalingURL = null;
+      this.stopPeerWatcher();
+      this.peerCount = 0;
+      this.emit('peerCountChanged', { peerCount: 0 });
 
       this.emit('serverStopped');
 
@@ -112,7 +121,7 @@ export class LocalServerService extends SimpleEventEmitter {
   getStatus(): ServerStatus {
     return {
       isRunning: this.isRunning,
-      peerCount: 0,
+      peerCount: this.peerCount,
       signalingURL: this.signalingURL || undefined,
       startTime: this.startTime || undefined
     };
@@ -120,6 +129,27 @@ export class LocalServerService extends SimpleEventEmitter {
 
   isServerRunning(): boolean {
     return this.isRunning;
+  }
+
+  private startPeerWatcher() {
+    if (this.peerWatcher) {
+      return;
+    }
+    this.peerWatcher = setInterval(() => {
+      const next = tcpServer.getClientCount();
+      if (next !== this.peerCount) {
+        this.peerCount = next;
+        this.emit('peerCountChanged', { peerCount: this.peerCount });
+      }
+    }, 1000);
+  }
+
+  private stopPeerWatcher() {
+    if (!this.peerWatcher) {
+      return;
+    }
+    clearInterval(this.peerWatcher);
+    this.peerWatcher = null;
   }
 }
 

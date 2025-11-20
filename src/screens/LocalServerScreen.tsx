@@ -66,7 +66,7 @@ export default function LocalServerScreen() {
         ...prev,
         isRunning: true,
         signalingURL: data.signalingURL,
-        peerCount: 0,
+        peerCount: typeof data.peerCount === 'number' ? data.peerCount : prev.peerCount,
         startTime: new Date(),
       }));
       setIsLoading(false);
@@ -77,13 +77,22 @@ export default function LocalServerScreen() {
         ...prev,
         isRunning: false,
         signalingURL: undefined,
+        peerCount: 0,
         startTime: undefined,
       }));
       setIsLoading(false);
     };
 
+    const handlePeerCountChanged = (data: { peerCount: number }) => {
+      setServerStatus(prev => ({
+        ...prev,
+        peerCount: data.peerCount,
+      }));
+    };
+
     server.on('serverStarted', handleServerStarted);
     server.on('serverStopped', handleServerStopped);
+    server.on('peerCountChanged', handlePeerCountChanged);
 
     const status = server.getStatus();
     setServerStatus(status);
@@ -91,6 +100,7 @@ export default function LocalServerScreen() {
     return () => {
       server.off('serverStarted', handleServerStarted);
       server.off('serverStopped', handleServerStopped);
+      server.off('peerCountChanged', handlePeerCountChanged);
     };
   }, []);
 
@@ -606,13 +616,22 @@ export default function LocalServerScreen() {
       </ScrollView>
 
       <Portal>
-        <Dialog visible={copiedDialogVisible} onDismiss={() => setCopiedDialogVisible(false)}>
-          <Dialog.Title>Copied</Dialog.Title>
+        <Dialog 
+          visible={copiedDialogVisible} 
+          onDismiss={() => setCopiedDialogVisible(false)}
+          style={{ backgroundColor: themeColors.cardBackground }}
+        >
+          <Dialog.Title style={{ color: themeColors.text }}>Copied</Dialog.Title>
           <Dialog.Content>
-            <Text>Server URL copied to clipboard</Text>
+            <Text style={{ color: themeColors.text }}>Server URL copied to clipboard</Text>
           </Dialog.Content>
           <Dialog.Actions>
-            <Button onPress={() => setCopiedDialogVisible(false)}>OK</Button>
+            <Button 
+              onPress={() => setCopiedDialogVisible(false)}
+              textColor={themeColors.primary}
+            >
+              OK
+            </Button>
           </Dialog.Actions>
         </Dialog>
       </Portal>

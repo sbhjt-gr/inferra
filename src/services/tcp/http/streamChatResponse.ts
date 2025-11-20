@@ -24,7 +24,7 @@ export function createStreamChatResponse(context: StreamContext) {
     } catch (error) {
       const writeMessage = error instanceof Error ? error.message : 'write_failed';
       const safeMessage = writeMessage.replace(/\s+/g, '_');
-      logger.error(`stream_header_failed:${safeMessage}`, 'webrtc');
+      logger.error(`stream_header_failed:${safeMessage}`, 'http');
       try {
         socket.destroy();
       } catch {}
@@ -48,7 +48,7 @@ export function createStreamChatResponse(context: StreamContext) {
           } catch (error) {
             const writeMessage = error instanceof Error ? error.message : 'write_failed';
             const safeMessage = writeMessage.replace(/\s+/g, '_');
-            logger.error(`stream_chunk_failed:${safeMessage}`, 'webrtc');
+            logger.error(`stream_chunk_failed:${safeMessage}`, 'http');
             return false;
           }
           return true;
@@ -82,7 +82,7 @@ export function createStreamChatResponse(context: StreamContext) {
       } catch (writeError) {
         const writeMessage = writeError instanceof Error ? writeError.message : 'write_failed';
         const safeMessage = writeMessage.replace(/\s+/g, '_');
-        logger.error(`stream_error_write:${safeMessage}`, 'webrtc');
+        logger.error(`stream_error_write:${safeMessage}`, 'http');
         try {
           socket.destroy();
         } catch {}

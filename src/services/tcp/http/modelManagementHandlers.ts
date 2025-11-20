@@ -43,7 +43,7 @@ export function createPsHandler(context: Context) {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'ps_failed';
       const safeMessage = message.replace(/\s+/g, '_');
-      logger.error(`api_ps_failed:${safeMessage}`, 'webrtc');
+      logger.error(`api_ps_failed:${safeMessage}`, 'http');
       context.respond(socket, 500, { error: 'ps_failed' });
       logger.logWebRequest(method, path, 500);
     }
@@ -137,7 +137,7 @@ export function createCopyHandler(context: Context) {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'copy_failed';
       const safeMessage = message.replace(/\s+/g, '_');
-      logger.error(`api_copy_failed:${safeMessage}`, 'webrtc');
+      logger.error(`api_copy_failed:${safeMessage}`, 'http');
       context.respond(socket, 500, { error: 'copy_failed' });
       logger.logWebRequest(method, path, 500);
     }

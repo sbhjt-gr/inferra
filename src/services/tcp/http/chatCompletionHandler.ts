@@ -121,7 +121,7 @@ export function createChatCompletionHandler(context: Context) {
     } catch (error) {
       const parsed = context.parseHttpError(error);
       const safeMessage = parsed.message.replace(/\s+/g, '_');
-      logger.error(`api_chat_model:${safeMessage}`, 'webrtc');
+      logger.error(`api_chat_model:${safeMessage}`, 'http');
       context.respond(socket, parsed.status, { error: parsed.code });
       logger.logWebRequest(method, path, parsed.status);
       return true;
@@ -144,7 +144,7 @@ export function createChatCompletionHandler(context: Context) {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'generation_failed';
       const safeMessage = message.replace(/\s+/g, '_');
-      logger.error(`api_chat_failed:${safeMessage}`, 'webrtc');
+      logger.error(`api_chat_failed:${safeMessage}`, 'http');
       context.respond(socket, 500, { error: 'generation_failed' });
       logger.logWebRequest(method, path, 500);
     }

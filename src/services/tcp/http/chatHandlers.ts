@@ -97,7 +97,7 @@ async function streamAppleResponse(
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'write_failed';
     const safe = msg.replace(/\s+/g, '_');
-    logger.error(`apple_stream_header:${safe}`, 'webrtc');
+    logger.error(`apple_stream_header:${safe}`, 'http');
     try {
       socket.destroy();
     } catch {}
@@ -121,7 +121,7 @@ async function streamAppleResponse(
       } catch (error) {
         const msg = error instanceof Error ? error.message : 'write_failed';
         const safe = msg.replace(/\s+/g, '_');
-        logger.error(`apple_stream_chunk:${safe}`, 'webrtc');
+        logger.error(`apple_stream_chunk:${safe}`, 'http');
         appleFoundationService.cancel();
         throw error;
       }
@@ -150,7 +150,7 @@ async function streamAppleResponse(
     } catch (writeError) {
       const wmsg = writeError instanceof Error ? writeError.message : 'write_failed';
       const safe = wmsg.replace(/\s+/g, '_');
-      logger.error(`apple_stream_error:${safe}`, 'webrtc');
+      logger.error(`apple_stream_error:${safe}`, 'http');
       if (started) {
         try {
           socket.destroy();
@@ -176,7 +176,7 @@ async function streamRemoteResponse(
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'write_failed';
     const safe = msg.replace(/\s+/g, '_');
-    logger.error(`remote_stream_header:${safe}`, 'webrtc');
+    logger.error(`remote_stream_header:${safe}`, 'http');
     try {
       socket.destroy();
     } catch {}
@@ -202,7 +202,7 @@ async function streamRemoteResponse(
       } catch (error) {
         const msg = error instanceof Error ? error.message : 'write_failed';
         const safe = msg.replace(/\s+/g, '_');
-        logger.error(`remote_stream_chunk:${safe}`, 'webrtc');
+        logger.error(`remote_stream_chunk:${safe}`, 'http');
         return false;
       }
       return true;
@@ -231,7 +231,7 @@ async function streamRemoteResponse(
     } catch (writeError) {
       const wmsg = writeError instanceof Error ? writeError.message : 'write_failed';
       const safe = wmsg.replace(/\s+/g, '_');
-      logger.error(`remote_stream_error:${safe}`, 'webrtc');
+      logger.error(`remote_stream_error:${safe}`, 'http');
       if (started) {
         try {
           socket.destroy();
@@ -298,7 +298,7 @@ async function handleAppleModelRequest(
     logger.logWebRequest(method, path, 200);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'generation_failed';
-    logger.error(`apple_foundation_error:${message}`, 'webrtc');
+    logger.error(`apple_foundation_error:${message}`, 'http');
     sendJSONResponse(socket, 500, { error: 'generation_failed' });
     logger.logWebRequest(method, path, 500);
   }
@@ -339,7 +339,7 @@ async function handleRemoteModelRequest(
     logger.logWebRequest(method, path, 200);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'generation_failed';
-    logger.error(`remote_model_error:${message}`, 'webrtc');
+    logger.error(`remote_model_error:${message}`, 'http');
     sendJSONResponse(socket, 500, { error: 'generation_failed' });
     logger.logWebRequest(method, path, 500);
   }
@@ -390,7 +390,7 @@ export async function handleChatRequest(
   } catch (error) {
     const parsed = parseHttpError(error);
     const safeMessage = parsed.message.replace(/\s+/g, '_');
-    logger.error(`api_chat_model:${safeMessage}`, 'webrtc');
+    logger.error(`api_chat_model:${safeMessage}`, 'http');
     sendJSONResponse(socket, parsed.status, { error: parsed.code });
     logger.logWebRequest(method, path, parsed.status);
     return;
@@ -413,7 +413,7 @@ export async function handleChatRequest(
   } catch (error) {
     const message = error instanceof Error ? error.message : 'generation_failed';
     const safeMessage = message.replace(/\s+/g, '_');
-    logger.error(`api_chat_failed:${safeMessage}`, 'webrtc');
+    logger.error(`api_chat_failed:${safeMessage}`, 'http');
     sendJSONResponse(socket, 500, { error: 'generation_failed' });
     logger.logWebRequest(method, path, 500);
   }
@@ -464,7 +464,7 @@ export async function handleGenerateRequest(
   } catch (error) {
     const parsed = parseHttpError(error);
     const safeMessage = parsed.message.replace(/\s+/g, '_');
-    logger.error(`api_generate_model:${safeMessage}`, 'webrtc');
+    logger.error(`api_generate_model:${safeMessage}`, 'http');
     sendJSONResponse(socket, parsed.status, { error: parsed.code });
     logger.logWebRequest(method, path, parsed.status);
     return;
@@ -487,7 +487,7 @@ export async function handleGenerateRequest(
   } catch (error) {
     const message = error instanceof Error ? error.message : 'generation_failed';
     const safeMessage = message.replace(/\s+/g, '_');
-    logger.error(`api_generate_failed:${safeMessage}`, 'webrtc');
+    logger.error(`api_generate_failed:${safeMessage}`, 'http');
     sendJSONResponse(socket, 500, { error: 'generation_failed' });
     logger.logWebRequest(method, path, 500);
   }
