@@ -11,6 +11,7 @@ node_modules/
 dist/
 web-build/
 build/
+/android/.gradle
 
 # Source control
 .git/

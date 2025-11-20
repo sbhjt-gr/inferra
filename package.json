@@ -16,7 +16,7 @@
     "@dr.pogodin/react-native-fs": "^2.22.0",
     "@expo/plist": "^0.3.5",
     "@expo/vector-icons": "^14.1.0",
-    "@op-engineering/op-sqlite": "15.0.7",
+    "@op-engineering/op-sqlite": "14.1.4",
     "@react-native-ai/apple": "^0.11.0",
     "@react-native-async-storage/async-storage": "2.1.2",
     "@react-native-community/slider": "4.5.6",
@@ -31,7 +31,7 @@
     "@vercel/oidc": "^3.0.3",
     "eas": "^0.1.0",
     "eventemitter3": "^5.0.1",
-    "expo": "53.0.23",
+    "expo": "53.0.24",
     "expo-apple-authentication": "~7.2.4",
     "expo-asset": "~11.1.7",
     "expo-background-task": "~0.2.8",
@@ -55,7 +55,7 @@
     "expo-secure-store": "~14.2.4",
     "expo-sharing": "~13.1.5",
     "expo-splash-screen": "~0.30.10",
-    "expo-sqlite": "~16.0.9",
+    "expo-sqlite": "~15.2.14",
     "expo-status-bar": "~2.2.3",
     "expo-symbols": "~0.4.5",
     "expo-system-ui": "~5.0.11",
@@ -102,6 +102,24 @@
     "typescript": "~5.8.3"
   },
   "private": true,
+  "expo": {
+    "doctor": {
+      "reactNativeDirectoryCheck": {
+        "exclude": [
+          "@react-native-ai/apple",
+          "@react-native-rag/op-sqlite",
+          "@vercel/oidc",
+          "eas",
+          "firebase",
+          "react-native-pdf-page-image",
+          "react-syntax-highlighter",
+          "@react-native-ml-kit/text-recognition",
+          "react-native-tcp-socket"
+        ],
+        "listUnknownPackages": false
+      }
+    }
+  },
   "engines": {
     "node": ">=16.0.0 <25.0.0"
   },
