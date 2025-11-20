@@ -80,7 +80,7 @@ export function createShowHandler(context: Context) {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'model_info_failed';
       const safeMessage = message.replace(/\s+/g, '_');
-      logger.error(`api_show_failed:${safeMessage}`, 'webrtc');
+      logger.error(`api_show_failed:${safeMessage}`, 'http');
       context.respond(socket, 500, { error: 'model_info_failed' });
       logger.logWebRequest(method, path, 500);
     }

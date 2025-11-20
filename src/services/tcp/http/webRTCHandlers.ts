@@ -38,7 +38,7 @@ export function createOfferHandler(context: SignalingContext) {
       logger.logWebRequest(method, path, 200);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'offer_failed';
-      logger.error(`webrtc_offer_failed:${message.replace(/\s+/g, '_')}`, 'webrtc');
+      logger.error(`http_offer_failed:${message.replace(/\s+/g, '_')}`, 'http');
       context.respond(socket, 500, { error: 'offer_failed' });
       logger.logWebRequest(method, path, 500);
     }
@@ -48,7 +48,7 @@ export function createOfferHandler(context: SignalingContext) {
 
 export function createAnswerHandler(context: SignalingContext) {
   return async (method: string, path: string, body: string, socket: any): Promise<boolean> => {
-    if (method !== 'POST' || path !== '/webrtc/answer') {
+    if (method !== 'POST' || path !== '/http/answer') {
       return false;
     }
 
@@ -74,12 +74,12 @@ export function createAnswerHandler(context: SignalingContext) {
     }
 
     try {
-      // Answer handling would be delegated to WebRTC manager
+      // Answer handling would be delegated to http manager
       context.respond(socket, 200, { status: 'answer_received' });
       logger.logWebRequest(method, path, 200);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'answer_failed';
-      logger.error(`webrtc_answer_failed:${message.replace(/\s+/g, '_')}`, 'webrtc');
+      logger.error(`http_answer_failed:${message.replace(/\s+/g, '_')}`, 'http');
       context.respond(socket, 500, { error: 'answer_failed' });
       logger.logWebRequest(method, path, 500);
     }

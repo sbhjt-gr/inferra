@@ -71,7 +71,7 @@ export async function handleShowRequest(
   } catch (error) {
     const message = error instanceof Error ? error.message : 'model_info_failed';
     const safeMessage = message.replace(/\s+/g, '_');
-    logger.error(`api_show_failed:${safeMessage}`, 'webrtc');
+    logger.error(`api_show_failed:${safeMessage}`, 'http');
     sendJSONResponse(socket, 500, { error: 'model_info_failed' });
     logger.logWebRequest(method, path, 500);
   }
@@ -117,7 +117,7 @@ export async function handleEmbeddingsRequest(
   } catch (error) {
     const parsed = parseHttpError(error);
     const safeMessage = parsed.message.replace(/\s+/g, '_');
-    logger.error(`api_embeddings_model:${safeMessage}`, 'webrtc');
+    logger.error(`api_embeddings_model:${safeMessage}`, 'http');
     sendJSONResponse(socket, parsed.status, { error: parsed.code });
     logger.logWebRequest(method, path, parsed.status);
     return;
@@ -148,7 +148,7 @@ export async function handleEmbeddingsRequest(
   } catch (error) {
     const message = error instanceof Error ? error.message : 'embedding_failed';
     const safeMessage = message.replace(/\s+/g, '_');
-    logger.error(`api_embeddings_failed:${safeMessage}`, 'webrtc');
+    logger.error(`api_embeddings_failed:${safeMessage}`, 'http');
     sendJSONResponse(socket, 500, { error: 'embedding_failed' });
     logger.logWebRequest(method, path, 500);
   }

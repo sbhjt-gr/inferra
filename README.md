@@ -1,6 +1,10 @@
 
 ## Inferra
 <p>
+  <a href="" target="_blank"><img src="https://img.shields.io/badge/App_Version-0.7.0-6a1b9a" alt="App Version 0.7.0"></a>
+  <a href="https://opensource.org/licenses/AGPL-3.0" target="_blank"><img src="https://img.shields.io/badge/License-AGPL--3.0-orange" alt="License: AGPL-3.0"></a>
+</p>
+<p>
   <img src="https://lh3.googleusercontent.com/XTXWqqQPgW4KM6fALBRViYQQPR-qobXzGCu7pNWM8ZYJ8ymbKKh2v_6n-jFyDg5mtu2Z5tsVv23RJGDTamjjzBY" alt="Inferra Header" width="400">
 </p>
 
@@ -8,7 +12,7 @@ Inferra is a mobile application built on React Native and Expo that brings large
 
 [<img src="https://github.com/user-attachments/assets/bdc18fc5-5a99-410c-b383-eaf9c737176e" alt="Get it on Google Play" width="150">](https://play.google.com/store/apps/details?id=com.gorai.ragionare)
 
-[<img src="https://github.com/user-attachments/assets/9274a034-3fed-4ed9-bad9-d99e55064e8f" alt="Get it on App Store" width="150">](https://apps.apple.com/app/inferra-local-ai-chat/id6736842393)
+[<img src="https://github.com/user-attachments/assets/9274a034-3fed-4ed9-bad9-d99e55064e8f" alt="Get it on App Store" width="150">](https://apps.apple.com/us/app/inferra/id6754396856)
 
 If you want to support me and the development of this project, you can donate to me through [Ko-fi](https://ko-fi.com/subhajitgorai). Any amount is appreciated.
 
@@ -45,7 +49,7 @@ If you want to support me and the development of this project, you can donate to
 - Server can be started from the Server tab with configuration options for network access and auto-start.
 - Share your Inferra chat interface with computers, tablets, or other devices through a simple URL or QR code.
 - Full API documentation is available [HERE](docs/REST_APIs.md) and at the server homepage when running.
-- A command-line interface tool is available in the [inferra-cli](../inferra-cli) directory that demonstrates how to build applications using these REST APIs.
+- A command-line interface tool is available at [github.com/sbhjt-gr/inferra-cli](https://github.com/sbhjt-gr/inferra-cli) that demonstrates how to build applications using these REST APIs.
 
 ### Model Management
 - Download manager that fetches models directly from HuggingFace. Cherry-picked model list optimized for running on edge devices available in Models -> Download Models tab.
@@ -102,9 +106,9 @@ If you want to contribute or just try to run it locally, follow the guide below.
 
 The inferra-cli tool is a terminal-based client that connects to your Inferra server and provides an interactive chat interface directly from your command line. This serves as both a functional tool and a reference implementation for developers who want to build applications using the Inferra REST APIs.
 
-The CLI is built with React and Ink to provide a modern terminal UI with features like streaming responses, conversation history, and an interactive setup flow. You can find the complete source code and installation instructions in the [inferra-cli](../inferra-cli) directory.
+The CLI is built with React and Ink to provide a modern terminal UI with features like streaming responses, conversation history, and an interactive setup flow. You can find the complete source code and installation instructions at [github.com/sbhjt-gr/inferra-cli](https://github.com/sbhjt-gr/inferra-cli).
 
-To get started with the CLI, make sure your Inferra server is running on your mobile device, then navigate to the inferra-cli directory and follow the setup instructions in its README file.
+To get started with the CLI, make sure your Inferra server is running on your mobile device, then install the CLI tool and follow the setup instructions in its repository.
 
 ## REST API
 

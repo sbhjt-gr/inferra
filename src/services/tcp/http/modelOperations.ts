@@ -84,7 +84,7 @@ export async function handleCopyRequest(
   } catch (error) {
     const message = error instanceof Error ? error.message : 'copy_failed';
     const safeMessage = message.replace(/\s+/g, '_');
-    logger.error(`api_copy_failed:${safeMessage}`, 'webrtc');
+    logger.error(`api_copy_failed:${safeMessage}`, 'http');
     sendJSONResponse(socket, 500, { error: 'copy_failed' });
     logger.logWebRequest(method, path, 500);
   }
@@ -204,7 +204,7 @@ export async function handleDeleteRequest(
   } catch (error) {
     const message = error instanceof Error ? error.message : 'delete_failed';
     const safeMessage = message.replace(/\s+/g, '_');
-    logger.error(`api_delete_failed:${safeMessage}`, 'webrtc');
+    logger.error(`api_delete_failed:${safeMessage}`, 'http');
     sendJSONResponse(socket, 500, { error: 'delete_failed' });
     logger.logWebRequest(method, path, 500);
   }
@@ -248,7 +248,7 @@ export async function handlePsRequest(
   } catch (error) {
     const message = error instanceof Error ? error.message : 'ps_failed';
     const safeMessage = message.replace(/\s+/g, '_');
-    logger.error(`api_ps_failed:${safeMessage}`, 'webrtc');
+    logger.error(`api_ps_failed:${safeMessage}`, 'http');
     sendJSONResponse(socket, 500, { error: 'ps_failed' });
     logger.logWebRequest(method, path, 500);
   }

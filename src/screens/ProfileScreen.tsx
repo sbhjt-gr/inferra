@@ -13,6 +13,7 @@ import { useRemoteModel } from '../context/RemoteModelContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDialog } from '../context/DialogContext';
 import { User as FirebaseUser } from 'firebase/auth';
+import * as WebBrowser from 'expo-web-browser';
 
 type ProfileScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList>;
@@ -37,6 +38,13 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
 
   const verificationCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+  
+  useEffect(() => {
+    WebBrowser.warmUpAsync();
+    return () => {
+      WebBrowser.coolDownAsync();
+    };
+  }, []);
   
   const formatFirestoreDate = (timestamp: any): string => {
     if (!timestamp) return '';
@@ -332,6 +340,30 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
     }
   };
 
+  const handleDeleteAccount = async () => {
+    showDialog({
+      title: 'Delete Account',
+      message: 'Go to our page to request account deletion?',
+      confirmText: 'Continue',
+      cancelText: 'Cancel',
+      onConfirm: async () => {
+        try {
+          const url = 'https://inferra.me/delete-account';
+          await WebBrowser.openBrowserAsync(url, {
+            presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
+            controlsColor: themeColors.primary,
+            toolbarColor: themeColors.background,
+          });
+        } catch (error) {
+          showDialog({
+            title: 'Error',
+            message: 'Failed to open browser'
+          });
+        }
+      }
+    });
+  };
+
   const handleSignOut = async () => {
     showDialog({
       title: 'Sign Out',
@@ -468,6 +500,16 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
             Sign Out
           </Text>
         </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={[styles.deleteAccountButton, { backgroundColor: '#FF5252' + '15', borderColor: '#FF5252' + '30', borderWidth: 1 }]}
+          onPress={handleDeleteAccount}
+        >
+          <MaterialCommunityIcons name="account-remove" size={20} color="#FF5252" />
+          <Text style={[styles.deleteAccountText, { color: '#FF5252' }]}>
+            Delete Account
+          </Text>
+        </TouchableOpacity>
       </ScrollView>
     </View>
   );
@@ -555,6 +597,18 @@ const styles = StyleSheet.create({
   infoValue: {
     fontSize: 15,
     fontWeight: '500',
+  },
+  deleteAccountButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    borderRadius: 12,
+    gap: 8,
+  },
+  deleteAccountText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
   signOutButton: {
     flexDirection: 'row',

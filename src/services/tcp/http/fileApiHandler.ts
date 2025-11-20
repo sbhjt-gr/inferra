@@ -112,7 +112,7 @@ export function createFileApiHandler(context: Context): ApiHandler {
       } catch (error) {
         const message = error instanceof Error ? error.message : 'rag_ingest_failed';
         const safe = message.replace(/\s+/g, '_');
-        logger.error(`rag_ingest_failed:${safe}`, 'webrtc');
+        logger.error(`rag_ingest_failed:${safe}`, 'http');
         context.respond(socket, 500, { error: 'rag_ingest_failed' });
         logger.logWebRequest(method, path, 500);
       }

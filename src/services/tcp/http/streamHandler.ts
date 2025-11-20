@@ -39,7 +39,7 @@ export function createStreamHandler(context: StreamContext) {
       socket.end();
     } catch (error) {
       const message = error instanceof Error ? error.message : 'stream_failed';
-      logger.error(`stream_handler_error:${message.replace(/\s+/g, '_')}`, 'webrtc');
+      logger.error(`stream_handler_error:${message.replace(/\s+/g, '_')}`, 'http');
       socket.destroy();
     }
   };

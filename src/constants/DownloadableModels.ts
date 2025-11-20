@@ -3,14 +3,14 @@ import { ModelType } from "../types/models";
 
 export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
   {
-    "name": "Gemma 3 Instruct - 270M",
-    "description": "Ultra-compact instruction-tuned model with 270M parameters designed for extreme efficiency on resource-constrained devices.",
-    "size": "253 MB",
-    "huggingFaceLink": "https://huggingface.co/unsloth/gemma-3-270m-it-GGUF/resolve/main/gemma-3-270m-it-Q4_K_M.gguf",
+    "name": "Gemma 3n-E4B Instruct (Q2_K)",
+    "description": "Google's enhanced Gemma 3 variant with optimized efficiency and fast inference capabilities.",
+    "size": "2.76 GB",
+    "huggingFaceLink": "https://huggingface.co/unsloth/gemma-3n-E4B-it-GGUF/resolve/main/gemma-3n-E4B-it-Q2_K.gguf",
     "licenseLink": "https://ai.google.dev/gemma/terms",
-    "modelFamily": "270 Million",
-    "quantization": "Q4_K_M",
-    "tags": ["fastest"]
+    "modelFamily": "4 Billion",
+    "quantization": "Q2_K",
+    "tags": ["recommended"]
   },
   {
     "name": "Granite 4.0 Helper 1B",
@@ -23,6 +23,16 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "tags": ["fastest", "recommended"]
   },
   {
+    "name": "VibeThinker 1.5B",
+    "description": "WeiboAI's specialized reasoning model for competitive math and coding problems, achieving performance comparable to 20B models.",
+    "size": "1.12 GB",
+    "huggingFaceLink": "https://huggingface.co/MaziyarPanahi/VibeThinker-1.5B-GGUF/resolve/main/VibeThinker-1.5B.Q4_K_M.gguf",
+    "licenseLink": "https://opensource.org/licenses/MIT",
+    "modelFamily": "1.5 Billion",
+    "quantization": "Q4_K_M",
+    "tags": ["reasoning", "fastest"]
+  },
+  {
     "name": "MiniCPM4.1 Instruct",
     "description": "OpenBMB's ultra-efficient large language model with hybrid reasoning capabilities and optimized end-side deployment.",
     "size": "4.97 GB",
@@ -31,16 +41,6 @@ export const DOWNLOADABLE_MODELS: DownloadableModel[] = [
     "modelFamily": "8 Billion",
     "quantization": "Q4_K_M",
     "tags": ["reasoning"]
-  },
-  {
-    "name": "Gemma 3n-E4B Instruct (Q2_K)",
-    "description": "Google's enhanced Gemma 3 variant with optimized efficiency and fast inference capabilities.",
-    "size": "2.76 GB",
-    "huggingFaceLink": "https://huggingface.co/unsloth/gemma-3n-E4B-it-GGUF/resolve/main/gemma-3n-E4B-it-Q2_K.gguf",
-    "licenseLink": "https://ai.google.dev/gemma/terms",
-    "modelFamily": "4 Billion",
-    "quantization": "Q2_K",
-    "tags": ["recommended"]
   },
   {
     "name": "Gemma 3 Instruct - 1B",
