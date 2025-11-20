@@ -50,7 +50,7 @@ const SupportSection = ({ onOpenLink, onNavigateToLicenses }: SupportSectionProp
           style={[styles.settingItem, styles.settingItemBorder]}
           onPress={() => onOpenLink(
             Platform.OS === 'ios' 
-              ? 'https://apps.apple.com/app/inferra-local-ai-chat/id6736842393'
+              ? 'https://apps.apple.com/us/app/inferra/id6754396856'
               : 'https://play.google.com/store/apps/details?id=com.gorai.ragionare'
           )}
         >
