@@ -38,6 +38,7 @@ type PdfViewerModalProps = {
   useRag: boolean;
   onToggleRag: (value: boolean) => void;
   ragEnabled?: boolean;
+  ragToggleDisabled?: boolean;
 };
 
 export default function PDFViewerModal({
@@ -49,6 +50,7 @@ export default function PDFViewerModal({
   useRag,
   onToggleRag,
   ragEnabled = true,
+  ragToggleDisabled = false,
 }: PdfViewerModalProps) {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
@@ -587,6 +589,7 @@ export default function PDFViewerModal({
         useRag={useRag}
         onToggleRag={onToggleRag}
         ragEnabled={ragEnabled}
+        ragToggleDisabled={ragToggleDisabled}
       />
 
       <Portal>

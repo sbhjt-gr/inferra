@@ -39,6 +39,7 @@ type PDFGridViewProps = {
   useRag: boolean;
   onToggleRag: (value: boolean) => void;
   ragEnabled?: boolean;
+  ragToggleDisabled?: boolean;
 };
 
 export default function PDFGridView({
@@ -58,6 +59,7 @@ export default function PDFGridView({
   useRag,
   onToggleRag,
   ragEnabled = true,
+  ragToggleDisabled = false,
 }: PDFGridViewProps) {
   const screenWidth = Dimensions.get('window').width;
   const numColumns = 3;
@@ -176,6 +178,7 @@ export default function PDFGridView({
                   onValueChange={onToggleRag}
                   trackColor={{ false: isDark ? '#444444' : '#dddddd', true: '#66088080' }}
                   thumbColor={useRag ? '#660880' : isDark ? '#222222' : '#f2f2f2'}
+                  disabled={ragToggleDisabled}
                 />
               </View>
             ) : (

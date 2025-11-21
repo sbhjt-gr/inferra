@@ -90,7 +90,9 @@ export default function ChatInput({
   const themeColors = useMemo(() => theme[currentTheme as 'light' | 'dark'], [currentTheme]);
   const isDark = currentTheme === 'dark';
   const isRemoteModel = !!selectedModelPath && remoteProviders.includes(selectedModelPath as ProviderType);
+  const isAppleFoundation = selectedModelPath === 'apple-foundation';
   const ragEnabledForCurrentModel = !!selectedModelPath && !isRemoteModel;
+  const ragToggleDisabled = isAppleFoundation;
 
   const [dialogVisible, setDialogVisible] = useState(false);
   const [dialogTitle, setDialogTitle] = useState('');
@@ -171,6 +173,10 @@ export default function ChatInput({
       setUseRagForUpload(false);
       return;
     }
+    if (ragToggleDisabled) {
+      setUseRagForUpload(true);
+      return;
+    }
     try {
       const enabled = await RAGService.isEnabled();
       if (!enabled) {
@@ -179,7 +185,7 @@ export default function ChatInput({
     } catch (error) {
     }
     setUseRagForUpload(true);
-  }, [ragEnabledForCurrentModel]);
+  }, [ragEnabledForCurrentModel, ragToggleDisabled]);
 
   useEffect(() => {
     ensureRagToggleDefault();
@@ -302,8 +308,11 @@ export default function ChatInput({
       setUseRagForUpload(false);
       return;
     }
+    if (ragToggleDisabled) {
+      return;
+    }
     setUseRagForUpload(value);
-  }, [ragEnabledForCurrentModel]);
+  }, [ragEnabledForCurrentModel, ragToggleDisabled]);
 
   const refreshRagStatus = useCallback(async () => {
     setRagStatusLoading(true);
@@ -1059,6 +1068,7 @@ export default function ChatInput({
         useRag={useRagForUpload}
         onToggleRag={handleToggleRagForUpload}
         ragEnabled={ragEnabledForCurrentModel}
+        ragToggleDisabled={ragToggleDisabled}
       />
 
       <CameraOverlay
@@ -1068,6 +1078,7 @@ export default function ChatInput({
         useRag={useRagForUpload}
         onToggleRag={handleToggleRagForUpload}
         ragEnabled={ragEnabledForCurrentModel}
+        ragToggleDisabled={ragToggleDisabled}
       />
 
       <Portal>

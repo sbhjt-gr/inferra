@@ -30,6 +30,7 @@ type ImageProcessingSelectorProps = {
   useRag?: boolean;
   onToggleRag?: (value: boolean) => void;
   ragEnabled?: boolean;
+  ragToggleDisabled?: boolean;
 };
 
 export default function ImageProcessingSelector({
@@ -40,6 +41,7 @@ export default function ImageProcessingSelector({
   useRag = true,
   onToggleRag,
   ragEnabled = true,
+  ragToggleDisabled = false,
 }: ImageProcessingSelectorProps) {
   const [mmProjSelectorVisible, setMmProjSelectorVisible] = useState(false);
   const [storedModels, setStoredModels] = useState<StoredModel[]>([]);
@@ -279,7 +281,7 @@ export default function ImageProcessingSelector({
           <Switch
             value={useRag}
             onValueChange={onToggleRag}
-            disabled={disabled}
+            disabled={disabled || ragToggleDisabled}
             trackColor={{ false: isDark ? '#444444' : '#dddddd', true: '#66088080' }}
             thumbColor={useRag ? '#660880' : isDark ? '#222222' : '#f2f2f2'}
           />

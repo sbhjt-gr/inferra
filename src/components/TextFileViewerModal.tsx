@@ -27,6 +27,7 @@ type TextFileViewerModalProps = {
   useRag: boolean;
   onToggleRag: (value: boolean) => void;
   ragEnabled?: boolean;
+  ragToggleDisabled?: boolean;
 };
 
 export default function TextFileViewerModal({
@@ -38,6 +39,7 @@ export default function TextFileViewerModal({
   useRag,
   onToggleRag,
   ragEnabled = true,
+  ragToggleDisabled = false,
 }: TextFileViewerModalProps) {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
@@ -211,6 +213,7 @@ export default function TextFileViewerModal({
                         onValueChange={onToggleRag}
                         trackColor={{ false: isDark ? '#444444' : '#dddddd', true: '#66088080' }}
                         thumbColor={useRag ? '#660880' : isDark ? '#222222' : '#f2f2f2'}
+                        disabled={ragToggleDisabled}
                       />
                     </View>
                   ) : (

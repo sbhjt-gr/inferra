@@ -35,6 +35,7 @@ type ImageViewerModalProps = {
   useRag: boolean;
   onToggleRag: (value: boolean) => void;
   ragEnabled?: boolean;
+  ragToggleDisabled?: boolean;
 };
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
@@ -49,6 +50,7 @@ export default function ImageViewerModal({
   useRag,
   onToggleRag,
   ragEnabled = true,
+  ragToggleDisabled = false,
 }: ImageViewerModalProps) {
   const [userPrompt, setUserPrompt] = useState('Describe this image in detail.');
   const [processingMode, setProcessingMode] = useState<ImageProcessingMode>(null);
@@ -188,6 +190,7 @@ export default function ImageViewerModal({
                 onValueChange={onToggleRag}
                 trackColor={{ false: isDark ? '#444444' : '#dddddd', true: '#66088080' }}
                 thumbColor={useRag ? '#660880' : isDark ? '#222222' : '#f2f2f2'}
+                disabled={ragToggleDisabled}
               />
             </View>
           ) : (
@@ -214,6 +217,7 @@ export default function ImageViewerModal({
             useRag={useRag}
             onToggleRag={onToggleRag}
             ragEnabled={ragEnabled}
+            ragToggleDisabled={ragToggleDisabled}
           />
           
           <Text style={[styles.inputLabel, { color: themeColors.text }]}>
