@@ -10,8 +10,8 @@ interface ResponsiveLayoutInfo {
 }
 
 const WIDE_SCREEN_BREAKPOINT = 800;
-const SIDEBAR_PERCENTAGE = 0.3;
-const CHAT_PERCENTAGE = 0.7;
+const SIDEBAR_PERCENTAGE = 0.45;
+const CHAT_PERCENTAGE = 0.55;
 
 export function useResponsiveLayout(): ResponsiveLayoutInfo {
   const { width, height } = useWindowDimensions();
