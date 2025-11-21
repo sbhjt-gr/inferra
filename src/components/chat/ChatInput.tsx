@@ -70,8 +70,6 @@ export default function ChatInput({
   const [fileModalVisible, setFileModalVisible] = useState(false);
   const [cameraVisible, setCameraVisible] = useState(false);
   const [selectedFile, setSelectedFile] = useState<{uri: string, name?: string} | null>(null);
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordingPermission, setRecordingPermission] = useState<boolean | null>(null);
   const [mmProjSelectorVisible, setMmProjSelectorVisible] = useState(false);
   const [storedModels, setStoredModels] = useState<StoredModel[]>([]);
   const [pendingMultimodalAction, setPendingMultimodalAction] = useState<'camera' | 'file' | null>(null);
@@ -80,7 +78,6 @@ export default function ChatInput({
   const [useRagForUpload, setUseRagForUpload] = useState(true);
   
   const inputRef = useRef<TextInput>(null);
-  const pulseAnim = useRef(new Animated.Value(1)).current;
   const attachmentMenuAnim = useRef(new Animated.Value(0)).current;
   
   const { theme: currentTheme } = useTheme();
@@ -135,14 +132,6 @@ export default function ChatInput({
 
 
   useEffect(() => {
-    if (isRecording) {
-      startPulseAnimation();
-    } else {
-      stopPulseAnimation();
-    }
-  }, [isRecording]);
-
-  useEffect(() => {
     if (showAttachmentMenu) {
       Animated.spring(attachmentMenuAnim, {
         toValue: 1,
@@ -180,39 +169,6 @@ export default function ChatInput({
       ensureRagToggleDefault();
     }
   }, [fileModalVisible, cameraVisible, ensureRagToggleDefault]);
-
-  const startPulseAnimation = () => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.2,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
-  };
-
-  const stopPulseAnimation = () => {
-    Animated.timing(pulseAnim, {
-      toValue: 1,
-      duration: 200,
-      useNativeDriver: true,
-    }).start();
-  };
-
-  const checkAudioPermissions = async (): Promise<boolean> => {
-    return false;
-  };
-
-  const requestAudioPermissions = async (): Promise<boolean> => {
-    return false;
-  };
 
   const showDialog = useCallback((title: string, message: string) => {
     setDialogTitle(title);
@@ -586,41 +542,6 @@ export default function ChatInput({
       });
   }, [onSend, processOcrRagIfNeeded]);
 
-  const handleAudioRecorded = useCallback((audioUri: string) => {
-    const messageObject = {
-      type: 'multimodal',
-      content: [
-        {
-          type: 'audio',
-          uri: audioUri
-        },
-        {
-          type: 'text',
-          text: 'Please transcribe or describe this audio.'
-        }
-      ]
-    };
-    
-    
-    onSend(JSON.stringify(messageObject));
-    setShowAttachmentMenu(false);
-  }, [onSend]);
-
-  const startRecording = async () => {
-    Alert.alert('Feature Disabled', 'Audio recording is temporarily disabled');
-  };
-
-  const stopRecording = async () => {
-  };
-
-  const handleMicrophonePress = useCallback(() => {
-    if (isRecording) {
-      stopRecording();
-    } else {
-      startRecording();
-    }
-  }, [isRecording]);
-
   const openCamera = useCallback(() => {
     if (!selectedModelPath) {
       showDialog(
@@ -753,14 +674,6 @@ export default function ChatInput({
     showAttachmentMenu ? '#ffffff' : isDark ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.6)'
   , [showAttachmentMenu, isDark]);
 
-  const recordingButtonStyle = useMemo(() => [
-    styles.recordingButton,
-    {
-      backgroundColor: isRecording ? '#ff4444' : 'transparent',
-      transform: [{ scale: pulseAnim }],
-    }
-  ], [isRecording, pulseAnim]);
-
   return (
     <View style={styles.wrapper}>
       {isProcessingWithRAG && (
@@ -837,18 +750,6 @@ export default function ChatInput({
                 </Text>
               </TouchableOpacity>
               
-              <TouchableOpacity style={styles.attachmentMenuItem} onPress={handleMicrophonePress}>
-                <View style={[styles.attachmentMenuIcon, { backgroundColor: '#ea4335' }]}>
-                  <MaterialCommunityIcons 
-                    name={isRecording ? "stop" : "microphone-outline"} 
-                    size={20} 
-                    color="#ffffff" 
-                  />
-                </View>
-                <Text style={[styles.attachmentMenuText, { color: isDark ? themeColors.text : '#000000' }]}>
-                  {isRecording ? 'Stop' : 'Audio'}
-                </Text>
-              </TouchableOpacity>
             </Animated.View>
           )}
 
@@ -883,17 +784,6 @@ export default function ChatInput({
                 textAlignVertical="center"
               />
             </View>
-
-            {isRecording && !isEditing && (
-              <Animated.View style={recordingButtonStyle}>
-                <TouchableOpacity 
-                  style={styles.recordingButtonInner} 
-                  onPress={stopRecording}
-                >
-                  <MaterialCommunityIcons name="stop" size={20} color="#ffffff" />
-                </TouchableOpacity>
-              </Animated.View>
-            )}
 
             {isEditing ? (
               <View style={styles.editingActions}>
@@ -1150,24 +1040,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  recordingButton: {
-    position: 'absolute',
-    right: 56,
-    bottom: 0,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  recordingButtonInner: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
   attachmentMenu: {
     position: 'absolute',
