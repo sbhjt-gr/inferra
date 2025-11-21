@@ -231,6 +231,7 @@ export class MessageProcessingService {
     }) as RAGMessage[];
 
     let usedRAG = false;
+    const chatId = chatManager.getCurrentChatId();
 
     try {
       const ragEnabled = await RAGService.isEnabled();
@@ -239,7 +240,15 @@ export class MessageProcessingService {
           await RAGService.initialize(activeProvider);
         }
         if (RAGService.isReady()) {
-          await RAGService.generate({ input: baseMessages, settings, callback: streamCallback });
+          await RAGService.generate({
+            input: baseMessages,
+            settings,
+            callback: streamCallback,
+            scope: {
+              chatId,
+              provider: activeProvider,
+            },
+          });
           usedRAG = true;
         }
       }
@@ -481,6 +490,7 @@ export class MessageProcessingService {
     }) as RAGMessage[];
 
     let usedRAG = false;
+    const chatId = chatManager.getCurrentChatId();
 
     try {
       const ragEnabled = await RAGService.isEnabled();
@@ -489,7 +499,15 @@ export class MessageProcessingService {
           await RAGService.initialize('apple-foundation');
         }
         if (RAGService.isReady()) {
-          await RAGService.generate({ input: baseMessages, settings, callback: streamCallback });
+          await RAGService.generate({
+            input: baseMessages,
+            settings,
+            callback: streamCallback,
+            scope: {
+              chatId,
+              provider: 'apple-foundation',
+            },
+          });
           usedRAG = true;
         }
       }
@@ -716,15 +734,24 @@ export class MessageProcessingService {
       return { role: msg.role, content };
     }) as RAGMessage[];
     let usedRAG = false;
+    const chatId = chatManager.getCurrentChatId();
 
     try {
       const ragEnabled = await RAGService.isEnabled();
       if (ragEnabled && llamaManager.isInitialized()) {
         if (!RAGService.isReady()) {
-          await RAGService.initialize();
+          await RAGService.initialize('local');
         }
         if (RAGService.isReady()) {
-          await RAGService.generate({ input: baseMessages, settings, callback: streamCallback });
+          await RAGService.generate({
+            input: baseMessages,
+            settings,
+            callback: streamCallback,
+            scope: {
+              chatId,
+              provider: 'local',
+            },
+          });
           usedRAG = true;
         }
       }

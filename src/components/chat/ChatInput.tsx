@@ -25,8 +25,9 @@ import { modelDownloader } from '../../services/ModelDownloader';
 import AITermsDialog from './AITermsDialog';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import StopButton from '../StopButton';
-import { RAGService, type RAGDocument } from '../../services/rag/RAGService';
+import { RAGService, type RAGDocument, type RAGStorageType } from '../../services/rag/RAGService';
 import type { ProviderType } from '../../services/ModelManagementService';
+import chatManager from '../../utils/ChatManager';
 import { uuidv4 } from 'react-native-rag';
 
 type ChatInputProps = {
@@ -93,6 +94,15 @@ export default function ChatInput({
   const [isProcessingWithRAG, setIsProcessingWithRAG] = useState(false);
   const [ragProgress, setRagProgress] = useState<{ completed: number; total: number } | null>(null);
   const ragCancelRef = useRef<{ cancelled: boolean }>({ cancelled: false });
+  const [ragStatus, setRagStatus] = useState<{
+    enabled: boolean;
+    storage: RAGStorageType;
+    ready: boolean;
+    provider: ProviderType;
+    documentCount: number;
+    lastIngestedAt: number | null;
+  } | null>(null);
+  const [ragStatusLoading, setRagStatusLoading] = useState(false);
 
   const isGenerating = isLoading || isRegenerating;
   const hasText = text.trim().length > 0;
@@ -280,6 +290,64 @@ export default function ChatInput({
     setUseRagForUpload(value);
   }, []);
 
+  const refreshRagStatus = useCallback(async () => {
+    setRagStatusLoading(true);
+    try {
+      const status = await RAGService.getStatus();
+      setRagStatus(status);
+    } catch (error) {
+    } finally {
+      setRagStatusLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshRagStatus();
+  }, [refreshRagStatus]);
+
+  const formatRelativeTime = useCallback((timestamp: number | null) => {
+    if (!timestamp) {
+      return 'never';
+    }
+    const diff = Date.now() - timestamp;
+    if (diff < 15000) {
+      return 'just now';
+    }
+    if (diff < 60000) {
+      return `${Math.floor(diff / 1000)}s ago`;
+    }
+    if (diff < 3600000) {
+      return `${Math.floor(diff / 60000)}m ago`;
+    }
+    if (diff < 86400000) {
+      return `${Math.floor(diff / 3600000)}h ago`;
+    }
+    const days = Math.floor(diff / 86400000);
+    return `${days}d ago`;
+  }, []);
+
+  const ragStatusLabel = useMemo(() => {
+    if (!ragStatus) {
+      return 'Checking retrieval status…';
+    }
+    if (!ragStatus.enabled) {
+      return 'Retrieval disabled';
+    }
+    if (!ragStatus.ready) {
+      return 'Retrieval initializing';
+    }
+    return 'Retrieval ready';
+  }, [ragStatus]);
+
+  const ragStatusDetails = useMemo(() => {
+    if (!ragStatus || !ragStatus.enabled) {
+      return 'Enable RAG to store files for this chat.';
+    }
+    const lastSeen = formatRelativeTime(ragStatus.lastIngestedAt);
+    const storageLabel = ragStatus.storage === 'persistent' ? 'Persistent store' : 'Memory store';
+    return `${ragStatus.documentCount} docs · ${storageLabel} · updated ${lastSeen}`;
+  }, [ragStatus, formatRelativeTime]);
+
   const toggleAttachmentMenu = () => {
     setShowAttachmentMenu(!showAttachmentMenu);
   };
@@ -332,6 +400,7 @@ export default function ChatInput({
       let cancelled = false;
       let documentId: string | undefined;
       let ragIndicatorActive = false;
+      const chatId = chatManager.getCurrentChatId() || undefined;
 
       try {
         const enabled = await RAGService.isEnabled();
@@ -364,6 +433,8 @@ export default function ChatInput({
           fileName: displayName,
           fileType,
           timestamp: Date.now(),
+          chatId,
+          provider,
         };
 
         await RAGService.addDocument(ragDocument, {
@@ -373,8 +444,9 @@ export default function ChatInput({
           },
           isCancelled: () => ragCancelRef.current.cancelled,
         });
-        handled = true;
-        console.log('file_rag_store', displayName, documentId, content.length);
+  handled = true;
+  console.log('file_rag_store', displayName, documentId, content.length);
+  await refreshRagStatus();
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'unknown';
         console.log('file_upload_error', errorMessage);
@@ -382,7 +454,14 @@ export default function ChatInput({
           cancelled = true;
           console.log('file_upload_cancelled', displayName);
         } else {
-          showDialog('Retrieval error', 'Document could not be stored for retrieval. Sending full content instead.');
+          if (errorMessage.includes('api_key_missing')) {
+            const providerLabel = selectedModelPath === 'apple-foundation'
+              ? 'Apple Intelligence'
+              : (selectedModelPath || 'local');
+            showDialog('API Key Required', `Add a ${providerLabel} API key in Settings to use retrieval.`);
+          } else {
+            showDialog('Retrieval error', 'Document could not be stored for retrieval. Sending full content instead.');
+          }
         }
       } finally {
         if (ragIndicatorActive) {
@@ -392,7 +471,7 @@ export default function ChatInput({
 
       return { handled, cancelled, documentId };
     },
-    [showDialog, selectedModelPath]
+    [showDialog, selectedModelPath, refreshRagStatus]
   );
 
   const handleFileUpload = useCallback(
@@ -838,14 +917,61 @@ export default function ChatInput({
         </View>
       </TouchableWithoutFeedback>
 
-      <View style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        flexWrap: 'wrap'
-      }}>
+      <View
+        style={[
+          styles.ragStatusContainer,
+          {
+            backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)',
+            borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
+          },
+        ]}
+      >
+        <View
+          style={[
+            styles.ragStatusIndicator,
+            {
+              backgroundColor: !ragStatus || !ragStatus.enabled
+                ? '#b0b0b0'
+                : ragStatus.ready
+                  ? '#34a853'
+                  : '#ffb300',
+            },
+          ]}
+        />
+        <View style={styles.ragStatusTextContainer}>
+          <Text
+            style={[
+              styles.ragStatusTitle,
+              { color: isDark ? '#ffffff' : '#000000' },
+            ]}
+          >
+            {ragStatusLabel}
+          </Text>
+          <Text
+            style={[
+              styles.ragStatusSubtitle,
+              { color: isDark ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.6)' },
+            ]}
+            numberOfLines={1}
+          >
+            {ragStatusDetails}
+          </Text>
+        </View>
+        <TouchableOpacity
+          style={styles.ragStatusRefresh}
+          onPress={refreshRagStatus}
+          disabled={ragStatusLoading}
+        >
+          {ragStatusLoading ? (
+            <ActivityIndicator size="small" color={getThemeAwareColor('#4a0660', currentTheme)} />
+          ) : (
+            <MaterialCommunityIcons
+              name="refresh"
+              size={18}
+              color={getThemeAwareColor('#4a0660', currentTheme)}
+            />
+          )}
+        </TouchableOpacity>
       </View>
 
       <FileViewerModal
@@ -1129,5 +1255,40 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  ragStatusContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginTop: 8,
+    marginHorizontal: 4,
+  },
+  ragStatusIndicator: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 10,
+  },
+  ragStatusTextContainer: {
+    flex: 1,
+  },
+  ragStatusTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  ragStatusSubtitle: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  ragStatusRefresh: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
   },
 }); 
