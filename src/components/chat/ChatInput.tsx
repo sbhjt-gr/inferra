@@ -103,6 +103,7 @@ export default function ChatInput({
     lastIngestedAt: number | null;
   } | null>(null);
   const [ragStatusLoading, setRagStatusLoading] = useState(false);
+  const [ragClearing, setRagClearing] = useState(false);
 
   const isGenerating = isLoading || isRegenerating;
   const hasText = text.trim().length > 0;
@@ -304,6 +305,21 @@ export default function ChatInput({
   useEffect(() => {
     refreshRagStatus();
   }, [refreshRagStatus]);
+
+  const handleClearRetrieval = useCallback(async () => {
+    if (ragClearing) {
+      return;
+    }
+    setRagClearing(true);
+    try {
+      await RAGService.clear();
+      await refreshRagStatus();
+    } catch (error) {
+      showDialog('Retrieval reset failed', 'Unable to clear stored retrieval data.');
+    } finally {
+      setRagClearing(false);
+    }
+  }, [ragClearing, refreshRagStatus, showDialog]);
 
   const formatRelativeTime = useCallback((timestamp: number | null) => {
     if (!timestamp) {
@@ -967,6 +983,21 @@ export default function ChatInput({
           ) : (
             <MaterialCommunityIcons
               name="refresh"
+              size={18}
+              color={getThemeAwareColor('#4a0660', currentTheme)}
+            />
+          )}
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.ragStatusRefresh}
+          onPress={handleClearRetrieval}
+          disabled={ragClearing}
+        >
+          {ragClearing ? (
+            <ActivityIndicator size="small" color={getThemeAwareColor('#4a0660', currentTheme)} />
+          ) : (
+            <MaterialCommunityIcons
+              name="close"
               size={18}
               color={getThemeAwareColor('#4a0660', currentTheme)}
             />

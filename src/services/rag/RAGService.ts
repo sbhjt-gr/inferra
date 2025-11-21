@@ -364,15 +364,34 @@ class RAGServiceClass {
 
   async clear(): Promise<void> {
     console.log('rag_clear_start');
+    await this.ensureStatsLoaded();
     const enabled = await this.isEnabled();
     if (!enabled) {
+      this.stats = { documentCount: 0, lastIngestedAt: null };
+      await this.persistStats();
       await this.cleanup();
       console.log('rag_clear_disabled');
       return;
     }
 
     const provider = this.currentProvider;
-    await this.cleanup();
+
+    if (!this.initialized) {
+      try {
+        await this.initialize(provider);
+      } catch (error) {
+        console.log('rag_clear_init_failed', error instanceof Error ? error.message : 'unknown');
+      }
+    }
+
+    if (this.rag) {
+      await this.rag.deleteDocument({ predicate: () => true });
+    }
+
+    this.stats = { documentCount: 0, lastIngestedAt: null };
+    await this.persistStats();
+
+    await this.cleanup({ keepProvider: true });
     await this.initialize(provider);
     console.log('rag_clear_complete');
   }
