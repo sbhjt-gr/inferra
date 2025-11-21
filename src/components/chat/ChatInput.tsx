@@ -43,6 +43,7 @@ type ChatInputProps = {
   editingText?: string;
   onSaveEdit?: (text: string) => void;
   onCancelEdit?: () => void;
+  chatId?: string;
 };
 
 interface StoredModel {
@@ -65,6 +66,7 @@ export default function ChatInput({
   editingText = '',
   onSaveEdit,
   onCancelEdit,
+  chatId,
 }: ChatInputProps) {
   const [text, setText] = useState('');
   const [inputHeight, setInputHeight] = useState(52);
@@ -304,6 +306,13 @@ export default function ChatInput({
 
   useEffect(() => {
     refreshRagStatus();
+  }, [refreshRagStatus, chatId]);
+
+  useEffect(() => {
+    const unsubscribe = chatManager.addListener(refreshRagStatus);
+    return () => {
+      unsubscribe();
+    };
   }, [refreshRagStatus]);
 
   const handleClearRetrieval = useCallback(async () => {
