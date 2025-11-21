@@ -373,6 +373,8 @@ export default function ChatInput({
     return `${ragStatus.documentCount} docs · ${storageLabel} · updated ${lastSeen}`;
   }, [ragStatus, formatRelativeTime]);
 
+  const showRagStatus = (ragStatus?.documentCount ?? 0) > 0;
+
   const toggleAttachmentMenu = () => {
     setShowAttachmentMenu(!showAttachmentMenu);
   };
@@ -942,77 +944,79 @@ export default function ChatInput({
         </View>
       </TouchableWithoutFeedback>
 
-      <View
-        style={[
-          styles.ragStatusContainer,
-          {
-            backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)',
-            borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
-          },
-        ]}
-      >
+      {showRagStatus && (
         <View
           style={[
-            styles.ragStatusIndicator,
+            styles.ragStatusContainer,
             {
-              backgroundColor: !ragStatus || !ragStatus.enabled
-                ? '#b0b0b0'
-                : ragStatus.ready
-                  ? '#34a853'
-                  : '#ffb300',
+              backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)',
+              borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
             },
           ]}
-        />
-        <View style={styles.ragStatusTextContainer}>
-          <Text
+        >
+          <View
             style={[
-              styles.ragStatusTitle,
-              { color: isDark ? '#ffffff' : '#000000' },
+              styles.ragStatusIndicator,
+              {
+                backgroundColor: !ragStatus || !ragStatus.enabled
+                  ? '#b0b0b0'
+                  : ragStatus.ready
+                    ? '#34a853'
+                    : '#ffb300',
+              },
             ]}
+          />
+          <View style={styles.ragStatusTextContainer}>
+            <Text
+              style={[
+                styles.ragStatusTitle,
+                { color: isDark ? '#ffffff' : '#000000' },
+              ]}
+            >
+              {ragStatusLabel}
+            </Text>
+            <Text
+              style={[
+                styles.ragStatusSubtitle,
+                { color: isDark ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.6)' },
+              ]}
+              numberOfLines={1}
+            >
+              {ragStatusDetails}
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.ragStatusRefresh}
+            onPress={refreshRagStatus}
+            disabled={ragStatusLoading}
           >
-            {ragStatusLabel}
-          </Text>
-          <Text
-            style={[
-              styles.ragStatusSubtitle,
-              { color: isDark ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.6)' },
-            ]}
-            numberOfLines={1}
+            {ragStatusLoading ? (
+              <ActivityIndicator size="small" color={getThemeAwareColor('#4a0660', currentTheme)} />
+            ) : (
+              <MaterialCommunityIcons
+                name="refresh"
+                size={18}
+                color={getThemeAwareColor('#4a0660', currentTheme)}
+              />
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.ragStatusRefresh}
+            onPress={handleClearRetrieval}
+            disabled={ragClearing}
           >
-            {ragStatusDetails}
-          </Text>
+            {ragClearing ? (
+              <ActivityIndicator size="small" color={getThemeAwareColor('#4a0660', currentTheme)} />
+            ) : (
+              <MaterialCommunityIcons
+                name="close"
+                size={18}
+                color={getThemeAwareColor('#4a0660', currentTheme)}
+              />
+            )}
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity
-          style={styles.ragStatusRefresh}
-          onPress={refreshRagStatus}
-          disabled={ragStatusLoading}
-        >
-          {ragStatusLoading ? (
-            <ActivityIndicator size="small" color={getThemeAwareColor('#4a0660', currentTheme)} />
-          ) : (
-            <MaterialCommunityIcons
-              name="refresh"
-              size={18}
-              color={getThemeAwareColor('#4a0660', currentTheme)}
-            />
-          )}
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.ragStatusRefresh}
-          onPress={handleClearRetrieval}
-          disabled={ragClearing}
-        >
-          {ragClearing ? (
-            <ActivityIndicator size="small" color={getThemeAwareColor('#4a0660', currentTheme)} />
-          ) : (
-            <MaterialCommunityIcons
-              name="close"
-              size={18}
-              color={getThemeAwareColor('#4a0660', currentTheme)}
-            />
-          )}
-        </TouchableOpacity>
-      </View>
+      )}
 
       <FileViewerModal
         visible={fileModalVisible}
@@ -1304,6 +1308,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     marginTop: 8,
+    marginBottom: 8,
     marginHorizontal: 4,
   },
   ragStatusIndicator: {
