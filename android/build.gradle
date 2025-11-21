@@ -41,12 +41,3 @@ allprojects {
     }
 }
 
-def cmakeMaxPageSizeScript = file("cmake/max-page-size.cmake").absolutePath
-
-subprojects { subproject ->
-    tasks.configureEach { task ->
-        if (task.hasProperty('arguments') && task.class.name.contains('Cmake')) {
-            task.arguments.add("-DCMAKE_PROJECT_INCLUDE_BEFORE=${cmakeMaxPageSizeScript}")
-        }
-    }
-}
