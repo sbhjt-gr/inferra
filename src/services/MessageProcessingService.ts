@@ -46,9 +46,11 @@ export class MessageProcessingService {
   const isOnlineModel = activeProvider === 'gemini' || activeProvider === 'chatgpt' || activeProvider === 'deepseek' || activeProvider === 'claude';
   const isAppleFoundation = activeProvider === 'apple-foundation';
       
+      const systemPrompt = settings.systemPrompt || 'You are a helpful AI assistant.';
       const processedMessages = currentMessages.some(msg => msg.role === 'system')
         ? currentMessages
-        : [{ role: 'system', content: settings.systemPrompt, id: 'system-prompt' }, ...currentMessages];
+        : [{ role: 'system', content: systemPrompt, id: 'system-prompt' }, ...currentMessages];
+      const skipRag = this.shouldSkipRag(processedMessages);
       
       const assistantMessage: Omit<ChatMessage, 'id'> = {
         role: 'assistant',
@@ -98,7 +100,8 @@ export class MessageProcessingService {
           processedMessages,
           settings,
           messageId,
-          startTime
+          startTime,
+          skipRag
         );
       } else {
         await this.processLocalModel(
@@ -111,7 +114,8 @@ export class MessageProcessingService {
           thinking,
           isThinking,
           firstTokenTime,
-          updateCounter
+          updateCounter,
+          skipRag
         );
       }
       
@@ -364,7 +368,8 @@ export class MessageProcessingService {
     processedMessages: any[],
     settings: any,
     messageId: string,
-    startTime: number
+    startTime: number,
+    skipRag: boolean
   ): Promise<void> {
     let fullResponse = '';
     let tokenCount = 0;
@@ -463,28 +468,30 @@ export class MessageProcessingService {
     let usedRAG = false;
     const chatId = chatManager.getCurrentChatId();
 
-    try {
-      const ragEnabled = await RAGService.isEnabled();
-      if (ragEnabled) {
-        if (!RAGService.isReady()) {
-          await RAGService.initialize('apple-foundation');
+    if (!skipRag) {
+      try {
+        const ragEnabled = await RAGService.isEnabled();
+        if (ragEnabled) {
+          if (!RAGService.isReady()) {
+            await RAGService.initialize('apple-foundation');
+          }
+          if (RAGService.isReady()) {
+            await RAGService.generate({
+              input: baseMessages,
+              settings,
+              callback: streamCallback,
+              scope: {
+                chatId,
+                provider: 'apple-foundation',
+              },
+            });
+            usedRAG = true;
+          }
         }
-        if (RAGService.isReady()) {
-          await RAGService.generate({
-            input: baseMessages,
-            settings,
-            callback: streamCallback,
-            scope: {
-              chatId,
-              provider: 'apple-foundation',
-            },
-          });
-          usedRAG = true;
-        }
+      } catch (error) {
+        console.log('apple_rag_error', error instanceof Error ? error.message : 'unknown');
+        usedRAG = false;
       }
-    } catch (error) {
-      console.log('apple_rag_error', error instanceof Error ? error.message : 'unknown');
-      usedRAG = false;
     }
 
     if (!usedRAG) {
@@ -601,13 +608,21 @@ export class MessageProcessingService {
     settings: any,
     messageId: string,
     startTime: number,
-    tokenCount: number,
-    fullResponse: string,
-    thinking: string,
-    isThinking: boolean,
-    firstTokenTime: number | null,
-    updateCounter: number
+    _tokenCount: number,
+    _fullResponse: string,
+    _thinking: string,
+    _isThinking: boolean,
+    _firstTokenTime: number | null,
+    _updateCounter: number,
+    skipRag: boolean
   ): Promise<void> {
+    let tokenCount = 0;
+    let fullResponse = '';
+    let thinking = '';
+    let isThinking = false;
+    let firstTokenTime: number | null = null;
+    let updateCounter = 0;
+
     const streamCallback = (token: string) => {
       if (this.cancelGenerationRef.current) {
         return false;
@@ -707,30 +722,37 @@ export class MessageProcessingService {
     let usedRAG = false;
     const chatId = chatManager.getCurrentChatId();
 
-    try {
-      const ragEnabled = await RAGService.isEnabled();
-      if (ragEnabled && llamaManager.isInitialized()) {
-        if (!RAGService.isReady()) {
-          await RAGService.initialize('local');
+    if (!skipRag) {
+      try {
+        const ragEnabled = await RAGService.isEnabled();
+        if (ragEnabled && llamaManager.isInitialized()) {
+          if (!RAGService.isReady()) {
+            await RAGService.initialize('local');
+          }
+          if (RAGService.isReady()) {
+            await RAGService.generate({
+              input: baseMessages,
+              settings,
+              callback: streamCallback,
+              scope: {
+                chatId,
+                provider: 'local',
+              },
+            });
+            usedRAG = true;
+          }
         }
-        if (RAGService.isReady()) {
-          await RAGService.generate({
-            input: baseMessages,
-            settings,
-            callback: streamCallback,
-            scope: {
-              chatId,
-              provider: 'local',
-            },
-          });
-          usedRAG = true;
-        }
+      } catch {
+        usedRAG = false;
       }
-    } catch {
-      usedRAG = false;
     }
 
     if (!usedRAG) {
+      console.log('local_no_rag_messages', JSON.stringify(baseMessages.map(m => ({ 
+        role: m.role, 
+        contentLength: m.content.length,
+        contentPreview: m.content.substring(0, 200)
+      }))));
       await llamaManager.generateResponse(
         baseMessages,
         streamCallback,
@@ -767,5 +789,21 @@ export class MessageProcessingService {
       case 'claude': return 'Claude';
       default: return 'OpenAI';
     }
+  }
+
+  private shouldSkipRag(messages: Array<{ role: string; content: string }>): boolean {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const entry = messages[index];
+      if (entry.role !== 'user') {
+        continue;
+      }
+      try {
+        const parsed = JSON.parse(entry.content);
+        return parsed?.metadata?.ragDisabled === true;
+      } catch {
+        return false;
+      }
+    }
+    return false;
   }
 }

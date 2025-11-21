@@ -299,13 +299,11 @@ export default function ChatInput({
 
   const handleToggleRagForUpload = useCallback((value: boolean) => {
     if (!ragEnabledForCurrentModel) {
-      if (useRagForUpload) {
-        setUseRagForUpload(false);
-      }
+      setUseRagForUpload(false);
       return;
     }
     setUseRagForUpload(value);
-  }, [ragEnabledForCurrentModel, useRagForUpload]);
+  }, [ragEnabledForCurrentModel]);
 
   const refreshRagStatus = useCallback(async () => {
     setRagStatusLoading(true);
@@ -543,7 +541,7 @@ export default function ChatInput({
       let ragCancelled = false;
       let documentId: string | undefined;
 
-      if (useRagFlag) {
+      if (useRagFlag && ragEnabledForCurrentModel) {
         const result = await processRagDocument(
           content,
           displayName,
@@ -556,6 +554,7 @@ export default function ChatInput({
         if (ragHandled && documentId) {
           const messageObject = {
             type: 'file_upload',
+            fileName: displayName,
             internalInstruction: buildInternalInstruction(),
             userContent: userMessage,
             metadata: { ragDocumentId: documentId },
@@ -572,8 +571,10 @@ export default function ChatInput({
       if (!ragHandled && !ragCancelled) {
         const fallbackObject = {
           type: 'file_upload',
+          fileName: displayName,
           internalInstruction: buildInternalInstruction(content),
           userContent: userMessage,
+          metadata: { ragDisabled: true },
         };
         console.log('file_internal', fallbackObject.internalInstruction);
         console.log('file_prompt', userMessage);
@@ -590,6 +591,16 @@ export default function ChatInput({
     [onSend, processRagDocument]
   );
 
+  const markRagDisabled = useCallback((raw: string) => {
+    try {
+      const parsed = JSON.parse(raw);
+      const metadata = { ...(parsed.metadata || {}), ragDisabled: true };
+      return JSON.stringify({ ...parsed, metadata });
+    } catch {
+      return raw;
+    }
+  }, []);
+
   const processOcrRagIfNeeded = useCallback(
     async (messageContent: string): Promise<{ finalMessage: string; cancelled: boolean }> => {
       try {
@@ -599,8 +610,8 @@ export default function ChatInput({
           return { finalMessage: messageContent, cancelled: false };
         }
 
-        if (!useRagForUpload) {
-          return { finalMessage: messageContent, cancelled: false };
+        if (!useRagForUpload || !ragEnabledForCurrentModel) {
+          return { finalMessage: markRagDisabled(messageContent), cancelled: false };
         }
 
         if (parsed?.type === 'ocr_result' && typeof parsed.extractedText === 'string') {
@@ -615,14 +626,17 @@ export default function ChatInput({
             parsed.metadata = { ...(parsed.metadata || {}), ragDocumentId: result.documentId };
             return { finalMessage: JSON.stringify(parsed), cancelled: false };
           }
+
+          parsed.metadata = { ...(parsed.metadata || {}), ragDisabled: true };
+          return { finalMessage: JSON.stringify(parsed), cancelled: false };
         }
       } catch (error) {
         console.log('ocr_rag_parse_error');
       }
 
-      return { finalMessage: messageContent, cancelled: false };
+      return { finalMessage: markRagDisabled(messageContent), cancelled: false };
     },
-    [processRagDocument, useRagForUpload]
+    [processRagDocument, useRagForUpload, ragEnabledForCurrentModel, markRagDisabled]
   );
 
   const handleImageUpload = useCallback((messageContent: string) => {

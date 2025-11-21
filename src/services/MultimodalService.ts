@@ -118,6 +118,13 @@ export class MultimodalService {
           images: imageUri ? [imageUri] : [],
         };
       } else if (parsed.type === 'file_upload') {
+        console.log('multimodal_file_upload_parse', {
+          hasInternalInstruction: !!parsed.internalInstruction,
+          internalInstructionLength: parsed.internalInstruction?.length || 0,
+          hasUserContent: !!parsed.userContent,
+          hasRagDocumentId: !!parsed.metadata?.ragDocumentId,
+          hasRagDisabled: !!parsed.metadata?.ragDisabled
+        });
         return {
           text: parsed.internalInstruction + '\n\n' + (parsed.userContent || ''),
         };
