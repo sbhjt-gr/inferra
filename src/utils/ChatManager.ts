@@ -1,5 +1,6 @@
 import chatDatabase from './ChatDatabase';
 import type { ProviderType } from '../services/ModelManagementService';
+import { RAGService } from '../services/rag/RAGService';
 
 const generateRandomId = () => {
   return `${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
@@ -101,6 +102,11 @@ class ChatManager {
   async createNewChat(initialMessages: ChatMessage[] = []): Promise<Chat> {
     try {
       await this.ensureInitialized();
+      try {
+        await RAGService.clear();
+      } catch (error) {
+        console.log('rag_clear_new_chat_fail', error instanceof Error ? error.message : 'unknown');
+      }
 
       if (this.currentChatId) {
         const currentChat = this.getChatById(this.currentChatId);

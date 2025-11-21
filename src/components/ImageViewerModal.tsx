@@ -34,6 +34,8 @@ type ImageViewerModalProps = {
   onImageUpload?: (messageContent: string) => void;
   useRag: boolean;
   onToggleRag: (value: boolean) => void;
+  ragEnabled?: boolean;
+  ragToggleDisabled?: boolean;
 };
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
@@ -47,6 +49,8 @@ export default function ImageViewerModal({
   onImageUpload,
   useRag,
   onToggleRag,
+  ragEnabled = true,
+  ragToggleDisabled = false,
 }: ImageViewerModalProps) {
   const [userPrompt, setUserPrompt] = useState('Describe this image in detail.');
   const [processingMode, setProcessingMode] = useState<ImageProcessingMode>(null);
@@ -58,9 +62,13 @@ export default function ImageViewerModal({
 
   useEffect(() => {
     if (visible) {
-      onToggleRag(true);
+      if (ragEnabled) {
+        onToggleRag(true);
+      } else {
+        onToggleRag(false);
+      }
     }
-  }, [visible, onToggleRag]);
+  }, [visible, onToggleRag, ragEnabled]);
 
   const handleSend = async () => {
     if ((!onUpload && !onImageUpload) || !imagePath || isProcessing || !processingMode) return;
@@ -163,32 +171,53 @@ export default function ImageViewerModal({
         </ScrollView>
 
         <View style={[styles.inputSection, { backgroundColor: themeColors.background, borderTopColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)' }]}> 
-          <View
-            style={[
-              styles.ragRow,
-              {
-                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.02)',
-                borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
-              },
-            ]}
-          >
-            <View style={styles.ragTextContainer}>
-              <Text style={[styles.ragTitle, { color: themeColors.text }]}>Use RAG</Text>
-              <Text style={[styles.ragDescription, { color: isDark ? '#bbbbbb' : '#666666' }]}>Store this file for smarter answers in this chat.</Text>
+          {ragEnabled ? (
+            <View
+              style={[
+                styles.ragRow,
+                {
+                  backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.02)',
+                  borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
+                },
+              ]}
+            >
+              <View style={styles.ragTextContainer}>
+                <Text style={[styles.ragTitle, { color: themeColors.text }]}>Use RAG</Text>
+                <Text style={[styles.ragDescription, { color: isDark ? '#bbbbbb' : '#666666' }]}>Store this file for smarter answers in this chat.</Text>
+              </View>
+              <Switch
+                value={useRag}
+                onValueChange={onToggleRag}
+                trackColor={{ false: isDark ? '#444444' : '#dddddd', true: '#66088080' }}
+                thumbColor={useRag ? '#660880' : isDark ? '#222222' : '#f2f2f2'}
+                disabled={ragToggleDisabled}
+              />
             </View>
-            <Switch
-              value={useRag}
-              onValueChange={onToggleRag}
-              trackColor={{ false: isDark ? '#444444' : '#dddddd', true: '#66088080' }}
-              thumbColor={useRag ? '#660880' : isDark ? '#222222' : '#f2f2f2'}
-            />
-          </View>
+          ) : (
+            <View
+              style={[
+                styles.ragRow,
+                {
+                  backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.02)',
+                  borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
+                },
+              ]}
+            >
+              <MaterialCommunityIcons name="information-outline" size={20} color={isDark ? '#888888' : '#666666'} />
+              <View style={[styles.ragTextContainer, { paddingLeft: 8 }]}>
+                <Text style={[styles.ragTitle, { color: isDark ? '#888888' : '#666666' }]}>RAG not available</Text>
+                <Text style={[styles.ragDescription, { color: isDark ? '#888888' : '#666666' }]}>Local RAG is not available for remote models.</Text>
+              </View>
+            </View>
+          )}
           <ImageProcessingSelector
             selectedMode={processingMode}
             onModeChange={setProcessingMode}
             disabled={isProcessing}
             useRag={useRag}
             onToggleRag={onToggleRag}
+            ragEnabled={ragEnabled}
+            ragToggleDisabled={ragToggleDisabled}
           />
           
           <Text style={[styles.inputLabel, { color: themeColors.text }]}>

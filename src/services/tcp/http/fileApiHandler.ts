@@ -32,6 +32,7 @@ export function createFileApiHandler(context: Context): ApiHandler {
       const files = Array.isArray(payload?.files) ? payload.files : null;
       const model = typeof payload?.model === 'string' ? payload.model : undefined;
       const provider = normalizeProvider(payload?.provider);
+  const chatId = typeof payload?.chatId === 'string' ? payload.chatId : undefined;
       const useRag = payload?.rag !== false;
 
       if (!content && !filePath && !files) {
@@ -100,6 +101,8 @@ export function createFileApiHandler(context: Context): ApiHandler {
           fileName,
           fileType: fileName.split('.').pop(),
           timestamp: Date.now(),
+          chatId,
+          provider: provider ?? 'local',
         });
 
         context.respond(socket, 200, {

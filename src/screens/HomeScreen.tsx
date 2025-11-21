@@ -697,6 +697,7 @@ export default function HomeScreen({ route, navigation }: HomeScreenProps) {
           editingText={editingMessageText}
           onSaveEdit={handleSaveEdit}
           onCancelEdit={handleCancelEdit}
+          chatId={chat.id}
         />
       </KeyboardAvoidingView>
 

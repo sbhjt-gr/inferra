@@ -12,13 +12,8 @@ export function createRagApiHandler(context: Context): ApiHandler {
     if (segments.length === 0) {
       if (method === 'GET') {
         try {
-          const enabled = await RAGService.isEnabled();
-          const storage = await RAGService.getStorageType();
-          context.respond(socket, 200, {
-            enabled,
-            storage,
-            ready: RAGService.isReady(),
-          });
+          const status = await RAGService.getStatus();
+          context.respond(socket, 200, status);
           logger.logWebRequest(method, path, 200);
         } catch (error) {
           context.respond(socket, 500, { error: 'rag_status_failed' });
@@ -60,11 +55,8 @@ export function createRagApiHandler(context: Context): ApiHandler {
             await RAGService.initialize(provider);
           }
 
-          context.respond(socket, 200, {
-            enabled: await RAGService.isEnabled(),
-            storage: await RAGService.getStorageType(),
-            ready: RAGService.isReady(),
-          });
+          const status = await RAGService.getStatus();
+          context.respond(socket, 200, status);
           logger.logWebRequest(method, path, 200);
         } catch (error) {
           context.respond(socket, 500, { error: 'rag_update_failed' });
@@ -77,7 +69,8 @@ export function createRagApiHandler(context: Context): ApiHandler {
     if (segments[0] === 'reset' && method === 'POST') {
       try {
         await RAGService.clear();
-        context.respond(socket, 200, { status: 'cleared' });
+        const status = await RAGService.getStatus();
+        context.respond(socket, 200, { status: 'cleared', ...status });
         logger.logWebRequest(method, path, 200);
       } catch (error) {
         context.respond(socket, 500, { error: 'rag_reset_failed' });

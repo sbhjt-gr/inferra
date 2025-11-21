@@ -1,8 +1,20 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { RAG, MemoryVectorStore, RecursiveCharacterTextSplitter, type Message, type LLM } from 'react-native-rag';
+import {
+  RAG,
+  MemoryVectorStore,
+  RecursiveCharacterTextSplitter,
+  type Message,
+  type LLM,
+  type Embeddings,
+  type QueryResult,
+} from 'react-native-rag';
 import { OPSQLiteVectorStore } from '@react-native-rag/op-sqlite';
 import { LlamaRnEmbeddings } from './LlamaRnEmbeddings';
-import { UniversalEmbeddings } from './UniversalEmbeddings';
+import { AppleRagEmbeddings } from './AppleRagEmbeddings';
+import { OpenAIEmbeddings } from './OpenAIEmbeddings';
+import { GeminiEmbeddings } from './GeminiEmbeddings';
+import { DeepSeekEmbeddings } from './DeepSeekEmbeddings';
+import { ClaudeEmbeddings } from './ClaudeEmbeddings';
 import { LlamaRnLLM } from './LlamaRnLLM';
 import { OnlineModelLLM } from './OnlineModelLLM';
 import { AppleFoundationLLM } from './AppleFoundationLLM';
@@ -13,8 +25,14 @@ import type { ProviderType } from '../ModelManagementService';
 const RAG_ENABLED_KEY = '@inferra/rag/enabled';
 const RAG_STORAGE_KEY = '@inferra/rag/storage';
 const PERSISTENT_DB_NAME = 'inferra_rag_vectors';
+const RAG_STATS_KEY = '@inferra/rag/stats';
 
 type RAGStorageType = 'memory' | 'persistent';
+
+type RAGStats = {
+  documentCount: number;
+  lastIngestedAt: number | null;
+};
 
 type RAGDocument = {
   id: string;
@@ -22,6 +40,9 @@ type RAGDocument = {
   fileName?: string;
   fileType?: string;
   timestamp?: number;
+  chatId?: string;
+  userId?: string;
+  provider?: ProviderType;
 };
 
 const CONTROL_CHARS_REGEX = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g;
@@ -30,11 +51,13 @@ const sanitizeChunk = (value: string): string => value.replace(CONTROL_CHARS_REG
 
 class RAGServiceClass {
   private rag: RAG | null = null;
-  private embeddings: LlamaRnEmbeddings | UniversalEmbeddings | null = null;
+  private embeddings: Embeddings | null = null;
   private llm: LLM | null = null;
   private storage: RAGStorageType = 'memory';
   private initialized = false;
-  private currentProvider: ProviderType | null = null;
+  private currentProvider: ProviderType = 'local';
+  private statsLoaded = false;
+  private stats: RAGStats = { documentCount: 0, lastIngestedAt: null };
 
   async isEnabled(): Promise<boolean> {
     const value = await AsyncStorage.getItem(RAG_ENABLED_KEY);
@@ -54,6 +77,10 @@ class RAGServiceClass {
 
   async getStorageType(): Promise<RAGStorageType> {
     const value = await AsyncStorage.getItem(RAG_STORAGE_KEY);
+    if (value === null) {
+      await AsyncStorage.setItem(RAG_STORAGE_KEY, 'persistent');
+      return 'persistent';
+    }
     return value === 'persistent' ? 'persistent' : 'memory';
   }
 
@@ -66,12 +93,15 @@ class RAGServiceClass {
   }
 
   async initialize(provider?: ProviderType): Promise<void> {
-    if (this.initialized && provider === this.currentProvider) {
-      console.log('rag_already_initialized', provider || 'local');
+    const resolvedProvider: ProviderType = provider ?? 'local';
+    await this.ensureStatsLoaded();
+
+    if (this.initialized && resolvedProvider === this.currentProvider) {
+      console.log('rag_already_initialized', resolvedProvider);
       return;
     }
 
-    if (this.initialized && provider !== this.currentProvider) {
+    if (this.initialized && resolvedProvider !== this.currentProvider) {
       await this.cleanup();
     }
 
@@ -80,39 +110,50 @@ class RAGServiceClass {
       return;
     }
 
-    console.log('rag_init_start', provider || 'local');
-    
-    const isRemoteOrApple = provider === 'apple-foundation' || provider === 'gemini' || provider === 'chatgpt' || provider === 'deepseek' || provider === 'claude';
-    
-    if (!isRemoteOrApple) {
+    console.log('rag_init_start', resolvedProvider);
+
+    const isRemote =
+      resolvedProvider === 'gemini' ||
+      resolvedProvider === 'chatgpt' ||
+      resolvedProvider === 'deepseek' ||
+      resolvedProvider === 'claude';
+    const isAppleFoundation = resolvedProvider === 'apple-foundation';
+
+    if (!isRemote && !isAppleFoundation) {
       await this.ensureEmbeddingSupport();
       console.log('rag_embeddings_verified');
     }
-    
+
     this.storage = await this.getStorageType();
     console.log('rag_storage_type', this.storage);
-    
-    if (isRemoteOrApple) {
-      this.embeddings = new UniversalEmbeddings();
+
+    if (isAppleFoundation) {
+      this.embeddings = new AppleRagEmbeddings();
+    } else if (isRemote) {
+      this.embeddings = this.createRemoteEmbeddings(resolvedProvider);
     } else {
       this.embeddings = new LlamaRnEmbeddings();
     }
-    
-    if (provider === 'apple-foundation') {
+
+    if (isAppleFoundation) {
       this.llm = new AppleFoundationLLM();
-    } else if (provider === 'gemini' || provider === 'chatgpt' || provider === 'deepseek' || provider === 'claude') {
-      this.llm = new OnlineModelLLM(provider);
+    } else if (isRemote) {
+      const remoteProvider = resolvedProvider as 'gemini' | 'chatgpt' | 'deepseek' | 'claude';
+      this.llm = new OnlineModelLLM(remoteProvider);
     } else {
       this.llm = new LlamaRnLLM();
     }
-    
-    this.currentProvider = provider || null;
+
+    this.currentProvider = resolvedProvider;
 
     let vectorStore: MemoryVectorStore | OPSQLiteVectorStore;
     const createMemoryStore = () => new MemoryVectorStore({ embeddings: this.embeddings! });
 
     if (this.storage === 'persistent') {
-      vectorStore = new OPSQLiteVectorStore({ name: PERSISTENT_DB_NAME, embeddings: this.embeddings });
+      vectorStore = new OPSQLiteVectorStore({
+        name: this.getVectorStoreName(resolvedProvider),
+        embeddings: this.embeddings!,
+      });
     } else {
       vectorStore = createMemoryStore();
     }
@@ -143,10 +184,10 @@ class RAGServiceClass {
     }
 
     this.initialized = true;
-    console.log('rag_init_complete', provider || 'local');
+    console.log('rag_init_complete', resolvedProvider);
   }
 
-  async cleanup(): Promise<void> {
+  async cleanup(options?: { keepProvider?: boolean }): Promise<void> {
     console.log('rag_cleanup_start');
     if (this.rag) {
       await this.rag.unload();
@@ -164,7 +205,9 @@ class RAGServiceClass {
     this.embeddings = null;
     this.llm = null;
     this.initialized = false;
-    this.currentProvider = null;
+    if (!options?.keepProvider) {
+      this.currentProvider = 'local';
+    }
     console.log('rag_cleanup_complete');
   }
 
@@ -181,6 +224,7 @@ class RAGServiceClass {
   ): Promise<void> {
     this.ensureReady();
     console.log('rag_add_doc', document.id);
+  await this.ensureStatsLoaded();
 
     const timestamp = document.timestamp ?? Date.now();
     const splitter = new RecursiveCharacterTextSplitter({
@@ -196,6 +240,7 @@ class RAGServiceClass {
       .filter((entry) => entry.chunk.trim().length > 0);
 
     const total = sanitized.length;
+    const providerTag: ProviderType = document.provider ?? this.currentProvider ?? 'local';
 
     const prepared = sanitized.map((entry, position) => ({
       chunk: entry.chunk.trim(),
@@ -206,6 +251,9 @@ class RAGServiceClass {
         timestamp,
         chunkIndex: position,
         chunkTotal: total,
+        chatId: document.chatId,
+        userId: document.userId,
+        provider: providerTag,
       },
       sourceIndex: entry.rawIndex,
     }));
@@ -252,6 +300,9 @@ class RAGServiceClass {
     }
 
     console.log('rag_doc_added', document.id, added);
+    this.stats.documentCount += 1;
+    this.stats.lastIngestedAt = timestamp;
+    await this.persistStats();
     if (added < totalChunks) {
       options?.onProgress?.(added, totalChunks);
     }
@@ -263,11 +314,15 @@ class RAGServiceClass {
     callback?: (token: string) => boolean | void;
     augmentedGeneration?: boolean;
     nResults?: number;
+    scope?: {
+      chatId?: string | null;
+      provider?: ProviderType | null;
+    };
   }): Promise<string> {
     this.ensureReady();
     console.log('rag_generate_start');
 
-    const { input, callback, settings, augmentedGeneration = true, nResults = 3 } = params;
+    const { input, callback, settings, augmentedGeneration = true, nResults = 3, scope } = params;
 
     if (this.llm && 'setCustomSettings' in this.llm) {
       (this.llm as any).setCustomSettings(settings);
@@ -278,6 +333,15 @@ class RAGServiceClass {
       augmentedGeneration,
       nResults,
       callback: callback ?? (() => {}),
+      predicate: (value: QueryResult) => {
+        if (scope?.chatId && value.metadata?.chatId && value.metadata.chatId !== scope.chatId) {
+          return false;
+        }
+        if (scope?.provider && value.metadata?.provider && value.metadata.provider !== scope.provider) {
+          return false;
+        }
+        return true;
+      },
     });
 
     console.log('rag_generate_complete');
@@ -292,27 +356,71 @@ class RAGServiceClass {
       predicate: (value) => value.metadata?.documentId === documentId,
     });
     console.log('rag_doc_deleted', documentId);
+    if (this.stats.documentCount > 0) {
+      this.stats.documentCount -= 1;
+      await this.persistStats();
+    }
   }
 
   async clear(): Promise<void> {
     console.log('rag_clear_start');
+    await this.ensureStatsLoaded();
     const enabled = await this.isEnabled();
     if (!enabled) {
+      this.stats = { documentCount: 0, lastIngestedAt: null };
+      await this.persistStats();
       await this.cleanup();
       console.log('rag_clear_disabled');
       return;
     }
 
-    await this.cleanup();
-    await this.initialize();
+    const provider = this.currentProvider;
+
+    if (!this.initialized) {
+      try {
+        await this.initialize(provider);
+      } catch (error) {
+        console.log('rag_clear_init_failed', error instanceof Error ? error.message : 'unknown');
+      }
+    }
+
+    if (this.rag) {
+      await this.rag.deleteDocument({ predicate: () => true });
+    }
+
+    this.stats = { documentCount: 0, lastIngestedAt: null };
+    await this.persistStats();
+
+    await this.cleanup({ keepProvider: true });
+    await this.initialize(provider);
     console.log('rag_clear_complete');
+  }
+
+  async getStatus(): Promise<{
+    enabled: boolean;
+    storage: RAGStorageType;
+    ready: boolean;
+    provider: ProviderType;
+    documentCount: number;
+    lastIngestedAt: number | null;
+  }> {
+    await this.ensureStatsLoaded();
+    return {
+      enabled: await this.isEnabled(),
+      storage: await this.getStorageType(),
+      ready: this.isReady(),
+      provider: this.currentProvider,
+      documentCount: this.stats.documentCount,
+      lastIngestedAt: this.stats.lastIngestedAt,
+    };
   }
 
   private async reinitialize(): Promise<void> {
     const enabled = await this.isEnabled();
-    await this.cleanup();
+    const provider = this.currentProvider;
+    await this.cleanup({ keepProvider: true });
     if (enabled) {
-      await this.initialize();
+      await this.initialize(provider);
     }
   }
 
@@ -352,6 +460,50 @@ class RAGServiceClass {
           : new Error('Current model does not support embeddings');
       }
     }
+  }
+
+  private createRemoteEmbeddings(provider: ProviderType) {
+    switch (provider) {
+      case 'gemini':
+        return new GeminiEmbeddings();
+      case 'deepseek':
+        return new DeepSeekEmbeddings();
+      case 'claude':
+        return new ClaudeEmbeddings();
+      case 'chatgpt':
+      default:
+        return new OpenAIEmbeddings();
+    }
+  }
+
+  private getVectorStoreName(provider: ProviderType) {
+    return `${PERSISTENT_DB_NAME}_${provider}`;
+  }
+
+  private async ensureStatsLoaded(): Promise<void> {
+    if (this.statsLoaded) {
+      return;
+    }
+    try {
+      const raw = await AsyncStorage.getItem(RAG_STATS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (typeof parsed.documentCount === 'number') {
+          this.stats.documentCount = Math.max(0, parsed.documentCount);
+        }
+        if (typeof parsed.lastIngestedAt === 'number') {
+          this.stats.lastIngestedAt = parsed.lastIngestedAt;
+        }
+      }
+    } catch {
+      this.stats = { documentCount: 0, lastIngestedAt: null };
+    } finally {
+      this.statsLoaded = true;
+    }
+  }
+
+  private async persistStats(): Promise<void> {
+    await AsyncStorage.setItem(RAG_STATS_KEY, JSON.stringify(this.stats));
   }
 }
 

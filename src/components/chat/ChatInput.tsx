@@ -25,8 +25,9 @@ import { modelDownloader } from '../../services/ModelDownloader';
 import AITermsDialog from './AITermsDialog';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import StopButton from '../StopButton';
-import { RAGService, type RAGDocument } from '../../services/rag/RAGService';
+import { RAGService, type RAGDocument, type RAGStorageType } from '../../services/rag/RAGService';
 import type { ProviderType } from '../../services/ModelManagementService';
+import chatManager from '../../utils/ChatManager';
 import { uuidv4 } from 'react-native-rag';
 
 type ChatInputProps = {
@@ -42,6 +43,7 @@ type ChatInputProps = {
   editingText?: string;
   onSaveEdit?: (text: string) => void;
   onCancelEdit?: () => void;
+  chatId?: string;
 };
 
 interface StoredModel {
@@ -50,6 +52,8 @@ interface StoredModel {
   size: number;
   modified: string;
 }
+
+const remoteProviders: ProviderType[] = ['gemini', 'chatgpt', 'deepseek', 'claude'];
 
 export default function ChatInput({ 
   onSend, 
@@ -64,14 +68,13 @@ export default function ChatInput({
   editingText = '',
   onSaveEdit,
   onCancelEdit,
+  chatId,
 }: ChatInputProps) {
   const [text, setText] = useState('');
   const [inputHeight, setInputHeight] = useState(52);
   const [fileModalVisible, setFileModalVisible] = useState(false);
   const [cameraVisible, setCameraVisible] = useState(false);
   const [selectedFile, setSelectedFile] = useState<{uri: string, name?: string} | null>(null);
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordingPermission, setRecordingPermission] = useState<boolean | null>(null);
   const [mmProjSelectorVisible, setMmProjSelectorVisible] = useState(false);
   const [storedModels, setStoredModels] = useState<StoredModel[]>([]);
   const [pendingMultimodalAction, setPendingMultimodalAction] = useState<'camera' | 'file' | null>(null);
@@ -80,13 +83,16 @@ export default function ChatInput({
   const [useRagForUpload, setUseRagForUpload] = useState(true);
   
   const inputRef = useRef<TextInput>(null);
-  const pulseAnim = useRef(new Animated.Value(1)).current;
   const attachmentMenuAnim = useRef(new Animated.Value(0)).current;
   
   const { theme: currentTheme } = useTheme();
   const { selectedModelPath, isModelLoading, loadModel, isMultimodalEnabled } = useModel();
   const themeColors = useMemo(() => theme[currentTheme as 'light' | 'dark'], [currentTheme]);
   const isDark = currentTheme === 'dark';
+  const isRemoteModel = !!selectedModelPath && remoteProviders.includes(selectedModelPath as ProviderType);
+  const isAppleFoundation = selectedModelPath === 'apple-foundation';
+  const ragEnabledForCurrentModel = !!selectedModelPath && !isRemoteModel;
+  const ragToggleDisabled = isAppleFoundation;
 
   const [dialogVisible, setDialogVisible] = useState(false);
   const [dialogTitle, setDialogTitle] = useState('');
@@ -96,6 +102,16 @@ export default function ChatInput({
   const [isProcessingWithRAG, setIsProcessingWithRAG] = useState(false);
   const [ragProgress, setRagProgress] = useState<{ completed: number; total: number } | null>(null);
   const ragCancelRef = useRef<{ cancelled: boolean }>({ cancelled: false });
+  const [ragStatus, setRagStatus] = useState<{
+    enabled: boolean;
+    storage: RAGStorageType;
+    ready: boolean;
+    provider: ProviderType;
+    documentCount: number;
+    lastIngestedAt: number | null;
+  } | null>(null);
+  const [ragStatusLoading, setRagStatusLoading] = useState(false);
+  const [ragClearing, setRagClearing] = useState(false);
 
   const isGenerating = isLoading || isRegenerating;
   const hasText = text.trim().length > 0;
@@ -135,14 +151,6 @@ export default function ChatInput({
 
 
   useEffect(() => {
-    if (isRecording) {
-      startPulseAnimation();
-    } else {
-      stopPulseAnimation();
-    }
-  }, [isRecording]);
-
-  useEffect(() => {
     if (showAttachmentMenu) {
       Animated.spring(attachmentMenuAnim, {
         toValue: 1,
@@ -161,6 +169,14 @@ export default function ChatInput({
   }, [showAttachmentMenu]);
 
   const ensureRagToggleDefault = useCallback(async () => {
+    if (!ragEnabledForCurrentModel) {
+      setUseRagForUpload(false);
+      return;
+    }
+    if (ragToggleDisabled) {
+      setUseRagForUpload(true);
+      return;
+    }
     try {
       const enabled = await RAGService.isEnabled();
       if (!enabled) {
@@ -169,7 +185,7 @@ export default function ChatInput({
     } catch (error) {
     }
     setUseRagForUpload(true);
-  }, []);
+  }, [ragEnabledForCurrentModel, ragToggleDisabled]);
 
   useEffect(() => {
     ensureRagToggleDefault();
@@ -180,39 +196,6 @@ export default function ChatInput({
       ensureRagToggleDefault();
     }
   }, [fileModalVisible, cameraVisible, ensureRagToggleDefault]);
-
-  const startPulseAnimation = () => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.2,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
-  };
-
-  const stopPulseAnimation = () => {
-    Animated.timing(pulseAnim, {
-      toValue: 1,
-      duration: 200,
-      useNativeDriver: true,
-    }).start();
-  };
-
-  const checkAudioPermissions = async (): Promise<boolean> => {
-    return false;
-  };
-
-  const requestAudioPermissions = async (): Promise<boolean> => {
-    return false;
-  };
 
   const showDialog = useCallback((title: string, message: string) => {
     setDialogTitle(title);
@@ -321,8 +304,97 @@ export default function ChatInput({
   };
 
   const handleToggleRagForUpload = useCallback((value: boolean) => {
+    if (!ragEnabledForCurrentModel) {
+      setUseRagForUpload(false);
+      return;
+    }
+    if (ragToggleDisabled) {
+      return;
+    }
     setUseRagForUpload(value);
+  }, [ragEnabledForCurrentModel, ragToggleDisabled]);
+
+  const refreshRagStatus = useCallback(async () => {
+    setRagStatusLoading(true);
+    try {
+      const status = await RAGService.getStatus();
+      setRagStatus(status);
+    } catch (error) {
+    } finally {
+      setRagStatusLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    refreshRagStatus();
+  }, [refreshRagStatus, chatId]);
+
+  useEffect(() => {
+    const unsubscribe = chatManager.addListener(refreshRagStatus);
+    return () => {
+      unsubscribe();
+    };
+  }, [refreshRagStatus]);
+
+  const handleClearRetrieval = useCallback(async () => {
+    if (ragClearing) {
+      return;
+    }
+    setRagClearing(true);
+    try {
+      await RAGService.clear();
+      await refreshRagStatus();
+    } catch (error) {
+      showDialog('Retrieval reset failed', 'Unable to clear stored retrieval data.');
+    } finally {
+      setRagClearing(false);
+    }
+  }, [ragClearing, refreshRagStatus, showDialog]);
+
+  const formatRelativeTime = useCallback((timestamp: number | null) => {
+    if (!timestamp) {
+      return 'never';
+    }
+    const diff = Date.now() - timestamp;
+    if (diff < 15000) {
+      return 'just now';
+    }
+    if (diff < 60000) {
+      return `${Math.floor(diff / 1000)}s ago`;
+    }
+    if (diff < 3600000) {
+      return `${Math.floor(diff / 60000)}m ago`;
+    }
+    if (diff < 86400000) {
+      return `${Math.floor(diff / 3600000)}h ago`;
+    }
+    const days = Math.floor(diff / 86400000);
+    return `${days}d ago`;
+  }, []);
+
+  const ragStatusLabel = useMemo(() => {
+    if (!ragStatus) {
+      return 'Checking retrieval status…';
+    }
+    if (!ragStatus.enabled) {
+      return 'Retrieval disabled';
+    }
+    if (!ragStatus.ready) {
+      return 'Retrieval initializing';
+    }
+    return 'Retrieval ready';
+  }, [ragStatus]);
+
+  const ragStatusDetails = useMemo(() => {
+    if (!ragStatus || !ragStatus.enabled) {
+      return 'Enable RAG to store files for this chat.';
+    }
+    const lastSeen = formatRelativeTime(ragStatus.lastIngestedAt);
+    const storageLabel = ragStatus.storage === 'persistent' ? 'Persistent store' : 'Memory store';
+    return `${ragStatus.documentCount} docs · ${storageLabel} · updated ${lastSeen}`;
+  }, [ragStatus, formatRelativeTime]);
+
+  const showRagStatus = ragEnabledForCurrentModel && (ragStatus?.documentCount ?? 0) > 0;
 
   const toggleAttachmentMenu = () => {
     setShowAttachmentMenu(!showAttachmentMenu);
@@ -376,8 +448,12 @@ export default function ChatInput({
       let cancelled = false;
       let documentId: string | undefined;
       let ragIndicatorActive = false;
+      const chatId = chatManager.getCurrentChatId() || undefined;
 
       try {
+        if (!ragEnabledForCurrentModel) {
+          return { handled, cancelled, documentId };
+        }
         const enabled = await RAGService.isEnabled();
         if (!enabled) {
           return { handled, cancelled, documentId };
@@ -394,7 +470,7 @@ export default function ChatInput({
         ragCancelRef.current.cancelled = false;
         setRagProgress({ completed: 0, total: 0 });
 
-        const provider: ProviderType = isRemoteOrApple ? (selectedModelPath as ProviderType) : 'local';
+  const provider: ProviderType = isRemoteOrApple ? (selectedModelPath as ProviderType) : 'local';
         await RAGService.initialize(provider);
 
         if (!RAGService.isReady()) {
@@ -408,6 +484,8 @@ export default function ChatInput({
           fileName: displayName,
           fileType,
           timestamp: Date.now(),
+          chatId,
+          provider,
         };
 
         await RAGService.addDocument(ragDocument, {
@@ -417,8 +495,9 @@ export default function ChatInput({
           },
           isCancelled: () => ragCancelRef.current.cancelled,
         });
-        handled = true;
-        console.log('file_rag_store', displayName, documentId, content.length);
+  handled = true;
+  console.log('file_rag_store', displayName, documentId, content.length);
+  await refreshRagStatus();
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'unknown';
         console.log('file_upload_error', errorMessage);
@@ -426,7 +505,14 @@ export default function ChatInput({
           cancelled = true;
           console.log('file_upload_cancelled', displayName);
         } else {
-          showDialog('Retrieval error', 'Document could not be stored for retrieval. Sending full content instead.');
+          if (errorMessage.includes('api_key_missing')) {
+            const providerLabel = selectedModelPath === 'apple-foundation'
+              ? 'Apple Intelligence'
+              : (selectedModelPath || 'local');
+            showDialog('API Key Required', `Add a ${providerLabel} API key in Settings to use retrieval.`);
+          } else {
+            showDialog('Retrieval error', 'Document could not be stored for retrieval. Sending full content instead.');
+          }
         }
       } finally {
         if (ragIndicatorActive) {
@@ -436,7 +522,7 @@ export default function ChatInput({
 
       return { handled, cancelled, documentId };
     },
-    [showDialog, selectedModelPath]
+    [showDialog, selectedModelPath, refreshRagStatus, ragEnabledForCurrentModel]
   );
 
   const handleFileUpload = useCallback(
@@ -464,7 +550,7 @@ export default function ChatInput({
       let ragCancelled = false;
       let documentId: string | undefined;
 
-      if (useRagFlag) {
+      if (useRagFlag && ragEnabledForCurrentModel) {
         const result = await processRagDocument(
           content,
           displayName,
@@ -477,6 +563,7 @@ export default function ChatInput({
         if (ragHandled && documentId) {
           const messageObject = {
             type: 'file_upload',
+            fileName: displayName,
             internalInstruction: buildInternalInstruction(),
             userContent: userMessage,
             metadata: { ragDocumentId: documentId },
@@ -493,8 +580,10 @@ export default function ChatInput({
       if (!ragHandled && !ragCancelled) {
         const fallbackObject = {
           type: 'file_upload',
+          fileName: displayName,
           internalInstruction: buildInternalInstruction(content),
           userContent: userMessage,
+          metadata: { ragDisabled: true },
         };
         console.log('file_internal', fallbackObject.internalInstruction);
         console.log('file_prompt', userMessage);
@@ -511,6 +600,16 @@ export default function ChatInput({
     [onSend, processRagDocument]
   );
 
+  const markRagDisabled = useCallback((raw: string) => {
+    try {
+      const parsed = JSON.parse(raw);
+      const metadata = { ...(parsed.metadata || {}), ragDisabled: true };
+      return JSON.stringify({ ...parsed, metadata });
+    } catch {
+      return raw;
+    }
+  }, []);
+
   const processOcrRagIfNeeded = useCallback(
     async (messageContent: string): Promise<{ finalMessage: string; cancelled: boolean }> => {
       try {
@@ -520,8 +619,8 @@ export default function ChatInput({
           return { finalMessage: messageContent, cancelled: false };
         }
 
-        if (!useRagForUpload) {
-          return { finalMessage: messageContent, cancelled: false };
+        if (!useRagForUpload || !ragEnabledForCurrentModel) {
+          return { finalMessage: markRagDisabled(messageContent), cancelled: false };
         }
 
         if (parsed?.type === 'ocr_result' && typeof parsed.extractedText === 'string') {
@@ -536,14 +635,17 @@ export default function ChatInput({
             parsed.metadata = { ...(parsed.metadata || {}), ragDocumentId: result.documentId };
             return { finalMessage: JSON.stringify(parsed), cancelled: false };
           }
+
+          parsed.metadata = { ...(parsed.metadata || {}), ragDisabled: true };
+          return { finalMessage: JSON.stringify(parsed), cancelled: false };
         }
       } catch (error) {
         console.log('ocr_rag_parse_error');
       }
 
-      return { finalMessage: messageContent, cancelled: false };
+      return { finalMessage: markRagDisabled(messageContent), cancelled: false };
     },
-    [processRagDocument, useRagForUpload]
+    [processRagDocument, useRagForUpload, ragEnabledForCurrentModel, markRagDisabled]
   );
 
   const handleImageUpload = useCallback((messageContent: string) => {
@@ -585,41 +687,6 @@ export default function ChatInput({
         ragCancelRef.current.cancelled = false;
       });
   }, [onSend, processOcrRagIfNeeded]);
-
-  const handleAudioRecorded = useCallback((audioUri: string) => {
-    const messageObject = {
-      type: 'multimodal',
-      content: [
-        {
-          type: 'audio',
-          uri: audioUri
-        },
-        {
-          type: 'text',
-          text: 'Please transcribe or describe this audio.'
-        }
-      ]
-    };
-    
-    
-    onSend(JSON.stringify(messageObject));
-    setShowAttachmentMenu(false);
-  }, [onSend]);
-
-  const startRecording = async () => {
-    Alert.alert('Feature Disabled', 'Audio recording is temporarily disabled');
-  };
-
-  const stopRecording = async () => {
-  };
-
-  const handleMicrophonePress = useCallback(() => {
-    if (isRecording) {
-      stopRecording();
-    } else {
-      startRecording();
-    }
-  }, [isRecording]);
 
   const openCamera = useCallback(() => {
     if (!selectedModelPath) {
@@ -753,14 +820,6 @@ export default function ChatInput({
     showAttachmentMenu ? '#ffffff' : isDark ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.6)'
   , [showAttachmentMenu, isDark]);
 
-  const recordingButtonStyle = useMemo(() => [
-    styles.recordingButton,
-    {
-      backgroundColor: isRecording ? '#ff4444' : 'transparent',
-      transform: [{ scale: pulseAnim }],
-    }
-  ], [isRecording, pulseAnim]);
-
   return (
     <View style={styles.wrapper}>
       {isProcessingWithRAG && (
@@ -837,18 +896,6 @@ export default function ChatInput({
                 </Text>
               </TouchableOpacity>
               
-              <TouchableOpacity style={styles.attachmentMenuItem} onPress={handleMicrophonePress}>
-                <View style={[styles.attachmentMenuIcon, { backgroundColor: '#ea4335' }]}>
-                  <MaterialCommunityIcons 
-                    name={isRecording ? "stop" : "microphone-outline"} 
-                    size={20} 
-                    color="#ffffff" 
-                  />
-                </View>
-                <Text style={[styles.attachmentMenuText, { color: isDark ? themeColors.text : '#000000' }]}>
-                  {isRecording ? 'Stop' : 'Audio'}
-                </Text>
-              </TouchableOpacity>
             </Animated.View>
           )}
 
@@ -883,17 +930,6 @@ export default function ChatInput({
                 textAlignVertical="center"
               />
             </View>
-
-            {isRecording && !isEditing && (
-              <Animated.View style={recordingButtonStyle}>
-                <TouchableOpacity 
-                  style={styles.recordingButtonInner} 
-                  onPress={stopRecording}
-                >
-                  <MaterialCommunityIcons name="stop" size={20} color="#ffffff" />
-                </TouchableOpacity>
-              </Animated.View>
-            )}
 
             {isEditing ? (
               <View style={styles.editingActions}>
@@ -948,15 +984,79 @@ export default function ChatInput({
         </View>
       </TouchableWithoutFeedback>
 
-      <View style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        flexWrap: 'wrap'
-      }}>
-      </View>
+      {showRagStatus && (
+        <View
+          style={[
+            styles.ragStatusContainer,
+            {
+              backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)',
+              borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.ragStatusIndicator,
+              {
+                backgroundColor: !ragStatus || !ragStatus.enabled
+                  ? '#b0b0b0'
+                  : ragStatus.ready
+                    ? '#34a853'
+                    : '#ffb300',
+              },
+            ]}
+          />
+          <View style={styles.ragStatusTextContainer}>
+            <Text
+              style={[
+                styles.ragStatusTitle,
+                { color: isDark ? '#ffffff' : '#000000' },
+              ]}
+            >
+              {ragStatusLabel}
+            </Text>
+            <Text
+              style={[
+                styles.ragStatusSubtitle,
+                { color: isDark ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.6)' },
+              ]}
+              numberOfLines={1}
+            >
+              {ragStatusDetails}
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.ragStatusRefresh}
+            onPress={refreshRagStatus}
+            disabled={ragStatusLoading}
+          >
+            {ragStatusLoading ? (
+              <ActivityIndicator size="small" color={getThemeAwareColor('#4a0660', currentTheme)} />
+            ) : (
+              <MaterialCommunityIcons
+                name="refresh"
+                size={18}
+                color={getThemeAwareColor('#4a0660', currentTheme)}
+              />
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.ragStatusRefresh}
+            onPress={handleClearRetrieval}
+            disabled={ragClearing}
+          >
+            {ragClearing ? (
+              <ActivityIndicator size="small" color={getThemeAwareColor('#4a0660', currentTheme)} />
+            ) : (
+              <MaterialCommunityIcons
+                name="close"
+                size={18}
+                color={getThemeAwareColor('#4a0660', currentTheme)}
+              />
+            )}
+          </TouchableOpacity>
+        </View>
+      )}
 
       <FileViewerModal
         visible={fileModalVisible}
@@ -967,6 +1067,8 @@ export default function ChatInput({
         onImageUpload={handleImageUpload}
         useRag={useRagForUpload}
         onToggleRag={handleToggleRagForUpload}
+        ragEnabled={ragEnabledForCurrentModel}
+        ragToggleDisabled={ragToggleDisabled}
       />
 
       <CameraOverlay
@@ -975,6 +1077,8 @@ export default function ChatInput({
         onPhotoTaken={handlePhotoTaken}
         useRag={useRagForUpload}
         onToggleRag={handleToggleRagForUpload}
+        ragEnabled={ragEnabledForCurrentModel}
+        ragToggleDisabled={ragToggleDisabled}
       />
 
       <Portal>
@@ -1087,7 +1191,7 @@ export default function ChatInput({
 const styles = StyleSheet.create({
   wrapper: {
     paddingHorizontal: 16,
-    paddingBottom: 0,
+    paddingBottom: 8,
     paddingTop: 8,
   },
   ragBanner: {
@@ -1150,24 +1254,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  recordingButton: {
-    position: 'absolute',
-    right: 56,
-    bottom: 0,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  recordingButtonInner: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
   attachmentMenu: {
     position: 'absolute',
@@ -1257,5 +1343,41 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  ragStatusContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginTop: 8,
+    marginBottom: 8,
+    marginHorizontal: 4,
+  },
+  ragStatusIndicator: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 10,
+  },
+  ragStatusTextContainer: {
+    flex: 1,
+  },
+  ragStatusTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  ragStatusSubtitle: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  ragStatusRefresh: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
   },
 }); 

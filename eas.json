@@ -4,7 +4,12 @@
     "appVersionSource": "local"
   },
   "build": {
+    "base": {
+      "node": "22.11.0",
+      "yarn": "1.22.22"
+    },
     "development": {
+      "extends": "base",
       "distribution": "internal",
       "channel": "development",
       "android": {
@@ -15,6 +20,7 @@
       }
     },
     "preview": {
+      "extends": "base",
       "distribution": "internal",
       "channel": "preview",
       "android": {
@@ -25,6 +31,7 @@
       }
     },
     "production": {
+      "extends": "base",
       "distribution": "store",
       "channel": "production",
       "android": {

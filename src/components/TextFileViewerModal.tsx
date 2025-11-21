@@ -26,6 +26,8 @@ type TextFileViewerModalProps = {
   onUpload?: (content: string, fileName: string, userPrompt: string, useRag: boolean) => void;
   useRag: boolean;
   onToggleRag: (value: boolean) => void;
+  ragEnabled?: boolean;
+  ragToggleDisabled?: boolean;
 };
 
 export default function TextFileViewerModal({
@@ -36,6 +38,8 @@ export default function TextFileViewerModal({
   onUpload,
   useRag,
   onToggleRag,
+  ragEnabled = true,
+  ragToggleDisabled = false,
 }: TextFileViewerModalProps) {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
@@ -82,7 +86,11 @@ export default function TextFileViewerModal({
 
   useEffect(() => {
     if (visible) {
-      onToggleRag(true);
+      if (ragEnabled) {
+        onToggleRag(true);
+      } else {
+        onToggleRag(false);
+      }
       setLoading(true);
       setError(null);
       setFileContent('');
@@ -194,18 +202,29 @@ export default function TextFileViewerModal({
                   backgroundColor: isDark ? '#1a1a1a' : '#ffffff',
                   borderTopColor: isDark ? '#333333' : '#e0e0e0'
                 }]}>
-                  <View style={styles.ragRow}>
-                    <View style={styles.ragTextContainer}>
-                      <Text style={[styles.ragTitle, { color: isDark ? '#ffffff' : '#333333' }]}>Use RAG</Text>
-                      <Text style={[styles.ragDescription, { color: isDark ? '#bbbbbb' : '#666666' }]}>Store this file for smarter answers in this chat.</Text>
+                  {ragEnabled ? (
+                    <View style={styles.ragRow}>
+                      <View style={styles.ragTextContainer}>
+                        <Text style={[styles.ragTitle, { color: isDark ? '#ffffff' : '#333333' }]}>Use RAG</Text>
+                        <Text style={[styles.ragDescription, { color: isDark ? '#bbbbbb' : '#666666' }]}>Store this file for smarter answers in this chat.</Text>
+                      </View>
+                      <Switch
+                        value={useRag}
+                        onValueChange={onToggleRag}
+                        trackColor={{ false: isDark ? '#444444' : '#dddddd', true: '#66088080' }}
+                        thumbColor={useRag ? '#660880' : isDark ? '#222222' : '#f2f2f2'}
+                        disabled={ragToggleDisabled}
+                      />
                     </View>
-                    <Switch
-                      value={useRag}
-                      onValueChange={onToggleRag}
-                      trackColor={{ false: isDark ? '#444444' : '#dddddd', true: '#66088080' }}
-                      thumbColor={useRag ? '#660880' : isDark ? '#222222' : '#f2f2f2'}
-                    />
-                  </View>
+                  ) : (
+                    <View style={styles.ragRow}>
+                      <MaterialCommunityIcons name="information-outline" size={20} color={isDark ? '#888888' : '#666666'} />
+                      <View style={[styles.ragTextContainer, { paddingLeft: 8 }]}>
+                        <Text style={[styles.ragTitle, { color: isDark ? '#888888' : '#666666' }]}>RAG not available</Text>
+                        <Text style={[styles.ragDescription, { color: isDark ? '#888888' : '#666666' }]}>Local RAG is not available for remote models.</Text>
+                      </View>
+                    </View>
+                  )}
                   <View style={styles.promptContainer}>
                     <Text style={[styles.promptLabel, { color: isDark ? '#ffffff' : '#333333' }]}>
                       Add your prompt:

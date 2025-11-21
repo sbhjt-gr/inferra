@@ -46,9 +46,11 @@ export class MessageProcessingService {
   const isOnlineModel = activeProvider === 'gemini' || activeProvider === 'chatgpt' || activeProvider === 'deepseek' || activeProvider === 'claude';
   const isAppleFoundation = activeProvider === 'apple-foundation';
       
+      const systemPrompt = settings.systemPrompt || 'You are a helpful AI assistant.';
       const processedMessages = currentMessages.some(msg => msg.role === 'system')
         ? currentMessages
-        : [{ role: 'system', content: settings.systemPrompt, id: 'system-prompt' }, ...currentMessages];
+        : [{ role: 'system', content: systemPrompt, id: 'system-prompt' }, ...currentMessages];
+      const skipRag = this.shouldSkipRag(processedMessages);
       
       const assistantMessage: Omit<ChatMessage, 'id'> = {
         role: 'assistant',
@@ -98,7 +100,8 @@ export class MessageProcessingService {
           processedMessages,
           settings,
           messageId,
-          startTime
+          startTime,
+          skipRag
         );
       } else {
         await this.processLocalModel(
@@ -111,7 +114,8 @@ export class MessageProcessingService {
           thinking,
           isThinking,
           firstTokenTime,
-          updateCounter
+          updateCounter,
+          skipRag
         );
       }
       
@@ -230,133 +234,113 @@ export class MessageProcessingService {
       return { role: msg.role, content };
     }) as RAGMessage[];
 
-    let usedRAG = false;
+    const legacyStreamCallback = (partialResponse: string) => {
+      if (this.cancelGenerationRef.current) {
+        return false;
+      }
+      
+      const currentTime = Date.now();
+      
+      if (firstTokenTime === null && partialResponse.trim().length > 0) {
+        firstTokenTime = currentTime - startTime;
+      }
+      
+      const wordCount = partialResponse.trim().split(/\s+/).filter(word => word.length > 0).length;
+      tokenCount = Math.max(1, Math.ceil(wordCount * 1.33));
+      fullResponse = partialResponse;
+      
+      const duration = (currentTime - startTime) / 1000;
+      let avgTokenTime = undefined;
+      
+      if (firstTokenTime !== null && tokenCount > 0) {
+        const timeAfterFirstToken = currentTime - (startTime + firstTokenTime);
+        avgTokenTime = timeAfterFirstToken / tokenCount;
+      }
+      
+      this.callbacks.setStreamingMessage(partialResponse);
+      this.callbacks.setStreamingStats({
+        tokens: tokenCount,
+        duration: duration,
+        firstTokenTime: firstTokenTime || undefined,
+        avgTokenTime: avgTokenTime && avgTokenTime > 0 ? avgTokenTime : undefined
+      });
+      
+      updateCounter++;
+      if (updateCounter % 10 === 0 || 
+          partialResponse.endsWith('.') || 
+          partialResponse.endsWith('!') || 
+          partialResponse.endsWith('?')) {
+        let debouncedAvgTokenTime = undefined;
+        if (firstTokenTime !== null && tokenCount > 0) {
+          const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
+          debouncedAvgTokenTime = timeAfterFirstToken / tokenCount;
+        }
+        
+        this.callbacks.updateMessageContentDebounced(
+          messageId,
+          partialResponse,
+          '',
+          {
+            duration: (Date.now() - startTime) / 1000,
+            tokens: tokenCount,
+            firstTokenTime: firstTokenTime || undefined,
+            avgTokenTime: debouncedAvgTokenTime && debouncedAvgTokenTime > 0 ? debouncedAvgTokenTime : undefined
+          }
+        );
+      }
+      
+      return !this.cancelGenerationRef.current;
+    };
+
+    const messageParams = [...baseMessages]
+      .filter(msg => msg.content.trim() !== '')
+      .map(msg => ({ 
+        id: generateRandomId(), 
+        role: msg.role as 'system' | 'user' | 'assistant', 
+        content: msg.content 
+      }));
+
+    const apiParams = {
+      temperature: settings.temperature,
+      maxTokens: settings.maxTokens,
+      topP: settings.topP,
+      stream: true,
+      streamTokens: true
+    };
 
     try {
-      const ragEnabled = await RAGService.isEnabled();
-      if (ragEnabled) {
-        if (!RAGService.isReady()) {
-          await RAGService.initialize(activeProvider);
-        }
-        if (RAGService.isReady()) {
-          await RAGService.generate({ input: baseMessages, settings, callback: streamCallback });
-          usedRAG = true;
-        }
+      switch (activeProvider) {
+        case 'gemini':
+          await onlineModelService.sendMessageToGemini(messageParams, apiParams, legacyStreamCallback);
+          break;
+        case 'chatgpt':
+          await onlineModelService.sendMessageToOpenAI(messageParams, apiParams, legacyStreamCallback);
+          break;
+        case 'deepseek':
+          await onlineModelService.sendMessageToDeepSeek(messageParams, apiParams, legacyStreamCallback);
+          break;
+        case 'claude':
+          await onlineModelService.sendMessageToClaude(messageParams, apiParams, legacyStreamCallback);
+          break;
+        default:
+          await chatManager.updateMessageContent(
+            messageId,
+            `This model provider (${activeProvider}) is not yet implemented.`,
+            '',
+            { duration: 0, tokens: 0 }
+          );
+          return;
       }
     } catch (error) {
-      console.log('online_rag_error', activeProvider, error instanceof Error ? error.message : 'unknown');
-      usedRAG = false;
-    }
-
-    if (!usedRAG) {
-      const legacyStreamCallback = (partialResponse: string) => {
-        if (this.cancelGenerationRef.current) {
-          return false;
-        }
-        
-        const currentTime = Date.now();
-        
-        if (firstTokenTime === null && partialResponse.trim().length > 0) {
-          firstTokenTime = currentTime - startTime;
-        }
-        
-        const wordCount = partialResponse.trim().split(/\s+/).filter(word => word.length > 0).length;
-        tokenCount = Math.max(1, Math.ceil(wordCount * 1.33));
-        fullResponse = partialResponse;
-        
-        const duration = (currentTime - startTime) / 1000;
-        let avgTokenTime = undefined;
-        
-        if (firstTokenTime !== null && tokenCount > 0) {
-          const timeAfterFirstToken = currentTime - (startTime + firstTokenTime);
-          avgTokenTime = timeAfterFirstToken / tokenCount;
-        }
-        
-        this.callbacks.setStreamingMessage(partialResponse);
-        this.callbacks.setStreamingStats({
-          tokens: tokenCount,
-          duration: duration,
-          firstTokenTime: firstTokenTime || undefined,
-          avgTokenTime: avgTokenTime && avgTokenTime > 0 ? avgTokenTime : undefined
-        });
-        
-        updateCounter++;
-        if (updateCounter % 10 === 0 || 
-            partialResponse.endsWith('.') || 
-            partialResponse.endsWith('!') || 
-            partialResponse.endsWith('?')) {
-          let debouncedAvgTokenTime = undefined;
-          if (firstTokenTime !== null && tokenCount > 0) {
-            const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
-            debouncedAvgTokenTime = timeAfterFirstToken / tokenCount;
-          }
-          
-          this.callbacks.updateMessageContentDebounced(
-            messageId,
-            partialResponse,
-            '',
-            {
-              duration: (Date.now() - startTime) / 1000,
-              tokens: tokenCount,
-              firstTokenTime: firstTokenTime || undefined,
-              avgTokenTime: debouncedAvgTokenTime && debouncedAvgTokenTime > 0 ? debouncedAvgTokenTime : undefined
-            }
-          );
-        }
-        
-        return !this.cancelGenerationRef.current;
-      };
-
-      const messageParams = [...baseMessages]
-        .filter(msg => msg.content.trim() !== '')
-        .map(msg => ({ 
-          id: generateRandomId(), 
-          role: msg.role as 'system' | 'user' | 'assistant', 
-          content: msg.content 
-        }));
-
-      const apiParams = {
-        temperature: settings.temperature,
-        maxTokens: settings.maxTokens,
-        topP: settings.topP,
-        stream: true,
-        streamTokens: true
-      };
-
-      try {
-        switch (activeProvider) {
-          case 'gemini':
-            await onlineModelService.sendMessageToGemini(messageParams, apiParams, legacyStreamCallback);
-            break;
-          case 'chatgpt':
-            await onlineModelService.sendMessageToOpenAI(messageParams, apiParams, legacyStreamCallback);
-            break;
-          case 'deepseek':
-            await onlineModelService.sendMessageToDeepSeek(messageParams, apiParams, legacyStreamCallback);
-            break;
-          case 'claude':
-            await onlineModelService.sendMessageToClaude(messageParams, apiParams, legacyStreamCallback);
-            break;
-          default:
-            await chatManager.updateMessageContent(
-              messageId,
-              `This model provider (${activeProvider}) is not yet implemented.`,
-              '',
-              { duration: 0, tokens: 0 }
-            );
-            return;
-        }
-      } catch (error) {
-        this.callbacks.handleApiError(error, this.getProviderDisplayName(activeProvider));
-        
-        await chatManager.updateMessageContent(
-          messageId,
-          'Sorry, an error occurred while generating a response. Please try again.',
-          '',
-          { duration: 0, tokens: 0 }
-        );
-        return;
-      }
+      this.callbacks.handleApiError(error, this.getProviderDisplayName(activeProvider));
+      
+      await chatManager.updateMessageContent(
+        messageId,
+        'Sorry, an error occurred while generating a response. Please try again.',
+        '',
+        { duration: 0, tokens: 0 }
+      );
+      return;
     }
     
     if (!this.cancelGenerationRef.current) {
@@ -384,7 +368,8 @@ export class MessageProcessingService {
     processedMessages: any[],
     settings: any,
     messageId: string,
-    startTime: number
+    startTime: number,
+    skipRag: boolean
   ): Promise<void> {
     let fullResponse = '';
     let tokenCount = 0;
@@ -463,7 +448,7 @@ export class MessageProcessingService {
           } else {
             const instruction = parsed.internalInstruction || '';
             const userPrompt = parsed.userPrompt || '';
-            content = `${instruction}\n\nUser request: ${userPrompt}`;
+            content = instruction + (userPrompt ? `\n\n${userPrompt}` : '');
           }
         } else if (parsed && parsed.type === 'file_upload') {
           if (parsed.metadata?.ragDocumentId) {
@@ -471,7 +456,9 @@ export class MessageProcessingService {
             const userContent = parsed.userContent || `File uploaded: ${fileName}`;
             content = `User uploaded ${fileName}. The content has been stored for retrieval.\n\nUser request: ${userContent}`;
           } else {
-            content = parsed.internalInstruction || msg.content;
+            const instruction = parsed.internalInstruction || '';
+            const userContent = parsed.userContent || '';
+            content = instruction + (userContent ? `\n\n${userContent}` : '');
           }
         }
       } catch {
@@ -481,25 +468,41 @@ export class MessageProcessingService {
     }) as RAGMessage[];
 
     let usedRAG = false;
+    const chatId = chatManager.getCurrentChatId();
 
-    try {
-      const ragEnabled = await RAGService.isEnabled();
-      if (ragEnabled) {
-        if (!RAGService.isReady()) {
-          await RAGService.initialize('apple-foundation');
+    if (!skipRag) {
+      try {
+        const ragEnabled = await RAGService.isEnabled();
+        if (ragEnabled) {
+          if (!RAGService.isReady()) {
+            await RAGService.initialize('apple-foundation');
+          }
+          if (RAGService.isReady()) {
+            await RAGService.generate({
+              input: baseMessages,
+              settings,
+              callback: streamCallback,
+              scope: {
+                chatId,
+                provider: 'apple-foundation',
+              },
+            });
+            usedRAG = true;
+          }
         }
-        if (RAGService.isReady()) {
-          await RAGService.generate({ input: baseMessages, settings, callback: streamCallback });
-          usedRAG = true;
-        }
+      } catch (error) {
+        console.log('apple_rag_error', error instanceof Error ? error.message : 'unknown');
+        usedRAG = false;
       }
-    } catch (error) {
-      console.log('apple_rag_error', error instanceof Error ? error.message : 'unknown');
-      usedRAG = false;
     }
 
     if (!usedRAG) {
       try {
+        console.log('apple_no_rag_messages', JSON.stringify(baseMessages.map(m => ({ 
+          role: m.role, 
+          contentLength: m.content.length,
+          contentPreview: m.content.substring(0, 200)
+        }))));
         const stream = appleFoundationService.streamResponse(
           baseMessages.map(msg => ({ role: msg.role, content: msg.content })),
           {
@@ -569,10 +572,13 @@ export class MessageProcessingService {
       } catch (error) {
         appleFoundationService.cancel();
         const message = error instanceof Error ? error.message : String(error);
+        console.log('apple_intelligence_error', message);
         const normalized = message.toLowerCase();
         let displayMessage = 'Apple Intelligence not available on this device.';
         if (normalized.includes('disabled')) {
           displayMessage = 'Apple Intelligence is disabled. Enable it in Settings to continue.';
+        } else if (normalized.includes('locale') || normalized.includes('language')) {
+          displayMessage = 'Apple Intelligence language/locale not supported. Try using English locale.';
         } else if (!normalized.includes('not available')) {
           displayMessage = `Apple Intelligence error: ${message}`;
         }
@@ -612,13 +618,21 @@ export class MessageProcessingService {
     settings: any,
     messageId: string,
     startTime: number,
-    tokenCount: number,
-    fullResponse: string,
-    thinking: string,
-    isThinking: boolean,
-    firstTokenTime: number | null,
-    updateCounter: number
+    _tokenCount: number,
+    _fullResponse: string,
+    _thinking: string,
+    _isThinking: boolean,
+    _firstTokenTime: number | null,
+    _updateCounter: number,
+    skipRag: boolean
   ): Promise<void> {
+    let tokenCount = 0;
+    let fullResponse = '';
+    let thinking = '';
+    let isThinking = false;
+    let firstTokenTime: number | null = null;
+    let updateCounter = 0;
+
     const streamCallback = (token: string) => {
       if (this.cancelGenerationRef.current) {
         return false;
@@ -699,7 +713,7 @@ export class MessageProcessingService {
           } else {
             const instruction = parsed.internalInstruction || '';
             const userPrompt = parsed.userPrompt || '';
-            content = `${instruction}\n\nUser request: ${userPrompt}`;
+            content = instruction + (userPrompt ? `\n\n${userPrompt}` : '');
           }
         } else if (parsed && parsed.type === 'file_upload') {
           if (parsed.metadata?.ragDocumentId) {
@@ -707,7 +721,9 @@ export class MessageProcessingService {
             const userContent = parsed.userContent || `File uploaded: ${fileName}`;
             content = `User uploaded ${fileName}. The content has been stored for retrieval.\n\nUser request: ${userContent}`;
           } else {
-            content = parsed.internalInstruction || msg.content;
+            const instruction = parsed.internalInstruction || '';
+            const userContent = parsed.userContent || '';
+            content = instruction + (userContent ? `\n\n${userContent}` : '');
           }
         }
       } catch {
@@ -716,23 +732,39 @@ export class MessageProcessingService {
       return { role: msg.role, content };
     }) as RAGMessage[];
     let usedRAG = false;
+    const chatId = chatManager.getCurrentChatId();
 
-    try {
-      const ragEnabled = await RAGService.isEnabled();
-      if (ragEnabled && llamaManager.isInitialized()) {
-        if (!RAGService.isReady()) {
-          await RAGService.initialize();
+    if (!skipRag) {
+      try {
+        const ragEnabled = await RAGService.isEnabled();
+        if (ragEnabled && llamaManager.isInitialized()) {
+          if (!RAGService.isReady()) {
+            await RAGService.initialize('local');
+          }
+          if (RAGService.isReady()) {
+            await RAGService.generate({
+              input: baseMessages,
+              settings,
+              callback: streamCallback,
+              scope: {
+                chatId,
+                provider: 'local',
+              },
+            });
+            usedRAG = true;
+          }
         }
-        if (RAGService.isReady()) {
-          await RAGService.generate({ input: baseMessages, settings, callback: streamCallback });
-          usedRAG = true;
-        }
+      } catch {
+        usedRAG = false;
       }
-    } catch {
-      usedRAG = false;
     }
 
     if (!usedRAG) {
+      console.log('local_no_rag_messages', JSON.stringify(baseMessages.map(m => ({ 
+        role: m.role, 
+        contentLength: m.content.length,
+        contentPreview: m.content.substring(0, 200)
+      }))));
       await llamaManager.generateResponse(
         baseMessages,
         streamCallback,
@@ -769,5 +801,21 @@ export class MessageProcessingService {
       case 'claude': return 'Claude';
       default: return 'OpenAI';
     }
+  }
+
+  private shouldSkipRag(messages: Array<{ role: string; content: string }>): boolean {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const entry = messages[index];
+      if (entry.role !== 'user') {
+        continue;
+      }
+      try {
+        const parsed = JSON.parse(entry.content);
+        return parsed?.metadata?.ragDisabled === true;
+      } catch {
+        return false;
+      }
+    }
+    return false;
   }
 }
