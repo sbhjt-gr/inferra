@@ -3,6 +3,7 @@ import { RAG, MemoryVectorStore, RecursiveCharacterTextSplitter, type Message, t
 import { OPSQLiteVectorStore } from '@react-native-rag/op-sqlite';
 import { LlamaRnEmbeddings } from './LlamaRnEmbeddings';
 import { UniversalEmbeddings } from './UniversalEmbeddings';
+import { AppleRagEmbeddings } from './AppleRagEmbeddings';
 import { LlamaRnLLM } from './LlamaRnLLM';
 import { OnlineModelLLM } from './OnlineModelLLM';
 import { AppleFoundationLLM } from './AppleFoundationLLM';
@@ -30,7 +31,7 @@ const sanitizeChunk = (value: string): string => value.replace(CONTROL_CHARS_REG
 
 class RAGServiceClass {
   private rag: RAG | null = null;
-  private embeddings: LlamaRnEmbeddings | UniversalEmbeddings | null = null;
+  private embeddings: LlamaRnEmbeddings | UniversalEmbeddings | AppleRagEmbeddings | null = null;
   private llm: LLM | null = null;
   private storage: RAGStorageType = 'memory';
   private initialized = false;
@@ -82,9 +83,10 @@ class RAGServiceClass {
 
     console.log('rag_init_start', provider || 'local');
     
-    const isRemoteOrApple = provider === 'apple-foundation' || provider === 'gemini' || provider === 'chatgpt' || provider === 'deepseek' || provider === 'claude';
+    const isRemote = provider === 'gemini' || provider === 'chatgpt' || provider === 'deepseek' || provider === 'claude';
+    const isAppleFoundation = provider === 'apple-foundation';
     
-    if (!isRemoteOrApple) {
+    if (!isRemote && !isAppleFoundation) {
       await this.ensureEmbeddingSupport();
       console.log('rag_embeddings_verified');
     }
@@ -92,15 +94,17 @@ class RAGServiceClass {
     this.storage = await this.getStorageType();
     console.log('rag_storage_type', this.storage);
     
-    if (isRemoteOrApple) {
+    if (isAppleFoundation) {
+      this.embeddings = new AppleRagEmbeddings();
+    } else if (isRemote) {
       this.embeddings = new UniversalEmbeddings();
     } else {
       this.embeddings = new LlamaRnEmbeddings();
     }
     
-    if (provider === 'apple-foundation') {
+    if (isAppleFoundation) {
       this.llm = new AppleFoundationLLM();
-    } else if (provider === 'gemini' || provider === 'chatgpt' || provider === 'deepseek' || provider === 'claude') {
+    } else if (isRemote) {
       this.llm = new OnlineModelLLM(provider);
     } else {
       this.llm = new LlamaRnLLM();

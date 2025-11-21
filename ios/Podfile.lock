@@ -46,7 +46,7 @@ PODS:
   - EXJSONUtils (0.15.0)
   - EXManifests (0.16.6):
     - ExpoModulesCore
-  - Expo (53.0.23):
+  - Expo (53.0.24):
     - DoubleConversion
     - ExpoModulesCore
     - glog
@@ -384,7 +384,7 @@ PODS:
     - ExpoModulesCore
   - ExpoSplashScreen (0.30.10):
     - ExpoModulesCore
-  - ExpoSQLite (16.0.9):
+  - ExpoSQLite (15.2.14):
     - ExpoModulesCore
   - ExpoSymbols (0.4.5):
     - ExpoModulesCore
@@ -490,7 +490,7 @@ PODS:
   - libwebp/sharpyuv (1.5.0)
   - libwebp/webp (1.5.0):
     - libwebp/sharpyuv
-  - llama-rn (0.8.1):
+  - llama-rn (0.8.3):
     - DoubleConversion
     - glog
     - hermes-engine
@@ -556,13 +556,15 @@ PODS:
     - nanopb/encode (= 3.30910.0)
   - nanopb/decode (3.30910.0)
   - nanopb/encode (3.30910.0)
-  - op-sqlite (15.0.7):
+  - op-sqlite (14.1.4):
     - DoubleConversion
     - glog
     - hermes-engine
     - RCT-Folly (= 2024.11.18.00)
     - RCTRequired
     - RCTTypeSafety
+    - React
+    - React-callinvoker
     - React-Core
     - React-debug
     - React-Fabric
@@ -3077,7 +3079,7 @@ SPEC CHECKSUMS:
   EXImageLoader: 4d3d3284141f1a45006cc4d0844061c182daf7ee
   EXJSONUtils: 1d3e4590438c3ee593684186007028a14b3686cd
   EXManifests: 691a779b04e4f2c96da46fb9bef4f86174fefcb5
-  Expo: dd7f49380001a55ea776f905f8b3c1c540160b09
+  Expo: d68c92f4bee50a21f0f0d7d2481dd6dbbd51e82b
   expo-dev-client: 9b1e78baf0dd87b005f035d180bbb07c05917fad
   expo-dev-launcher: 35dc0269b5fc1f628abc00e08e5a969e7809eff4
   expo-dev-menu: 0771fa9c5c405e07aa15e55a699b8a4a984ea77a
@@ -3105,7 +3107,7 @@ SPEC CHECKSUMS:
   ExpoSecureStore: 3f1b632d6d40bcc62b4983ef9199cd079592a50a
   ExpoSharing: b0377be82430d07398c6a4cd60b5a15696accbd3
   ExpoSplashScreen: 0ad5acac1b5d2953c6e00d4319f16d616f70d4dd
-  ExpoSQLite: b312b02c8b77ab55951396e6cd13992f8db9215f
+  ExpoSQLite: 14c1c8aa6cf5b30b33759f14307b4eb84e806277
   ExpoSymbols: c5612a90fb9179cdaebcd19bea9d8c69e5d3b859
   ExpoSystemUI: 433a971503b99020318518ed30a58204288bab2d
   ExpoWebBrowser: dc39a88485f007e61a3dff05d6a75f22ab4a2e92
@@ -3126,7 +3128,7 @@ SPEC CHECKSUMS:
   GTMSessionFetcher: 5aea5ba6bd522a239e236100971f10cb71b96ab6
   hermes-engine: 44bb6fe76a6eb400d3a992e2d0b21946ae999fa9
   libwebp: 02b23773aedb6ff1fd38cec7a77b81414c6842a8
-  llama-rn: d1f49d619146960debebfc18a217bcf68e98c70f
+  llama-rn: a9ea7b1b946b829cf23ea2e096d85aec6d449900
   MLImage: 2ab9c968e75f57911c16f4c9d9e8a8e9604a86a1
   MLKitCommon: 26b779f072a182c1603d4c88a101c350cac837b1
   MLKitTextRecognition: 072488cfd29f1726733378661881f88db74ba3dc
@@ -3137,7 +3139,7 @@ SPEC CHECKSUMS:
   MLKitTextRecognitionKorean: dc1273aa2ef41f363b585d3dde1cf2de68c7c6d8
   MLKitVision: fa8dea9012ac59497c79ddbe9ebf32051047ac4c
   nanopb: fad817b59e0457d11a5dfbde799381cd727c1275
-  op-sqlite: 9db350fd43fe0382b0e04e3ab871e8c56111f395
+  op-sqlite: c23343ba10dd758d9ae1d74a090b0f3db8296317
   PromisesObjC: f5707f49cb48b9636751c5b2e7d227e43fba9f47
   RCT-Folly: e78785aa9ba2ed998ea4151e314036f6c49e6d82
   RCTDeprecation: 9bc64754b40b86fa5e32f293ab3ea8eea2248339
