@@ -146,7 +146,7 @@ export default function ImageProcessingSelector({
     
     const isOnlineModel = ['gemini', 'chatgpt', 'deepseek', 'claude', 'apple-foundation'].includes(selectedModelPath);
     if (isOnlineModel) {
-      return selectedModelPath !== 'deepseek';
+      return selectedModelPath !== 'deepseek' && selectedModelPath !== 'apple-foundation';
     }
     
     return isMultimodalEnabled;
