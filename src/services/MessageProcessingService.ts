@@ -230,142 +230,113 @@ export class MessageProcessingService {
       return { role: msg.role, content };
     }) as RAGMessage[];
 
-    let usedRAG = false;
-    const chatId = chatManager.getCurrentChatId();
+    const legacyStreamCallback = (partialResponse: string) => {
+      if (this.cancelGenerationRef.current) {
+        return false;
+      }
+      
+      const currentTime = Date.now();
+      
+      if (firstTokenTime === null && partialResponse.trim().length > 0) {
+        firstTokenTime = currentTime - startTime;
+      }
+      
+      const wordCount = partialResponse.trim().split(/\s+/).filter(word => word.length > 0).length;
+      tokenCount = Math.max(1, Math.ceil(wordCount * 1.33));
+      fullResponse = partialResponse;
+      
+      const duration = (currentTime - startTime) / 1000;
+      let avgTokenTime = undefined;
+      
+      if (firstTokenTime !== null && tokenCount > 0) {
+        const timeAfterFirstToken = currentTime - (startTime + firstTokenTime);
+        avgTokenTime = timeAfterFirstToken / tokenCount;
+      }
+      
+      this.callbacks.setStreamingMessage(partialResponse);
+      this.callbacks.setStreamingStats({
+        tokens: tokenCount,
+        duration: duration,
+        firstTokenTime: firstTokenTime || undefined,
+        avgTokenTime: avgTokenTime && avgTokenTime > 0 ? avgTokenTime : undefined
+      });
+      
+      updateCounter++;
+      if (updateCounter % 10 === 0 || 
+          partialResponse.endsWith('.') || 
+          partialResponse.endsWith('!') || 
+          partialResponse.endsWith('?')) {
+        let debouncedAvgTokenTime = undefined;
+        if (firstTokenTime !== null && tokenCount > 0) {
+          const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
+          debouncedAvgTokenTime = timeAfterFirstToken / tokenCount;
+        }
+        
+        this.callbacks.updateMessageContentDebounced(
+          messageId,
+          partialResponse,
+          '',
+          {
+            duration: (Date.now() - startTime) / 1000,
+            tokens: tokenCount,
+            firstTokenTime: firstTokenTime || undefined,
+            avgTokenTime: debouncedAvgTokenTime && debouncedAvgTokenTime > 0 ? debouncedAvgTokenTime : undefined
+          }
+        );
+      }
+      
+      return !this.cancelGenerationRef.current;
+    };
+
+    const messageParams = [...baseMessages]
+      .filter(msg => msg.content.trim() !== '')
+      .map(msg => ({ 
+        id: generateRandomId(), 
+        role: msg.role as 'system' | 'user' | 'assistant', 
+        content: msg.content 
+      }));
+
+    const apiParams = {
+      temperature: settings.temperature,
+      maxTokens: settings.maxTokens,
+      topP: settings.topP,
+      stream: true,
+      streamTokens: true
+    };
 
     try {
-      const ragEnabled = await RAGService.isEnabled();
-      if (ragEnabled) {
-        if (!RAGService.isReady()) {
-          await RAGService.initialize(activeProvider);
-        }
-        if (RAGService.isReady()) {
-          await RAGService.generate({
-            input: baseMessages,
-            settings,
-            callback: streamCallback,
-            scope: {
-              chatId,
-              provider: activeProvider,
-            },
-          });
-          usedRAG = true;
-        }
+      switch (activeProvider) {
+        case 'gemini':
+          await onlineModelService.sendMessageToGemini(messageParams, apiParams, legacyStreamCallback);
+          break;
+        case 'chatgpt':
+          await onlineModelService.sendMessageToOpenAI(messageParams, apiParams, legacyStreamCallback);
+          break;
+        case 'deepseek':
+          await onlineModelService.sendMessageToDeepSeek(messageParams, apiParams, legacyStreamCallback);
+          break;
+        case 'claude':
+          await onlineModelService.sendMessageToClaude(messageParams, apiParams, legacyStreamCallback);
+          break;
+        default:
+          await chatManager.updateMessageContent(
+            messageId,
+            `This model provider (${activeProvider}) is not yet implemented.`,
+            '',
+            { duration: 0, tokens: 0 }
+          );
+          return;
       }
     } catch (error) {
-      console.log('online_rag_error', activeProvider, error instanceof Error ? error.message : 'unknown');
-      usedRAG = false;
-    }
-
-    if (!usedRAG) {
-      const legacyStreamCallback = (partialResponse: string) => {
-        if (this.cancelGenerationRef.current) {
-          return false;
-        }
-        
-        const currentTime = Date.now();
-        
-        if (firstTokenTime === null && partialResponse.trim().length > 0) {
-          firstTokenTime = currentTime - startTime;
-        }
-        
-        const wordCount = partialResponse.trim().split(/\s+/).filter(word => word.length > 0).length;
-        tokenCount = Math.max(1, Math.ceil(wordCount * 1.33));
-        fullResponse = partialResponse;
-        
-        const duration = (currentTime - startTime) / 1000;
-        let avgTokenTime = undefined;
-        
-        if (firstTokenTime !== null && tokenCount > 0) {
-          const timeAfterFirstToken = currentTime - (startTime + firstTokenTime);
-          avgTokenTime = timeAfterFirstToken / tokenCount;
-        }
-        
-        this.callbacks.setStreamingMessage(partialResponse);
-        this.callbacks.setStreamingStats({
-          tokens: tokenCount,
-          duration: duration,
-          firstTokenTime: firstTokenTime || undefined,
-          avgTokenTime: avgTokenTime && avgTokenTime > 0 ? avgTokenTime : undefined
-        });
-        
-        updateCounter++;
-        if (updateCounter % 10 === 0 || 
-            partialResponse.endsWith('.') || 
-            partialResponse.endsWith('!') || 
-            partialResponse.endsWith('?')) {
-          let debouncedAvgTokenTime = undefined;
-          if (firstTokenTime !== null && tokenCount > 0) {
-            const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
-            debouncedAvgTokenTime = timeAfterFirstToken / tokenCount;
-          }
-          
-          this.callbacks.updateMessageContentDebounced(
-            messageId,
-            partialResponse,
-            '',
-            {
-              duration: (Date.now() - startTime) / 1000,
-              tokens: tokenCount,
-              firstTokenTime: firstTokenTime || undefined,
-              avgTokenTime: debouncedAvgTokenTime && debouncedAvgTokenTime > 0 ? debouncedAvgTokenTime : undefined
-            }
-          );
-        }
-        
-        return !this.cancelGenerationRef.current;
-      };
-
-      const messageParams = [...baseMessages]
-        .filter(msg => msg.content.trim() !== '')
-        .map(msg => ({ 
-          id: generateRandomId(), 
-          role: msg.role as 'system' | 'user' | 'assistant', 
-          content: msg.content 
-        }));
-
-      const apiParams = {
-        temperature: settings.temperature,
-        maxTokens: settings.maxTokens,
-        topP: settings.topP,
-        stream: true,
-        streamTokens: true
-      };
-
-      try {
-        switch (activeProvider) {
-          case 'gemini':
-            await onlineModelService.sendMessageToGemini(messageParams, apiParams, legacyStreamCallback);
-            break;
-          case 'chatgpt':
-            await onlineModelService.sendMessageToOpenAI(messageParams, apiParams, legacyStreamCallback);
-            break;
-          case 'deepseek':
-            await onlineModelService.sendMessageToDeepSeek(messageParams, apiParams, legacyStreamCallback);
-            break;
-          case 'claude':
-            await onlineModelService.sendMessageToClaude(messageParams, apiParams, legacyStreamCallback);
-            break;
-          default:
-            await chatManager.updateMessageContent(
-              messageId,
-              `This model provider (${activeProvider}) is not yet implemented.`,
-              '',
-              { duration: 0, tokens: 0 }
-            );
-            return;
-        }
-      } catch (error) {
-        this.callbacks.handleApiError(error, this.getProviderDisplayName(activeProvider));
-        
-        await chatManager.updateMessageContent(
-          messageId,
-          'Sorry, an error occurred while generating a response. Please try again.',
-          '',
-          { duration: 0, tokens: 0 }
-        );
-        return;
-      }
+      this.callbacks.handleApiError(error, this.getProviderDisplayName(activeProvider));
+      
+      await chatManager.updateMessageContent(
+        messageId,
+        'Sorry, an error occurred while generating a response. Please try again.',
+        '',
+        { duration: 0, tokens: 0 }
+      );
+      return;
     }
     
     if (!this.cancelGenerationRef.current) {

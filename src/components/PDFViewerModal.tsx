@@ -37,6 +37,7 @@ type PdfViewerModalProps = {
   onUpload?: (content: string, fileName: string, userPrompt: string, useRag: boolean) => void;
   useRag: boolean;
   onToggleRag: (value: boolean) => void;
+  ragEnabled?: boolean;
 };
 
 export default function PDFViewerModal({
@@ -47,6 +48,7 @@ export default function PDFViewerModal({
   onUpload,
   useRag,
   onToggleRag,
+  ragEnabled = true,
 }: PdfViewerModalProps) {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
@@ -584,6 +586,7 @@ export default function PDFViewerModal({
         handleStartOCR={handleStartOCR}
         useRag={useRag}
         onToggleRag={onToggleRag}
+        ragEnabled={ragEnabled}
       />
 
       <Portal>

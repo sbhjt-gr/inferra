@@ -53,6 +53,8 @@ interface StoredModel {
   modified: string;
 }
 
+const remoteProviders: ProviderType[] = ['gemini', 'chatgpt', 'deepseek', 'claude'];
+
 export default function ChatInput({ 
   onSend, 
   disabled = false,
@@ -87,6 +89,8 @@ export default function ChatInput({
   const { selectedModelPath, isModelLoading, loadModel, isMultimodalEnabled } = useModel();
   const themeColors = useMemo(() => theme[currentTheme as 'light' | 'dark'], [currentTheme]);
   const isDark = currentTheme === 'dark';
+  const isRemoteModel = !!selectedModelPath && remoteProviders.includes(selectedModelPath as ProviderType);
+  const ragEnabledForCurrentModel = !!selectedModelPath && !isRemoteModel;
 
   const [dialogVisible, setDialogVisible] = useState(false);
   const [dialogTitle, setDialogTitle] = useState('');
@@ -163,6 +167,10 @@ export default function ChatInput({
   }, [showAttachmentMenu]);
 
   const ensureRagToggleDefault = useCallback(async () => {
+    if (!ragEnabledForCurrentModel) {
+      setUseRagForUpload(false);
+      return;
+    }
     try {
       const enabled = await RAGService.isEnabled();
       if (!enabled) {
@@ -171,7 +179,7 @@ export default function ChatInput({
     } catch (error) {
     }
     setUseRagForUpload(true);
-  }, []);
+  }, [ragEnabledForCurrentModel]);
 
   useEffect(() => {
     ensureRagToggleDefault();
@@ -290,8 +298,14 @@ export default function ChatInput({
   };
 
   const handleToggleRagForUpload = useCallback((value: boolean) => {
+    if (!ragEnabledForCurrentModel) {
+      if (useRagForUpload) {
+        setUseRagForUpload(false);
+      }
+      return;
+    }
     setUseRagForUpload(value);
-  }, []);
+  }, [ragEnabledForCurrentModel, useRagForUpload]);
 
   const refreshRagStatus = useCallback(async () => {
     setRagStatusLoading(true);
@@ -373,7 +387,7 @@ export default function ChatInput({
     return `${ragStatus.documentCount} docs · ${storageLabel} · updated ${lastSeen}`;
   }, [ragStatus, formatRelativeTime]);
 
-  const showRagStatus = (ragStatus?.documentCount ?? 0) > 0;
+  const showRagStatus = ragEnabledForCurrentModel && (ragStatus?.documentCount ?? 0) > 0;
 
   const toggleAttachmentMenu = () => {
     setShowAttachmentMenu(!showAttachmentMenu);
@@ -430,6 +444,9 @@ export default function ChatInput({
       const chatId = chatManager.getCurrentChatId() || undefined;
 
       try {
+        if (!ragEnabledForCurrentModel) {
+          return { handled, cancelled, documentId };
+        }
         const enabled = await RAGService.isEnabled();
         if (!enabled) {
           return { handled, cancelled, documentId };
@@ -446,7 +463,7 @@ export default function ChatInput({
         ragCancelRef.current.cancelled = false;
         setRagProgress({ completed: 0, total: 0 });
 
-        const provider: ProviderType = isRemoteOrApple ? (selectedModelPath as ProviderType) : 'local';
+  const provider: ProviderType = isRemoteOrApple ? (selectedModelPath as ProviderType) : 'local';
         await RAGService.initialize(provider);
 
         if (!RAGService.isReady()) {
@@ -498,7 +515,7 @@ export default function ChatInput({
 
       return { handled, cancelled, documentId };
     },
-    [showDialog, selectedModelPath, refreshRagStatus]
+    [showDialog, selectedModelPath, refreshRagStatus, ragEnabledForCurrentModel]
   );
 
   const handleFileUpload = useCallback(
@@ -1027,6 +1044,7 @@ export default function ChatInput({
         onImageUpload={handleImageUpload}
         useRag={useRagForUpload}
         onToggleRag={handleToggleRagForUpload}
+        ragEnabled={ragEnabledForCurrentModel}
       />
 
       <CameraOverlay
@@ -1035,6 +1053,7 @@ export default function ChatInput({
         onPhotoTaken={handlePhotoTaken}
         useRag={useRagForUpload}
         onToggleRag={handleToggleRagForUpload}
+        ragEnabled={ragEnabledForCurrentModel}
       />
 
       <Portal>
@@ -1147,7 +1166,7 @@ export default function ChatInput({
 const styles = StyleSheet.create({
   wrapper: {
     paddingHorizontal: 16,
-    paddingBottom: 0,
+    paddingBottom: 8,
     paddingTop: 8,
   },
   ragBanner: {

@@ -29,6 +29,7 @@ type ImageProcessingSelectorProps = {
   disabled?: boolean;
   useRag?: boolean;
   onToggleRag?: (value: boolean) => void;
+  ragEnabled?: boolean;
 };
 
 export default function ImageProcessingSelector({
@@ -38,6 +39,7 @@ export default function ImageProcessingSelector({
   disabled = false,
   useRag = true,
   onToggleRag,
+  ragEnabled = true,
 }: ImageProcessingSelectorProps) {
   const [mmProjSelectorVisible, setMmProjSelectorVisible] = useState(false);
   const [storedModels, setStoredModels] = useState<StoredModel[]>([]);
@@ -50,9 +52,9 @@ export default function ImageProcessingSelector({
 
   useEffect(() => {
     if (onToggleRag) {
-      onToggleRag(true);
+      onToggleRag(ragEnabled);
     }
-  }, [onToggleRag]);
+  }, [onToggleRag, ragEnabled]);
 
   const loadStoredModels = async () => {
     try {
@@ -260,7 +262,7 @@ export default function ImageProcessingSelector({
         </TouchableOpacity>
       </View>
 
-      {selectedMode === 'ocr' && onToggleRag && (
+      {selectedMode === 'ocr' && onToggleRag && ragEnabled && (
         <View
           style={[
             styles.ragRow,
@@ -281,6 +283,24 @@ export default function ImageProcessingSelector({
             trackColor={{ false: isDark ? '#444444' : '#dddddd', true: '#66088080' }}
             thumbColor={useRag ? '#660880' : isDark ? '#222222' : '#f2f2f2'}
           />
+        </View>
+      )}
+      
+      {selectedMode === 'ocr' && onToggleRag && !ragEnabled && (
+        <View
+          style={[
+            styles.ragRow,
+            {
+              backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.02)',
+              borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
+            },
+          ]}
+        >
+          <MaterialCommunityIcons name="information-outline" size={20} color={isDark ? '#888888' : '#666666'} />
+          <View style={[styles.ragTextContainer, { paddingLeft: 8 }]}>
+            <Text style={[styles.ragTitle, { color: isDark ? '#888888' : '#666666' }]}>RAG not available</Text>
+            <Text style={[styles.ragDescription, { color: isDark ? '#888888' : '#666666' }]}>Local RAG is not available for remote models.</Text>
+          </View>
         </View>
       )}
 

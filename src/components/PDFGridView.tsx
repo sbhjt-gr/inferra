@@ -38,6 +38,7 @@ type PDFGridViewProps = {
   handleStartOCR: () => void;
   useRag: boolean;
   onToggleRag: (value: boolean) => void;
+  ragEnabled?: boolean;
 };
 
 export default function PDFGridView({
@@ -56,6 +57,7 @@ export default function PDFGridView({
   handleStartOCR,
   useRag,
   onToggleRag,
+  ragEnabled = true,
 }: PDFGridViewProps) {
   const screenWidth = Dimensions.get('window').width;
   const numColumns = 3;
@@ -63,9 +65,13 @@ export default function PDFGridView({
 
   useEffect(() => {
     if (visible) {
-      onToggleRag(true);
+      if (ragEnabled) {
+        onToggleRag(true);
+      } else {
+        onToggleRag(false);
+      }
     }
-  }, [visible, onToggleRag]);
+  }, [visible, onToggleRag, ragEnabled]);
 
   return (
     <Modal
@@ -159,18 +165,28 @@ export default function PDFGridView({
           keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
         >
           <View style={[styles.gridFooter, { backgroundColor: isDark ? '#1a1a1a' : '#ffffff' }]}>
-            <View style={styles.ragRow}>
-              <View style={styles.ragTextContainer}>
-                <Text style={[styles.ragTitle, { color: isDark ? '#ffffff' : '#333333' }]}>Use RAG</Text>
-                <Text style={[styles.ragDescription, { color: isDark ? '#bbbbbb' : '#666666' }]}>Store this file for smarter answers in this chat.</Text>
+            {ragEnabled ? (
+              <View style={styles.ragRow}>
+                <View style={styles.ragTextContainer}>
+                  <Text style={[styles.ragTitle, { color: isDark ? '#ffffff' : '#333333' }]}>Use RAG</Text>
+                  <Text style={[styles.ragDescription, { color: isDark ? '#bbbbbb' : '#666666' }]}>Store this file for smarter answers in this chat.</Text>
+                </View>
+                <Switch
+                  value={useRag}
+                  onValueChange={onToggleRag}
+                  trackColor={{ false: isDark ? '#444444' : '#dddddd', true: '#66088080' }}
+                  thumbColor={useRag ? '#660880' : isDark ? '#222222' : '#f2f2f2'}
+                />
               </View>
-              <Switch
-                value={useRag}
-                onValueChange={onToggleRag}
-                trackColor={{ false: isDark ? '#444444' : '#dddddd', true: '#66088080' }}
-                thumbColor={useRag ? '#660880' : isDark ? '#222222' : '#f2f2f2'}
-              />
-            </View>
+            ) : (
+              <View style={styles.ragRow}>
+                <MaterialCommunityIcons name="information-outline" size={20} color={isDark ? '#888888' : '#666666'} />
+                <View style={[styles.ragTextContainer, { paddingLeft: 8 }]}>
+                  <Text style={[styles.ragTitle, { color: isDark ? '#888888' : '#666666' }]}>RAG not available</Text>
+                  <Text style={[styles.ragDescription, { color: isDark ? '#888888' : '#666666' }]}>Local RAG is not available for remote models.</Text>
+                </View>
+              </View>
+            )}
             <View style={styles.promptContainer}>
               <Text style={[styles.promptLabel, { color: isDark ? '#ffffff' : '#333333' }]}>
                 Add your prompt:
