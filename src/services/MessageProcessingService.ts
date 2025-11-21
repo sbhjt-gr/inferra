@@ -448,7 +448,7 @@ export class MessageProcessingService {
           } else {
             const instruction = parsed.internalInstruction || '';
             const userPrompt = parsed.userPrompt || '';
-            content = `${instruction}\n\nUser request: ${userPrompt}`;
+            content = instruction + (userPrompt ? `\n\n${userPrompt}` : '');
           }
         } else if (parsed && parsed.type === 'file_upload') {
           if (parsed.metadata?.ragDocumentId) {
@@ -456,7 +456,9 @@ export class MessageProcessingService {
             const userContent = parsed.userContent || `File uploaded: ${fileName}`;
             content = `User uploaded ${fileName}. The content has been stored for retrieval.\n\nUser request: ${userContent}`;
           } else {
-            content = parsed.internalInstruction || msg.content;
+            const instruction = parsed.internalInstruction || '';
+            const userContent = parsed.userContent || '';
+            content = instruction + (userContent ? `\n\n${userContent}` : '');
           }
         }
       } catch {
@@ -496,6 +498,11 @@ export class MessageProcessingService {
 
     if (!usedRAG) {
       try {
+        console.log('apple_no_rag_messages', JSON.stringify(baseMessages.map(m => ({ 
+          role: m.role, 
+          contentLength: m.content.length,
+          contentPreview: m.content.substring(0, 200)
+        }))));
         const stream = appleFoundationService.streamResponse(
           baseMessages.map(msg => ({ role: msg.role, content: msg.content })),
           {
@@ -565,10 +572,13 @@ export class MessageProcessingService {
       } catch (error) {
         appleFoundationService.cancel();
         const message = error instanceof Error ? error.message : String(error);
+        console.log('apple_intelligence_error', message);
         const normalized = message.toLowerCase();
         let displayMessage = 'Apple Intelligence not available on this device.';
         if (normalized.includes('disabled')) {
           displayMessage = 'Apple Intelligence is disabled. Enable it in Settings to continue.';
+        } else if (normalized.includes('locale') || normalized.includes('language')) {
+          displayMessage = 'Apple Intelligence language/locale not supported. Try using English locale.';
         } else if (!normalized.includes('not available')) {
           displayMessage = `Apple Intelligence error: ${message}`;
         }
@@ -703,7 +713,7 @@ export class MessageProcessingService {
           } else {
             const instruction = parsed.internalInstruction || '';
             const userPrompt = parsed.userPrompt || '';
-            content = `${instruction}\n\nUser request: ${userPrompt}`;
+            content = instruction + (userPrompt ? `\n\n${userPrompt}` : '');
           }
         } else if (parsed && parsed.type === 'file_upload') {
           if (parsed.metadata?.ragDocumentId) {
@@ -711,7 +721,9 @@ export class MessageProcessingService {
             const userContent = parsed.userContent || `File uploaded: ${fileName}`;
             content = `User uploaded ${fileName}. The content has been stored for retrieval.\n\nUser request: ${userContent}`;
           } else {
-            content = parsed.internalInstruction || msg.content;
+            const instruction = parsed.internalInstruction || '';
+            const userContent = parsed.userContent || '';
+            content = instruction + (userContent ? `\n\n${userContent}` : '');
           }
         }
       } catch {
