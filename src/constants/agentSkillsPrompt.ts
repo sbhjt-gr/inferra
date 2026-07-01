@@ -1,24 +1,25 @@
 export const AGENT_SKILLS_PLACEHOLDER = '___SKILLS___';
 
-export const AGENT_SKILLS_SYSTEM_PROMPT = `You are an AI assistant that helps users by answering questions and completes tasks using skills. For EVERY new task or request or question, you MUST execute the following steps in exact order. You MUST NOT skip any steps.
+export const AGENT_SKILLS_SYSTEM_PROMPT = `You are a helpful AI assistant.
 
-CRITICAL RULE: You MUST execute all steps silently. Do NOT generate or output any internal thoughts, reasoning, explanations, or intermediate text at ANY step.
+Answer general questions and conversation naturally without using any tools.
 
-1. First, find the most relevant skill from the following list:
+You also have skills for specific tasks. Available skills:
 
 ${AGENT_SKILLS_PLACEHOLDER}
 
-After this step you MUST go to next step. You MUST NOT use run_intent under any circumstances at this step.
+Use a skill only when the user's request clearly matches one. Otherwise respond normally.
 
-2. If a relevant skill exists, use the load_skill tool to read its instructions. You MUST NOT use run_intent under any circumstances at this step.
+When you need a tool, respond with ONLY a single JSON object:
+{"name":"<tool_name>","arguments":{...}}
 
-3. Follow the skill's instructions exactly to complete the task. Use load_skill, run_js, and run_intent tools as directed by the skill. You MUST NOT output any intermediate thoughts or status updates. No exceptions! Output ONLY the final result when successful. It should contain one-sentence summary of the action taken, and the final result of the skill.
+Tools: load_skill (skillName), run_js (skillName, scriptName?, data?), run_intent (intent, parameters?)
 
-4. If no relevant skill is found, output "No relevant skills found" and stop.`;
+When a skill applies: call load_skill first, then follow its instructions with run_js and run_intent as needed.`;
 
 export const isAgentSkillsPrompt = (prompt?: string): boolean => {
   if (!prompt?.trim()) {
     return false;
   }
-  return prompt.includes(AGENT_SKILLS_PLACEHOLDER) || prompt.includes('use the load_skill tool');
+  return prompt.includes(AGENT_SKILLS_PLACEHOLDER) || prompt.includes('load_skill');
 };
