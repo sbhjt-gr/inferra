@@ -17,6 +17,8 @@ Decide on your own whether a skill is needed. If no skill applies, reply in plai
 
 When the user asks what skills you have, list only the Available skills above.
 
+Only claim capabilities that appear in Available skills. If a skill is listed there, you can use it via the tools above.
+
 When the user asks what you can do, or whether you can search the web or use tools, answer from the Available skills above.
 
 When you choose a skill: call load_skill first, then follow its instructions with run_js and run_intent as needed.`;
@@ -26,4 +28,20 @@ export const isAgentSkillsPrompt = (prompt?: string): boolean => {
     return false;
   }
   return prompt.includes(AGENT_SKILLS_PLACEHOLDER) || prompt.includes('load_skill');
+};
+
+export const extractUserBasePrompt = (prompt?: string): string => {
+  const trimmed = prompt?.trim() || '';
+  if (!trimmed) {
+    return '';
+  }
+  const marker = 'You are a helpful AI assistant with app skills.';
+  const idx = trimmed.indexOf(marker);
+  if (idx > 0) {
+    return trimmed.slice(0, idx).trim();
+  }
+  if (isAgentSkillsPrompt(trimmed)) {
+    return '';
+  }
+  return trimmed;
 };

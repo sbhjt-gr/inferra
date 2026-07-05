@@ -491,23 +491,27 @@ class SkillManager {
 
   async buildSystemPrompt(basePrompt?: string): Promise<string> {
     if (!(await this.isModeEnabled())) {
-      return basePrompt || '';
+      return basePrompt?.trim() || '';
     }
 
     const enabled = await this.getEnabled();
     if (enabled.length === 0) {
-      return basePrompt || '';
+      return basePrompt?.trim() || '';
     }
 
     const skillList = enabled
-      .map(skill => `- Skill name: "${skill.name}"\n- Description: ${skill.description}`)
+      .map(skill => `- id: ${skill.id}\n- name: "${skill.name}"\n- description: ${skill.description}`)
       .join('\n\n');
 
-    const template = isAgentSkillsPrompt(basePrompt)
-      ? basePrompt!.trim()
-      : AGENT_SKILLS_SYSTEM_PROMPT;
+    let skillsPrompt = AGENT_SKILLS_SYSTEM_PROMPT.replace(AGENT_SKILLS_PLACEHOLDER, skillList);
 
-    return template.replace(AGENT_SKILLS_PLACEHOLDER, skillList);
+    const userBase = (basePrompt || '').trim();
+    if (userBase && !isAgentSkillsPrompt(userBase)) {
+      skillsPrompt = `${userBase}\n\n${skillsPrompt}`;
+    }
+
+    console.log('skills_prompt_built', { count: enabled.length, ids: enabled.map(skill => skill.id) });
+    return skillsPrompt;
   }
 
   async buildConversationalSystemPrompt(): Promise<string> {

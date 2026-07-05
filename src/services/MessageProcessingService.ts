@@ -12,7 +12,7 @@ import { ThinkTagParser } from '../utils/thinkTagParser';
 import { skillActivityAdapter } from './adapters/SkillActivityAdapter';
 import { skillToolLoopService } from './SkillToolLoopService';
 import { skillManager } from './SkillManager';
-import { isAgentSkillsPrompt } from '../constants/agentSkillsPrompt';
+import { isAgentSkillsPrompt, extractUserBasePrompt } from '../constants/agentSkillsPrompt';
 
 export interface MessageProcessingCallbacks {
   setMessages: (messages: ChatMessage[]) => void;
@@ -83,15 +83,16 @@ export class MessageProcessingService {
       const isOnlineModel = !!activeProvider && ['gemini','chatgpt','claude'].includes(OnlineModelService.getBaseProvider(activeProvider));
       const isAppleFoundation = activeProvider === 'apple-foundation';
 
-      const systemPrompt = settings.systemPrompt || '';
+      await skillManager.syncTools();
 
-      const processedMessages = isOnlineModel
-        ? [{ role: 'system', content: systemPrompt, id: 'system-prompt' }, ...currentMessages.filter(msg => msg.role !== 'system')]
-        : currentMessages.some(msg => msg.role === 'system')
-          ? currentMessages
-          : systemPrompt
-            ? [{ role: 'system', content: systemPrompt, id: 'system-prompt' }, ...currentMessages]
-            : currentMessages;
+      const rawBase = extractUserBasePrompt(settings.systemPrompt);
+      const systemPrompt = await skillManager.buildSystemPrompt(rawBase);
+      settings = { ...settings, systemPrompt };
+
+      const nonSystem = currentMessages.filter(msg => msg.role !== 'system');
+      const processedMessages = systemPrompt
+        ? [{ role: 'system', content: systemPrompt, id: 'system-prompt' }, ...nonSystem]
+        : nonSystem;
       const skipRag = this.shouldSkipRag(processedMessages) || await this.shouldSkipRagForInput(processedMessages);
       const responderModelName = await this.resolveResponderModelName(activeProvider);
       if (responderModelName) {
