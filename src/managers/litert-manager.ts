@@ -39,6 +39,7 @@ class LiteRTManager implements InferenceManager {
   private instance: LiteRTLMInstance | null = null;
   private modelPath: string | null = null;
   private configKey = '';
+  private lastConfig: LLMConfig | null = null;
   private genQueue: Promise<unknown> = Promise.resolve();
   private stopRequested = false;
 
@@ -71,6 +72,23 @@ class LiteRTManager implements InferenceManager {
       console.log('litert_reset_fail', error instanceof Error ? error.message : 'unknown');
     }
     this.stopRequested = false;
+  }
+
+  async recoverInvoke(): Promise<void> {
+    await this.genQueue;
+    if (!this.modelPath || !this.lastConfig) {
+      console.log('litert_recover_skip');
+      return;
+    }
+    console.log('litert_invoke_recover');
+    try {
+      this.getInstance().close();
+    } catch {
+    }
+    this.instance = createLLM();
+    await this.instance.loadModel(this.modelPath, this.lastConfig);
+    this.configKey = this.getConfigKey(this.lastConfig);
+    console.log('litert_invoke_recover_ok');
   }
 
   private async recoverFromPrefillError(error: unknown): Promise<void> {
@@ -179,13 +197,17 @@ class LiteRTManager implements InferenceManager {
     return this.instance;
   }
 
-  private async ensureLoaded(config: LLMConfig): Promise<LiteRTLMInstance> {
+  private async ensureLoaded(config: LLMConfig, reuseSession = false): Promise<LiteRTLMInstance> {
     if (!this.modelPath) {
       throw new Error('engine_not_ready');
     }
 
-    const key = this.getConfigKey(config);
     const current = this.getInstance();
+    if (reuseSession && current.isReady()) {
+      return current;
+    }
+
+    const key = this.getConfigKey(config);
     if (current.isReady() && this.configKey === key) {
       return current;
     }
@@ -198,6 +220,7 @@ class LiteRTManager implements InferenceManager {
     this.instance = createLLM();
     await this.instance.loadModel(this.modelPath, config);
     this.configKey = key;
+    this.lastConfig = config;
     return this.instance;
   }
 
@@ -390,6 +413,17 @@ class LiteRTManager implements InferenceManager {
     return this.parseInput(message.content).text.trim();
   }
 
+  private summarizeForHistory(text: string, max = 350): string {
+    const trimmed = text.trim();
+    if (!trimmed) {
+      return '';
+    }
+    if (trimmed.length <= max) {
+      return trimmed;
+    }
+    return `${trimmed.slice(0, max)}...`;
+  }
+
   private buildFullConversationPrompt(messages: Msg[]): string {
     const priorLines: string[] = [];
     const nonSystem = messages.filter(message => message.role !== 'system');
@@ -407,7 +441,7 @@ class LiteRTManager implements InferenceManager {
         continue;
       }
 
-      const text = this.getMessageText(nonSystem[index]);
+      const text = this.summarizeForHistory(this.getMessageText(nonSystem[index]));
       if (!text) {
         continue;
       }
@@ -432,8 +466,9 @@ class LiteRTManager implements InferenceManager {
       return question;
     }
 
-    let prompt = `Here is the conversation so far:\n${priorLines.join('\n')}\n\nAnswer this follow-up question: ${question}`;
-    const maxChars = 8000;
+    const recentLines = priorLines.slice(-4);
+    let prompt = `Here is the conversation so far:\n${recentLines.join('\n')}\n\nAnswer this follow-up question: ${question}`;
+    const maxChars = 2000;
     if (prompt.length > maxChars) {
       prompt = prompt.slice(-maxChars);
       console.log('litert_prompt_trim', { maxChars });
@@ -458,6 +493,7 @@ class LiteRTManager implements InferenceManager {
     this.instance = createLLM();
     await this.instance.loadModel(this.modelPath, config);
     this.configKey = this.getConfigKey(config);
+    this.lastConfig = config;
   }
 
   async gen(messages: Msg[], opts?: GenOpts) {
@@ -474,19 +510,52 @@ class LiteRTManager implements InferenceManager {
         console.log('litert_gen_retry');
         return this.runGenOnce(messages, opts);
       }
-      throw error;
+      if (!this.isInvokeError(msg)) {
+        throw error;
+      }
+      const singleTurn = this.countUserTurns(messages) > 1;
+      if (singleTurn) {
+        console.log('litert_single_retry');
+        await this.resetSession();
+        try {
+          return await this.runGenOnce(messages, opts, true);
+        } catch (retryError) {
+          const retryMsg = retryError instanceof Error ? retryError.message : String(retryError);
+          if (!this.isInvokeError(retryMsg)) {
+            throw retryError;
+          }
+        }
+      }
+      console.log('litert_reload_retry');
+      await this.recoverInvoke();
+      return this.runGenOnce(messages, opts, singleTurn);
     }
   }
 
-  private async runGenOnce(messages: Msg[], opts?: GenOpts): Promise<string> {
+  private isInvokeError(msg: string): boolean {
+    return msg.includes('Failed to invoke') || msg.includes('sendMessage failed');
+  }
+
+  private async runGenOnce(messages: Msg[], opts?: GenOpts, singleTurn = false): Promise<string> {
     const input = this.getLastUserInput(messages);
     if (!input.text && !input.imagePath && !input.audioPath) {
       return '';
     }
 
-    const instance = await this.ensureLoaded(await this.buildConfig(messages, opts?.settings, opts?.tools as LitertTool[] | undefined));
+    const instance = await this.ensureLoaded(
+      await this.buildConfig(messages, opts?.settings, opts?.tools as LitertTool[] | undefined),
+      opts?.reuseSession,
+    );
+    if (opts?.reuseSession) {
+      try {
+        await instance.resetConversation();
+        console.log('litert_reuse_reset');
+      } catch (error) {
+        console.log('litert_reuse_reset_fail', error instanceof Error ? error.message : 'unknown');
+      }
+    }
     const userTurns = this.countUserTurns(messages);
-    const historyPrompt = userTurns > 1 ? this.buildFullConversationPrompt(messages) : '';
+    const historyPrompt = !singleTurn && userTurns > 1 ? this.buildFullConversationPrompt(messages) : '';
     let prompt = input.text || 'Describe this input.';
 
     if (historyPrompt) {
@@ -545,26 +614,37 @@ class LiteRTManager implements InferenceManager {
   ): Promise<string> {
     return new Promise<string>((resolve, reject) => {
       let output = '';
+      let settled = false;
+      const finish = (fn: () => void) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        fn();
+      };
       try {
         call((token, done) => {
+          if (settled) {
+            return;
+          }
           if (this.stopRequested) {
             if (done) {
-              resolve(output);
+              finish(() => resolve(output));
             }
             return;
           }
           if (token.startsWith('Error: ')) {
-            reject(new Error(token.slice(7)));
+            finish(() => reject(new Error(token.slice(7))));
             return;
           }
           output += token;
           onToken(token);
           if (done) {
-            resolve(output);
+            finish(() => resolve(output));
           }
         });
       } catch (error) {
-        reject(error);
+        finish(() => reject(error instanceof Error ? error : new Error(String(error))));
       }
     });
   }

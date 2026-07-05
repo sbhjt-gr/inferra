@@ -1,5 +1,6 @@
 import { ChatMessage } from '../utils/ChatManager';
 import { engineService } from './runtime-service';
+import { litertManager } from '../managers/litert-manager';
 import { onlineModelService, OnlineModelService } from './OnlineModelService';
 import chatManager from '../utils/ChatManager';
 import { generateRandomId } from '../utils/homeScreenUtils';
@@ -9,7 +10,7 @@ import { RAGService } from './rag/RAGService';
 import type { Message as RAGMessage } from 'react-native-rag';
 import { ThinkTagParser } from '../utils/thinkTagParser';
 import { skillActivityAdapter } from './adapters/SkillActivityAdapter';
-import { skillsOrchestrator } from './SkillsOrchestrator';
+import { skillToolLoopService } from './SkillToolLoopService';
 import { skillManager } from './SkillManager';
 import { isAgentSkillsPrompt } from '../constants/agentSkillsPrompt';
 
@@ -72,6 +73,8 @@ export class MessageProcessingService {
 
     console.log('process_message_start', { provider: activeProvider, chatId: currentChat.id, messageCount: currentChat.messages.length });
 
+    let activeMessageId: string | null = null;
+
     try {
       skillActivityAdapter.clear();
       this.callbacks.setIsRegenerating(true);
@@ -115,6 +118,7 @@ export class MessageProcessingService {
       if (!lastMessage) return;
       
       const messageId = lastMessage.id;
+      activeMessageId = messageId;
       
       this.callbacks.setStreamingMessageId(messageId);
       this.callbacks.setStreamingMessage('');
@@ -131,26 +135,6 @@ export class MessageProcessingService {
       this.cancelGenerationRef.current = false;
       
       let updateCounter = 0;
-
-      const skillsHandled = await this.trySkillsResponse(
-        processedMessages,
-        settings,
-        messageId,
-        startTime,
-        activeProvider,
-      );
-      if (skillsHandled) {
-        if (!this.cancelGenerationRef.current) {
-          await this.persistSkillSteps(messageId);
-          this.callbacks.setIsStreaming(false);
-          this.callbacks.setStreamingMessageId(null);
-          this.callbacks.setStreamingThinking('');
-          this.callbacks.setStreamingStats(null);
-          this.callbacks.setIsRegenerating(false);
-          skillActivityAdapter.clear();
-        }
-        return;
-      }
 
       if (isOnlineModel) {
         await this.processOnlineModel(
@@ -200,6 +184,13 @@ export class MessageProcessingService {
       
     } catch (error) {
       if (!this.cancelGenerationRef.current) {
+        if (activeMessageId) {
+          await chatManager.removeMessage(currentChat.id, activeMessageId);
+          const updatedChat = chatManager.getCurrentChat();
+          if (updatedChat) {
+            this.callbacks.setMessages([...updatedChat.messages]);
+          }
+        }
         skillActivityAdapter.clear();
         this.callbacks.setIsStreaming(false);
         this.callbacks.setStreamingMessageId(null);
@@ -209,122 +200,6 @@ export class MessageProcessingService {
       }
       throw error;
     }
-  }
-
-  private async trySkillsResponse(
-    processedMessages: any[],
-    settings: any,
-    messageId: string,
-    startTime: number,
-    activeProvider: ProviderType | null,
-  ): Promise<boolean> {
-    if (!(await skillsOrchestrator.shouldHandle())) {
-      return false;
-    }
-
-    console.log('skills_try', { provider: activeProvider });
-
-    if (!(await skillsOrchestrator.shouldTryForMessage())) {
-      return false;
-    }
-
-    const isOnlineModel = !!activeProvider
-      && ['gemini', 'chatgpt', 'claude'].includes(OnlineModelService.getBaseProvider(activeProvider));
-
-    let fullResponse = '';
-    let thinking = '';
-    let tokenCount = 0;
-    let firstTokenTime: number | null = null;
-    let updateCounter = 0;
-    const thinkParser = isOnlineModel ? new ThinkTagParser() : null;
-    let isThinking = false;
-
-    const skillResponse = await skillsOrchestrator.run(
-      processedMessages,
-      settings,
-      activeProvider,
-      {
-        shouldCancel: () => this.cancelGenerationRef.current,
-        onToolRound: () => {
-          fullResponse = '';
-          this.callbacks.setStreamingMessage('');
-        },
-        onToken: (token: string) => {
-          if (this.cancelGenerationRef.current) {
-            return false;
-          }
-
-          if (thinkParser) {
-            const chunks = thinkParser.feed(token);
-            for (const chunk of chunks) {
-              if (chunk.type === 'open') {
-                isThinking = true;
-                continue;
-              }
-              if (chunk.type === 'close') {
-                isThinking = false;
-                continue;
-              }
-              if (isThinking) {
-                thinking += chunk.text;
-                this.callbacks.setStreamingThinking(thinking.trim());
-                continue;
-              }
-              if (firstTokenTime === null && chunk.text.trim().length > 0) {
-                firstTokenTime = Date.now() - startTime;
-              }
-              tokenCount += 1;
-              fullResponse += chunk.text;
-            }
-          } else {
-            if (firstTokenTime === null && token.trim().length > 0) {
-              firstTokenTime = Date.now() - startTime;
-            }
-            tokenCount = Math.max(tokenCount, Math.ceil(token.length / 4));
-            fullResponse += token;
-          }
-
-          const duration = (Date.now() - startTime) / 1000;
-          this.callbacks.setStreamingMessage(fullResponse);
-          this.callbacks.setStreamingStats({
-            tokens: tokenCount,
-            duration,
-            firstTokenTime: firstTokenTime || undefined,
-          });
-
-          updateCounter += 1;
-          if (updateCounter % 10 === 0) {
-            this.callbacks.updateMessageContentDebounced(
-              messageId,
-              fullResponse,
-              thinking.trim(),
-              { duration, tokens: tokenCount, firstTokenTime: firstTokenTime || undefined },
-            );
-          }
-
-          return !this.cancelGenerationRef.current;
-        },
-      },
-    );
-
-    const text = skillResponse?.trim() || fullResponse.trim();
-    if (!text || this.cancelGenerationRef.current) {
-      return false;
-    }
-
-    console.log('skills_handled', { len: text.length });
-    this.callbacks.setStreamingMessage(text);
-    await chatManager.updateMessageContent(
-      messageId,
-      text,
-      thinking.trim(),
-      {
-        duration: (Date.now() - startTime) / 1000,
-        tokens: Math.max(tokenCount, Math.ceil(text.length / 4), 1),
-        firstTokenTime: firstTokenTime || undefined,
-      },
-    );
-    return true;
   }
 
   private async processOnlineModel(
@@ -598,6 +473,30 @@ export class MessageProcessingService {
       return;
     }
     
+    const skillsOn = await skillManager.isModeEnabled();
+    if (skillsOn && !this.cancelGenerationRef.current) {
+      const skillResult = await skillToolLoopService.followUpFromResponse(
+        activeProvider,
+        messageParams,
+        fullResponse,
+        {
+          settings,
+          shouldCancel: () => this.cancelGenerationRef.current,
+          onToolRound: () => {
+            fullResponse = '';
+            thinking = '';
+            this.callbacks.setStreamingMessage('');
+            this.callbacks.setStreamingThinking('');
+          },
+          onToken: streamCallback,
+        },
+      );
+      if (skillResult) {
+        fullResponse = skillResult;
+        this.callbacks.setStreamingMessage(fullResponse);
+      }
+    }
+
     if (!this.cancelGenerationRef.current) {
       let finalAvgTokenTime = undefined;
       if (firstTokenTime !== null && tokenCount > 0) {
@@ -840,6 +739,37 @@ export class MessageProcessingService {
         );
         return;
       }
+
+      const skillsOn = await skillManager.isModeEnabled();
+      if (skillsOn && !this.cancelGenerationRef.current) {
+        const skillResult = await skillToolLoopService.followUpFromResponse(
+          'apple-foundation',
+          baseMessages,
+          fullResponse,
+          {
+            settings,
+            shouldCancel: () => this.cancelGenerationRef.current,
+            onToolRound: () => {
+              fullResponse = '';
+              this.callbacks.setStreamingMessage('');
+            },
+            onToken: (token: string) => {
+              if (this.cancelGenerationRef.current) {
+                return false;
+              }
+              if (firstTokenTime === null && token.trim().length > 0) {
+                firstTokenTime = Date.now() - startTime;
+              }
+              fullResponse += token;
+              this.callbacks.setStreamingMessage(fullResponse);
+              return true;
+            },
+          },
+        );
+        if (skillResult) {
+          fullResponse = skillResult;
+        }
+      }
     }
 
     if (!this.cancelGenerationRef.current) {
@@ -885,8 +815,6 @@ export class MessageProcessingService {
 
     console.log('local_model_start', { messageId, skipRag, msgCount: processedMessages.length });
     console.log('local_model_settings', { systemPrompt: settings.systemPrompt, temperature: settings.temperature, maxTokens: settings.maxTokens });
-
-    const lastUserText = this.getLastUserText(processedMessages);
 
     const thinkParser = new ThinkTagParser();
 
@@ -1041,7 +969,8 @@ export class MessageProcessingService {
       let genSettings = settings;
       let genMessages = baseMessages;
       const skillsOn = await skillManager.isModeEnabled();
-      if (userTurns > 1 && isAgentSkillsPrompt(settings.systemPrompt) && !skillsOn) {
+
+      if (userTurns > 1 && isAgentSkillsPrompt(settings.systemPrompt)) {
         const chatPrompt = await skillManager.buildConversationalSystemPrompt();
         genSettings = {
           ...settings,
@@ -1054,17 +983,49 @@ export class MessageProcessingService {
           }
           return msg;
         });
-        console.log('local_chat_prompt', { userTurns });
+        console.log('local_chat_prompt', { userTurns, skillsOn });
       }
 
       console.log('local_gen_direct', { baseMessageCount: genMessages.length, userTurns });
-      await engineService.mgr().gen(
-        genMessages as any,
-        {
-          onToken: streamCallback,
-          settings: genSettings,
-        },
-      );
+      try {
+        await engineService.mgr().gen(
+          genMessages as any,
+          {
+            onToken: streamCallback,
+            settings: genSettings,
+          },
+        );
+      } catch (error) {
+        console.log('local_gen_fail', error instanceof Error ? error.message : 'unknown');
+        if (engineService.get() === 'litert') {
+          try {
+            await litertManager.recoverInvoke();
+          } catch {
+            console.log('local_gen_recover_fail');
+          }
+        }
+        throw error;
+      }
+
+      if (skillsOn && !this.cancelGenerationRef.current) {
+        const skillResult = await skillToolLoopService.followUpFromResponse(
+          'local',
+          genMessages,
+          fullResponse,
+          {
+            settings: genSettings,
+            shouldCancel: () => this.cancelGenerationRef.current,
+            onToolRound: () => {
+              fullResponse = '';
+              this.callbacks.setStreamingMessage('');
+            },
+            onToken: streamCallback,
+          },
+        );
+        if (skillResult) {
+          fullResponse = skillResult;
+        }
+      }
     }
 
     console.log('local_model_done', { tokenCount, responseLength: fullResponse.length, thinkingLength: thinking.length, cancelled: this.cancelGenerationRef.current });

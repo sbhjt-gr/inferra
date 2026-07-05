@@ -119,6 +119,7 @@ const BUILTIN_SKILL_ASSETS: BuiltinSkillAsset[] = [
   {
     id: 'web-search',
     markdown: require('../../assets/skills/web-search/SKILL.md'),
+    html: require('../../assets/skills/web-search/scripts/index.html'),
   },
   {
     id: 'virtual-piano',

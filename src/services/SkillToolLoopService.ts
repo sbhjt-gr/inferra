@@ -2,7 +2,6 @@ import type { ProviderType } from './ModelManagementService';
 import { OnlineModelService, onlineModelService, type ChatMessage } from './OnlineModelService';
 import { appleFoundationService } from './AppleFoundationService';
 import { skillActivityAdapter } from './adapters/SkillActivityAdapter';
-import { toLitertTools } from './adapters/LitertToolsAdapter';
 import { engineService } from './runtime-service';
 import { parseToolCallsFromText } from './skillsToolParser';
 import { toolExecutor } from './tools/ToolExecutor';
@@ -25,16 +24,6 @@ const toLoopMessages = (messages: any[]) => {
       role: entry.role as 'system' | 'user' | 'assistant',
       content: typeof entry.content === 'string' ? entry.content : JSON.stringify(entry.content),
     }));
-};
-
-const buildDeviceToolPrompt = (basePrompt: string): string => {
-  const schemas = toolRegistry
-    .getAllTools()
-    .filter(tool => 'function' in tool)
-    .map(tool => JSON.stringify((tool as { function: unknown }).function))
-    .join('\n');
-
-  return `${basePrompt}\n\nWhen you need to call a tool, respond with ONLY a single JSON object and no other text:\n{"name":"<tool_name>","arguments":{...}}\n\nAvailable tools:\n${schemas}`;
 };
 
 const isOnlineProvider = (provider: ProviderType | null): provider is string => {
@@ -217,7 +206,6 @@ class SkillToolLoopService {
     activeProvider: ProviderType | null,
     messages: Array<{ role: string; content: string }>,
     settings: any,
-    useNativeTools: boolean,
   ): Promise<string> {
     if (activeProvider === 'apple-foundation') {
       return appleFoundationService.generateResponse(
@@ -233,18 +221,12 @@ class SkillToolLoopService {
       );
     }
 
-    const genOpts: { settings: any; tools?: ReturnType<typeof toLitertTools> } = {
+    const response = await engineService.mgr().gen(messages as any, {
       settings: {
         ...settings,
         maxTokens: Math.min(settings.maxTokens || 1024, 1024),
       },
-    };
-    if (useNativeTools) {
-      genOpts.tools = toLitertTools();
-      console.log('skill_loop_litert_tools', { count: genOpts.tools.length });
-    }
-
-    const response = await engineService.mgr().gen(messages as any, genOpts);
+    });
     return response || '';
   }
 
@@ -252,6 +234,7 @@ class SkillToolLoopService {
     activeProvider: ProviderType | null,
     messages: any[],
     opts: SkillLoopOpts,
+    seedResponse?: string,
   ): Promise<string | null> {
     if (!isDeviceProvider(activeProvider)) {
       return null;
@@ -267,20 +250,11 @@ class SkillToolLoopService {
       return null;
     }
 
-    const useLitertTools = activeProvider === 'local' && engineService.get() === 'litert';
-    const basePrompt = opts.settings.systemPrompt || '';
-    const toolPrompt = useLitertTools ? basePrompt : buildDeviceToolPrompt(basePrompt);
-    const loopMessages = toLoopMessages(messages).map(entry => (
-      entry.role === 'system'
-        ? { ...entry, content: toolPrompt }
-        : entry
-    ));
+    const loopMessages = toLoopMessages(messages);
+    let response: string | undefined = seedResponse;
+    let seedOnly = !!seedResponse;
 
-    if (!loopMessages.some(entry => entry.role === 'system')) {
-      loopMessages.unshift({ role: 'system', content: toolPrompt });
-    }
-
-    console.log('skill_loop_device_start', { provider: activeProvider, litertTools: useLitertTools });
+    console.log('skill_loop_device_start', { provider: activeProvider, seeded: seedOnly });
 
     for (let iteration = 0; iteration < MAX_DEVICE_ITERATIONS; iteration += 1) {
       if (opts.shouldCancel?.()) {
@@ -290,15 +264,17 @@ class SkillToolLoopService {
         break;
       }
 
-      const response = await this.generateDeviceText(
-        activeProvider,
-        loopMessages,
-        opts.settings,
-        useLitertTools,
-      );
+      if (!response) {
+        response = await this.generateDeviceText(activeProvider, loopMessages, opts.settings);
+      }
+
       const toolCalls = parseToolCallsFromText(response);
       if (toolCalls.length === 0) {
         const text = response.trim();
+        if (seedOnly) {
+          console.log('skill_loop_seed_plain');
+          return null;
+        }
         if (text) {
           console.log('skill_loop_device_text', { iteration, len: text.length });
           opts.onToken?.(text);
@@ -308,6 +284,7 @@ class SkillToolLoopService {
         return null;
       }
 
+      seedOnly = false;
       opts.onToolRound?.();
       console.log('skill_loop_device_tools', { iteration, count: toolCalls.length });
       loopMessages.push({ role: 'assistant', content: response });
@@ -319,9 +296,56 @@ class SkillToolLoopService {
           content: `Tool result for ${call.function.name}: ${results[index]}`,
         });
       }
+      response = undefined;
     }
 
     console.log('skill_loop_device_limit');
+    return null;
+  }
+
+  async followUpFromResponse(
+    activeProvider: ProviderType | null,
+    messages: any[],
+    initialResponse: string,
+    opts: SkillLoopOpts,
+  ): Promise<string | null> {
+    if (!toolRegistry.hasTools()) {
+      console.log('skill_followup_no_tools');
+      return null;
+    }
+
+    const toolCalls = parseToolCallsFromText(initialResponse);
+    if (toolCalls.length === 0) {
+      console.log('skill_followup_skip');
+      return null;
+    }
+
+    console.log('skill_followup_start', { provider: activeProvider, count: toolCalls.length });
+
+    if (isOnlineProvider(activeProvider)) {
+      opts.onToolRound?.();
+      const loopMessages = this.toChatMessages(messages);
+      loopMessages.push({
+        id: generateRandomId(),
+        role: 'assistant',
+        content: initialResponse,
+      });
+      const results = await this.executeToolCalls(toolCalls);
+      for (let index = 0; index < results.length; index += 1) {
+        const call = toolCalls[index];
+        loopMessages.push({
+          id: generateRandomId(),
+          role: 'user',
+          content: `Tool result for ${call.function.name}: ${results[index]}`,
+        });
+      }
+      return this.runOnlineLoop(activeProvider, loopMessages, opts);
+    }
+
+    if (isDeviceProvider(activeProvider)) {
+      return this.runDeviceLoop(activeProvider, messages, opts, initialResponse);
+    }
+
     return null;
   }
 
