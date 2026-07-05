@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View, Switch } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { AppSwitch } from '../../services/adapters/SwitchAdapter';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../constants/theme';
@@ -168,15 +169,10 @@ const CustomModelSettingsSection = ({
             )}
           </View>
         </View>
-        <Switch
+        <AppSwitch
           value={value}
           onValueChange={onValueChange}
           disabled={disabled}
-          trackColor={{
-            false: themeColors.secondaryText + '40',
-            true: getThemeAwareColor('#4a0660', currentTheme) + '80'
-          }}
-          thumbColor={value ? getThemeAwareColor('#4a0660', currentTheme) : themeColors.secondaryText}
         />
       </View>
     </View>

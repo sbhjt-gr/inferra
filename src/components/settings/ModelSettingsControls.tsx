@@ -1,5 +1,6 @@
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View, Switch } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { AppSwitch } from '../../services/adapters/SwitchAdapter';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../constants/theme';
@@ -120,11 +121,9 @@ const ModelSettingsControls = ({
               )}
             </View>
           </View>
-          <Switch
+          <AppSwitch
             value={modelSettings.jinja}
             onValueChange={(value) => onSettingsChange({ jinja: value })}
-            trackColor={{ false: themeColors.borderColor, true: themeColors.primary + '80' }}
-            thumbColor={modelSettings.jinja ? themeColors.primary : themeColors.background}
           />
         </View>
       ) : null}
@@ -174,11 +173,9 @@ const ModelSettingsControls = ({
               </Text>
             </View>
           </View>
-          <Switch
+          <AppSwitch
             value={modelSettings.enableThinking}
             onValueChange={(value) => onSettingsChange({ enableThinking: value })}
-            trackColor={{ false: themeColors.borderColor, true: themeColors.primary + '80' }}
-            thumbColor={modelSettings.enableThinking ? themeColors.primary : themeColors.background}
           />
         </View>
       ) : null}

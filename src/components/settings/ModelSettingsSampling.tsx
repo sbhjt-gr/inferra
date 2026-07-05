@@ -1,5 +1,6 @@
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View, Switch } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { AppSwitch } from '../../services/adapters/SwitchAdapter';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../constants/theme';
@@ -152,11 +153,9 @@ const ModelSettingsSampling = ({
               )}
             </View>
           </View>
-          <Switch
+          <AppSwitch
             value={Boolean(noExtraBuffers)}
             onValueChange={onToggleNoExtraBuffers}
-            trackColor={{ false: themeColors.borderColor, true: themeColors.primary + '80' }}
-            thumbColor={noExtraBuffers ? themeColors.primary : themeColors.background}
           />
         </View>
       ) : null}
@@ -190,12 +189,10 @@ const ModelSettingsSampling = ({
               )}
             </View>
           </View>
-          <Switch
+          <AppSwitch
             value={gpuConfig!.enabled}
             onValueChange={onToggleGpu!}
             disabled={!gpuConfig!.supported}
-            trackColor={{ false: themeColors.borderColor, true: themeColors.primary + '80' }}
-            thumbColor={gpuConfig!.enabled ? themeColors.primary : themeColors.background}
           />
         </View>
       ) : null}
@@ -215,11 +212,9 @@ const ModelSettingsSampling = ({
               </Text>
             </View>
           </View>
-          <Switch
+          <AppSwitch
             value={modelSettings.includeThinkingTokens ?? false}
             onValueChange={(value) => onSettingsChange({ includeThinkingTokens: value })}
-            trackColor={{ false: themeColors.borderColor, true: themeColors.primary + '80' }}
-            thumbColor={(modelSettings.includeThinkingTokens ?? false) ? themeColors.primary : themeColors.background}
           />
         </View>
       ) : null}

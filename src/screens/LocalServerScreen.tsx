@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, StyleSheet, ScrollView, Text, TouchableOpacity, Alert, Switch, Clipboard, Share, Platform } from 'react-native';
+import { View, StyleSheet, ScrollView, Text, TouchableOpacity, Alert, Clipboard, Share, Platform } from 'react-native';
+import { AppSwitch } from '../services/adapters/SwitchAdapter';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import QRCodeStyled from 'react-native-qrcode-styled';
@@ -352,12 +353,10 @@ export default function LocalServerScreen() {
                 </View>
               </View>
             </View>
-            <Switch
+            <AppSwitch
               value={serverStatus.isRunning}
               onValueChange={handleToggleServer}
               disabled={isLoading}
-              thumbColor={serverStatus.isRunning ? themeColors.primary : themeColors.secondaryText}
-              trackColor={{ false: themeColors.borderColor, true: themeColors.primary + '40' }}
             />
           </View>
 
@@ -511,11 +510,9 @@ export default function LocalServerScreen() {
                 </Text>
               </View>
             </View>
-            <Switch
+            <AppSwitch
               value={keepAwake}
               onValueChange={handleKeepAwakeChange}
-              thumbColor={keepAwake ? themeColors.primary : themeColors.secondaryText}
-              trackColor={{ false: themeColors.borderColor, true: themeColors.primary + '40' }}
             />
           </View>
 
@@ -534,11 +531,9 @@ export default function LocalServerScreen() {
                 </Text>
               </View>
             </View>
-            <Switch
+            <AppSwitch
               value={autoStart}
               onValueChange={handleAutoStartChange}
-              thumbColor={autoStart ? themeColors.primary : themeColors.secondaryText}
-              trackColor={{ false: themeColors.borderColor, true: themeColors.primary + '40' }}
             />
           </View>
         </SettingsSection>

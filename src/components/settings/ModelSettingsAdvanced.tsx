@@ -1,5 +1,6 @@
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View, Switch } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { AppSwitch } from '../../services/adapters/SwitchAdapter';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../constants/theme';
@@ -132,11 +133,9 @@ const ModelSettingsAdvanced = ({
             </Text>
           </View>
         </View>
-        <Switch
+        <AppSwitch
           value={modelSettings.ignoreEos}
           onValueChange={(value) => onSettingsChange({ ignoreEos: value })}
-          trackColor={{ false: themeColors.borderColor, true: themeColors.primary + '80' }}
-          thumbColor={modelSettings.ignoreEos ? themeColors.primary : themeColors.background}
         />
       </View>
 

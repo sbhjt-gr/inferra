@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { View, StyleSheet, ScrollView, Text, TextInput, TouchableOpacity, RefreshControl, Switch, Clipboard, Platform } from 'react-native';
+import { View, StyleSheet, ScrollView, Text, TextInput, TouchableOpacity, RefreshControl, Clipboard, Platform } from 'react-native';
+import { AppSwitch } from '../services/adapters/SwitchAdapter';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import Dialog from '../components/Dialog';
@@ -385,11 +386,9 @@ export default function ServerLogsScreen() {
         </TouchableOpacity>
         <View style={s.autoRow}>
           <Text style={s.dim}>auto-scroll</Text>
-          <Switch
+          <AppSwitch
             value={autoScroll}
             onValueChange={setAutoScroll}
-            trackColor={{ false: '#333', true: themeColors.primary }}
-            thumbColor="#FFF"
           />
         </View>
       </View>

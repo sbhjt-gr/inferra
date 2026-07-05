@@ -7,7 +7,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -17,6 +16,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import AppHeader from '../components/AppHeader';
 import Dialog from '../components/Dialog';
+import { AppSwitch } from '../services/adapters/SwitchAdapter';
 import { theme } from '../constants/theme';
 import { useTheme } from '../context/ThemeContext';
 import { skillManager } from '../services/SkillManager';
@@ -95,12 +95,10 @@ function SkillRow({
             </Text>
           </View>
           {!inMulti ? (
-            <Switch
+            <AppSwitch
               value={skill.enabled}
               onValueChange={onToggle}
               disabled={busy}
-              trackColor={{ false: themeColors.borderColor, true: themeColors.primary + '80' }}
-              thumbColor={skill.enabled ? themeColors.primary : themeColors.secondaryText}
             />
           ) : null}
         </View>

@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  Switch,
   ActivityIndicator,
   TouchableOpacity,
 } from 'react-native';
@@ -14,6 +13,7 @@ import { useTheme } from '../context/ThemeContext';
 import { getEngineSettingsMeta, getEngineSettingsRoute } from '../config/engineSettings';
 import { theme } from '../constants/theme';
 import { GradientBg } from '../services/adapters/GradientBgAdapter';
+import { AppSwitch } from '../services/adapters/SwitchAdapter';
 import { getThemeAwareColor } from '../utils/ColorUtils';
 import { llamaManager } from '../utils/LlamaManager';
 import { modelSettingsService, ModelSettings, ModelSettingsConfig } from '../services/ModelSettingsService';
@@ -306,18 +306,9 @@ export default function ModelSettingsScreen() {
                 </Text>
               </View>
             </View>
-            <Switch
+            <AppSwitch
               value={modelSettingsConfig.useGlobalSettings}
               onValueChange={handleToggleUseGlobal}
-              trackColor={{
-                false: themeColors.secondaryText + '40',
-                true: getThemeAwareColor('#4a0660', currentTheme) + '80'
-              }}
-              thumbColor={
-                modelSettingsConfig.useGlobalSettings
-                  ? getThemeAwareColor('#4a0660', currentTheme)
-                  : themeColors.secondaryText
-              }
             />
           </View>
         </View>

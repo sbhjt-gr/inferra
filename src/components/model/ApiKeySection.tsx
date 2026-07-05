@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Switch } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { AppSwitch } from '../../services/adapters/SwitchAdapter';
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../constants/theme';
 import { onlineModelService } from '../../services/OnlineModelService';
@@ -414,10 +415,9 @@ const ApiKeySection: React.FC = () => {
               {item.defaultKeyAvailable && !item.isClone && (
                 <View style={styles.toggleContainer}>
                   <Text style={[styles.toggleLabel, { color: themeColors.text }]}>Use your own API key</Text>
-                  <Switch
+                  <AppSwitch
                     value={item.useCustomKey}
                     onValueChange={() => toggleUseCustomKey(item.id)}
-                    trackColor={{ false: '#767577', true: themeColors.primary }}
                     disabled={saving === item.id}
                   />
                 </View>

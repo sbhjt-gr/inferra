@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { StyleSheet, View, TouchableOpacity, Platform, Modal, ScrollView, Switch } from 'react-native';
+import { StyleSheet, View, TouchableOpacity, Platform, Modal, ScrollView } from 'react-native';
+import { AppSwitch } from '../../services/adapters/SwitchAdapter';
 import { Text } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
@@ -107,15 +108,13 @@ const RuntimeSection: React.FC<RuntimeProps> = ({
             <Text style={[styles.requirementText, { color: currentTheme === 'dark' ? '#FF9494' : '#d32f2f' }]}>Requires iOS 26+</Text>
           )}
         </View>
-        <Switch
+        <AppSwitch
           value={Boolean(enabled[engine.id])}
           onValueChange={(value) => {
             if (isDisabled) return;
             onToggle(engine.id, value);
           }}
           disabled={isDisabled}
-          trackColor={{ false: themeColors.borderColor, true: themeColors.primary + '80' }}
-          thumbColor={enabled[engine.id] ? themeColors.primary : themeColors.background}
         />
       </View>
     );

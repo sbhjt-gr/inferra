@@ -1,5 +1,6 @@
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View, Switch } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { AppSwitch } from '../../services/adapters/SwitchAdapter';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../constants/theme';
@@ -90,11 +91,9 @@ const ModelSettingsCore = ({
               </Text>
             </View>
           </View>
-          <Switch
+          <AppSwitch
             value={enableRemoteModels}
             onValueChange={onToggleRemoteModels}
-            trackColor={{ false: themeColors.borderColor, true: themeColors.primary + '80' }}
-            thumbColor={enableRemoteModels ? themeColors.primary : themeColors.background}
           />
         </View>
       )}
@@ -118,11 +117,9 @@ const ModelSettingsCore = ({
               </Text>
             </View>
           </View>
-          <Switch
+          <AppSwitch
             value={Boolean(appleFoundationEnabled)}
             onValueChange={onToggleAppleFoundation}
-            trackColor={{ false: themeColors.borderColor, true: themeColors.primary + '80' }}
-            thumbColor={appleFoundationEnabled ? themeColors.primary : themeColors.background}
           />
         </View>
       )}

@@ -10,8 +10,8 @@ import {
   Dimensions,
   SafeAreaView,
   ActivityIndicator,
-  Switch,
 } from 'react-native';
+import { AppSwitch } from '../services/adapters/SwitchAdapter';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Button, Text } from 'react-native-paper';
 import { useTheme } from '../context/ThemeContext';
@@ -186,11 +186,9 @@ export default function ImageViewerModal({
                 </View>
                 <Text style={[styles.ragDescription, { color: isDark ? '#bbbbbb' : '#666666' }]}>Store this file for smarter answers in this chat.</Text>
               </View>
-              <Switch
+              <AppSwitch
                 value={useRag}
                 onValueChange={onToggleRag}
-                trackColor={{ false: isDark ? '#444444' : '#dddddd', true: '#66088080' }}
-                thumbColor={useRag ? '#660880' : isDark ? '#222222' : '#f2f2f2'}
                 disabled={ragToggleDisabled}
               />
             </View>
