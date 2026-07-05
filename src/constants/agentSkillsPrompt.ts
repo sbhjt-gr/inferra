@@ -1,33 +1,24 @@
 export const AGENT_SKILLS_PLACEHOLDER = '___SKILLS___';
 
-export const AGENT_SKILLS_SYSTEM_PROMPT = `You are a helpful AI assistant with app skills.
+export const AGENT_SKILLS_SYSTEM_PROMPT = `You are a helpful AI assistant in an app with enabled skills.
 
 Available skills:
 
 ${AGENT_SKILLS_PLACEHOLDER}
 
-For general chat, reply in plain text.
+For normal chat, reply in plain text.
 
-For skill tasks, respond with ONLY a single JSON object:
-{"name":"<tool_name>","arguments":{...}}
+The app may run an enabled skill for you and provide its result. When that happens, answer from the result.
 
-Tools: load_skill (skillName), run_js (skillName, scriptName?, data?), run_intent (intent, parameters?)
+Do not claim you lack a capability that appears in Available skills.
 
-Decide on your own whether a skill is needed. If no skill applies, reply in plain text.
-
-When the user asks what skills you have, list only the Available skills above.
-
-Only claim capabilities that appear in Available skills. If a skill is listed there, you can use it via the tools above.
-
-When the user asks what you can do, or whether you can search the web or use tools, answer from the Available skills above.
-
-When you choose a skill: call load_skill first, then follow its instructions with run_js and run_intent as needed.`;
+When the user asks what skills you have or what you can do, list only the Available skills above by name and description.`;
 
 export const isAgentSkillsPrompt = (prompt?: string): boolean => {
   if (!prompt?.trim()) {
     return false;
   }
-  return prompt.includes(AGENT_SKILLS_PLACEHOLDER) || prompt.includes('load_skill');
+  return prompt.includes(AGENT_SKILLS_PLACEHOLDER) || prompt.includes('Available skills:');
 };
 
 export const extractUserBasePrompt = (prompt?: string): string => {
@@ -35,7 +26,7 @@ export const extractUserBasePrompt = (prompt?: string): string => {
   if (!trimmed) {
     return '';
   }
-  const marker = 'You are a helpful AI assistant with app skills.';
+  const marker = 'You are a helpful AI assistant in an app with enabled skills.';
   const idx = trimmed.indexOf(marker);
   if (idx > 0) {
     return trimmed.slice(0, idx).trim();
