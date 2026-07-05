@@ -255,7 +255,7 @@ class SkillManager {
       scriptHtml: payload.scriptHtml?.trim() || undefined,
       source,
       sourceUrl,
-      enabled: true,
+      enabled: false,
       metadata: payload.metadata,
       secret: payload.secret,
       handler: payload.handler,
@@ -330,12 +330,12 @@ class SkillManager {
 
     const builtins = builtinSkills.map(skill => ({
       ...skill,
-      enabled: enabledMap[skill.id] ?? skill.enabled,
+      enabled: enabledMap[skill.id] === true,
     }));
 
     const custom = customSkills.map(skill => ({
       ...skill,
-      enabled: enabledMap[skill.id] ?? skill.enabled,
+      enabled: enabledMap[skill.id] === true,
     }));
 
     return [...builtins, ...custom];
@@ -426,7 +426,7 @@ class SkillManager {
     await this.saveCustomSkills(customSkills);
 
     const enabledMap = await this.getEnabledMap();
-    enabledMap[skill.id] = true;
+    enabledMap[skill.id] = false;
     await this.saveEnabledMap(enabledMap);
     await this.syncTools();
     return skill;
@@ -454,7 +454,7 @@ class SkillManager {
     await this.saveCustomSkills(customSkills);
 
     const enabledMap = await this.getEnabledMap();
-    enabledMap[skill.id] = true;
+    enabledMap[skill.id] = false;
     await this.saveEnabledMap(enabledMap);
     await this.syncTools();
     return skill;

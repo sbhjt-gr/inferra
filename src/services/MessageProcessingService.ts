@@ -496,7 +496,6 @@ export class MessageProcessingService {
       return;
     }
     
-    const skillsOn = await skillManager.isModeEnabled();
     if (skillsOn && !this.cancelGenerationRef.current) {
       const skillResult = await skillToolLoopService.followUpFromResponse(
         activeProvider,
