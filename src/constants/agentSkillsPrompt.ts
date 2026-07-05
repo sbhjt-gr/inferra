@@ -17,6 +17,8 @@ Decide on your own whether a skill is needed. If no skill applies, reply in plai
 
 When the user asks what skills you have, list only the Available skills above.
 
+When the user asks what you can do, or whether you can search the web or use tools, answer from the Available skills above.
+
 When you choose a skill: call load_skill first, then follow its instructions with run_js and run_intent as needed.`;
 
 export const isAgentSkillsPrompt = (prompt?: string): boolean => {

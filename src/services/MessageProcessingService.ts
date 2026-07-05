@@ -970,7 +970,7 @@ export class MessageProcessingService {
       let genMessages = baseMessages;
       const skillsOn = await skillManager.isModeEnabled();
 
-      if (userTurns > 1 && isAgentSkillsPrompt(settings.systemPrompt)) {
+      if (userTurns > 1 && isAgentSkillsPrompt(settings.systemPrompt) && !skillsOn) {
         const chatPrompt = await skillManager.buildConversationalSystemPrompt();
         genSettings = {
           ...settings,
