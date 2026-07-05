@@ -72,6 +72,8 @@ export type GenOpts = {
   tools?: any[];
   /** Keep loaded model; only reset conversation (LiteRT summarize / follow-up). */
   reuseSession?: boolean;
+  /** Compact enabled-skills header for LiteRT multi-turn prompts. */
+  skillHeader?: string;
 };
 
 export interface InferenceManager {

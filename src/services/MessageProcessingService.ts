@@ -13,6 +13,8 @@ import { skillActivityAdapter } from './adapters/SkillActivityAdapter';
 import { skillToolLoopService } from './SkillToolLoopService';
 import { skillManager } from './SkillManager';
 import { isAgentSkillsPrompt, extractUserBasePrompt } from '../constants/agentSkillsPrompt';
+import { skillsFlowService } from './SkillsFlowService';
+import { buildCatalogAnswer, isCapabilityQuestion, skillContextService } from './SkillContextService';
 
 export interface MessageProcessingCallbacks {
   setMessages: (messages: ChatMessage[]) => void;
@@ -455,6 +457,26 @@ export class MessageProcessingService {
       }
     }
 
+    const lastUserText = this.getLastUserText(baseMessages);
+    const skillsOn = await skillManager.isModeEnabled();
+    if (skillsOn && isCapabilityQuestion(lastUserText)) {
+      const catalog = await skillContextService.getCatalog();
+      fullResponse = buildCatalogAnswer(lastUserText, catalog);
+      this.callbacks.setStreamingMessage(fullResponse);
+      console.log('online_skills_catalog', { len: fullResponse.length });
+      await chatManager.updateMessageContent(
+        messageId,
+        fullResponse,
+        thinking.trim(),
+        {
+          duration: (Date.now() - startTime) / 1000,
+          tokens: Math.max(1, Math.ceil(fullResponse.length / 4)),
+          firstTokenTime: firstTokenTime || undefined,
+        },
+      );
+      return;
+    }
+
     try {
       console.log('msgproc_send_plain', { provider: activeProvider, msgCount: messageParams.length });
       await onlineModelService.sendMessage(activeProvider, messageParams, apiParams, legacyStreamCallback);
@@ -652,123 +674,162 @@ export class MessageProcessingService {
     }
 
     if (!usedRAG) {
-      try {
-        const stream = appleFoundationService.streamResponse(
-          baseMessages.map(msg => ({ role: msg.role, content: msg.content })),
+      const lastUserText = this.getLastUserText(baseMessages);
+      const appleGen = async (
+        prompt: string,
+        extra?: { reuseSession?: boolean; onToken?: (token: string) => boolean | void },
+      ) => {
+        const out = await appleFoundationService.generateResponse(
+          [{ role: 'user', content: prompt }],
           {
             temperature: settings.temperature,
-            maxTokens: settings.maxTokens,
+            maxTokens: extra?.onToken
+              ? Math.min(settings.maxTokens || 1024, 1024)
+              : Math.min(settings.maxTokens || 256, 256),
             topP: settings.topP,
-            topK: settings.topK,
-          }
-        );
-
-        for await (const chunk of stream) {
-          if (this.cancelGenerationRef.current) {
-            appleFoundationService.cancel();
-            break;
-          }
-
-          if (firstTokenTime === null && chunk.trim().length > 0) {
-            firstTokenTime = Date.now() - startTime;
-          }
-
-          fullResponse += chunk;
-          const wordCount = fullResponse.trim().split(/\s+/).filter(word => word.length > 0).length;
-          tokenCount = Math.max(1, Math.ceil(wordCount * 1.33));
-
-          const duration = (Date.now() - startTime) / 1000;
-          let avgTokenTime = undefined;
-
-          if (firstTokenTime !== null && tokenCount > 0) {
-            const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
-            avgTokenTime = timeAfterFirstToken / tokenCount;
-          }
-
-          this.callbacks.setStreamingMessage(fullResponse);
-          this.callbacks.setStreamingStats({
-            tokens: tokenCount,
-            duration,
-            firstTokenTime: firstTokenTime || undefined,
-            avgTokenTime: avgTokenTime && avgTokenTime > 0 ? avgTokenTime : undefined,
-          });
-
-          updateCounter++;
-          if (
-            updateCounter % 10 === 0 ||
-            fullResponse.endsWith('.') ||
-            fullResponse.endsWith('!') ||
-            fullResponse.endsWith('?')
-          ) {
-            let debouncedAvgTokenTime = undefined;
-            if (firstTokenTime !== null && tokenCount > 0) {
-              const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
-              debouncedAvgTokenTime = timeAfterFirstToken / tokenCount;
-            }
-
-            this.callbacks.updateMessageContentDebounced(
-              messageId,
-              fullResponse,
-              '',
-              {
-                duration,
-                tokens: tokenCount,
-                firstTokenTime: firstTokenTime || undefined,
-                avgTokenTime: debouncedAvgTokenTime && debouncedAvgTokenTime > 0 ? debouncedAvgTokenTime : undefined,
-              }
-            );
-          }
-        }
-      } catch (error) {
-        appleFoundationService.cancel();
-        const message = error instanceof Error ? error.message : String(error);
-        console.log('apple_intelligence_error', message);
-        const normalized = message.toLowerCase();
-        let displayMessage = 'Apple Intelligence not available on this device.';
-        if (normalized.includes('disabled')) {
-          displayMessage = 'Apple Intelligence is disabled. Enable it in Settings to continue.';
-        } else if (normalized.includes('locale') || normalized.includes('language')) {
-          displayMessage = 'Apple Intelligence language/locale not supported. Try using English locale.';
-        } else if (!normalized.includes('not available')) {
-          displayMessage = 'Apple Intelligence encountered an error. Please try again.';
-        }
-        await chatManager.updateMessageContent(
-          messageId,
-          displayMessage,
-          '',
-          { duration: 0, tokens: 0 }
-        );
-        return;
-      }
-
-      const skillsOn = await skillManager.isModeEnabled();
-      if (skillsOn && !this.cancelGenerationRef.current) {
-        const skillResult = await skillToolLoopService.followUpFromResponse(
-          'apple-foundation',
-          baseMessages,
-          fullResponse,
-          {
-            settings,
-            shouldCancel: () => this.cancelGenerationRef.current,
-            onToolRound: () => {
-              fullResponse = '';
-              this.callbacks.setStreamingMessage('');
-            },
-            onToken: (token: string) => {
-              if (this.cancelGenerationRef.current) {
-                return false;
-              }
-              if (firstTokenTime === null && token.trim().length > 0) {
-                firstTokenTime = Date.now() - startTime;
-              }
-              fullResponse += token;
-              this.callbacks.setStreamingMessage(fullResponse);
-              return true;
-            },
           },
         );
-        if (skillResult) {
-          fullResponse = skillResult;
+        if (extra?.onToken) {
+          extra.onToken(out);
+        }
+        return out;
+      };
+
+      const flow = await skillsFlowService.run({
+        userText: lastUserText,
+        settings,
+        onToken: streamCallback,
+        genText: appleGen,
+      });
+
+      let flowHandled = false;
+      if (flow.handled && flow.text && !this.cancelGenerationRef.current) {
+        fullResponse = flow.text;
+        tokenCount = Math.max(1, Math.ceil(fullResponse.length / 4));
+        this.callbacks.setStreamingMessage(fullResponse);
+        flowHandled = true;
+        console.log('apple_skills_flow', { len: fullResponse.length });
+      }
+
+      if (!flowHandled) {
+        try {
+          const stream = appleFoundationService.streamResponse(
+            baseMessages.map(msg => ({ role: msg.role, content: msg.content })),
+            {
+              temperature: settings.temperature,
+              maxTokens: settings.maxTokens,
+              topP: settings.topP,
+              topK: settings.topK,
+            }
+          );
+
+          for await (const chunk of stream) {
+            if (this.cancelGenerationRef.current) {
+              appleFoundationService.cancel();
+              break;
+            }
+
+            if (firstTokenTime === null && chunk.trim().length > 0) {
+              firstTokenTime = Date.now() - startTime;
+            }
+
+            fullResponse += chunk;
+            const wordCount = fullResponse.trim().split(/\s+/).filter(word => word.length > 0).length;
+            tokenCount = Math.max(1, Math.ceil(wordCount * 1.33));
+
+            const duration = (Date.now() - startTime) / 1000;
+            let avgTokenTime = undefined;
+
+            if (firstTokenTime !== null && tokenCount > 0) {
+              const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
+              avgTokenTime = timeAfterFirstToken / tokenCount;
+            }
+
+            this.callbacks.setStreamingMessage(fullResponse);
+            this.callbacks.setStreamingStats({
+              tokens: tokenCount,
+              duration,
+              firstTokenTime: firstTokenTime || undefined,
+              avgTokenTime: avgTokenTime && avgTokenTime > 0 ? avgTokenTime : undefined,
+            });
+
+            updateCounter++;
+            if (
+              updateCounter % 10 === 0 ||
+              fullResponse.endsWith('.') ||
+              fullResponse.endsWith('!') ||
+              fullResponse.endsWith('?')
+            ) {
+              let debouncedAvgTokenTime = undefined;
+              if (firstTokenTime !== null && tokenCount > 0) {
+                const timeAfterFirstToken = Date.now() - (startTime + firstTokenTime);
+                debouncedAvgTokenTime = timeAfterFirstToken / tokenCount;
+              }
+
+              this.callbacks.updateMessageContentDebounced(
+                messageId,
+                fullResponse,
+                '',
+                {
+                  duration,
+                  tokens: tokenCount,
+                  firstTokenTime: firstTokenTime || undefined,
+                  avgTokenTime: debouncedAvgTokenTime && debouncedAvgTokenTime > 0 ? debouncedAvgTokenTime : undefined,
+                }
+              );
+            }
+          }
+        } catch (error) {
+          appleFoundationService.cancel();
+          const message = error instanceof Error ? error.message : String(error);
+          console.log('apple_intelligence_error', message);
+          const normalized = message.toLowerCase();
+          let displayMessage = 'Apple Intelligence not available on this device.';
+          if (normalized.includes('disabled')) {
+            displayMessage = 'Apple Intelligence is disabled. Enable it in Settings to continue.';
+          } else if (normalized.includes('locale') || normalized.includes('language')) {
+            displayMessage = 'Apple Intelligence language/locale not supported. Try using English locale.';
+          } else if (!normalized.includes('not available')) {
+            displayMessage = 'Apple Intelligence encountered an error. Please try again.';
+          }
+          await chatManager.updateMessageContent(
+            messageId,
+            displayMessage,
+            '',
+            { duration: 0, tokens: 0 }
+          );
+          return;
+        }
+
+        const skillsOn = await skillManager.isModeEnabled();
+        if (skillsOn && !this.cancelGenerationRef.current && fullResponse) {
+          const skillResult = await skillToolLoopService.followUpFromResponse(
+            'apple-foundation',
+            baseMessages,
+            fullResponse,
+            {
+              settings,
+              shouldCancel: () => this.cancelGenerationRef.current,
+              onToolRound: () => {
+                fullResponse = '';
+                this.callbacks.setStreamingMessage('');
+              },
+              onToken: (token: string) => {
+                if (this.cancelGenerationRef.current) {
+                  return false;
+                }
+                if (firstTokenTime === null && token.trim().length > 0) {
+                  firstTokenTime = Date.now() - startTime;
+                }
+                fullResponse += token;
+                this.callbacks.setStreamingMessage(fullResponse);
+                return true;
+              },
+            },
+          );
+          if (skillResult) {
+            fullResponse = skillResult;
+          }
         }
       }
     }
@@ -970,61 +1031,102 @@ export class MessageProcessingService {
       let genSettings = settings;
       let genMessages = baseMessages;
       const skillsOn = await skillManager.isModeEnabled();
+      const lastUserText = this.getLastUserText(baseMessages);
 
-      if (userTurns > 1 && isAgentSkillsPrompt(settings.systemPrompt) && !skillsOn) {
-        const chatPrompt = await skillManager.buildConversationalSystemPrompt();
-        genSettings = {
-          ...settings,
-          systemPrompt: chatPrompt,
-          maxTokens: Math.min(settings.maxTokens || 1024, 1024),
-        };
-        genMessages = baseMessages.map((msg, index) => {
-          if (index === 0 && msg.role === 'system') {
-            return { role: 'system', content: chatPrompt };
-          }
-          return msg;
-        });
-        console.log('local_chat_prompt', { userTurns, skillsOn });
-      }
-
-      console.log('local_gen_direct', { baseMessageCount: genMessages.length, userTurns });
-      try {
-        await engineService.mgr().gen(
-          genMessages as any,
+      const localGen = async (
+        prompt: string,
+        extra?: { reuseSession?: boolean; onToken?: (token: string) => boolean | void },
+      ) => {
+        return engineService.mgr().gen(
+          [{ role: 'user', content: prompt }] as any,
           {
-            onToken: streamCallback,
-            settings: genSettings,
+            onToken: extra?.onToken,
+            reuseSession: extra?.reuseSession,
+            settings: {
+              ...genSettings,
+              systemPrompt: extra?.reuseSession ? genSettings.systemPrompt : '',
+              maxTokens: extra?.reuseSession
+                ? Math.min(genSettings.maxTokens || 1024, 1024)
+                : Math.min(genSettings.maxTokens || 256, 256),
+              temperature: extra?.reuseSession ? genSettings.temperature : 0.2,
+            },
           },
         );
-      } catch (error) {
-        console.log('local_gen_fail', error instanceof Error ? error.message : 'unknown');
-        if (engineService.get() === 'litert') {
+      };
+
+      let skillHeader: string | undefined;
+      if (skillsOn && lastUserText) {
+        const flow = await skillsFlowService.run({
+          userText: lastUserText,
+          settings: genSettings,
+          onToken: streamCallback,
+          genText: localGen,
+        });
+        skillHeader = flow.skillHeader;
+        if (flow.handled && flow.text && !this.cancelGenerationRef.current) {
+          fullResponse = flow.text;
+          tokenCount = Math.max(1, Math.ceil(fullResponse.length / 4));
+          this.callbacks.setStreamingMessage(fullResponse);
+          console.log('skills_flow_handled', { len: fullResponse.length });
+        } else if (!flow.handled) {
+          if (userTurns > 1 && isAgentSkillsPrompt(settings.systemPrompt) && !skillsOn) {
+            const chatPrompt = await skillManager.buildConversationalSystemPrompt();
+            genSettings = {
+              ...settings,
+              systemPrompt: chatPrompt,
+              maxTokens: Math.min(settings.maxTokens || 1024, 1024),
+            };
+            genMessages = baseMessages.map((msg, index) => {
+              if (index === 0 && msg.role === 'system') {
+                return { role: 'system', content: chatPrompt };
+              }
+              return msg;
+            });
+            console.log('local_chat_prompt', { userTurns, skillsOn });
+          }
+
+          console.log('local_gen_direct', { baseMessageCount: genMessages.length, userTurns, skillHeader: !!skillHeader });
           try {
-            await litertManager.recoverInvoke();
-          } catch {
-            console.log('local_gen_recover_fail');
+            await engineService.mgr().gen(
+              genMessages as any,
+              {
+                onToken: streamCallback,
+                settings: genSettings,
+                skillHeader,
+              },
+            );
+          } catch (error) {
+            console.log('local_gen_fail', error instanceof Error ? error.message : 'unknown');
+            if (engineService.get() === 'litert') {
+              try {
+                await litertManager.recoverInvoke();
+              } catch {
+                console.log('local_gen_recover_fail');
+              }
+            }
+            throw error;
           }
         }
-        throw error;
-      }
-
-      if (skillsOn && !this.cancelGenerationRef.current) {
-        const skillResult = await skillToolLoopService.followUpFromResponse(
-          'local',
-          genMessages,
-          fullResponse,
-          {
-            settings: genSettings,
-            shouldCancel: () => this.cancelGenerationRef.current,
-            onToolRound: () => {
-              fullResponse = '';
-              this.callbacks.setStreamingMessage('');
+      } else {
+        console.log('local_gen_direct', { baseMessageCount: genMessages.length, userTurns });
+        try {
+          await engineService.mgr().gen(
+            genMessages as any,
+            {
+              onToken: streamCallback,
+              settings: genSettings,
             },
-            onToken: streamCallback,
-          },
-        );
-        if (skillResult) {
-          fullResponse = skillResult;
+          );
+        } catch (error) {
+          console.log('local_gen_fail', error instanceof Error ? error.message : 'unknown');
+          if (engineService.get() === 'litert') {
+            try {
+              await litertManager.recoverInvoke();
+            } catch {
+              console.log('local_gen_recover_fail');
+            }
+          }
+          throw error;
         }
       }
     }

@@ -74,8 +74,10 @@ class LiteRTManager implements InferenceManager {
     this.stopRequested = false;
   }
 
-  async recoverInvoke(): Promise<void> {
-    await this.genQueue;
+  async recoverInvoke(force = false): Promise<void> {
+    if (!force) {
+      await this.genQueue;
+    }
     if (!this.modelPath || !this.lastConfig) {
       console.log('litert_recover_skip');
       return;
@@ -97,7 +99,7 @@ class LiteRTManager implements InferenceManager {
       return;
     }
     console.log('litert_prefill_recover');
-    await this.resetSession();
+    await this.resetSession(true);
   }
 
   private normalizePath(path: string): string {
@@ -476,6 +478,13 @@ class LiteRTManager implements InferenceManager {
     return prompt;
   }
 
+  private applySkillHeader(prompt: string, skillHeader?: string): string {
+    if (!skillHeader?.trim()) {
+      return prompt;
+    }
+    return `${skillHeader.trim()}\n\n${prompt}`;
+  }
+
   private countUserTurns(messages: Msg[]): number {
     return messages.filter(message => message.role === 'user').length;
   }
@@ -516,7 +525,7 @@ class LiteRTManager implements InferenceManager {
       const singleTurn = this.countUserTurns(messages) > 1;
       if (singleTurn) {
         console.log('litert_single_retry');
-        await this.resetSession();
+        await this.resetSession(true);
         try {
           return await this.runGenOnce(messages, opts, true);
         } catch (retryError) {
@@ -527,7 +536,7 @@ class LiteRTManager implements InferenceManager {
         }
       }
       console.log('litert_reload_retry');
-      await this.recoverInvoke();
+      await this.recoverInvoke(true);
       return this.runGenOnce(messages, opts, singleTurn);
     }
   }
@@ -565,8 +574,10 @@ class LiteRTManager implements InferenceManager {
       } catch (error) {
         console.log('litert_multi_reset_fail', error instanceof Error ? error.message : 'unknown');
       }
-      prompt = historyPrompt;
-      console.log('litert_multi_prompt', { userTurns, len: prompt.length });
+      prompt = this.applySkillHeader(historyPrompt, opts?.skillHeader);
+      console.log('litert_multi_prompt', { userTurns, len: prompt.length, skills: !!opts?.skillHeader });
+    } else if (opts?.skillHeader && userTurns === 1) {
+      prompt = this.applySkillHeader(prompt, opts.skillHeader);
     }
 
     const onToken = opts?.onToken;
