@@ -2,6 +2,7 @@ import { generateRandomId } from '../utils/homeScreenUtils';
 import type { SkillCatalogEntry } from './SkillContextService';
 import { buildCompactCatalog } from './SkillContextService';
 import { skillActivityAdapter } from './adapters/SkillActivityAdapter';
+import { hasJsRuntime } from './SkillScriptResolver';
 import { toolExecutor } from './tools/ToolExecutor';
 import { toolRegistry, type ToolCall } from './tools/ToolRegistry';
 import { skillManager } from './SkillManager';
@@ -130,7 +131,7 @@ class SkillPlannerService {
     const runId = skillActivityAdapter.start(`Running ${skill.name}`, payload);
     let toolOut = '';
     try {
-      if (skill.type === 'js' && skill.scriptHtml) {
+      if (skill.type === 'js' && hasJsRuntime(skill)) {
         const run = await toolExecutor.execute(toToolCall('run_js', {
           skillName: skill.name,
           scriptName: plan.scriptName || skill.metadata?.scriptName || 'index',

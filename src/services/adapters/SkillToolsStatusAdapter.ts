@@ -1,4 +1,5 @@
 import type { Skill } from '../../types/skill';
+import { hasJsRuntime } from '../SkillScriptResolver';
 import { skillManager } from '../SkillManager';
 import { toolRegistry } from '../tools/ToolRegistry';
 
@@ -84,7 +85,7 @@ export const getSkillMissingTools = async (
   const missing: string[] = [];
   const needs = SKILL_TOOL_MAP[skill.id] || inferNeeds(skill);
 
-  if (skill.type === 'js' && !skill.scriptHtml) {
+  if (skill.type === 'js' && !hasJsRuntime(skill)) {
     missing.push('script');
   }
 

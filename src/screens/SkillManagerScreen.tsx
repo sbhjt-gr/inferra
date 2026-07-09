@@ -269,6 +269,19 @@ export default function SkillManagerScreen() {
     }
   };
 
+  const handleImportZip = async () => {
+    setShowAdd(false);
+    try {
+      setBusyId('import-zip');
+      await skillManager.importFromZip();
+      await loadSkills();
+    } catch (error) {
+      Alert.alert('Import failed', error instanceof Error ? error.message : 'Could not import skill zip');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const confirmDelete = async () => {
     try {
       setBusyId('delete');
@@ -476,6 +489,12 @@ export default function SkillManagerScreen() {
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.addRow, { backgroundColor: themeColors.cardBackground }]}
+          onPress={handleImportZip}
+        >
+          <Text style={[styles.addTitle, { color: themeColors.text }]}>From zip</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.addRow, { backgroundColor: themeColors.cardBackground }]}
           onPress={handleImportFile}
         >
           <Text style={[styles.addTitle, { color: themeColors.text }]}>From file</Text>
@@ -497,7 +516,7 @@ export default function SkillManagerScreen() {
         visible={showUrl}
         onClose={() => setShowUrl(false)}
         title="Import from URL"
-        description="Skill file URL"
+        description="Skill folder URL"
         dismissOnBackdropPress
         primaryButtonText="Import"
         primaryButtonLoading={busyId === 'import-url'}
@@ -508,7 +527,7 @@ export default function SkillManagerScreen() {
         <TextInput
           value={importUrl}
           onChangeText={setImportUrl}
-          placeholder="https://example.com/skill.json"
+          placeholder="https://example.com/my-skill"
           placeholderTextColor={themeColors.secondaryText}
           autoCapitalize="none"
           style={[
