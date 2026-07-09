@@ -12,7 +12,7 @@ The app may run an enabled skill for you and provide its result. When that happe
 
 Do not claim you lack a capability that appears in Available skills.
 
-When the user asks what skills you have or what you can do, list only the Available skills above by name and description.`;
+When the user asks what skills you have or what you can do, answer in natural language grounded in the Available skills above plus any always-available tools mentioned in this prompt. Do not invent skills that are not listed.`;
 
 export const isAgentSkillsPrompt = (prompt?: string): boolean => {
   if (!prompt?.trim()) {
@@ -35,4 +35,12 @@ export const extractUserBasePrompt = (prompt?: string): string => {
     return '';
   }
   return trimmed;
+};
+
+export const isCapabilityQuestion = (text: string): boolean => {
+  const normalized = text.trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+  return /\b(what can you do|what skills|what tools|your capabilities|what are you able|list your skills)\b/.test(normalized);
 };

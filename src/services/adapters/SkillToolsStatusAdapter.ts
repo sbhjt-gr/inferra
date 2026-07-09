@@ -37,7 +37,6 @@ const SKILL_TOOL_MAP: Record<string, string[]> = {
   'text-spinner': ['run_js'],
   'tip-split': ['run_js'],
   'unit-convert': ['run_js'],
-  'web-search': ['run_js'],
   'virtual-piano': ['run_js'],
   'restaurant-roulette': ['run_js'],
   'mood-music': ['run_js'],

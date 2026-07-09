@@ -31,6 +31,7 @@ import SkillRuntimeHost from './src/components/skills/SkillRuntimeHost';
 import { updateService } from './src/services/UpdateService';
 import { StatusBarHost } from './src/services/adapters/StatusBarAdapter';
 import { skillManager } from './src/services/SkillManager';
+import { registerWebSearch } from './src/services/tools/WebSearchTool';
 import { initReminderNotifications } from './src/services/adapters/ReminderNotificationAdapter';
 
 SplashScreen.preventAutoHideAsync();
@@ -55,6 +56,7 @@ const initializeServices = async () => {
   initClaudeService();
 
   try {
+    registerWebSearch();
     await skillManager.syncTools();
   } catch {
   }

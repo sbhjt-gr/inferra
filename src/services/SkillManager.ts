@@ -120,11 +120,6 @@ const BUILTIN_SKILL_ASSETS: BuiltinSkillAsset[] = [
     html: require('../../assets/skills/unit-convert/scripts/index.html'),
   },
   {
-    id: 'web-search',
-    markdown: require('../../assets/skills/web-search/SKILL.md'),
-    html: require('../../assets/skills/web-search/scripts/index.html'),
-  },
-  {
     id: 'virtual-piano',
     markdown: require('../../assets/skills/virtual-piano/SKILL.md'),
     html: require('../../assets/skills/virtual-piano/scripts/index.html'),
