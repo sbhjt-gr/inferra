@@ -35,6 +35,8 @@ export type Skill = {
   type: SkillType;
   instructions: string;
   scriptHtml?: string;
+  baseUrl?: string;
+  packageDir?: string;
   source: SkillSource;
   sourceUrl?: string;
   enabled: boolean;
