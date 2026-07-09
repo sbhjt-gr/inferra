@@ -67,6 +67,7 @@
     "expo-task-manager": "~56.0.19",
     "expo-updates": "~56.0.19",
     "expo-web-browser": "~56.0.5",
+    "fflate": "^0.8.3",
     "inferrlm-pdf-image": "file:./modules/pdf-image",
     "jest-expo": "~56.0.5",
     "llama.rn": "^0.12.5",
