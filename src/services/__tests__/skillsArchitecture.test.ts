@@ -1,42 +1,48 @@
+jest.mock('../SkillManager', () => ({
+  skillManager: {
+    getEnabled: jest.fn().mockResolvedValue([]),
+    getSkill: jest.fn(),
+  },
+}));
+
 import {
-  buildCatalogAnswer,
   buildCapabilityHeader,
-  isCapabilityQuestion,
-  skillMatchesQuestion,
+  buildCompactCatalog,
   type SkillCatalogEntry,
 } from '../SkillContextService';
 import { parsePlan } from '../SkillPlannerService';
+import { isCapabilityQuestion } from '../../constants/agentSkillsPrompt';
 
 const sample: SkillCatalogEntry[] = [
-  { id: 'web-search', name: 'Web Search', description: 'Search the web for current information.' },
   { id: 'qr-code', name: 'QR Code', description: 'Generates a QR code for the given url.' },
   { id: 'tip-split', name: 'Tip Split', description: 'Calculate tip and per-person bill split.' },
+  { id: 'send-email', name: 'Send Email', description: 'Send an email.' },
 ];
 
 describe('skillContext', () => {
-  it('detects capability questions', () => {
-    expect(isCapabilityQuestion('What skills do you have?')).toBe(true);
-    expect(isCapabilityQuestion('Can you search the web?')).toBe(true);
-    expect(isCapabilityQuestion('Hello there')).toBe(false);
+  it('builds compact catalog for planner prompts', () => {
+    const text = buildCompactCatalog(sample);
+    expect(text).toContain('qr-code: QR Code');
+    expect(text).toContain('tip-split: Tip Split');
   });
 
-  it('builds catalog answers from enabled skills only', () => {
-    const text = buildCatalogAnswer('What skills do you have?', sample);
-    expect(text).toContain('Web Search');
-    expect(text).toContain('QR Code');
-    expect(text).not.toContain('disabled skill');
-  });
-
-  it('matches question terms to enabled skills', () => {
-    expect(skillMatchesQuestion(sample[0], 'Can you search the web?')).toBe(true);
-    expect(skillMatchesQuestion(sample[1], 'generate a qr code')).toBe(true);
-    expect(skillMatchesQuestion(sample[2], 'search the web')).toBe(false);
-  });
-
-  it('builds capability header', () => {
+  it('builds capability header for explicit capability answers', () => {
     const header = buildCapabilityHeader(sample);
-    expect(header).toContain('Web Search');
-    expect(header).toContain('Prior denials');
+    expect(header).toContain('QR Code');
+    expect(header).toContain('Tip Split');
+    expect(header).not.toContain('Prior denials');
+  });
+});
+
+describe('capabilityQuestions', () => {
+  it('detects explicit capability asks', () => {
+    expect(isCapabilityQuestion('What can you do?')).toBe(true);
+    expect(isCapabilityQuestion('List your skills')).toBe(true);
+  });
+
+  it('skips greetings and normal chat', () => {
+    expect(isCapabilityQuestion('Hi')).toBe(false);
+    expect(isCapabilityQuestion('What is the latest Expo version?')).toBe(false);
   });
 });
 
@@ -44,9 +50,15 @@ describe('skillPlanner', () => {
   const catalog = sample;
 
   it('parses use_skill plan', () => {
-    const plan = parsePlan('{"action":"use_skill","skillId":"web-search","data":"{\\"query\\":\\"expo\\"}"}', catalog);
+    const plan = parsePlan('{"action":"use_skill","skillId":"qr-code","data":"{\\"url\\":\\"https://example.com\\"}"}', catalog);
     expect(plan.action).toBe('use_skill');
-    expect(plan.skillId).toBe('web-search');
+    expect(plan.skillId).toBe('qr-code');
+  });
+
+  it('parses web_search plan', () => {
+    const plan = parsePlan('{"action":"web_search","query":"latest expo sdk"}', catalog);
+    expect(plan.action).toBe('web_search');
+    expect(plan.query).toBe('latest expo sdk');
   });
 
   it('falls back to none for invalid skill', () => {
