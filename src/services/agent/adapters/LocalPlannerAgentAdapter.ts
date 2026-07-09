@@ -1,5 +1,4 @@
 import { engineService } from '../../runtime-service';
-import { toLitertTools } from '../../adapters/LitertToolsAdapter';
 import { generateRandomId } from '../../../utils/homeScreenUtils';
 import type {
   AgentGenerationSettings,
@@ -76,7 +75,7 @@ export class LocalPlannerAgentAdapter implements ModelAdapter {
   private async generateText(
     messages: AgentMessage[],
     settings: AgentGenerationSettings,
-    opts: { onToken?: (token: string) => boolean | void; tools?: ReturnType<typeof toLitertTools> },
+    opts: { onToken?: (token: string) => boolean | void },
   ): Promise<string> {
     const mapped = messages.map(entry => ({
       role: entry.role === 'tool' ? 'user' : entry.role,
@@ -90,7 +89,6 @@ export class LocalPlannerAgentAdapter implements ModelAdapter {
         ...settings,
         maxTokens: Math.min(settings.maxTokens || 1024, 1024),
       },
-      tools: opts.tools,
     });
   }
 
@@ -106,12 +104,23 @@ export class LocalPlannerAgentAdapter implements ModelAdapter {
     }
 
     const state = (providerState as LocalProviderState | null) || {};
-    const hasNativeTools = engineService.get() === 'litert' && catalog.functionSchemas.length > 0;
+    const engine = engineService.get();
+    const isLitert = engine === 'litert';
     const isToolContinuation = messages.some(
       entry => entry.role === 'user' && entry.content.startsWith('Tool result for '),
     );
 
-    if (!state.plannerAttempted) {
+    /*
+      LiteRT crashes when a separate planner turn hard-reloads the compiled model.
+      Skip planner/native tools and answer in one chat turn.
+    */
+    if (isLitert) {
+      console.log('local_litert_chat');
+      const response = await this.generateText(messages, settings, { onToken: opts.onToken });
+      return { kind: 'final', text: response.trim() };
+    }
+
+    if (!state.plannerAttempted && !isToolContinuation) {
       const userText = getLastUserText(messages);
       if (userText) {
         try {
@@ -130,29 +139,10 @@ export class LocalPlannerAgentAdapter implements ModelAdapter {
       state.plannerAttempted = true;
     }
 
-    // Native LiteRT tools reload the compiled model; only enable after a tool round.
-    const litertTools = hasNativeTools && isToolContinuation ? toLitertTools() : undefined;
-
-    let response = '';
-    try {
-      response = await this.generateText(messages, settings, {
-        onToken: opts.onToken,
-        tools: litertTools,
-      });
-    } catch (error) {
-      console.log('local_gen_tools_fail', error instanceof Error ? error.message : 'unknown');
-      if (litertTools) {
-        response = await this.generateText(messages, settings, { onToken: opts.onToken });
-      } else {
-        throw error;
-      }
-    }
-
-    if (hasNativeTools && litertTools) {
-      const toolCall = parsePlannerToolCall(response) || parsePlannerResponse(response);
-      if (toolCall && catalog.entries.some(entry => entry.name === toolCall.name)) {
-        return { kind: 'tool_calls', calls: [toolCall], providerState: state };
-      }
+    const response = await this.generateText(messages, settings, { onToken: opts.onToken });
+    const toolCall = parsePlannerToolCall(response) || parsePlannerResponse(response);
+    if (toolCall && catalog.entries.some(entry => entry.name === toolCall.name)) {
+      return { kind: 'tool_calls', calls: [toolCall], providerState: state };
     }
 
     return { kind: 'final', text: response.trim() };
@@ -166,12 +156,15 @@ export class LocalPlannerAgentAdapter implements ModelAdapter {
     if (!engineService.ready() || catalog.entries.length === 0) {
       return null;
     }
+    if (engineService.get() === 'litert') {
+      console.log('local_plan_skip_litert');
+      return null;
+    }
     const prompt = buildPlannerPrompt(buildCompactToolList(catalog), userText);
     try {
       const raw = await engineService.mgr().gen(
         [{ role: 'user', content: prompt }] as any,
         {
-          reuseSession: true,
           settings: {
             ...settings,
             systemPrompt: '',
