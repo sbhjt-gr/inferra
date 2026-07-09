@@ -21,7 +21,7 @@ const WEB_SEARCH_TOOL: ToolSchema = {
           description: 'A focused web search query.',
         },
         maxResults: {
-          type: 'number',
+          type: 'integer',
           description: 'Optional number of results to return (1-10). Defaults to 6.',
         },
       },
