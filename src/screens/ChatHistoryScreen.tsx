@@ -132,21 +132,29 @@ export default function ChatHistoryScreen() {
 
   const renderItem = ({ item }: { item: Chat }) => {
     const lastResponderModel = getLastResponderModel(item);
+    const isActive = item.id === currentChatId;
 
     return (
     <TouchableOpacity
       style={[
         styles.chatItem, 
         { 
-          backgroundColor: themeColors.borderColor,
-          borderLeftWidth: item.id === currentChatId ? 4 : 0,
-          borderLeftColor: item.id === currentChatId ? themeColors.headerBackground : 'transparent',
+          backgroundColor: isActive ? themeColors.cardBackground : themeColors.borderColor,
+          borderWidth: isActive ? 1 : 0,
+          borderColor: isActive ? themeColors.primary : 'transparent',
         }
       ]}
       onPress={() => handleSelectChat(item.id)}
     >
       <View style={styles.chatInfo}>
-        <Text style={[styles.chatPreview, { color: themeColors.text }]} numberOfLines={1}>
+        <Text
+          style={[
+            styles.chatPreview,
+            { color: themeColors.text },
+            isActive && { color: themeColors.primary },
+          ]}
+          numberOfLines={1}
+        >
           {item.title || getPreviewText(item)}
         </Text>
         <Text style={[styles.chatDate, { color: themeColors.secondaryText }]}>
