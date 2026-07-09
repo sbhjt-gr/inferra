@@ -52,6 +52,49 @@ export const parsePlannerToolCall = (text: string): AgentToolCall | null => {
   return null;
 };
 
+export const parseLitertToolEnvelope = (text: string): AgentToolCall | null => {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return null;
+  }
+  if (!trimmed.startsWith('{') && !trimmed.includes('```')) {
+    return null;
+  }
+  const direct = parsePlannerToolCall(trimmed);
+  if (direct) {
+    return direct;
+  }
+  const candidates = [trimmed];
+  const fence = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fence?.[1]) {
+    candidates.unshift(fence[1].trim());
+  }
+  for (const candidate of candidates) {
+    try {
+      const parsed = JSON.parse(candidate) as Record<string, unknown>;
+      if (String(parsed.action || '').trim() === 'none') {
+        return null;
+      }
+      const name = String(parsed.name || parsed.tool || parsed.function || '').trim();
+      if (!name) {
+        continue;
+      }
+      const args = parsed.arguments ?? parsed.parameters ?? parsed.args ?? parsed.input ?? {};
+      const normalized =
+        typeof args === 'string'
+          ? (JSON.parse(args) as Record<string, unknown>)
+          : (args as Record<string, unknown>);
+      return {
+        id: generateRandomId(),
+        name,
+        arguments: normalized && typeof normalized === 'object' ? normalized : {},
+      };
+    } catch {
+    }
+  }
+  return null;
+};
+
 export const buildPlannerPrompt = (toolList: string, userText: string): string => {
   return `You are a tool router. Pick at most one tool call for the user message.
 

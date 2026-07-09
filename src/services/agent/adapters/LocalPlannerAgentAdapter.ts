@@ -1,4 +1,5 @@
 import { engineService } from '../../runtime-service';
+import { toLitertToolsFromCatalog, type LitertToolDef } from '../../adapters/LitertToolsAdapter';
 import { generateRandomId } from '../../../utils/homeScreenUtils';
 import type {
   AgentGenerationSettings,
@@ -12,6 +13,7 @@ import type {
 import {
   buildPlannerPrompt,
   outcomeToToolContent,
+  parseLitertToolEnvelope,
   parsePlannerToolCall,
 } from '../agentMessageUtils';
 import { buildCompactToolList } from '../ToolCatalog';
@@ -75,7 +77,7 @@ export class LocalPlannerAgentAdapter implements ModelAdapter {
   private async generateText(
     messages: AgentMessage[],
     settings: AgentGenerationSettings,
-    opts: { onToken?: (token: string) => boolean | void },
+    opts: { onToken?: (token: string) => boolean | void; tools?: LitertToolDef[] },
   ): Promise<string> {
     const mapped = messages.map(entry => ({
       role: entry.role === 'tool' ? 'user' : entry.role,
@@ -89,6 +91,7 @@ export class LocalPlannerAgentAdapter implements ModelAdapter {
         ...settings,
         maxTokens: Math.min(settings.maxTokens || 1024, 1024),
       },
+      tools: opts.tools,
     });
   }
 
@@ -110,14 +113,30 @@ export class LocalPlannerAgentAdapter implements ModelAdapter {
       entry => entry.role === 'user' && entry.content.startsWith('Tool result for '),
     );
 
-    /*
-      LiteRT crashes when a separate planner turn hard-reloads the compiled model.
-      Skip planner/native tools and answer in one chat turn.
-    */
     if (isLitert) {
-      console.log('local_litert_chat');
-      const response = await this.generateText(messages, settings, { onToken: opts.onToken });
-      return { kind: 'final', text: response.trim() };
+      const litertTools = catalog.functionSchemas.length > 0
+        ? toLitertToolsFromCatalog(catalog)
+        : undefined;
+      console.log('local_litert_tools', {
+        count: litertTools?.length ?? 0,
+        continuation: isToolContinuation,
+      });
+      try {
+        const response = await this.generateText(messages, settings, {
+          onToken: opts.onToken,
+          tools: litertTools,
+        });
+        const toolCall = parseLitertToolEnvelope(response);
+        if (toolCall && catalog.entries.some(entry => entry.name === toolCall.name)) {
+          console.log('local_litert_tool_call', { name: toolCall.name });
+          return { kind: 'tool_calls', calls: [toolCall], providerState: state };
+        }
+        return { kind: 'final', text: response.trim() };
+      } catch (error) {
+        console.log('local_litert_fail', error instanceof Error ? error.message : 'unknown');
+        const fallback = await this.generateText(messages, settings, { onToken: opts.onToken });
+        return { kind: 'final', text: fallback.trim() };
+      }
     }
 
     if (!state.plannerAttempted && !isToolContinuation) {
