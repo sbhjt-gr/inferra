@@ -1,12 +1,11 @@
 import {
   buildCapabilityHeader,
-  buildCatalogAnswer,
-  isCapabilityQuestion,
   skillContextService,
-  type SkillCatalogEntry,
 } from './SkillContextService';
 import { skillPlannerService } from './SkillPlannerService';
 import { skillManager } from './SkillManager';
+import { toolRegistry } from './tools/ToolRegistry';
+import { registerWebSearch } from './tools/WebSearchTool';
 
 export type SkillsFlowOpts = {
   userText: string;
@@ -23,32 +22,33 @@ export type SkillsFlowResult = {
 
 class SkillsFlowService {
   async run(opts: SkillsFlowOpts): Promise<SkillsFlowResult> {
+    registerWebSearch();
+
     const skillsOn = await skillManager.isModeEnabled();
-    if (!skillsOn) {
-      console.log('skills_flow_off');
-      return { handled: false };
+    const catalog = skillsOn ? await skillContextService.getCatalog() : [];
+    const skillHeaderParts = [
+      'Always-available tool: web_search.',
+      catalog.length > 0 ? buildCapabilityHeader(catalog) : '',
+    ].filter(Boolean);
+    const skillHeader = skillHeaderParts.join(' ');
+
+    if (!toolRegistry.hasTools()) {
+      console.log('skills_flow_no_tools');
+      return { handled: false, skillHeader };
     }
 
-    const catalog = await skillContextService.getCatalog();
-    if (catalog.length === 0) {
-      console.log('skills_flow_empty');
-      return { handled: false };
-    }
-
-    const skillHeader = buildCapabilityHeader(catalog);
     const userText = opts.userText.trim();
     if (!userText) {
       return { handled: false, skillHeader };
     }
 
-    if (isCapabilityQuestion(userText)) {
-      const text = buildCatalogAnswer(userText, catalog);
-      console.log('skills_flow_catalog', { len: text.length });
-      return { handled: true, text, skillHeader };
-    }
-
-    const plan = await skillPlannerService.plan(userText, catalog, prompt => opts.genText(prompt));
-    if (plan.action !== 'use_skill') {
+    console.log('skills_flow_plan_reuse');
+    const plan = await skillPlannerService.plan(
+      userText,
+      catalog,
+      prompt => opts.genText(prompt, { reuseSession: true }),
+    );
+    if (plan.action === 'none') {
       console.log('skills_flow_chat');
       return { handled: false, skillHeader };
     }
@@ -64,7 +64,7 @@ class SkillsFlowService {
       return { handled: false, skillHeader };
     }
 
-    console.log('skills_flow_run_done', { len: answer.length });
+    console.log('skills_flow_run_done', { action: plan.action, len: answer.length });
     return { handled: true, text: answer, skillHeader };
   }
 }
