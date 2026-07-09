@@ -10,7 +10,7 @@ import type { GeneratedImage, ImageGenOptions } from './adapters/OpenAIImageAdap
 export interface ChatMessage {
   id: string;
   content: string;
-  role: 'user' | 'assistant' | 'system';
+  role: 'user' | 'assistant' | 'system' | 'tool';
   thinking?: string;
   toolCallId?: string;
   stats?: {

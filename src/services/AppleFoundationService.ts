@@ -227,6 +227,50 @@ class AppleFoundationService {
     }
   }
 
+  async generateWithTools(
+    messages: AppleFoundationMessage[],
+    tools: Array<{ id: string; name: string; description: string; parametersJson: string }>,
+    options: AppleFoundationOptions = {},
+  ): Promise<{ text: string; toolCalls: Array<{ id: string; name: string; arguments: Record<string, unknown> }> }> {
+    await this.ensureAvailable();
+
+    const mappedMessages = messages.map(message => ({
+      role: message.role,
+      content: message.content,
+    }));
+
+    const resolvedOptions = {
+      ...this.resolveGenerationOptions(options),
+      tools,
+    };
+
+    const response = await AppleFoundationModels.generateText(mappedMessages, resolvedOptions as any);
+    let text = '';
+    const toolCalls: Array<{ id: string; name: string; arguments: Record<string, unknown> }> = [];
+
+    for (const part of response) {
+      if (part.type === 'text') {
+        text += part.text;
+        continue;
+      }
+      if (part.type === 'tool-call') {
+        let args: Record<string, unknown> = {};
+        try {
+          args = JSON.parse(part.input || '{}') as Record<string, unknown>;
+        } catch {
+          args = { raw: part.input };
+        }
+        toolCalls.push({
+          id: `${part.toolName}-${Date.now()}`,
+          name: part.toolName,
+          arguments: args,
+        });
+      }
+    }
+
+    return { text, toolCalls };
+  }
+
   private resolveGenerationOptions(options: AppleFoundationOptions): AppleFoundationOptions {
     const topP = typeof options.topP === 'number' ? options.topP : undefined;
     const topK = typeof options.topK === 'number' ? options.topK : undefined;

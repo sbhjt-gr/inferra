@@ -283,6 +283,7 @@ export class ClaudeService {
           input_schema: t.function.parameters,
         });
       } else if (t.type === 'web_search_preview') {
+        // Legacy builtin mapping kept for compatibility; prefer function tool web_search.
         claudeTools.push({
           type: 'web_search_20250305',
           name: 'web_search',

@@ -1,10 +1,13 @@
 import { fs as FileSystem } from './fs';
+import type { Tool, ToolCall, ToolSchema } from './tools/ToolRegistry';
+import { generateRandomId } from '../utils/homeScreenUtils';
 
 type ChatMessage = {
   id: string;
   content: string;
   role: 'user' | 'assistant' | 'system';
   thinking?: string;
+  toolCallId?: string;
   stats?: {
     duration: number;
     tokens: number;
@@ -17,7 +20,16 @@ export interface GeminiRequestOptions {
   topP?: number;
   model?: string;
   streamTokens?: boolean;
+  tools?: Tool[];
 }
+
+export type GeminiResponse = {
+  fullResponse: string;
+  tokenCount: number;
+  startTime: number;
+  toolCalls?: ToolCall[];
+  rawParts?: any[];
+};
 
 export class GeminiService {
   private apiKeyProvider: (provider: string) => Promise<string | null>;
@@ -63,9 +75,32 @@ export class GeminiService {
     }
   }
 
+  private toGeminiTools(tools: Tool[] = []): any[] {
+    return tools
+      .filter((tool): tool is ToolSchema => 'function' in tool)
+      .map(tool => ({
+        name: tool.function.name,
+        description: tool.function.description,
+        parameters: tool.function.parameters,
+      }));
+  }
+
   private async parseMessageContent(message: ChatMessage): Promise<any[]> {
     try {
       const parsed = JSON.parse(message.content);
+
+      if (parsed.type === 'gemini_tool_use_response' && parsed.rawParts) {
+        return parsed.rawParts;
+      }
+
+      if (parsed.type === 'function_response') {
+        return [{
+          functionResponse: {
+            name: parsed.name,
+            response: parsed.response,
+          },
+        }];
+      }
       
       if (parsed.type === 'multimodal' && parsed.content) {
         const parts: any[] = [];
@@ -115,16 +150,41 @@ export class GeminiService {
     return [{ text: message.content }];
   }
 
+  private parseGeminiCandidate(candidate: any): {
+    text: string;
+    toolCalls: ToolCall[];
+    rawParts: any[];
+  } {
+    const toolCalls: ToolCall[] = [];
+    const rawParts: any[] = [];
+    let text = '';
+    const parts = candidate?.content?.parts || [];
+    for (const part of parts) {
+      rawParts.push(part);
+      if (part.text) {
+        text += part.text;
+      }
+      if (part.functionCall) {
+        const id = part.functionCall.id || generateRandomId();
+        toolCalls.push({
+          id,
+          type: 'function',
+          function: {
+            name: part.functionCall.name,
+            arguments: JSON.stringify(part.functionCall.args || {}),
+          },
+        });
+      }
+    }
+    return { text, toolCalls, rawParts };
+  }
+
   async generateResponse(
     messages: ChatMessage[],
     options: GeminiRequestOptions = {},
     onToken?: (token: string) => boolean | void,
     provider = 'gemini'
-  ): Promise<{
-    fullResponse: string;
-    tokenCount: number;
-    startTime: number;
-  }> {
+  ): Promise<GeminiResponse> {
     const startTime = Date.now();
     let tokenCount = 0;
     let fullResponse = '';
@@ -177,6 +237,11 @@ export class GeminiService {
         requestBody.systemInstruction = {
           parts: [{ text: systemMessage.content }]
         };
+      }
+
+      const geminiTools = this.toGeminiTools(options.tools);
+      if (geminiTools.length > 0) {
+        requestBody.tools = [{ functionDeclarations: geminiTools }];
       }
 
       const headers = {
@@ -436,33 +501,30 @@ export class GeminiService {
       } else if (jsonResponse.candidates) {
         
         let text = '';
+        let toolCalls: ToolCall[] = [];
+        let rawParts: any[] = [];
         if (jsonResponse.candidates.length > 0) {
           const candidate = jsonResponse.candidates[0];
+          const parsed = this.parseGeminiCandidate(candidate);
+          text = parsed.text;
+          toolCalls = parsed.toolCalls;
+          rawParts = parsed.rawParts;
           
-          
-          if (candidate.content && candidate.content.parts && candidate.content.parts.length > 0) {
-            const parts = candidate.content.parts;
-            for (const part of parts) {
-              if (part.text) {
-                text += part.text;
-              }
-            }
-          } 
-          
-          else if (candidate.finishReason === 'MAX_TOKENS' && !text) {
+          if (candidate.finishReason === 'MAX_TOKENS' && !text && toolCalls.length === 0) {
             throw new Error('Response was cut off due to token limit. Please try with a higher token limit.');
           }
           
-          
           fullResponse = text;
           
-          if (shouldStream && typeof onToken === 'function') {
+          if (shouldStream && typeof onToken === 'function' && text) {
             const shouldContinue = await simulateWordByWordStreaming(text);
             if (!shouldContinue) {
               return { 
                 fullResponse, 
                 tokenCount: jsonResponse.usageMetadata?.totalTokenCount || tokenCount || text.split(/\s+/).length, 
-                startTime 
+                startTime,
+                toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+                rawParts: rawParts.length > 0 ? rawParts : undefined,
               };
             }
           }
@@ -470,7 +532,9 @@ export class GeminiService {
           return {
             fullResponse: text,
             tokenCount: jsonResponse.usageMetadata?.totalTokenCount || tokenCount || text.split(/\s+/).length,
-            startTime
+            startTime,
+            toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+            rawParts: rawParts.length > 0 ? rawParts : undefined,
           };
         }
       }

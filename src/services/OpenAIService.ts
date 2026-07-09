@@ -195,6 +195,18 @@ export class OpenAIService {
         content: message.content,
       };
     }
+
+    try {
+      const parsed = JSON.parse(message.content);
+      if (parsed.type === 'openai_tool_use_response' && parsed.tool_calls) {
+        return {
+          role: 'assistant',
+          content: parsed.content,
+          tool_calls: parsed.tool_calls,
+        };
+      }
+    } catch {
+    }
     
     return {
       role: message.role,
