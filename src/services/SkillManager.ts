@@ -3,7 +3,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as DocumentPicker from 'expo-document-picker';
 import * as SecureStore from 'expo-secure-store';
 
+import { skillPkgStore } from './adapters/SkillPackageStore';
+import { hasScriptFiles, pickSkillMd, readZipFile, toPkgFiles } from './adapters/SkillZipAdapter';
 import { fs as FileSystem } from './fs';
+import { normSkillUrl, parseSkillMd, skillMdUrl } from './SkillMdParser';
 import type { Skill, SkillImportPayload } from '../types/skill';
 import {
   AGENT_SKILLS_PLACEHOLDER,
@@ -154,8 +157,17 @@ class SkillManager {
     }
   }
 
+  private stripForStorage(skill: Skill): Skill {
+    if (skill.packageDir || skill.baseUrl) {
+      const { scriptHtml, ...rest } = skill;
+      return rest;
+    }
+    return skill;
+  }
+
   private async saveCustomSkills(skills: Skill[]): Promise<void> {
-    await AsyncStorage.setItem(CUSTOM_SKILLS_KEY, JSON.stringify(skills));
+    const lean = skills.map(skill => this.stripForStorage(skill));
+    await AsyncStorage.setItem(CUSTOM_SKILLS_KEY, JSON.stringify(lean));
   }
 
   private async getEnabledMap(): Promise<Record<string, boolean>> {
@@ -175,91 +187,41 @@ class SkillManager {
     await AsyncStorage.setItem(ENABLED_SKILLS_KEY, JSON.stringify(enabled));
   }
 
-  private parseFrontMatter(content: string): { body: string; meta: Record<string, string> } {
-    const match = content.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
-    if (!match) {
-      return {
-        body: content.trim(),
-        meta: {},
-      };
-    }
-
-    const meta = match[1]
-      .split('\n')
-      .map(line => line.trim())
-      .filter(Boolean)
-      .reduce<Record<string, string>>((result, line) => {
-        const separatorIndex = line.indexOf(':');
-        if (separatorIndex === -1) {
-          return result;
-        }
-        const key = line.slice(0, separatorIndex).trim();
-        const value = line.slice(separatorIndex + 1).trim();
-        result[key] = value;
-        return result;
-      }, {});
-
-    return {
-      body: match[2].trim(),
-      meta,
-    };
-  }
-
-  private parseSkillContent(content: string, fallbackName: string): SkillImportPayload {
-    try {
-      const parsed = JSON.parse(content) as SkillImportPayload;
-      if (parsed && parsed.name && parsed.instructions) {
-        return parsed;
-      }
-    } catch {
-    }
-
-    const { body, meta } = this.parseFrontMatter(content);
-    const secretLabel = meta.secretLabel?.trim() || meta['require-secret-description']?.trim();
-    const secretRequired = meta.secretRequired?.toLowerCase() === 'true'
-      || meta['require-secret']?.toLowerCase() === 'true';
-
-    return {
-      name: meta.name?.trim() || fallbackName,
-      description: meta.description?.trim() || 'Imported skill',
-      instructions: body || content.trim(),
-      type: meta.type?.trim() === 'js' ? 'js' : 'text',
-      metadata: {
-        homepage: meta.homepage?.trim() || undefined,
-        requireSecret: secretRequired,
-        scriptName: meta.scriptName?.trim() || undefined,
-      },
-      secret: secretLabel || secretRequired
-        ? {
-            label: secretLabel || 'Secret',
-            required: secretRequired,
-          }
-        : undefined,
-      handler: meta.handler?.trim() || undefined,
-    };
-  }
-
   private normalizeImportedSkill(
     payload: SkillImportPayload,
     source: Skill['source'],
-    sourceUrl?: string,
-    stableId?: string,
+    opts?: {
+      sourceUrl?: string;
+      baseUrl?: string;
+      packageDir?: string;
+      stableId?: string;
+    },
   ): Skill {
     const nameSlug = payload.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
     return {
-      id: stableId || `${nameSlug}-${Date.now()}`,
+      id: opts?.stableId || `${nameSlug}-${Date.now()}`,
       name: payload.name.trim(),
       description: payload.description?.trim() || 'Imported custom skill',
       type: payload.type === 'js' ? 'js' : 'text',
       instructions: payload.instructions.trim(),
       scriptHtml: payload.scriptHtml?.trim() || undefined,
+      baseUrl: opts?.baseUrl,
+      packageDir: opts?.packageDir,
       source,
-      sourceUrl,
+      sourceUrl: opts?.sourceUrl,
       enabled: false,
       metadata: payload.metadata,
       secret: payload.secret,
       handler: payload.handler,
     };
+  }
+
+  private async assertNameFree(name: string): Promise<void> {
+    const skills = await this.getAll();
+    const hit = skills.find(skill => skill.name.toLowerCase() === name.toLowerCase());
+    if (hit) {
+      throw new Error('skill_name_exists');
+    }
   }
 
   private async readAssetText(moduleId: number): Promise<string> {
@@ -268,28 +230,16 @@ class SkillManager {
     return FileSystem.readAsStringAsync(assetUri);
   }
 
-  private async maybeLoadRemoteScript(payload: SkillImportPayload, url: string): Promise<string | undefined> {
-    if (payload.scriptHtml?.trim()) {
-      return payload.scriptHtml.trim();
-    }
+  private async addCustomSkill(skill: Skill): Promise<Skill> {
+    const customSkills = await this.getCustomSkills();
+    customSkills.unshift(skill);
+    await this.saveCustomSkills(customSkills);
 
-    if (payload.type !== 'js') {
-      return undefined;
-    }
-
-    const candidateUrl = payload.scriptUrl
-      ? payload.scriptUrl
-      : new URL('scripts/index.html', url).toString();
-
-    try {
-      const response = await fetch(candidateUrl);
-      if (!response.ok) {
-        return undefined;
-      }
-      return (await response.text()).trim() || undefined;
-    } catch {
-      return undefined;
-    }
+    const enabledMap = await this.getEnabledMap();
+    enabledMap[skill.id] = false;
+    await this.saveEnabledMap(enabledMap);
+    await this.syncTools();
+    return skill;
   }
 
   async loadBuiltins(): Promise<Skill[]> {
@@ -304,15 +254,14 @@ class SkillManager {
           asset.html ? this.readAssetText(asset.html) : Promise.resolve(undefined),
         ]);
 
-        const payload = this.parseSkillContent(markdown, asset.id);
+        const payload = parseSkillMd(markdown, asset.id, { hasScripts: !!html });
         return this.normalizeImportedSkill(
           {
             ...payload,
             scriptHtml: html || payload.scriptHtml,
           },
           'builtin',
-          undefined,
-          asset.id,
+          { stableId: asset.id },
         );
       }),
     );
@@ -376,8 +325,13 @@ class SkillManager {
 
   async remove(id: string): Promise<void> {
     const skills = await this.getCustomSkills();
+    const target = skills.find(skill => skill.id === id);
     const next = skills.filter(skill => skill.id !== id);
     await this.saveCustomSkills(next);
+
+    if (target?.packageDir || target?.baseUrl) {
+      await skillPkgStore.removePackage(id);
+    }
 
     const enabledMap = await this.getEnabledMap();
     delete enabledMap[id];
@@ -392,6 +346,11 @@ class SkillManager {
     }
     const idSet = new Set(ids);
     const skills = await this.getCustomSkills();
+    for (const skill of skills) {
+      if (idSet.has(skill.id) && (skill.packageDir || skill.baseUrl)) {
+        await skillPkgStore.removePackage(skill.id);
+      }
+    }
     await this.saveCustomSkills(skills.filter(skill => !idSet.has(skill.id)));
 
     const enabledMap = await this.getEnabledMap();
@@ -404,32 +363,26 @@ class SkillManager {
   }
 
   async importFromUrl(url: string): Promise<Skill> {
-    const response = await fetch(url);
+    const baseUrl = normSkillUrl(url);
+    const mdUrl = skillMdUrl(baseUrl);
+    console.log('skill_url_import', mdUrl);
+
+    const response = await fetch(mdUrl);
     if (!response.ok) {
       throw new Error('skill_import_failed');
     }
 
     const text = await response.text();
-    const fallbackName = url.split('/').pop()?.replace(/\.[^.]+$/, '') || 'Imported Skill';
-    const payload = this.parseSkillContent(text, fallbackName);
-    const skill = this.normalizeImportedSkill(
-      {
-        ...payload,
-        scriptHtml: await this.maybeLoadRemoteScript(payload, url),
-      },
-      'url',
-      url,
-    );
+    const fallbackName = baseUrl.split('/').pop() || 'Imported Skill';
+    const payload = parseSkillMd(text, fallbackName);
+    await this.assertNameFree(payload.name);
 
-    const customSkills = await this.getCustomSkills();
-    customSkills.unshift(skill);
-    await this.saveCustomSkills(customSkills);
+    const skill = this.normalizeImportedSkill(payload, 'url', {
+      baseUrl,
+      sourceUrl: baseUrl,
+    });
 
-    const enabledMap = await this.getEnabledMap();
-    enabledMap[skill.id] = false;
-    await this.saveEnabledMap(enabledMap);
-    await this.syncTools();
-    return skill;
+    return this.addCustomSkill(skill);
   }
 
   async importFromFile(): Promise<Skill | null> {
@@ -446,18 +399,41 @@ class SkillManager {
     const asset = result.assets[0];
     const text = await FileSystem.readAsStringAsync(asset.uri);
     const fallbackName = asset.name?.replace(/\.[^.]+$/, '') || 'Imported Skill';
-    const payload = this.parseSkillContent(text, fallbackName);
+    const payload = parseSkillMd(text, fallbackName);
+    await this.assertNameFree(payload.name);
+
     const skill = this.normalizeImportedSkill(payload, 'local');
+    return this.addCustomSkill(skill);
+  }
 
-    const customSkills = await this.getCustomSkills();
-    customSkills.unshift(skill);
-    await this.saveCustomSkills(customSkills);
+  async importFromZip(): Promise<Skill | null> {
+    const result = await DocumentPicker.getDocumentAsync({
+      type: ['application/zip', 'application/x-zip-compressed'],
+      copyToCacheDirectory: true,
+      multiple: false,
+    });
 
-    const enabledMap = await this.getEnabledMap();
-    enabledMap[skill.id] = false;
-    await this.saveEnabledMap(enabledMap);
-    await this.syncTools();
-    return skill;
+    if (result.canceled || !result.assets[0]) {
+      return null;
+    }
+
+    const asset = result.assets[0];
+    const zipMap = await readZipFile(asset.uri);
+    const md = pickSkillMd(zipMap);
+    if (!md) {
+      throw new Error('skill_md_missing');
+    }
+
+    const fallbackName = asset.name?.replace(/\.zip$/i, '') || 'Imported Skill';
+    const payload = parseSkillMd(md, fallbackName, { hasScripts: hasScriptFiles(zipMap) });
+    await this.assertNameFree(payload.name);
+
+    const skill = this.normalizeImportedSkill(payload, 'local');
+    const pkgFiles = toPkgFiles(zipMap);
+    const packageDir = await skillPkgStore.writePackage(skill.id, pkgFiles);
+    skill.packageDir = packageDir;
+
+    return this.addCustomSkill(skill);
   }
 
   async setSecret(skillId: string, value: string): Promise<void> {
