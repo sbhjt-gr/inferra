@@ -12,10 +12,11 @@ import { ThinkTagParser } from '../utils/thinkTagParser';
 import { skillActivityAdapter } from './adapters/SkillActivityAdapter';
 import { skillToolLoopService } from './SkillToolLoopService';
 import { skillManager } from './SkillManager';
-import { isAgentSkillsPrompt, extractUserBasePrompt } from '../constants/agentSkillsPrompt';
-import { skillsFlowService } from './SkillsFlowService';
+import { isAgentSkillsPrompt, extractUserBasePrompt, isCapabilityQuestion } from '../constants/agentSkillsPrompt';
 import { toolRegistry } from './tools/ToolRegistry';
-import { getWebSearchPromptHint, registerWebSearch } from './tools/WebSearchTool';
+import { registerWebSearch } from './tools/WebSearchTool';
+import { agentRuntime } from './agent/AgentRuntime';
+import { buildRequestToolCatalog } from './agent/ToolCatalog';
 
 export interface MessageProcessingCallbacks {
   setMessages: (messages: ChatMessage[]) => void;
@@ -89,14 +90,14 @@ export class MessageProcessingService {
       registerWebSearch();
       await skillManager.syncTools();
 
+      // Keep skill/tool catalogs out of default chat prompts; expose only for explicit capability questions.
       const rawBase = extractUserBasePrompt(settings.systemPrompt);
-      let systemPrompt = await skillManager.buildSystemPrompt(rawBase);
-      const webHint = getWebSearchPromptHint();
-      if (systemPrompt.trim()) {
-        systemPrompt = `${systemPrompt.trim()}\n\n${webHint}`;
-      } else {
-        systemPrompt = webHint;
-      }
+      const lastUserForPrompt = this.getLastUserText(
+        currentMessages.filter(msg => msg.role !== 'system').map(msg => ({ role: msg.role, content: msg.content })),
+      );
+      const systemPrompt = isCapabilityQuestion(lastUserForPrompt)
+        ? await skillManager.buildSystemPrompt(rawBase)
+        : (rawBase.trim() || await skillManager.buildConversationalSystemPrompt());
       settings = { ...settings, systemPrompt };
 
       const nonSystem = currentMessages.filter(msg => msg.role !== 'system');
@@ -522,16 +523,7 @@ export class MessageProcessingService {
     }
     
     if (toolRegistry.hasTools() && !this.cancelGenerationRef.current && fullResponse) {
-      const skillResult = await skillToolLoopService.followUpFromResponse(
-        activeProvider,
-        messageParams,
-        fullResponse,
-        toolLoopOpts,
-      );
-      if (skillResult) {
-        fullResponse = skillResult;
-        this.callbacks.setStreamingMessage(fullResponse);
-      }
+      // AgentRuntime owns multi-round tool loops; no conversational JSON follow-up.
     }
 
     if (!this.cancelGenerationRef.current) {
@@ -688,44 +680,39 @@ export class MessageProcessingService {
     }
 
     if (!usedRAG) {
-      const lastUserText = this.getLastUserText(baseMessages);
-      const appleGen = async (
-        prompt: string,
-        extra?: { reuseSession?: boolean; onToken?: (token: string) => boolean | void },
-      ) => {
-        const out = await appleFoundationService.generateResponse(
-          [{ role: 'user', content: prompt }],
+      let agentHandled = false;
+      if (toolRegistry.hasTools()) {
+        const agentResult = await agentRuntime.run(
+          'apple-foundation',
+          baseMessages.map(msg => ({ role: msg.role, content: msg.content })),
           {
-            temperature: settings.temperature,
-            maxTokens: extra?.onToken
-              ? Math.min(settings.maxTokens || 1024, 1024)
-              : Math.min(settings.maxTokens || 256, 256),
-            topP: settings.topP,
+            provider: 'apple-foundation',
+            settings: {
+              temperature: settings.temperature,
+              maxTokens: settings.maxTokens,
+              topP: settings.topP,
+              topK: settings.topK,
+              systemPrompt: settings.systemPrompt,
+            },
+            onToken: streamCallback,
+            shouldCancel: () => this.cancelGenerationRef.current,
+            onToolRound: () => {
+              fullResponse = '';
+              this.callbacks.setStreamingMessage('');
+            },
           },
+          buildRequestToolCatalog(),
         );
-        if (extra?.onToken) {
-          extra.onToken(out);
+        if (agentResult.status === 'completed' && agentResult.text && !this.cancelGenerationRef.current) {
+          fullResponse = agentResult.text;
+          tokenCount = Math.max(1, Math.ceil(fullResponse.length / 4));
+          this.callbacks.setStreamingMessage(fullResponse);
+          agentHandled = true;
+          console.log('apple_agent_done', { len: fullResponse.length });
         }
-        return out;
-      };
-
-      const flow = await skillsFlowService.run({
-        userText: lastUserText,
-        settings,
-        onToken: streamCallback,
-        genText: appleGen,
-      });
-
-      let flowHandled = false;
-      if (flow.handled && flow.text && !this.cancelGenerationRef.current) {
-        fullResponse = flow.text;
-        tokenCount = Math.max(1, Math.ceil(fullResponse.length / 4));
-        this.callbacks.setStreamingMessage(fullResponse);
-        flowHandled = true;
-        console.log('apple_skills_flow', { len: fullResponse.length });
       }
 
-      if (!flowHandled) {
+      if (!agentHandled) {
         try {
           const stream = appleFoundationService.streamResponse(
             baseMessages.map(msg => ({ role: msg.role, content: msg.content })),
@@ -734,7 +721,7 @@ export class MessageProcessingService {
               maxTokens: settings.maxTokens,
               topP: settings.topP,
               topK: settings.topK,
-            }
+            },
           );
 
           for await (const chunk of stream) {
@@ -789,7 +776,7 @@ export class MessageProcessingService {
                   tokens: tokenCount,
                   firstTokenTime: firstTokenTime || undefined,
                   avgTokenTime: debouncedAvgTokenTime && debouncedAvgTokenTime > 0 ? debouncedAvgTokenTime : undefined,
-                }
+                },
               );
             }
           }
@@ -810,39 +797,9 @@ export class MessageProcessingService {
             messageId,
             displayMessage,
             '',
-            { duration: 0, tokens: 0 }
+            { duration: 0, tokens: 0 },
           );
           return;
-        }
-
-        if (toolRegistry.hasTools() && !this.cancelGenerationRef.current && fullResponse) {
-          const skillResult = await skillToolLoopService.followUpFromResponse(
-            'apple-foundation',
-            baseMessages,
-            fullResponse,
-            {
-              settings,
-              shouldCancel: () => this.cancelGenerationRef.current,
-              onToolRound: () => {
-                fullResponse = '';
-                this.callbacks.setStreamingMessage('');
-              },
-              onToken: (token: string) => {
-                if (this.cancelGenerationRef.current) {
-                  return false;
-                }
-                if (firstTokenTime === null && token.trim().length > 0) {
-                  firstTokenTime = Date.now() - startTime;
-                }
-                fullResponse += token;
-                this.callbacks.setStreamingMessage(fullResponse);
-                return true;
-              },
-            },
-          );
-          if (skillResult) {
-            fullResponse = skillResult;
-          }
         }
       }
     }
@@ -1049,95 +1006,60 @@ export class MessageProcessingService {
       let genSettings = settings;
       let genMessages = baseMessages;
       const skillsOn = await skillManager.isModeEnabled();
-      const lastUserText = this.getLastUserText(baseMessages);
-
-      const localGen = async (
-        prompt: string,
-        extra?: { reuseSession?: boolean; onToken?: (token: string) => boolean | void },
-      ) => {
-        console.log('local_gen_plan', {
-          reuse: !!extra?.reuseSession,
-          promptLen: prompt.length,
-          stream: !!extra?.onToken,
-        });
-        return engineService.mgr().gen(
-          [{ role: 'user', content: prompt }] as any,
-          {
-            onToken: extra?.onToken,
-            reuseSession: extra?.reuseSession,
-            settings: {
-              ...genSettings,
-              maxTokens: extra?.reuseSession
-                ? Math.min(genSettings.maxTokens || 1024, 1024)
-                : Math.min(genSettings.maxTokens || 256, 256),
-              temperature: extra?.reuseSession ? genSettings.temperature : 0.2,
-            },
-          },
-        );
-      };
-
-      let skillHeader: string | undefined;
-      if (lastUserText) {
-        const flow = await skillsFlowService.run({
-          userText: lastUserText,
-          settings: genSettings,
-          onToken: streamCallback,
-          genText: localGen,
-        });
-        skillHeader = flow.skillHeader;
-        if (flow.handled && flow.text && !this.cancelGenerationRef.current) {
-          fullResponse = flow.text;
-          tokenCount = Math.max(1, Math.ceil(fullResponse.length / 4));
-          this.callbacks.setStreamingMessage(fullResponse);
-          console.log('skills_flow_handled', { len: fullResponse.length });
-        } else if (!flow.handled) {
-          if (engineService.get() === 'litert') {
-            try {
-              await litertManager.resetSession();
-              console.log('local_plan_reset');
-            } catch {
-              console.log('local_plan_reset_fail');
-            }
-          }
-          if (userTurns > 1 && isAgentSkillsPrompt(settings.systemPrompt) && !skillsOn) {
-            const chatPrompt = await skillManager.buildConversationalSystemPrompt();
-            genSettings = {
-              ...settings,
-              systemPrompt: `${chatPrompt}\n\n${getWebSearchPromptHint()}`,
-              maxTokens: Math.min(settings.maxTokens || 1024, 1024),
-            };
-            genMessages = baseMessages.map((msg, index) => {
-              if (index === 0 && msg.role === 'system') {
-                return { role: 'system', content: genSettings.systemPrompt };
-              }
-              return msg;
-            });
-            console.log('local_chat_prompt', { userTurns, skillsOn });
-          }
-
-          console.log('local_gen_direct', { baseMessageCount: genMessages.length, userTurns, skillHeader: !!skillHeader });
-          try {
-            await engineService.mgr().gen(
-              genMessages as any,
-              {
-                onToken: streamCallback,
-                settings: genSettings,
-                skillHeader,
+      let agentHandled = false;
+      if (toolRegistry.hasTools()) {
+        try {
+          const agentResult = await agentRuntime.run(
+            'local',
+            genMessages.map(msg => ({ role: msg.role, content: msg.content })),
+            {
+              provider: 'local',
+              settings: {
+                temperature: genSettings.temperature,
+                maxTokens: genSettings.maxTokens,
+                topP: genSettings.topP,
+                systemPrompt: genSettings.systemPrompt,
               },
-            );
-          } catch (error) {
-            console.log('local_gen_fail', error instanceof Error ? error.message : 'unknown');
-            if (engineService.get() === 'litert') {
-              try {
-                await litertManager.recoverInvoke();
-              } catch {
-                console.log('local_gen_recover_fail');
-              }
-            }
-            throw error;
+              onToken: streamCallback,
+              shouldCancel: () => this.cancelGenerationRef.current,
+              onToolRound: () => {
+                fullResponse = '';
+                this.callbacks.setStreamingMessage('');
+              },
+            },
+            buildRequestToolCatalog(),
+          );
+          if (agentResult.status === 'completed' && agentResult.text && !this.cancelGenerationRef.current) {
+            fullResponse = agentResult.text;
+            tokenCount = Math.max(1, Math.ceil(fullResponse.length / 4));
+            this.callbacks.setStreamingMessage(fullResponse);
+            agentHandled = true;
+            console.log('local_agent_done', { len: fullResponse.length });
+          } else if (agentResult.status !== 'completed') {
+            console.log('local_agent_skip', { status: agentResult.status });
           }
+        } catch (error) {
+          console.log('local_agent_fail', error instanceof Error ? error.message : 'unknown');
         }
-      } else {
+      }
+
+      if (!agentHandled) {
+        if (userTurns > 1 && isAgentSkillsPrompt(settings.systemPrompt) && !skillsOn) {
+          const chatPrompt = await skillManager.buildConversationalSystemPrompt();
+          genSettings = {
+            ...settings,
+            systemPrompt: chatPrompt,
+            maxTokens: Math.min(settings.maxTokens || 1024, 1024),
+          };
+          genMessages = baseMessages.map((msg, index) => {
+            if (index === 0 && msg.role === 'system') {
+              return { role: 'system', content: chatPrompt };
+            }
+            return msg;
+          });
+          console.log('local_chat_prompt', { userTurns, skillsOn });
+        }
+
         console.log('local_gen_direct', { baseMessageCount: genMessages.length, userTurns });
         try {
           await engineService.mgr().gen(

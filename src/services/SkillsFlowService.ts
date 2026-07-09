@@ -1,8 +1,7 @@
-import {
-  buildCapabilityHeader,
-  skillContextService,
-} from './SkillContextService';
-import { skillPlannerService } from './SkillPlannerService';
+/** @deprecated Legacy entry point; chat routes through AgentRuntime directly. */
+import { agentRuntime } from './agent/AgentRuntime';
+import { buildRequestToolCatalog } from './agent/ToolCatalog';
+import { skillContextService } from './SkillContextService';
 import { skillManager } from './SkillManager';
 import { toolRegistry } from './tools/ToolRegistry';
 import { registerWebSearch } from './tools/WebSearchTool';
@@ -17,55 +16,57 @@ export type SkillsFlowOpts = {
 export type SkillsFlowResult = {
   handled: boolean;
   text?: string;
-  skillHeader?: string;
 };
 
 class SkillsFlowService {
   async run(opts: SkillsFlowOpts): Promise<SkillsFlowResult> {
     registerWebSearch();
 
-    const skillsOn = await skillManager.isModeEnabled();
-    const catalog = skillsOn ? await skillContextService.getCatalog() : [];
-    const skillHeaderParts = [
-      'Always-available tool: web_search.',
-      catalog.length > 0 ? buildCapabilityHeader(catalog) : '',
-    ].filter(Boolean);
-    const skillHeader = skillHeaderParts.join(' ');
-
     if (!toolRegistry.hasTools()) {
       console.log('skills_flow_no_tools');
-      return { handled: false, skillHeader };
+      return { handled: false };
     }
 
     const userText = opts.userText.trim();
     if (!userText) {
-      return { handled: false, skillHeader };
+      return { handled: false };
     }
 
-    console.log('skills_flow_plan_reuse');
-    const plan = await skillPlannerService.plan(
-      userText,
-      catalog,
-      prompt => opts.genText(prompt, { reuseSession: true }),
-    );
-    if (plan.action === 'none') {
-      console.log('skills_flow_chat');
-      return { handled: false, skillHeader };
+    const skillsOn = await skillManager.isModeEnabled();
+    if (!skillsOn) {
+      return { handled: false };
     }
 
-    const answer = await skillPlannerService.runPlan(
-      plan,
-      userText,
-      (prompt, onToken) => opts.genText(prompt, { reuseSession: true, onToken: onToken || opts.onToken }),
-    );
-
-    if (!answer) {
-      console.log('skills_flow_run_miss');
-      return { handled: false, skillHeader };
+    const catalog = await skillContextService.getCatalog();
+    if (catalog.length === 0 && !toolRegistry.getSchema('web_search')) {
+      return { handled: false };
     }
 
-    console.log('skills_flow_run_done', { action: plan.action, len: answer.length });
-    return { handled: true, text: answer, skillHeader };
+    const messages = [
+      ...(opts.settings.systemPrompt
+        ? [{ role: 'system', content: opts.settings.systemPrompt }]
+        : []),
+      { role: 'user', content: userText },
+    ];
+
+    const result = await agentRuntime.run('local', messages, {
+      provider: 'local',
+      settings: {
+        temperature: opts.settings.temperature,
+        maxTokens: opts.settings.maxTokens,
+        topP: opts.settings.topP,
+        systemPrompt: opts.settings.systemPrompt,
+      },
+      onToken: opts.onToken,
+    }, buildRequestToolCatalog());
+
+    if (result.status === 'completed' && result.text) {
+      console.log('skills_flow_agent_done', { len: result.text.length });
+      return { handled: true, text: result.text };
+    }
+
+    console.log('skills_flow_chat');
+    return { handled: false };
   }
 }
 
