@@ -8,6 +8,7 @@ import {
 
 import { BenchmarkSample, EngineCaps, GenOpts, GenSettings, InferenceManager, Msg } from './inference-manager';
 import { getLiteRTRecommendedBackend, type LiteRTBackend } from '../services/LiteRTBackendService';
+import { litertToolSignature } from '../services/adapters/LitertToolsAdapter';
 import { modelSettingsService } from '../services/ModelSettingsService';
 
 type ParsedInput = {
@@ -40,6 +41,8 @@ class LiteRTManager implements InferenceManager {
   private modelPath: string | null = null;
   private configKey = '';
   private lastConfig: LLMConfig | null = null;
+  private stableTools: LitertTool[] | null = null;
+  private stableToolsSig = '';
   private genQueue: Promise<unknown> = Promise.resolve();
   private stopRequested = false;
 
@@ -149,11 +152,26 @@ class LiteRTManager implements InferenceManager {
   }
 
   private getConfigKey(config: LLMConfig): string {
+    const tools = (config.tools as LitertTool[] | undefined) ?? this.stableTools ?? [];
+    const toolsSig = tools.length > 0 ? litertToolSignature(tools) : '';
     return JSON.stringify({
       backend: config.backend ?? getLiteRTRecommendedBackend(),
       systemPrompt: config.systemPrompt ?? '',
-      tools: config.tools?.map(tool => tool.name).join(',') ?? '',
+      toolsSig,
     });
+  }
+
+  private resolveStableTools(incoming?: LitertTool[]): LitertTool[] | undefined {
+    if (!incoming || incoming.length === 0) {
+      return this.stableTools ?? undefined;
+    }
+    const sig = litertToolSignature(incoming);
+    if (sig !== this.stableToolsSig) {
+      console.log('litert_tools_update', { count: incoming.length });
+      this.stableTools = incoming;
+      this.stableToolsSig = sig;
+    }
+    return this.stableTools ?? undefined;
   }
 
   private async buildConfig(messages: Msg[], settings?: Partial<GenSettings>, tools?: LitertTool[]): Promise<LLMConfig> {
@@ -175,8 +193,9 @@ class LiteRTManager implements InferenceManager {
     if (systemPrompt) {
       config.systemPrompt = systemPrompt;
     }
-    if (tools && tools.length > 0) {
-      config.tools = tools;
+    const resolvedTools = this.resolveStableTools(tools);
+    if (resolvedTools && resolvedTools.length > 0) {
+      config.tools = resolvedTools;
     }
     if (typeof settings?.validate === 'boolean') {
       config.validate = settings.validate;
@@ -708,6 +727,8 @@ class LiteRTManager implements InferenceManager {
     this.instance = null;
     this.modelPath = null;
     this.configKey = '';
+    this.stableTools = null;
+    this.stableToolsSig = '';
   }
 
   stop() {
