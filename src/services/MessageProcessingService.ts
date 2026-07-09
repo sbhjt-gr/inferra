@@ -91,19 +91,38 @@ export class MessageProcessingService {
       await skillManager.syncTools();
 
       // Keep skill/tool catalogs out of default chat prompts; expose only for explicit capability questions.
+      // LiteRT reloads on systemPrompt changes, so keep that prompt stable and inject capability text into the user turn.
       const rawBase = extractUserBasePrompt(settings.systemPrompt);
       const lastUserForPrompt = this.getLastUserText(
         currentMessages.filter(msg => msg.role !== 'system').map(msg => ({ role: msg.role, content: msg.content })),
       );
-      const systemPrompt = isCapabilityQuestion(lastUserForPrompt)
+      const wantsCaps = isCapabilityQuestion(lastUserForPrompt);
+      const isLocalLitert = (!activeProvider || activeProvider === 'local') && engineService.get() === 'litert';
+      const systemPrompt = wantsCaps && !isLocalLitert
         ? await skillManager.buildSystemPrompt(rawBase)
         : (rawBase.trim() || await skillManager.buildConversationalSystemPrompt());
       settings = { ...settings, systemPrompt };
 
       const nonSystem = currentMessages.filter(msg => msg.role !== 'system');
-      const processedMessages = systemPrompt
+      let processedMessages = systemPrompt
         ? [{ role: 'system', content: systemPrompt, id: 'system-prompt' }, ...nonSystem]
-        : nonSystem;
+        : [...nonSystem];
+      if (wantsCaps && isLocalLitert) {
+        const capsPrompt = await skillManager.buildSystemPrompt(rawBase);
+        if (capsPrompt.trim()) {
+          console.log('local_caps_inject');
+          const lastUserIndex = processedMessages.map(entry => entry.role).lastIndexOf('user');
+          processedMessages = processedMessages.map((msg, index) => {
+            if (index !== lastUserIndex || msg.role !== 'user') {
+              return msg;
+            }
+            return {
+              ...msg,
+              content: `${msg.content}\n\nApp capabilities context:\n${capsPrompt}`,
+            };
+          });
+        }
+      }
       const skipRag = this.shouldSkipRag(processedMessages) || await this.shouldSkipRagForInput(processedMessages);
       const responderModelName = await this.resolveResponderModelName(activeProvider);
       if (responderModelName) {
