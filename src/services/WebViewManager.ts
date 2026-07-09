@@ -1,8 +1,15 @@
 import type { SkillResult } from '../types/skill';
 
+export type SkillRunInput = {
+  data: string;
+  secret: string;
+};
+
 export type BackgroundTask = {
   id: string;
-  html: string;
+  html?: string;
+  uri?: string;
+  bridge: string;
 };
 
 type TaskListener = (task: BackgroundTask | null) => void;
@@ -12,6 +19,70 @@ type PendingTask = {
   resolve: (result: SkillResult) => void;
   reject: (error: Error) => void;
   timer: ReturnType<typeof setTimeout>;
+};
+
+export const buildSkillBridge = (taskId: string, input: SkillRunInput): string => {
+  const data = JSON.stringify(input.data ?? '');
+  const secret = JSON.stringify(input.secret ?? '');
+  return `(function(){
+    const taskId=${JSON.stringify(taskId)};
+    const data=${data};
+    const secret=${secret};
+    const normalize=function(value){
+      if(value&&typeof value==='object'&&('result'in value||'error'in value||'image'in value||'webview'in value)){return value;}
+      if(typeof value==='string'){
+        const t=value.trim();
+        if(t.startsWith('{')){try{return normalize(JSON.parse(t));}catch(e){}}
+        return{result:value};
+      }
+      return{result:JSON.stringify(value??'')};
+    };
+    const send=function(payload){
+      window.ReactNativeWebView.postMessage(JSON.stringify({type:'skill_result',taskId:taskId,payload:payload}));
+    };
+    const parseOut=function(value){
+      if(typeof value==='string'){try{return normalize(JSON.parse(value));}catch(e){return normalize(value);}}
+      return normalize(value);
+    };
+    const pickRunner=function(){
+      if(typeof window.ai_edge_gallery_get_result==='function'){return 'gallery';}
+      if(typeof window.runSkill==='function'){return 'runSkill';}
+      if(typeof window.run==='function'){return 'run';}
+      if(window.skill&&typeof window.skill.run==='function'){return 'skill';}
+      return '';
+    };
+    const run=async function(){
+      let mode='';
+      for(let i=0;i<40;i+=1){
+        mode=pickRunner();
+        if(mode){break;}
+        await new Promise(function(r){setTimeout(r,50);});
+      }
+      if(!mode){
+        send({error:'skill_runner_missing'});
+        return;
+      }
+      try{
+        let value;
+        if(mode==='gallery'){
+          value=await window.ai_edge_gallery_get_result(data,secret);
+        }else{
+          let parsed={};
+          try{parsed=JSON.parse(data||'{}');}catch(e){parsed={raw:data};}
+          const runner=mode==='runSkill'?window.runSkill:mode==='run'?window.run:window.skill.run.bind(window.skill);
+          value=await runner(parsed);
+        }
+        send(parseOut(value));
+      }catch(error){
+        send({error:error instanceof Error?error.message:String(error)});
+      }
+    };
+    if(document.readyState==='complete'||document.readyState==='interactive'){
+      setTimeout(run,0);
+    }else{
+      window.addEventListener('load',function(){setTimeout(run,0);},{once:true});
+    }
+  })();true;`;
 };
 
 export class WebViewManager {
@@ -29,30 +100,20 @@ export class WebViewManager {
 
   private sanitizeHtml(html: string): string {
     return html
-      .replace(/<script\b[^>]*\bsrc\s*=[^>]*>[\s\S]*?<\/script>/gi, '')
       .replace(/<iframe[\s\S]*?<\/iframe>/gi, '')
       .replace(/<embed[\s\S]*?>/gi, '')
       .replace(/<object[\s\S]*?<\/object>/gi, '');
   }
 
-  private buildTaskHtml(taskId: string, html: string, input: unknown): string {
-    const sanitizedInput = JSON.stringify(input ?? null);
-    const encodedInput = sanitizedInput
-      .replace(/</g, '\\x3c')
-      .replace(/>/g, '\\x3e')
-      .replace(/&/g, '\\x26');
-    const bridge = `<script>(function(){const taskId=${JSON.stringify(taskId)};const input=${encodedInput};const normalize=function(value){if(value&&typeof value==='object'&&('result'in value||'error'in value||'image'in value||'webview'in value)){return value;}if(typeof value==='string'){return{result:value};}return{result:JSON.stringify(value??'')};};const send=function(payload){window.ReactNativeWebView.postMessage(JSON.stringify({type:'skill_result',taskId:taskId,payload:payload}));};const run=async function(){try{const runner=window.runSkill||window.run||(window.skill&&typeof window.skill.run==='function'?window.skill.run.bind(window.skill):null);if(typeof runner!=='function'){throw new Error('skill_runner_missing');}const value=await runner(input);send(normalize(value));}catch(error){send({error:error instanceof Error?error.message:String(error)});}};if(document.readyState==='complete'||document.readyState==='interactive'){setTimeout(run,0);}else{window.addEventListener('load',function(){setTimeout(run,0);},{once:true});}})();</script>`;
+  private buildInlineHtml(taskId: string, html: string, bridge: string): string {
     const sanitizedHtml = this.sanitizeHtml(html);
-
     if (sanitizedHtml.includes('</body>')) {
-      return sanitizedHtml.replace('</body>', `${bridge}</body>`);
+      return sanitizedHtml.replace('</body>', `<script>${bridge}</script></body>`);
     }
-
     if (sanitizedHtml.includes('</html>')) {
-      return sanitizedHtml.replace('</html>', `${bridge}</html>`);
+      return sanitizedHtml.replace('</html>', `<script>${bridge}</script></html>`);
     }
-
-    return `${sanitizedHtml}${bridge}`;
+    return `${sanitizedHtml}<script>${bridge}</script>`;
   }
 
   private clearPendingTask(taskId?: string) {
@@ -110,14 +171,22 @@ export class WebViewManager {
     return this.activeTask;
   }
 
-  async runSkillHtml(html: string, input: unknown, timeoutMs = 30000): Promise<SkillResult> {
+  async runSkill(opts: {
+    html?: string;
+    uri?: string;
+    input: SkillRunInput;
+  }, timeoutMs = 30000): Promise<SkillResult> {
     if (this.pendingTask) {
       throw new Error('skill_runtime_busy');
+    }
+    if (!opts.html && !opts.uri) {
+      throw new Error('skill_runtime_empty');
     }
 
     await this.waitUntilReady();
 
     const taskId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const bridge = buildSkillBridge(taskId, opts.input);
 
     return new Promise<SkillResult>((resolve, reject) => {
       const timer = setTimeout(() => {
@@ -134,11 +203,17 @@ export class WebViewManager {
       this.isReady = false;
       this.activeTask = {
         id: taskId,
-        html: this.buildTaskHtml(taskId, html, input),
+        uri: opts.uri,
+        html: opts.html ? this.buildInlineHtml(taskId, opts.html, bridge) : undefined,
+        bridge: opts.uri ? bridge : '',
       };
-      console.log('skill_task_start', taskId);
+      console.log('skill_task_start', taskId, opts.uri ? 'uri' : 'html');
       this.emit();
     });
+  }
+
+  async runSkillHtml(html: string, input: SkillRunInput, timeoutMs = 30000): Promise<SkillResult> {
+    return this.runSkill({ html, input }, timeoutMs);
   }
 
   handleMessage(message: string): void {

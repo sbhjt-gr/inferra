@@ -11,18 +11,24 @@ export default function SkillRuntimeHost() {
 
   useEffect(() => backgroundWebViewManager.subscribe(setTask), []);
 
+  const source = task?.uri
+    ? { uri: task.uri }
+    : { html: task?.html || IDLE_HTML };
+
   return (
     <View pointerEvents="none" style={styles.wrap}>
       <WebView
         key={task?.id || 'idle'}
         originWhitelist={['*']}
-        source={{ html: task?.html || IDLE_HTML }}
+        source={source}
+        injectedJavaScript={task?.uri ? task.bridge : undefined}
         onLoadEnd={() => backgroundWebViewManager.markReady(task?.id)}
         onMessage={event => backgroundWebViewManager.handleMessage(event.nativeEvent.data)}
         javaScriptEnabled
         domStorageEnabled
         cacheEnabled={false}
-        mixedContentMode="never"
+        mixedContentMode="always"
+        allowingReadAccessToURL={task?.uri}
         sharedCookiesEnabled={false}
         thirdPartyCookiesEnabled={false}
         setSupportMultipleWindows={false}
