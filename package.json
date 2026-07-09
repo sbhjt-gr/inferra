@@ -100,6 +100,7 @@
     "@babel/helpers": ">=7.26.10",
     "@babel/runtime": "^7.27.6",
     "@react-native/gradle-plugin": "^0.78.1",
+    "@react-native/jest-preset": "^0.85.3",
     "@types/jest": "^29.5.12",
     "@types/react": "~19.2.7",
     "@types/react-test-renderer": "^18.3.0",
