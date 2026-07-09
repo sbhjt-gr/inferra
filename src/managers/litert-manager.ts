@@ -84,6 +84,15 @@ class LiteRTManager implements InferenceManager {
     }
     console.log('litert_invoke_recover');
     try {
+      await this.resetSession(true);
+      if (this.instance?.isReady()) {
+        console.log('litert_recover_reset_ok');
+        return;
+      }
+    } catch {
+      console.log('litert_recover_reset_fail');
+    }
+    try {
       this.getInstance().close();
     } catch {
     }
@@ -151,10 +160,6 @@ class LiteRTManager implements InferenceManager {
   private getConfigKey(config: LLMConfig): string {
     return JSON.stringify({
       backend: config.backend ?? getLiteRTRecommendedBackend(),
-      maxTokens: config.maxTokens ?? 1024,
-      temperature: config.temperature ?? 0.7,
-      topK: config.topK ?? 40,
-      topP: config.topP ?? 0.95,
       systemPrompt: config.systemPrompt ?? '',
       tools: config.tools?.map(tool => tool.name).join(',') ?? '',
     });
@@ -206,13 +211,22 @@ class LiteRTManager implements InferenceManager {
 
     const current = this.getInstance();
     if (reuseSession && current.isReady()) {
+      console.log('litert_reuse_ready');
       return current;
     }
 
     const key = this.getConfigKey(config);
     if (current.isReady() && this.configKey === key) {
+      console.log('litert_config_same');
+      this.lastConfig = config;
       return current;
     }
+
+    console.log('litert_reload', {
+      ready: current.isReady(),
+      reuse: reuseSession,
+      sameKey: this.configKey === key,
+    });
 
     try {
       current.close();
