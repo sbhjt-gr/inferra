@@ -613,7 +613,7 @@ export default function DownloadsScreen() {
         visible={restartDialogVisible}
         onClose={hideRestartDialog}
         title="Restart Download"
-        description="This will stop the current download, remove any partial files, and start over from the beginning. Continue?"
+        description="This will stop the current download, and start over the download from the beginning. Continue?"
         iconName="restart"
         primaryButtonText="Yes"
         onPrimaryPress={confirmRestart}
