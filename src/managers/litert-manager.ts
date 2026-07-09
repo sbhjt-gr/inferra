@@ -84,15 +84,6 @@ class LiteRTManager implements InferenceManager {
     }
     console.log('litert_invoke_recover');
     try {
-      await this.resetSession(true);
-      if (this.instance?.isReady()) {
-        console.log('litert_recover_reset_ok');
-        return;
-      }
-    } catch {
-      console.log('litert_recover_reset_fail');
-    }
-    try {
       this.getInstance().close();
     } catch {
     }
@@ -622,20 +613,14 @@ class LiteRTManager implements InferenceManager {
       return response;
     }
 
-    // Text only
-    if (!onToken) {
-      return instance.sendMessage(prompt);
-    }
-
-    return this.streamAsync(onToken, (cb) => {
-      instance.sendMessageAsync(prompt, cb);
-    });
+    const tokenCb = onToken || (() => undefined);
+    console.log('litert_stream_text', { promptLen: prompt.length, hasCb: !!onToken });
+    return this.streamAsync(tokenCb, (cb) => instance.sendMessageAsync(prompt, cb));
   }
 
-  /** Wrap a streaming inference call into a Promise that resolves with the full response. */
   private streamAsync(
     onToken: (token: string) => boolean | void,
-    call: (cb: (token: string, done: boolean) => void) => void,
+    call: (cb: (token: string, done: boolean) => void) => Promise<void> | void,
   ): Promise<string> {
     return new Promise<string>((resolve, reject) => {
       let output = '';
@@ -648,7 +633,7 @@ class LiteRTManager implements InferenceManager {
         fn();
       };
       try {
-        call((token, done) => {
+        const pending = call((token, done) => {
           if (settled) {
             return;
           }
@@ -668,6 +653,11 @@ class LiteRTManager implements InferenceManager {
             finish(() => resolve(output));
           }
         });
+        if (pending && typeof (pending as Promise<void>).then === 'function') {
+          (pending as Promise<void>).catch(error => {
+            finish(() => reject(error instanceof Error ? error : new Error(String(error))));
+          });
+        }
       } catch (error) {
         finish(() => reject(error instanceof Error ? error : new Error(String(error))));
       }
