@@ -14,7 +14,8 @@ import { skillToolLoopService } from './SkillToolLoopService';
 import { skillManager } from './SkillManager';
 import { isAgentSkillsPrompt, extractUserBasePrompt } from '../constants/agentSkillsPrompt';
 import { skillsFlowService } from './SkillsFlowService';
-import { buildCatalogAnswer, isCapabilityQuestion, skillContextService } from './SkillContextService';
+import { toolRegistry } from './tools/ToolRegistry';
+import { getWebSearchPromptHint, registerWebSearch } from './tools/WebSearchTool';
 
 export interface MessageProcessingCallbacks {
   setMessages: (messages: ChatMessage[]) => void;
@@ -85,10 +86,17 @@ export class MessageProcessingService {
       const isOnlineModel = !!activeProvider && ['gemini','chatgpt','claude'].includes(OnlineModelService.getBaseProvider(activeProvider));
       const isAppleFoundation = activeProvider === 'apple-foundation';
 
+      registerWebSearch();
       await skillManager.syncTools();
 
       const rawBase = extractUserBasePrompt(settings.systemPrompt);
-      const systemPrompt = await skillManager.buildSystemPrompt(rawBase);
+      let systemPrompt = await skillManager.buildSystemPrompt(rawBase);
+      const webHint = getWebSearchPromptHint();
+      if (systemPrompt.trim()) {
+        systemPrompt = `${systemPrompt.trim()}\n\n${webHint}`;
+      } else {
+        systemPrompt = webHint;
+      }
       settings = { ...settings, systemPrompt };
 
       const nonSystem = currentMessages.filter(msg => msg.role !== 'system');
@@ -457,29 +465,46 @@ export class MessageProcessingService {
       }
     }
 
-    const lastUserText = this.getLastUserText(baseMessages);
-    const skillsOn = await skillManager.isModeEnabled();
-    if (skillsOn && isCapabilityQuestion(lastUserText)) {
-      const catalog = await skillContextService.getCatalog();
-      fullResponse = buildCatalogAnswer(lastUserText, catalog);
-      this.callbacks.setStreamingMessage(fullResponse);
-      console.log('online_skills_catalog', { len: fullResponse.length });
-      await chatManager.updateMessageContent(
-        messageId,
-        fullResponse,
-        thinking.trim(),
-        {
-          duration: (Date.now() - startTime) / 1000,
-          tokens: Math.max(1, Math.ceil(fullResponse.length / 4)),
-          firstTokenTime: firstTokenTime || undefined,
-        },
-      );
-      return;
-    }
+    const toolLoopOpts = {
+      settings,
+      shouldCancel: () => this.cancelGenerationRef.current,
+      onToolRound: () => {
+        fullResponse = '';
+        thinking = '';
+        this.callbacks.setStreamingMessage('');
+        this.callbacks.setStreamingThinking('');
+      },
+      onToken: streamCallback,
+    };
 
     try {
-      console.log('msgproc_send_plain', { provider: activeProvider, msgCount: messageParams.length });
-      await onlineModelService.sendMessage(activeProvider, messageParams, apiParams, legacyStreamCallback);
+      if (toolRegistry.hasTools()) {
+        console.log('msgproc_send_tools', {
+          provider: activeProvider,
+          msgCount: messageParams.length,
+          toolCount: toolRegistry.getAllTools().length,
+        });
+        const toolResult = await skillToolLoopService.run(
+          activeProvider,
+          messageParams,
+          toolLoopOpts,
+        );
+        if (toolResult) {
+          fullResponse = toolResult;
+          this.callbacks.setStreamingMessage(fullResponse);
+        } else if (!fullResponse) {
+          console.log('msgproc_tools_fallback_plain', { provider: activeProvider });
+          await onlineModelService.sendMessage(
+            activeProvider,
+            messageParams,
+            apiParams,
+            legacyStreamCallback,
+          );
+        }
+      } else {
+        console.log('msgproc_send_plain', { provider: activeProvider, msgCount: messageParams.length });
+        await onlineModelService.sendMessage(activeProvider, messageParams, apiParams, legacyStreamCallback);
+      }
     } catch (error) {
       console.log('online_model_error', error instanceof Error ? error.message : 'unknown');
       console.log('online_model_error_stack', error instanceof Error ? error.stack : '');
@@ -496,22 +521,12 @@ export class MessageProcessingService {
       return;
     }
     
-    if (skillsOn && !this.cancelGenerationRef.current) {
+    if (toolRegistry.hasTools() && !this.cancelGenerationRef.current && fullResponse) {
       const skillResult = await skillToolLoopService.followUpFromResponse(
         activeProvider,
         messageParams,
         fullResponse,
-        {
-          settings,
-          shouldCancel: () => this.cancelGenerationRef.current,
-          onToolRound: () => {
-            fullResponse = '';
-            thinking = '';
-            this.callbacks.setStreamingMessage('');
-            this.callbacks.setStreamingThinking('');
-          },
-          onToken: streamCallback,
-        },
+        toolLoopOpts,
       );
       if (skillResult) {
         fullResponse = skillResult;
@@ -800,8 +815,7 @@ export class MessageProcessingService {
           return;
         }
 
-        const skillsOn = await skillManager.isModeEnabled();
-        if (skillsOn && !this.cancelGenerationRef.current && fullResponse) {
+        if (toolRegistry.hasTools() && !this.cancelGenerationRef.current && fullResponse) {
           const skillResult = await skillToolLoopService.followUpFromResponse(
             'apple-foundation',
             baseMessages,
@@ -875,7 +889,11 @@ export class MessageProcessingService {
     let updateCounter = 0;
 
     console.log('local_model_start', { messageId, skipRag, msgCount: processedMessages.length });
-    console.log('local_model_settings', { systemPrompt: settings.systemPrompt, temperature: settings.temperature, maxTokens: settings.maxTokens });
+    console.log('local_model_settings', {
+      systemPromptLen: settings.systemPrompt?.length || 0,
+      temperature: settings.temperature,
+      maxTokens: settings.maxTokens,
+    });
 
     const thinkParser = new ThinkTagParser();
 
@@ -992,9 +1010,10 @@ export class MessageProcessingService {
       return { role: msg.role, content };
     }) as RAGMessage[];
 
-    console.log('local_base_messages_dump:');
-    baseMessages.forEach((msg, i) => {
-      console.log(`  base[${i}:${msg.role}] ${msg.content}`);
+    console.log('local_base_messages', {
+      count: baseMessages.length,
+      roles: baseMessages.map(msg => msg.role),
+      lens: baseMessages.map(msg => String(msg.content || '').length),
     });
 
     let usedRAG = false;
@@ -1036,6 +1055,11 @@ export class MessageProcessingService {
         prompt: string,
         extra?: { reuseSession?: boolean; onToken?: (token: string) => boolean | void },
       ) => {
+        console.log('local_gen_plan', {
+          reuse: !!extra?.reuseSession,
+          promptLen: prompt.length,
+          stream: !!extra?.onToken,
+        });
         return engineService.mgr().gen(
           [{ role: 'user', content: prompt }] as any,
           {
@@ -1043,7 +1067,6 @@ export class MessageProcessingService {
             reuseSession: extra?.reuseSession,
             settings: {
               ...genSettings,
-              systemPrompt: extra?.reuseSession ? genSettings.systemPrompt : '',
               maxTokens: extra?.reuseSession
                 ? Math.min(genSettings.maxTokens || 1024, 1024)
                 : Math.min(genSettings.maxTokens || 256, 256),
@@ -1054,7 +1077,7 @@ export class MessageProcessingService {
       };
 
       let skillHeader: string | undefined;
-      if (skillsOn && lastUserText) {
+      if (lastUserText) {
         const flow = await skillsFlowService.run({
           userText: lastUserText,
           settings: genSettings,
@@ -1068,16 +1091,24 @@ export class MessageProcessingService {
           this.callbacks.setStreamingMessage(fullResponse);
           console.log('skills_flow_handled', { len: fullResponse.length });
         } else if (!flow.handled) {
+          if (engineService.get() === 'litert') {
+            try {
+              await litertManager.resetSession();
+              console.log('local_plan_reset');
+            } catch {
+              console.log('local_plan_reset_fail');
+            }
+          }
           if (userTurns > 1 && isAgentSkillsPrompt(settings.systemPrompt) && !skillsOn) {
             const chatPrompt = await skillManager.buildConversationalSystemPrompt();
             genSettings = {
               ...settings,
-              systemPrompt: chatPrompt,
+              systemPrompt: `${chatPrompt}\n\n${getWebSearchPromptHint()}`,
               maxTokens: Math.min(settings.maxTokens || 1024, 1024),
             };
             genMessages = baseMessages.map((msg, index) => {
               if (index === 0 && msg.role === 'system') {
-                return { role: 'system', content: chatPrompt };
+                return { role: 'system', content: genSettings.systemPrompt };
               }
               return msg;
             });
