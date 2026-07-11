@@ -87,6 +87,58 @@ class MLXStorageManager {
     if (dirInfo.exists) {
       await FileSystem.deleteAsync(modelDir, { idempotent: true });
     }
+
+    // Nitro may also hold a partial under huggingface/models/<id>.
+    const sanitized = this.sanitizeModelId(modelId);
+    const nitroDirs = [
+      `${FileSystem.documentDirectory}huggingface/models/${sanitized}`,
+      `${FileSystem.documentDirectory}huggingface/models/${modelId}`,
+    ];
+    for (const dir of nitroDirs) {
+      try {
+        const info = await FileSystem.getInfoAsync(dir);
+        if (info.exists) {
+          await FileSystem.deleteAsync(dir, { idempotent: true });
+        }
+      } catch {
+      }
+    }
+  }
+
+  /**
+   * Remove incomplete MLX packages that never passed validation.
+   * These inflate "Clear All Models" size but never appear in the model list.
+   */
+  async cleanupIncompleteMLXModels(activeModelIds: Set<string> = new Set()): Promise<void> {
+    await this.ensureBaseDirectories();
+
+    const dirInfo = await FileSystem.getInfoAsync(this.mlxModelsDir);
+    if (!dirInfo.exists) {
+      return;
+    }
+
+    const dirs = await FileSystem.readDirectoryAsync(this.mlxModelsDir);
+    for (const dirName of dirs) {
+      if (activeModelIds.has(dirName)) {
+        continue;
+      }
+
+      const dirPath = `${this.mlxModelsDir}/${dirName}`;
+      try {
+        const itemInfo = await FileSystem.getInfoAsync(dirPath);
+        if (!itemInfo.exists || !itemInfo.isDirectory) {
+          continue;
+        }
+
+        const validation = await this.validateMLXModel(dirName);
+        if (!validation.valid) {
+          await FileSystem.deleteAsync(dirPath, { idempotent: true });
+          console.log('incomplete_mlx_purged', dirName, validation.missing.join(','));
+        }
+      } catch {
+        console.log('incomplete_mlx_purge_error', dirName);
+      }
+    }
   }
 
   async getMLXModelSize(modelId: string): Promise<number> {
