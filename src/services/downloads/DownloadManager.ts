@@ -267,9 +267,53 @@ export class BackgroundDownloadService {
       }
 
       transfer.state.isDownloading = false;
+      transfer.state.isPaused = false;
       this.activeTransfers.delete(transfer.model.name);
 
       this.eventCallbacks.onCancelled?.(transfer.model.name);
+    }));
+
+    this.eventSubscriptions.push(
+      this.expoEventEmitter.addListener('onTransferPaused', (event: any) => {
+      console.log('native_transfer_paused', event.modelName);
+      const derivedModelName = event.modelName || this.extractModelName(event.destination, event.url);
+
+      let transfer: DownloadJob | undefined = derivedModelName
+        ? this.activeTransfers.get(derivedModelName)
+        : undefined;
+
+      if (!transfer) {
+        transfer = Array.from(this.activeTransfers.values()).find(
+          _transfer => _transfer.downloadId === event.downloadId,
+        );
+      }
+
+      if (!transfer && derivedModelName) {
+        transfer = this.createTransferJobFromNativeEvent(derivedModelName, event, false) ?? undefined;
+      }
+
+      if (!transfer) {
+        return;
+      }
+
+      if (event.downloadId) {
+        transfer.downloadId = event.downloadId;
+      }
+
+      const bytesWritten = event.bytesWritten ?? transfer.state.progress?.bytesDownloaded ?? 0;
+      const totalBytes = event.totalBytes ?? transfer.state.progress?.bytesTotal ?? 0;
+      const progress = this.updateProgressFromBytes(transfer, bytesWritten, totalBytes, event.progress);
+      progress.speed = '0 B/s';
+      progress.rawSpeed = 0;
+      progress.eta = 'paused';
+      progress.rawEta = 0;
+
+      transfer.state.isDownloading = false;
+      transfer.state.isPaused = true;
+      transfer.state.progress = progress;
+      this.staleMap.delete(transfer.model.name);
+
+      this.eventCallbacks.onPaused?.(transfer.model.name, progress);
     }));
   }
 
@@ -313,12 +357,62 @@ export class BackgroundDownloadService {
 
   isTransferActive(modelName: string): boolean {
     const transfer = this.activeTransfers.get(modelName);
-    return transfer ? transfer.state.isDownloading : false;
+    return transfer ? transfer.state.isDownloading || !!transfer.state.isPaused : false;
+  }
+
+  isTransferPaused(modelName: string): boolean {
+    return !!this.activeTransfers.get(modelName)?.state.isPaused;
   }
 
   getTransferProgress(modelName: string): number {
     const transfer = this.activeTransfers.get(modelName);
     return transfer?.state.progress?.progress || 0;
+  }
+
+  async pauseTransfer(modelName: string, nativeTransferId?: string): Promise<void> {
+    const transfer = this.activeTransfers.get(modelName);
+    const transferId = transfer?.downloadId || nativeTransferId;
+    if (!transferId || !TransferModule?.pauseTransfer) {
+      console.log('pause_skip', modelName);
+      return;
+    }
+
+    console.log('pause_transfer', modelName);
+    await TransferModule.pauseTransfer(transferId);
+
+    if (transfer) {
+      transfer.state.isDownloading = false;
+      transfer.state.isPaused = true;
+      if (transfer.state.progress) {
+        transfer.state.progress.speed = '0 B/s';
+        transfer.state.progress.rawSpeed = 0;
+        transfer.state.progress.eta = 'paused';
+      }
+      this.eventCallbacks.onPaused?.(modelName, transfer.state.progress);
+    }
+  }
+
+  async resumeTransfer(
+    modelName: string,
+    authToken?: string | null,
+    nativeTransferId?: string,
+  ): Promise<void> {
+    const transfer = this.activeTransfers.get(modelName);
+    const transferId = transfer?.downloadId || nativeTransferId;
+    if (!transferId || !TransferModule?.resumeTransfer) {
+      console.log('resume_skip', modelName);
+      return;
+    }
+
+    console.log('resume_transfer', modelName);
+    const headers = authToken ? {Authorization: `Bearer ${authToken}`} : undefined;
+    await TransferModule.resumeTransfer(transferId, headers);
+
+    if (transfer) {
+      transfer.state.isDownloading = true;
+      transfer.state.isPaused = false;
+      this.eventCallbacks.onStart?.(modelName, transferId);
+    }
   }
 
   async initiateTransfer(
@@ -455,7 +549,10 @@ export class BackgroundDownloadService {
       return undefined;
     }
 
-    const name = getFileName(normalizePath(source));
+    let name = getFileName(normalizePath(source));
+    if (name?.endsWith('.partial')) {
+      name = name.slice(0, -'.partial'.length);
+    }
     return name || undefined;
   }
 
@@ -642,6 +739,11 @@ export class BackgroundDownloadService {
           continue;
         }
 
+        if (job.state.isPaused) {
+          this.staleMap.delete(modelName);
+          continue;
+        }
+
         if (!job.state.isDownloading) {
           continue;
         }
@@ -733,7 +835,9 @@ export class BackgroundDownloadService {
         }
 
         transferJob.downloadId = transfer.id;
-        transferJob.state.isDownloading = true;
+        const isPaused = transfer.state === 'paused';
+        transferJob.state.isDownloading = !isPaused;
+        transferJob.state.isPaused = isPaused;
         transferJob.state.progress = this.updateProgressFromBytes(
           transferJob,
           transfer.bytesWritten,
@@ -741,9 +845,18 @@ export class BackgroundDownloadService {
           transfer.progress,
         );
 
-        const bytesChanged = transfer.bytesWritten !== prevBytes;
-        if (isNew || bytesChanged) {
-          this.eventCallbacks.onProgress?.(modelName, transferJob.state.progress);
+        if (isPaused) {
+          transferJob.state.progress.speed = '0 B/s';
+          transferJob.state.progress.rawSpeed = 0;
+          transferJob.state.progress.eta = 'paused';
+          if (isNew) {
+            this.eventCallbacks.onPaused?.(modelName, transferJob.state.progress);
+          }
+        } else {
+          const bytesChanged = transfer.bytesWritten !== prevBytes;
+          if (isNew || bytesChanged) {
+            this.eventCallbacks.onProgress?.(modelName, transferJob.state.progress);
+          }
         }
       }
     } catch (error) {
