@@ -27,7 +27,19 @@ export class BackgroundDownloadService {
   private expoEventEmitter: InstanceType<typeof ExpoEventEmitter> | null = null;
   private eventSubscriptions: Array<{ remove(): void }> = [];
   private staleMap: Map<string, number> = new Map();
+  private ignoredTransfers: Set<string> = new Set();
   private readonly staleMs = Platform.OS === 'ios' ? 60000 : 15000;
+
+  private ignoreTransfer(modelName?: string, nativeId?: string): void {
+    if (modelName) {
+      this.ignoredTransfers.add(modelName);
+      setTimeout(() => this.ignoredTransfers.delete(modelName), 30000);
+    }
+    if (nativeId) {
+      this.ignoredTransfers.add(nativeId);
+      setTimeout(() => this.ignoredTransfers.delete(nativeId), 30000);
+    }
+  }
 
   private isUuidLike(name: string): boolean {
     return /^[0-9A-F]{8}-[0-9A-F]{4}-/i.test(name);
@@ -122,7 +134,12 @@ export class BackgroundDownloadService {
       }
 
       if (!transfer && derivedModelName && !this.isUuidLike(derivedModelName)) {
-        transfer = this.createTransferJobFromNativeEvent(derivedModelName, event) ?? undefined;
+        // Late native progress after cancel must not mint a fresh job + downloadStarted.
+        if (this.ignoredTransfers.has(derivedModelName) || this.ignoredTransfers.has(event.downloadId)) {
+          console.log('progress_ignore_cancelled', derivedModelName);
+          return;
+        }
+        transfer = this.createTransferJobFromNativeEvent(derivedModelName, event, false) ?? undefined;
       }
 
       if (!transfer || !derivedModelName) {
@@ -396,52 +413,102 @@ export class BackgroundDownloadService {
     modelName: string,
     authToken?: string | null,
     nativeTransferId?: string,
+    options?: { url?: string; destination?: string },
   ): Promise<void> {
     let transfer = this.activeTransfers.get(modelName);
-    const transferId = transfer?.downloadId || nativeTransferId;
-    if (!transferId || !TransferModule?.resumeTransfer) {
-      console.log('resume_skip', modelName);
+    let transferId = transfer?.downloadId || nativeTransferId;
+    const headers = authToken ? {Authorization: `Bearer ${authToken}`} : undefined;
+    const url = options?.url || transfer?.model?.path;
+    const destination = options?.destination;
+
+    console.log('resume_transfer', modelName);
+    this.ignoredTransfers.delete(modelName);
+    if (transferId) {
+      this.ignoredTransfers.delete(transferId);
+    }
+
+    const applyLocalResume = (id: string) => {
+      if (!transfer) {
+        transfer = {
+          model: {
+            id: `${modelName}-${Date.now()}`,
+            name: modelName,
+            path: url || '',
+            size: 0,
+            modified: new Date().toISOString(),
+            downloaded: false,
+          },
+          downloadId: id,
+          state: {
+            isDownloading: true,
+            isPaused: false,
+            progress: {
+              bytesDownloaded: 0,
+              bytesTotal: 0,
+              progress: 0,
+              speed: '0 B/s',
+              eta: 'calculating',
+              rawSpeed: 0,
+              rawEta: 0,
+            },
+          },
+          lastBytesWritten: 0,
+          lastUpdateTime: Date.now(),
+        };
+        this.activeTransfers.set(modelName, transfer);
+      } else {
+        transfer.downloadId = id;
+        transfer.state.isDownloading = true;
+        transfer.state.isPaused = false;
+        if (url) {
+          transfer.model.path = url;
+        }
+      }
+      this.eventCallbacks.onStart?.(modelName, id);
+    };
+
+    const rebeginFromPartial = async () => {
+      if (!url || !destination || !TransferModule?.beginTransfer) {
+        throw new Error('resume_missing_url');
+      }
+      console.log('resume_rebegin', modelName);
+      const result = await TransferModule.beginTransfer(
+        url,
+        destination,
+        headers,
+      );
+      if (!result?.transferId) {
+        throw new Error('resume_rebegin_failed');
+      }
+      transferId = result.transferId;
+      applyLocalResume(result.transferId);
+    };
+
+    if (!TransferModule?.resumeTransfer) {
+      await rebeginFromPartial();
       return;
     }
 
-    console.log('resume_transfer', modelName);
-    const headers = authToken ? {Authorization: `Bearer ${authToken}`} : undefined;
-    await TransferModule.resumeTransfer(transferId, headers);
-
-    if (!transfer) {
-      transfer = {
-        model: {
-          id: `${modelName}-${Date.now()}`,
-          name: modelName,
-          path: '',
-          size: 0,
-          modified: new Date().toISOString(),
-          downloaded: false,
-        },
-        downloadId: transferId,
-        state: {
-          isDownloading: true,
-          isPaused: false,
-          progress: {
-            bytesDownloaded: 0,
-            bytesTotal: 0,
-            progress: 0,
-            speed: '0 B/s',
-            eta: 'calculating',
-            rawSpeed: 0,
-            rawEta: 0,
-          },
-        },
-        lastBytesWritten: 0,
-        lastUpdateTime: Date.now(),
-      };
-      this.activeTransfers.set(modelName, transfer);
-    } else {
-      transfer.state.isDownloading = true;
-      transfer.state.isPaused = false;
+    if (!transferId) {
+      await rebeginFromPartial();
+      return;
     }
 
-    this.eventCallbacks.onStart?.(modelName, transferId);
+    try {
+      await TransferModule.resumeTransfer(transferId, headers, url, destination);
+      applyLocalResume(transferId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.log('resume_native_fail', modelName, message);
+      if (
+        message.includes('transfer_not_found') ||
+        message.includes('transfer_missing_url')
+      ) {
+        await rebeginFromPartial();
+        return;
+      }
+      throw error;
+    }
   }
 
   async initiateTransfer(
@@ -490,6 +557,8 @@ export class BackgroundDownloadService {
         throw new Error('Failed to start transfer - no transfer ID returned');
       }
 
+      this.ignoredTransfers.delete(model.name);
+
       const transferJob: DownloadJob = {
         model,
         downloadId: result.transferId,
@@ -521,6 +590,8 @@ export class BackgroundDownloadService {
 
   async abortTransfer(modelName: string, nativeTransferId?: string): Promise<void> {
     const transfer = this.activeTransfers.get(modelName);
+    this.ignoreTransfer(modelName, transfer?.downloadId || nativeTransferId);
+    console.log('abort_transfer', modelName);
 
     if (transfer) {
       transfer.state.isCancelling = true;
@@ -561,6 +632,7 @@ export class BackgroundDownloadService {
     }
 
     for (const transferId of idsToCancel) {
+      this.ignoreTransfer(modelName, transferId);
       try {
         await TransferModule.cancelTransfer(transferId);
         console.log('native_transfer_aborted', transferId);
@@ -916,6 +988,10 @@ export class BackgroundDownloadService {
 
   setEventCallbacks(callbacks: DownloadEventCallbacks): void {
     this.eventCallbacks = callbacks;
+  }
+
+  getNativeTransferId(modelName: string): string | undefined {
+    return this.activeTransfers.get(modelName)?.downloadId;
   }
 
   getActiveTransferCount(): number {
