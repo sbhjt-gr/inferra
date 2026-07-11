@@ -19,6 +19,7 @@ export class DownloadTaskManager extends EventEmitter {
   private readonly DOWNLOAD_PROGRESS_KEY = 'download_progress_state';
   private readonly MLX_PACKAGE_MANIFEST_KEY = 'mlx_package_manifest';
   private isInitialized: boolean = false;
+  private hydrateReady: boolean = false;
   private manualCancellationSet: Set<string> = new Set<string>();
   private completingSet: Set<string> = new Set<string>();
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -209,33 +210,75 @@ export class DownloadTaskManager extends EventEmitter {
       },
       onPaused: (modelName: string, progress) => {
         console.log('download_paused', modelName);
-        const displayName = this.tempNameMap.get(modelName) ?? modelName;
-        const downloadInfo = this.activeDownloads.get(modelName);
-        if (downloadInfo) {
-          downloadInfo.status = 'paused';
-          downloadInfo.isPaused = true;
-          if (progress) {
-            downloadInfo.progress = progress.progress;
-            downloadInfo.bytesDownloaded = progress.bytesDownloaded;
-            downloadInfo.totalBytes = progress.bytesTotal;
-          }
+        if (!this.hydrateReady) {
+          console.log('pause_event_before_hydrate');
+          this.upsertPausedDownload(modelName, progress);
+          return;
         }
-        const progressEvent: DownloadProgressEvent = {
-          progress: progress?.progress ?? downloadInfo?.progress ?? 0,
-          bytesDownloaded: progress?.bytesDownloaded ?? downloadInfo?.bytesDownloaded ?? 0,
-          totalBytes: progress?.bytesTotal ?? downloadInfo?.totalBytes ?? 0,
+
+        const info = this.upsertPausedDownload(modelName, progress);
+        const displayName = this.tempNameMap.get(modelName) ?? modelName;
+        this.emit('progress', {
+          progress: info.progress ?? 0,
+          bytesDownloaded: info.bytesDownloaded ?? 0,
+          totalBytes: info.totalBytes ?? 0,
           status: 'paused',
           modelName: displayName,
-          downloadId: this.getDownloadIdForModel(modelName),
-          nativeDownloadId: downloadInfo?.nativeDownloadId,
+          downloadId: info.downloadId,
+          nativeDownloadId: info.nativeDownloadId,
           isPaused: true,
           speed: '0 B/s',
           rawSpeed: 0,
-        };
-        this.emit('progress', progressEvent);
+        });
         void this.saveDownloadProgressNow();
       },
     });
+  }
+
+  private upsertPausedDownload(
+    modelName: string,
+    progress?: { progress: number; bytesDownloaded: number; bytesTotal: number },
+    extras?: { url?: string; destination?: string; nativeDownloadId?: string },
+  ): DownloadTaskInfo {
+    let info = this.activeDownloads.get(modelName);
+    if (!info) {
+      const downloadId = this.nextDownloadId++;
+      void this.saveNextDownloadId();
+      info = {
+        task: null,
+        downloadId,
+        modelName,
+        destination: extras?.destination || `${this.fileManager.getDownloadDir()}/${modelName}`,
+        url: extras?.url,
+        nativeDownloadId: extras?.nativeDownloadId,
+        status: 'paused',
+        isPaused: true,
+        progress: progress?.progress ?? 0,
+        bytesDownloaded: progress?.bytesDownloaded ?? 0,
+        totalBytes: progress?.bytesTotal ?? 0,
+        lastPersistedProgress: progress?.progress ?? 0,
+      };
+      this.activeDownloads.set(modelName, info);
+      console.log('pause_upsert', modelName);
+    } else {
+      info.status = 'paused';
+      info.isPaused = true;
+      if (progress) {
+        info.progress = progress.progress;
+        info.bytesDownloaded = progress.bytesDownloaded;
+        info.totalBytes = progress.bytesTotal;
+      }
+      if (extras?.nativeDownloadId) {
+        info.nativeDownloadId = extras.nativeDownloadId;
+      }
+      if (extras?.url) {
+        info.url = extras.url;
+      }
+      if (extras?.destination) {
+        info.destination = extras.destination;
+      }
+    }
+    return info;
   }
 
   private getDownloadIdForModel(modelName: string): number {
@@ -259,11 +302,79 @@ export class DownloadTaskManager extends EventEmitter {
 
       await this.loadDownloadProgress();
       await this.restorePausedDownloads();
+      await this.rehydrateFromNative();
+      this.hydrateReady = true;
       await this.ensureDownloadsAreRunning();
+      await this.saveDownloadProgressNow();
       this.isInitialized = true;
       console.log('task_manager_ready', this.activeDownloads.size);
     } catch (error) {
+      this.hydrateReady = true;
       throw error;
+    }
+  }
+
+  private async rehydrateFromNative(): Promise<void> {
+    try {
+      const ongoing = await backgroundDownloadService.getOngoingNativeTransfers();
+      console.log('native_ongoing', ongoing.length);
+
+      for (const transfer of ongoing) {
+        const state = transfer.state || 'downloading';
+        const rawName =
+          transfer.modelName ||
+          (transfer.destination
+            ? String(transfer.destination).split('/').filter(Boolean).pop()
+            : null);
+        if (!rawName || String(rawName).startsWith('com.inferra.transfer.')) {
+          continue;
+        }
+
+        const cleanName = String(rawName).replace(/\.partial$/, '');
+        if (state !== 'paused' && state !== 'downloading') {
+          continue;
+        }
+
+        const existing = this.activeDownloads.get(cleanName);
+        if (existing) {
+          if (transfer.id) {
+            existing.nativeDownloadId = transfer.id;
+          }
+          if (typeof transfer.bytesWritten === 'number') {
+            existing.bytesDownloaded = Math.max(
+              existing.bytesDownloaded || 0,
+              transfer.bytesWritten,
+            );
+          }
+          if (typeof transfer.totalBytes === 'number' && transfer.totalBytes > 0) {
+            existing.totalBytes = transfer.totalBytes;
+          }
+          if (state === 'paused' || existing.status === 'paused') {
+            existing.status = 'paused';
+            existing.isPaused = true;
+          }
+          continue;
+        }
+
+        if (state === 'paused') {
+          this.upsertPausedDownload(
+            cleanName,
+            {
+              progress: transfer.progress ?? 0,
+              bytesDownloaded: transfer.bytesWritten ?? 0,
+              bytesTotal: transfer.totalBytes ?? 0,
+            },
+            {
+              url: transfer.url,
+              destination: transfer.destination,
+              nativeDownloadId: transfer.id,
+            },
+          );
+          console.log('rehydrate_paused', cleanName);
+        }
+      }
+    } catch (error) {
+      console.log('rehydrate_native_fail');
     }
   }
 
@@ -303,8 +414,43 @@ export class DownloadTaskManager extends EventEmitter {
       }
     }
 
+    try {
+      const tempDir = this.fileManager.getDownloadDir();
+      const dirInfo = await FileSystem.getInfoAsync(tempDir);
+      if (dirInfo.exists) {
+        const entries = await FileSystem.readDirectoryAsync(tempDir);
+        for (const filename of entries) {
+          if (!filename.endsWith('.partial')) {
+            continue;
+          }
+          const modelName = filename.replace(/\.partial$/, '');
+          if (this.activeDownloads.has(modelName)) {
+            continue;
+          }
+          const path = `${tempDir}/${filename}`;
+          const info = await FileSystem.getInfoAsync(path, { size: true });
+          if (!info.exists) {
+            continue;
+          }
+          const size = (info as { size?: number }).size || 0;
+          if (size <= 0) {
+            continue;
+          }
+          this.upsertPausedDownload(
+            modelName,
+            { progress: 0, bytesDownloaded: size, bytesTotal: 0 },
+            { destination: `${tempDir}/${modelName}` },
+          );
+          changed = true;
+          console.log('restore_partial_file', modelName, size);
+        }
+      }
+    } catch {
+      console.log('partial_scan_fail');
+    }
+
     if (changed) {
-      await this.saveDownloadProgressNow();
+      console.log('restore_paused_done', this.activeDownloads.size);
     }
   }
 
@@ -884,6 +1030,11 @@ export class DownloadTaskManager extends EventEmitter {
   }
 
   private async saveDownloadProgressNow(): Promise<void> {
+    if (!this.hydrateReady && this.activeDownloads.size === 0) {
+      console.log('persist_skip_empty_prehydrate');
+      return;
+    }
+
     if (this.saveTimer) {
       clearTimeout(this.saveTimer);
       this.saveTimer = null;

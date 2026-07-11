@@ -892,6 +892,28 @@ export class BackgroundDownloadService {
     }
   }
 
+  async getOngoingNativeTransfers(): Promise<Array<{
+    id: string;
+    destination?: string;
+    modelName?: string;
+    bytesWritten?: number;
+    totalBytes?: number;
+    progress?: number;
+    state?: string;
+    url?: string;
+  }>> {
+    if (!TransferModule?.getOngoingTransfers) {
+      return [];
+    }
+    try {
+      const list = await TransferModule.getOngoingTransfers();
+      return Array.isArray(list) ? list : [];
+    } catch {
+      console.log('ongoing_fetch_fail');
+      return [];
+    }
+  }
+
   setEventCallbacks(callbacks: DownloadEventCallbacks): void {
     this.eventCallbacks = callbacks;
   }
