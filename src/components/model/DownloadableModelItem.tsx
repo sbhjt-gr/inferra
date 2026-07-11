@@ -209,32 +209,6 @@ const DownloadableModelItem: React.FC<DownloadableModelItemProps> = ({
                 {model.size}
               </Text>
             </View>
-            {model.modelType === ModelType.VISION && model.additionalFiles && model.additionalFiles.length > 0 ? (
-              <View style={styles.visionDownloadLinks}>
-                <TouchableOpacity
-                  style={styles.browserDownloadButton}
-                  onPress={() => handleBrowserDownload(model.huggingFaceLink)}
-                >
-                  <MaterialCommunityIcons name="open-in-new" size={14} color={getBrowserDownloadTextColor(currentTheme)} style={{ marginRight: 4 }} />
-                  <Text style={[styles.browserDownloadText, { color: getBrowserDownloadTextColor(currentTheme) }]}>Model</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.browserDownloadButton}
-                  onPress={() => handleBrowserDownload(model.additionalFiles![0].url)}
-                >
-                  <MaterialCommunityIcons name="open-in-new" size={14} color={getBrowserDownloadTextColor(currentTheme)} style={{ marginRight: 4 }} />
-                  <Text style={[styles.browserDownloadText, { color: getBrowserDownloadTextColor(currentTheme) }]}>Projector</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <TouchableOpacity
-                style={styles.browserDownloadButton}
-                onPress={() => handleBrowserDownload(model.huggingFaceLink)}
-              >
-                <MaterialCommunityIcons name="open-in-new" size={14} color={getBrowserDownloadTextColor(currentTheme)} style={{ marginRight: 4 }} />
-                <Text style={[styles.browserDownloadText, { color: getBrowserDownloadTextColor(currentTheme) }]}>Download in browser</Text>
-              </TouchableOpacity>
-            )}
           </View>
           
           {model.additionalFiles && model.additionalFiles.length > 0 && (
@@ -349,21 +323,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  browserDownloadButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 4,
-    paddingHorizontal: 6,
-  },
-  visionDownloadLinks: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  browserDownloadText: {
-    fontSize: 13,
-    fontWeight: '500',
-  },
   downloadButton: {
     width: 44,
     height: 44,
@@ -379,7 +338,6 @@ const styles = StyleSheet.create({
   modelMetaInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
   },
   metaItem: {
     flexDirection: 'row',
