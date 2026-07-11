@@ -146,6 +146,7 @@ class FileTransferWorker(
       Result.success()
     } catch (e: Exception) {
       Log.e(LOG_TAG, "transfer_failed", e)
+      deletePartialDestination(destination)
       broadcastError(
         transferId, e.message ?: "Unknown error", modelName, destination, url,
         lastBytesTransferred, lastTotalBytes
@@ -279,6 +280,22 @@ class FileTransferWorker(
     }
 
     Pair(lastBytesTransferred, lastTotalBytes)
+  }
+
+  private fun deletePartialDestination(destinationPath: String) {
+    try {
+      val actualPath = if (destinationPath.startsWith("file://")) {
+        destinationPath.substring(7)
+      } else {
+        destinationPath
+      }
+      val file = File(actualPath)
+      if (file.exists() && file.delete()) {
+        Log.i(LOG_TAG, "partial_deleted: $actualPath")
+      }
+    } catch (e: Exception) {
+      Log.w(LOG_TAG, "partial_delete_failed: $destinationPath", e)
+    }
   }
 
   private fun parseHeaderString(headersString: String): Map<String, String> {
