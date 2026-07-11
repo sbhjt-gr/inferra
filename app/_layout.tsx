@@ -161,13 +161,13 @@ function InnerLayout() {
       />
       <StatusBarHost
         themeName={currentTheme}
-        forceLight={Platform.OS === 'android' || isWideScreen}
+        forceLight={Platform.OS === 'android' && !isWideScreen}
         translucent
       />
       <Stack
         screenOptions={{
           headerShown: false,
-          statusBarStyle: Platform.OS === 'ios' ? (isWideScreen ? 'light' : 'auto') : undefined,
+          statusBarStyle: Platform.OS === 'ios' ? 'auto' : undefined,
         }}
       >
         <Stack.Screen name="(tabs)" />
