@@ -32,10 +32,30 @@ class FileTransferWorker(
     const val KEY_PROGRESS_TOTAL = "progressTotal"
     const val KEY_PROGRESS_PERCENT = "progressPercent"
     const val WORK_TAG = "inferra_file_transfer"
+    const val PARTIAL_SUFFIX = ".partial"
     private const val BUFFER_SIZE = 8192
     private const val BROADCAST_INTERVAL = 1000L
     private const val DB_UPDATE_INTERVAL = 3000L
     private const val NOTIFICATION_INTERVAL = 3000L
+    private const val MAX_RETRIES = 3
+
+    fun partialPath(destination: String): String {
+      val actual = stripFileScheme(destination)
+      return if (actual.endsWith(PARTIAL_SUFFIX)) actual else "$actual$PARTIAL_SUFFIX"
+    }
+
+    fun stripFileScheme(path: String): String {
+      return if (path.startsWith("file://")) path.substring(7) else path
+    }
+
+    fun finalPath(destination: String): String {
+      val actual = stripFileScheme(destination)
+      return if (actual.endsWith(PARTIAL_SUFFIX)) {
+        actual.removeSuffix(PARTIAL_SUFFIX)
+      } else {
+        actual
+      }
+    }
   }
 
   private var lastBytesTransferred: Long = 0L
@@ -43,8 +63,9 @@ class FileTransferWorker(
 
   private fun extractModelName(path: String?): String? {
     if (path.isNullOrEmpty()) return null
-    val normalised = if (path.startsWith("file://")) path.substring(7) else path
+    val normalised = stripFileScheme(path)
     return normalised.split('/').filter { it.isNotEmpty() }.lastOrNull()
+      ?.removeSuffix(PARTIAL_SUFFIX)
   }
 
   private fun broadcastProgress(
@@ -59,6 +80,7 @@ class FileTransferWorker(
       putExtra("progress", progress)
       putExtra("modelName", modelName)
       putExtra("destination", destination)
+      putExtra("state", "downloading")
       url?.let { putExtra("url", it) }
     }
     LocalBroadcastManager.getInstance(applicationContext).sendBroadcast(intent)
@@ -110,6 +132,22 @@ class FileTransferWorker(
     LocalBroadcastManager.getInstance(applicationContext).sendBroadcast(intent)
   }
 
+  private fun broadcastPaused(
+    transferId: String, modelName: String, destination: String, url: String?,
+    bytesWritten: Long, totalBytes: Long,
+  ) {
+    val intent = Intent(TransferExpoModule.ACTION_TRANSFER_PAUSED).apply {
+      putExtra("transferId", transferId)
+      putExtra("modelName", modelName)
+      putExtra("destination", destination)
+      url?.let { putExtra("url", it) }
+      putExtra("bytesWritten", bytesWritten)
+      putExtra("totalBytes", totalBytes)
+      putExtra("state", "paused")
+    }
+    LocalBroadcastManager.getInstance(applicationContext).sendBroadcast(intent)
+  }
+
   override suspend fun doWork(): Result {
     val url = inputData.getString(KEY_URL)
     val destination = inputData.getString(KEY_DESTINATION)
@@ -123,6 +161,8 @@ class FileTransferWorker(
     lastBytesTransferred = 0L
     lastTotalBytes = 0L
 
+    Log.i(LOG_TAG, "transfer_start $transferId")
+
     try {
       setForeground(
         DownloadNotificationHelper.createForegroundInfo(
@@ -133,29 +173,66 @@ class FileTransferWorker(
       Log.w(LOG_TAG, "foreground_init_failed", e)
     }
 
+    TransferStateStore.setState(applicationContext, transferId, TransferStateStore.STATE_DOWNLOADING)
+
     return try {
       val (bytesWritten, totalBytes) = performFileTransfer(
         url, destination, transferId, headersString, modelName
       )
-      broadcastComplete(transferId, modelName, destination, url, bytesWritten, totalBytes)
+      broadcastComplete(transferId, modelName, finalPath(destination), url, bytesWritten, totalBytes)
       DownloadNotificationHelper.showCompletionNotification(applicationContext, transferId, modelName)
+      TransferStateStore.clear(applicationContext, transferId)
+      Log.i(LOG_TAG, "transfer_done $transferId")
+      Result.success()
+    } catch (e: TransferExpoModule.TransferPausedException) {
+      Log.i(LOG_TAG, "transfer_paused $transferId")
+      TransferStateStore.setState(applicationContext, transferId, TransferStateStore.STATE_PAUSED)
+      TransferStateStore.setBytes(
+        applicationContext, transferId, lastBytesTransferred, lastTotalBytes
+      )
+      broadcastPaused(
+        transferId, modelName, destination, url, lastBytesTransferred, lastTotalBytes
+      )
+      DownloadNotificationHelper.showPausedNotification(
+        applicationContext, transferId, modelName, lastBytesTransferred, lastTotalBytes
+      )
       Result.success()
     } catch (e: TransferExpoModule.TransferCancelledException) {
+      Log.i(LOG_TAG, "transfer_cancelled $transferId")
+      deletePartial(destination)
+      TransferStateStore.clear(applicationContext, transferId)
       broadcastCancelled(transferId, modelName, destination, url, lastBytesTransferred, lastTotalBytes)
       DownloadNotificationHelper.cancelNotification(applicationContext, transferId)
       Result.success()
     } catch (e: Exception) {
       Log.e(LOG_TAG, "transfer_failed", e)
-      deletePartialDestination(destination)
-      broadcastError(
-        transferId, e.message ?: "Unknown error", modelName, destination, url,
-        lastBytesTransferred, lastTotalBytes
-      )
-      DownloadNotificationHelper.showFailureNotification(
-        applicationContext, transferId, modelName, e.message
-      )
-      Result.failure()
+      val retryable = isRetryable(e)
+      if (retryable && runAttemptCount < MAX_RETRIES) {
+        Log.i(LOG_TAG, "transfer_retry $runAttemptCount")
+        Result.retry()
+      } else {
+        broadcastError(
+          transferId, e.message ?: "Unknown error", modelName, destination, url,
+          lastBytesTransferred, lastTotalBytes
+        )
+        DownloadNotificationHelper.showFailureNotification(
+          applicationContext, transferId, modelName, e.message
+        )
+        Result.failure()
+      }
     }
+  }
+
+  private fun isRetryable(e: Exception): Boolean {
+    val msg = (e.message ?: "").lowercase()
+    if (msg.contains("enospc") || msg.contains("no space")) return false
+    if (msg.contains("http error: 401") || msg.contains("http error: 403") ||
+      msg.contains("http error: 404")
+    ) {
+      return false
+    }
+    return e is IOException || msg.contains("timeout") || msg.contains("reset") ||
+      msg.contains("503") || msg.contains("502") || msg.contains("500")
   }
 
   private suspend fun performFileTransfer(
@@ -167,6 +244,11 @@ class FileTransferWorker(
     var fileOutputStream: FileOutputStream? = null
 
     try {
+      val partialFile = File(partialPath(destinationPath))
+      partialFile.parentFile?.mkdirs()
+      var existingSize = if (partialFile.exists()) partialFile.length() else 0L
+      Log.i(LOG_TAG, "partial_size $existingSize")
+
       val url = URL(urlString)
       httpConnection = url.openConnection() as HttpURLConnection
 
@@ -177,52 +259,87 @@ class FileTransferWorker(
             httpConnection.setRequestProperty(key, value)
           }
         } catch (e: Exception) {
-          Log.w(LOG_TAG, "header_parse_failed: $headers", e)
+          Log.w(LOG_TAG, "header_parse_failed", e)
         }
       }
 
+      if (existingSize > 0) {
+        httpConnection.setRequestProperty("Range", "bytes=$existingSize-")
+        Log.i(LOG_TAG, "range_request $existingSize")
+      }
+
       httpConnection.connectTimeout = 30000
-      httpConnection.readTimeout = 30000
+      httpConnection.readTimeout = 60000
       httpConnection.connect()
 
-      if (httpConnection.responseCode != HttpURLConnection.HTTP_OK) {
-        throw IOException("HTTP error: ${httpConnection.responseCode} ${httpConnection.responseMessage}")
+      val responseCode = httpConnection.responseCode
+      Log.i(LOG_TAG, "http_status $responseCode")
+
+      if (responseCode != HttpURLConnection.HTTP_OK &&
+        responseCode != HttpURLConnection.HTTP_PARTIAL
+      ) {
+        throw IOException("HTTP error: $responseCode ${httpConnection.responseMessage}")
       }
 
-      val totalFileSize = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+      if (existingSize > 0 && responseCode == HttpURLConnection.HTTP_OK) {
+        Log.i(LOG_TAG, "range_ignored_restart")
+        partialFile.delete()
+        existingSize = 0L
+        fileOutputStream = FileOutputStream(partialFile, false)
+      } else {
+        fileOutputStream = FileOutputStream(partialFile, existingSize > 0)
+      }
+
+      val contentLength = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
         httpConnection.contentLengthLong
       } else {
-        httpConnection.getHeaderField("Content-Length")?.toLongOrNull() ?: httpConnection.contentLength.toLong()
+        httpConnection.getHeaderField("Content-Length")?.toLongOrNull()
+          ?: httpConnection.contentLength.toLong()
       }
+
+      val totalFileSize = when {
+        responseCode == HttpURLConnection.HTTP_PARTIAL -> {
+          parseTotalFromContentRange(httpConnection.getHeaderField("Content-Range"))
+            ?: (existingSize + contentLength)
+        }
+        contentLength > 0 && existingSize > 0 && responseCode == HttpURLConnection.HTTP_OK -> contentLength
+        contentLength > 0 -> contentLength
+        else -> TransferStateStore.getTotal(applicationContext, transferId)
+      }
+
       dataInputStream = httpConnection.inputStream
 
-      val actualPath = if (destinationPath.startsWith("file://")) {
-        destinationPath.substring(7)
-      } else destinationPath
-
-      val destinationFile = File(actualPath)
-      destinationFile.parentFile?.mkdirs()
-      fileOutputStream = FileOutputStream(destinationFile)
-
       val dataBuffer = ByteArray(BUFFER_SIZE)
-      var totalBytesTransferred = 0L
+      var totalBytesTransferred = existingSize
       var bytesRead: Int
       var lastProgressTimestamp = 0L
       val transferStartTime = System.currentTimeMillis()
+      var sessionBytes = 0L
       var lastNotificationTimestamp = 0L
       var lastDbUpdateTimestamp = 0L
 
+      lastBytesTransferred = totalBytesTransferred
+      lastTotalBytes = totalFileSize
+
       while (dataInputStream.read(dataBuffer).also { bytesRead = it } != -1) {
-        if (isStopped) break
+        if (isStopped || TransferStateStore.isPauseRequested(applicationContext, transferId)) {
+          Log.i(LOG_TAG, "stop_detected")
+          break
+        }
 
         fileOutputStream.write(dataBuffer, 0, bytesRead)
         totalBytesTransferred += bytesRead
+        sessionBytes += bytesRead
 
         val currentTimestamp = System.currentTimeMillis()
         if (currentTimestamp - lastProgressTimestamp >= BROADCAST_INTERVAL) {
           val elapsedTime = currentTimestamp - transferStartTime
-          val transferSpeed = if (elapsedTime > 0) (totalBytesTransferred * 1000) / elapsedTime else 0L
-          val progressPercent = if (totalFileSize > 0) ((totalBytesTransferred * 100) / totalFileSize).toInt() else 0
+          val transferSpeed = if (elapsedTime > 0) (sessionBytes * 1000) / elapsedTime else 0L
+          val progressPercent = if (totalFileSize > 0) {
+            ((totalBytesTransferred * 100) / totalFileSize).toInt()
+          } else {
+            0
+          }
 
           if (currentTimestamp - lastDbUpdateTimestamp >= DB_UPDATE_INTERVAL) {
             try {
@@ -236,6 +353,9 @@ class FileTransferWorker(
             } catch (e: Exception) {
               Log.w(LOG_TAG, "progress_set_failed", e)
             }
+            TransferStateStore.setBytes(
+              applicationContext, transferId, totalBytesTransferred, totalFileSize
+            )
             lastDbUpdateTimestamp = currentTimestamp
           }
 
@@ -264,14 +384,38 @@ class FileTransferWorker(
         }
       }
 
-      if (isStopped) {
-        destinationFile.delete()
-        throw TransferExpoModule.TransferCancelledException()
-      }
-
       fileOutputStream.flush()
       lastBytesTransferred = totalBytesTransferred
       lastTotalBytes = totalFileSize
+
+      if (isStopped || TransferStateStore.isPauseRequested(applicationContext, transferId)) {
+        val pauseRequested = TransferStateStore.isPauseRequested(applicationContext, transferId)
+        if (pauseRequested) {
+          TransferStateStore.clearPauseRequest(applicationContext, transferId)
+          throw TransferExpoModule.TransferPausedException()
+        }
+        if (TransferStateStore.isCancelRequested(applicationContext, transferId)) {
+          throw TransferExpoModule.TransferCancelledException()
+        }
+        throw TransferExpoModule.TransferPausedException()
+      }
+
+      if (totalFileSize > 0 && totalBytesTransferred != totalFileSize) {
+        Log.w(LOG_TAG, "size_mismatch $totalBytesTransferred $totalFileSize")
+        if (totalBytesTransferred < totalFileSize) {
+          throw IOException("incomplete_download")
+        }
+      }
+
+      val finalFile = File(finalPath(destinationPath))
+      if (finalFile.exists()) {
+        finalFile.delete()
+      }
+      if (!partialFile.renameTo(finalFile)) {
+        partialFile.copyTo(finalFile, overwrite = true)
+        partialFile.delete()
+      }
+      Log.i(LOG_TAG, "partial_promoted")
 
     } finally {
       dataInputStream?.close()
@@ -282,19 +426,25 @@ class FileTransferWorker(
     Pair(lastBytesTransferred, lastTotalBytes)
   }
 
-  private fun deletePartialDestination(destinationPath: String) {
+  private fun parseTotalFromContentRange(contentRange: String?): Long? {
+    if (contentRange.isNullOrBlank()) return null
+    val slash = contentRange.lastIndexOf('/')
+    if (slash < 0 || slash >= contentRange.length - 1) return null
+    return contentRange.substring(slash + 1).toLongOrNull()
+  }
+
+  private fun deletePartial(destinationPath: String) {
     try {
-      val actualPath = if (destinationPath.startsWith("file://")) {
-        destinationPath.substring(7)
-      } else {
-        destinationPath
-      }
-      val file = File(actualPath)
+      val file = File(partialPath(destinationPath))
       if (file.exists() && file.delete()) {
-        Log.i(LOG_TAG, "partial_deleted: $actualPath")
+        Log.i(LOG_TAG, "partial_deleted")
+      }
+      val final = File(finalPath(destinationPath))
+      if (final.exists() && final.delete()) {
+        Log.i(LOG_TAG, "final_deleted")
       }
     } catch (e: Exception) {
-      Log.w(LOG_TAG, "partial_delete_failed: $destinationPath", e)
+      Log.w(LOG_TAG, "partial_delete_failed", e)
     }
   }
 
@@ -302,6 +452,7 @@ class FileTransferWorker(
     return try {
       if (headersString.startsWith("{") && headersString.endsWith("}")) {
         val cleaned = headersString.substring(1, headersString.length - 1)
+        if (cleaned.isBlank()) return emptyMap()
         val pairs = cleaned.split(", ")
         val headerMap = mutableMapOf<String, String>()
         for (pair in pairs) {
@@ -313,7 +464,7 @@ class FileTransferWorker(
         headerMap
       } else emptyMap()
     } catch (e: Exception) {
-      Log.w(LOG_TAG, "header_string_parse_failed: $headersString", e)
+      Log.w(LOG_TAG, "header_string_parse_failed", e)
       emptyMap()
     }
   }
