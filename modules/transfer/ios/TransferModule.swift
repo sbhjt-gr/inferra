@@ -176,6 +176,10 @@ public class TransferModule: Module {
       do {
         try FileManager.default.moveItem(at: location, to: destURL)
       } catch {
+        // Drop both sides so a failed move never leaves a partial dest
+        // or an orphaned session temp behind.
+        try? FileManager.default.removeItem(at: destURL)
+        try? FileManager.default.removeItem(at: location)
         emitOnMain("onTransferError", [
           "downloadId": tid,
           "modelName": modelName,
@@ -244,14 +248,20 @@ public class TransferModule: Module {
   func emitError(_ tid: String, error: Error) {
     let stored = getMeta(tid)
     let modelName = stored?.modelName ?? tid
+    let dest = stored?.destination ?? ""
     let nsErr = error as NSError
     let cancelled = nsErr.code == NSURLErrorCancelled
+
+    // Remove any partial at the destination. URLSession keeps its own
+    // temp until the delegate returns; our dest can still hold a prior
+    // move, a failed finalize, or an error-body download.
+    deleteDestinationIfPresent(dest)
 
     if cancelled {
       emitOnMain("onTransferCancelled", [
         "downloadId": tid,
         "modelName": modelName,
-        "destination": stored?.destination ?? "",
+        "destination": dest,
         "url": stored?.url ?? "",
         "bytesWritten": 0.0,
         "totalBytes": 0.0
@@ -263,7 +273,7 @@ public class TransferModule: Module {
       emitOnMain("onTransferError", [
         "downloadId": tid,
         "modelName": modelName,
-        "destination": stored?.destination ?? "",
+        "destination": dest,
         "url": stored?.url ?? "",
         "error": errorMsg,
         "bytesWritten": 0.0,
@@ -271,6 +281,15 @@ public class TransferModule: Module {
       ])
     }
     removeMeta(tid)
+  }
+
+  private func deleteDestinationIfPresent(_ dest: String) {
+    guard !dest.isEmpty else { return }
+    let destURL = Self.resolveDestinationURL(dest)
+    var isDir: ObjCBool = false
+    guard FileManager.default.fileExists(atPath: destURL.path, isDirectory: &isDir),
+          !isDir.boolValue else { return }
+    try? FileManager.default.removeItem(at: destURL)
   }
 
   private func reconnect() {
