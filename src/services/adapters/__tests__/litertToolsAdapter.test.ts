@@ -54,6 +54,26 @@ describe('LitertToolsAdapter', () => {
     expect(params.properties.query.type).toBe('string');
   });
 
+  it('keeps only web_search in native LiteRT catalog', () => {
+    const mixed: RequestToolCatalog = {
+      ...catalog,
+      functionSchemas: [
+        ...catalog.functionSchemas,
+        {
+          type: 'function',
+          function: {
+            name: 'load_skill',
+            description: 'Load skill',
+            parameters: { type: 'object', properties: {}, required: [] },
+          },
+        },
+      ],
+    };
+    const tools = toLitertToolsFromCatalog(mixed);
+    expect(tools).toHaveLength(1);
+    expect(tools[0].name).toBe('web_search');
+  });
+
   it('builds stable signatures for unchanged catalogs', () => {
     const a = toLitertToolsFromCatalog(catalog);
     const b = toLitertToolsFromCatalog(catalog);

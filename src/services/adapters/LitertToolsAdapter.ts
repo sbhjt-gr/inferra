@@ -8,6 +8,8 @@ export type LitertToolDef = {
   parametersJson: string;
 };
 
+const LITERT_NATIVE_TOOLS = new Set(['web_search']);
+
 const normalizeParamType = (param: ToolParam): string => {
   if (param.type === 'number') {
     return 'integer';
@@ -43,7 +45,9 @@ const schemaToLitertTool = (schema: ToolSchema): LitertToolDef => ({
 });
 
 export const toLitertToolsFromCatalog = (catalog: RequestToolCatalog): LitertToolDef[] => {
-  return catalog.functionSchemas.map(schemaToLitertTool);
+  return catalog.functionSchemas
+    .filter(schema => LITERT_NATIVE_TOOLS.has(schema.function.name))
+    .map(schemaToLitertTool);
 };
 
 export const toLitertTools = (): LitertToolDef[] => {
