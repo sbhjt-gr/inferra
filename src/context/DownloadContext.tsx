@@ -135,8 +135,54 @@ export const DownloadProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     
     loadSavedStates();
 
+    const pruneStaleProgress = async () => {
+      if (!isLoadedRef.current) {
+        return;
+      }
+
+      try {
+        const activeList = await modelDownloader.getActiveDownloadsList();
+
+        setDownloadProgress(prev => {
+          let changed = false;
+          const next = { ...prev };
+
+          for (const [key, value] of Object.entries(next)) {
+            if (!isActiveDownload(value)) {
+              delete next[key];
+              changed = true;
+              continue;
+            }
+
+            if (cancelledRef.current.has(key)) {
+              delete next[key];
+              changed = true;
+              continue;
+            }
+
+            const stillRunning = activeList.some(item =>
+              item.modelName === key ||
+              (value.downloadId > 0 && item.downloadId === value.downloadId),
+            );
+
+            if (!stillRunning && value.status !== 'starting') {
+              delete next[key];
+              changed = true;
+            }
+          }
+
+          return changed ? next : prev;
+        });
+      } catch {
+      }
+    };
+
     const handleDownloadStarted = (data: any) => {
       if (!data.modelName || data.modelName.startsWith('com.inferra.transfer.')) {
+        return;
+      }
+      if (cancelledRef.current.has(data.modelName)) {
+        console.log('ui_start_skip_cancelled', data.modelName);
         return;
       }
 
@@ -147,19 +193,24 @@ export const DownloadProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       delete pendingRef.current[data.modelName];
       delete lastUpdateRef.current[data.modelName];
 
-      setDownloadProgress(prev => ({
-        ...prev,
-        [data.modelName]: {
-          progress: 0,
-          bytesDownloaded: 0,
-          totalBytes: 0,
-          status: 'downloading',
-          downloadId: data.downloadId || 0,
-          isPaused: false,
-          speed: '0 B/s',
-          rawSpeed: 0,
+      setDownloadProgress(prev => {
+        if (cancelledRef.current.has(data.modelName)) {
+          return prev;
         }
-      }));
+        return {
+          ...prev,
+          [data.modelName]: {
+            progress: 0,
+            bytesDownloaded: 0,
+            totalBytes: 0,
+            status: 'downloading',
+            downloadId: data.downloadId || 0,
+            isPaused: false,
+            speed: '0 B/s',
+            rawSpeed: 0,
+          },
+        };
+      });
     };
 
     const handleDownloadCompleted = (data: any) => {
@@ -231,20 +282,55 @@ export const DownloadProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         return;
       }
 
-      if (timerRef.current[data.modelName]) {
-        clearTimeout(timerRef.current[data.modelName]);
-        delete timerRef.current[data.modelName];
-      }
-      delete pendingRef.current[data.modelName];
-      delete lastUpdateRef.current[data.modelName];
+      console.log('ui_cancel', data.modelName);
 
-      cancelledRef.current.add(data.modelName);
-      setTimeout(() => cancelledRef.current.delete(data.modelName), 30000);
-      setDownloadProgress(prev => {
-        const newProgress = { ...prev };
-        delete newProgress[data.modelName];
-        return newProgress;
-      });
+      const names = [data.modelName, data.displayName].filter(Boolean) as string[];
+      for (const name of names) {
+        if (timerRef.current[name]) {
+          clearTimeout(timerRef.current[name]);
+          delete timerRef.current[name];
+        }
+        delete pendingRef.current[name];
+        delete lastUpdateRef.current[name];
+        cancelledRef.current.add(name);
+      }
+      setTimeout(() => {
+        for (const name of names) {
+          cancelledRef.current.delete(name);
+        }
+      }, 30000);
+
+      setDownloadProgress(prev => removeProgressEntries(prev, data));
+      void pruneStaleProgress();
+    };
+
+    const handleDownloadsCancelling = (data: { names?: string[] }) => {
+      const names = (data.names || []).filter(Boolean);
+      console.log('ui_cancel_all', names.length);
+      for (const name of names) {
+        if (timerRef.current[name]) {
+          clearTimeout(timerRef.current[name]);
+          delete timerRef.current[name];
+        }
+        delete pendingRef.current[name];
+        delete lastUpdateRef.current[name];
+        cancelledRef.current.add(name);
+      }
+      if (names.length > 0) {
+        setTimeout(() => {
+          for (const name of names) {
+            cancelledRef.current.delete(name);
+          }
+        }, 30000);
+        setDownloadProgress(prev => {
+          const next = { ...prev };
+          for (const name of names) {
+            delete next[name];
+          }
+          return next;
+        });
+        void pruneStaleProgress();
+      }
     };
 
     const handleProgress = (data: any) => {
@@ -254,7 +340,10 @@ export const DownloadProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (data.status === 'completed' || data.status === 'failed' || data.status === 'cancelled') {
         return;
       }
-      if (cancelledRef.current.has(data.modelName)) {
+      if (
+        cancelledRef.current.has(data.modelName) ||
+        (data.displayName && cancelledRef.current.has(data.displayName))
+      ) {
         return;
       }
 
@@ -278,75 +367,57 @@ export const DownloadProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
 
     const flushPending = (modelName: string) => {
+      if (cancelledRef.current.has(modelName)) {
+        delete pendingRef.current[modelName];
+        return;
+      }
+
       const data = pendingRef.current[modelName];
       if (!data) return;
       delete pendingRef.current[modelName];
 
-      setDownloadProgress(prev => ({
-        ...prev,
-        [modelName]: {
-          progress: data.progress || 0,
-          bytesDownloaded: data.bytesDownloaded || 0,
-          totalBytes: data.totalBytes || 0,
-          status: data.status || 'downloading',
-          downloadId: data.downloadId || prev[modelName]?.downloadId || 0,
-          isPaused: data.isPaused ?? data.status === 'paused',
-          speed: data.isPaused || data.status === 'paused'
-            ? '0 B/s'
-            : (data.speed || prev[modelName]?.speed || '0 B/s'),
-          rawSpeed: data.isPaused || data.status === 'paused'
-            ? 0
-            : (data.rawSpeed ?? prev[modelName]?.rawSpeed ?? 0),
+      if (
+        cancelledRef.current.has(data.modelName) ||
+        (data.displayName && cancelledRef.current.has(data.displayName))
+      ) {
+        return;
+      }
+
+      setDownloadProgress(prev => {
+        if (cancelledRef.current.has(modelName)) {
+          return prev;
         }
-      }));
+        return {
+          ...prev,
+          [modelName]: {
+            progress: data.progress || 0,
+            bytesDownloaded: data.bytesDownloaded || 0,
+            totalBytes: data.totalBytes || 0,
+            status: data.status || 'downloading',
+            downloadId: data.downloadId || prev[modelName]?.downloadId || 0,
+            isPaused: data.isPaused ?? data.status === 'paused',
+            speed: data.isPaused || data.status === 'paused'
+              ? '0 B/s'
+              : (data.speed || prev[modelName]?.speed || '0 B/s'),
+            rawSpeed: data.isPaused || data.status === 'paused'
+              ? 0
+              : (data.rawSpeed ?? prev[modelName]?.rawSpeed ?? 0),
+          },
+        };
+      });
     };
 
     modelDownloader.on('downloadStarted', handleDownloadStarted);
     modelDownloader.on('downloadCompleted', handleDownloadCompleted);
     modelDownloader.on('downloadFailed', handleDownloadFailed);
     modelDownloader.on('downloadCancelled', handleDownloadCancelled);
+    modelDownloader.on('downloadsCancelling', handleDownloadsCancelling);
     modelDownloader.on('downloadProgress', handleProgress);
-
-    const pruneStaleProgress = async () => {
-      if (!isLoadedRef.current) {
-        return;
-      }
-
-      try {
-        const activeList = await modelDownloader.getActiveDownloadsList();
-
-        setDownloadProgress(prev => {
-          let changed = false;
-          const next = { ...prev };
-
-          for (const [key, value] of Object.entries(next)) {
-            if (!isActiveDownload(value)) {
-              delete next[key];
-              changed = true;
-              continue;
-            }
-
-            const stillRunning = activeList.some(item =>
-              item.modelName === key ||
-              (value.downloadId > 0 && item.downloadId === value.downloadId),
-            );
-
-            if (!stillRunning && value.progress >= 99) {
-              delete next[key];
-              changed = true;
-            }
-          }
-
-          return changed ? next : prev;
-        });
-      } catch {
-      }
-    };
 
     void pruneStaleProgress();
     const pruneInterval = setInterval(() => {
       void pruneStaleProgress();
-    }, 5000);
+    }, 2000);
 
     const appStateSub = AppState.addEventListener('change', nextState => {
       if (nextState === 'active') {
@@ -359,6 +430,7 @@ export const DownloadProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       modelDownloader.off('downloadCompleted', handleDownloadCompleted);
       modelDownloader.off('downloadFailed', handleDownloadFailed);
       modelDownloader.off('downloadCancelled', handleDownloadCancelled);
+      modelDownloader.off('downloadsCancelling', handleDownloadsCancelling);
       modelDownloader.off('downloadProgress', handleProgress);
 
       clearInterval(pruneInterval);

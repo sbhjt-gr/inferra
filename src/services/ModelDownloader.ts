@@ -325,6 +325,31 @@ class ModelDownloader extends EventEmitter {
     }
   }
 
+  async cancelAllDownloads(modelNames: string[]): Promise<void> {
+    const names = Array.from(new Set(modelNames.filter(Boolean)));
+    if (names.length === 0) {
+      return;
+    }
+
+    console.log('cancel_all', names.length);
+    this.emit('downloadsCancelling', { names });
+
+    const failures: string[] = [];
+    await Promise.all(
+      names.map(async name => {
+        try {
+          await this.downloadTaskManager.cancelDownload(name);
+        } catch {
+          failures.push(name);
+        }
+      }),
+    );
+
+    if (failures.length > 0) {
+      throw new Error(`cancel_all_partial ${failures.length}`);
+    }
+  }
+
   async getStoredModels(): Promise<StoredModel[]> {
     if (!this.isInitialized) {
       await this.initializationPromise;

@@ -22,6 +22,8 @@ import { getThemeAwareColor } from '../utils/ColorUtils';
 import { Text } from 'react-native-paper';
 import Dialog from '../components/Dialog';
 import { isActiveDownload } from '../utils/ModelUtils';
+import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
+import { headerBtn, headerTint } from '../utils/headerChrome';
 
 const formatBytes = (bytes: number) => {
   if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
@@ -72,6 +74,7 @@ interface DownloadItem {
 export default function DownloadsScreen() {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
+  const { isWideScreen } = useResponsiveLayout();
   const downloadProgress = useDownloadProgress();
   const setDownloadProgress = useDownloadDispatch();
   const buttonProcessingRef = useRef<Set<string>>(new Set());
@@ -116,10 +119,21 @@ export default function DownloadsScreen() {
     setDialogTitle(title);
     setDialogMessage(message);
     const autoClose = () => setDialogVisible(false);
+    const primaryAction = primary?.onPress ?? autoClose;
+    const secondaryAction = secondary?.onPress;
     setDialogPrimaryText(primary?.label ?? 'OK');
-    setDialogPrimaryPress(() => primary ? primary.onPress : autoClose);
+    // Store callbacks via updater that returns a stable invoker (setState treats fn args as updaters).
+    setDialogPrimaryPress(() => () => {
+      primaryAction();
+    });
     setDialogSecondaryText(secondary?.label);
-    setDialogSecondaryPress(secondary ? () => secondary.onPress : undefined);
+    setDialogSecondaryPress(
+      secondaryAction
+        ? () => () => {
+            secondaryAction();
+          }
+        : () => undefined,
+    );
     setDialogVisible(true);
   }, []);
 
@@ -420,6 +434,7 @@ export default function DownloadsScreen() {
 
   const confirmCancellation = async () => {
     const modelName = cancelModelName;
+    const downloadId = downloadProgress[modelName]?.downloadId;
     hideCancelDialog();
 
     if (!modelName || buttonProcessingRef.current.has(modelName)) {
@@ -427,14 +442,23 @@ export default function DownloadsScreen() {
     }
 
     buttonProcessingRef.current.add(modelName);
+    console.log('cancel_confirmed', modelName);
+
+    setDownloadProgress(prev => {
+      const next = { ...prev };
+      delete next[modelName];
+      if (downloadId) {
+        for (const [key, value] of Object.entries(next)) {
+          if (value.downloadId === downloadId) {
+            delete next[key];
+          }
+        }
+      }
+      return next;
+    });
 
     try {
       await modelDownloader.cancelDownload(modelName);
-      setDownloadProgress(prev => {
-        const newProgress = { ...prev };
-        delete newProgress[modelName];
-        return newProgress;
-      });
     } catch {
       showDialog('Error', 'Failed to cancel download');
     } finally {
@@ -455,38 +479,27 @@ export default function DownloadsScreen() {
     const confirmCancelAll = async () => {
       hideDialog();
       setIsCancellingAll(true);
+      console.log('cancel_all_confirmed', activeNames.length);
 
-      const cancelledNames: string[] = [];
+      setDownloadProgress(prev => {
+        const next = { ...prev };
+        for (const modelName of activeNames) {
+          delete next[modelName];
+        }
+        return next;
+      });
 
       try {
-        for (const modelName of activeNames) {
-          if (buttonProcessingRef.current.has(modelName)) {
-            continue;
+        await modelDownloader.cancelAllDownloads(activeNames);
+        setDownloadProgress(prev => {
+          const next = { ...prev };
+          for (const modelName of activeNames) {
+            delete next[modelName];
           }
-
-          buttonProcessingRef.current.add(modelName);
-          try {
-            await modelDownloader.cancelDownload(modelName);
-            cancelledNames.push(modelName);
-          } catch {
-          } finally {
-            buttonProcessingRef.current.delete(modelName);
-          }
-        }
-
-        if (cancelledNames.length > 0) {
-          setDownloadProgress(prev => {
-            const next = { ...prev };
-            for (const modelName of cancelledNames) {
-              delete next[modelName];
-            }
-            return next;
-          });
-        }
-
-        if (cancelledNames.length !== activeNames.length) {
-          showDialog('Error', 'Some downloads could not be cancelled. Please try again.');
-        }
+          return next;
+        });
+      } catch {
+        showDialog('Error', 'Some downloads could not be cancelled. Please try again.');
       } finally {
         setIsCancellingAll(false);
       }
@@ -502,9 +515,15 @@ export default function DownloadsScreen() {
 
   const headerRightButtons = useMemo(() => {
     if (downloads.length === 0) return null;
+    const tint = headerTint(
+      isWideScreen,
+      currentTheme === 'light',
+      themeColors.primary,
+      themeColors.headerText,
+    );
     return (
       <TouchableOpacity
-        style={[styles.headerButton, isCancellingAll && styles.headerButtonDisabled]}
+        style={[headerBtn(isWideScreen), isCancellingAll && styles.headerButtonDisabled]}
         onPress={handleCancelAll}
         disabled={isCancellingAll}
         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -512,11 +531,11 @@ export default function DownloadsScreen() {
         <MaterialCommunityIcons
           name="close-circle-outline"
           size={22}
-          color={Platform.OS === 'ios' && currentTheme === 'light' ? themeColors.primary : themeColors.headerText}
+          color={tint}
         />
       </TouchableOpacity>
     );
-  }, [downloads.length, isCancellingAll, currentTheme, themeColors]);
+  }, [downloads.length, isCancellingAll, currentTheme, themeColors, isWideScreen]);
 
   const renderItem = useCallback(({ item }: { item: DownloadItem }) => {
     const packageFiles = mlxPackageFiles[item.name] || [];
@@ -765,14 +784,6 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     padding: 4,
-  },
-  headerButton: {
-    width: Platform.OS === 'ios' ? 44 : 36,
-    height: Platform.OS === 'ios' ? 44 : 36,
-    borderRadius: Platform.OS === 'ios' ? 0 : 18,
-    backgroundColor: Platform.OS === 'ios' ? 'transparent' : 'rgba(255, 255, 255, 0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   headerButtonDisabled: {
     opacity: 0.5,
