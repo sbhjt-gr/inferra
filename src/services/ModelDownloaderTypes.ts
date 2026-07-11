@@ -27,6 +27,7 @@ export interface DownloadTaskInfo {
   status?: string;
   nativeDownloadId?: string;
   lastPersistedProgress?: number;
+  isPaused?: boolean;
 }
 
 export interface DownloadProgress {

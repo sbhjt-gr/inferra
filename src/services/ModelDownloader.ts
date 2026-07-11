@@ -286,8 +286,8 @@ class ModelDownloader extends EventEmitter {
     await this.downloadTaskManager.pauseDownload(downloadId);
   }
 
-  async resumeDownload(downloadId: number): Promise<void> {
-    await this.downloadTaskManager.resumeDownload(downloadId);
+  async resumeDownload(downloadId: number, authToken?: string): Promise<void> {
+    await this.downloadTaskManager.resumeDownload(downloadId, authToken);
   }
 
   async restartDownload(modelName: string, authToken?: string): Promise<void> {

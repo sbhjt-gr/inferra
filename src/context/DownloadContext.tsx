@@ -111,6 +111,7 @@ export const DownloadProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                 totalBytes: dl.totalBytes || 0,
                 status: dl.status || 'downloading',
                 downloadId: dl.downloadId || 0,
+                isPaused: dl.status === 'paused',
                 speed: '0 B/s',
                 rawSpeed: 0,
               };
@@ -282,9 +283,13 @@ export const DownloadProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           totalBytes: data.totalBytes || 0,
           status: data.status || 'downloading',
           downloadId: data.downloadId || prev[modelName]?.downloadId || 0,
-          isPaused: prev[modelName]?.isPaused,
-          speed: data.speed || prev[modelName]?.speed || '0 B/s',
-          rawSpeed: data.rawSpeed ?? prev[modelName]?.rawSpeed ?? 0,
+          isPaused: data.isPaused ?? data.status === 'paused',
+          speed: data.isPaused || data.status === 'paused'
+            ? '0 B/s'
+            : (data.speed || prev[modelName]?.speed || '0 B/s'),
+          rawSpeed: data.isPaused || data.status === 'paused'
+            ? 0
+            : (data.rawSpeed ?? prev[modelName]?.rawSpeed ?? 0),
         }
       }));
     };
