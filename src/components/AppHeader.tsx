@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -8,9 +8,6 @@ import chatManager from '../utils/ChatManager';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { OpenSansFont } from '../hooks/OpenSansFont';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
-
-const isIOS = Platform.OS === 'ios';
-const NAV_HEIGHT = isIOS ? 53 : 52;
 
 type AppHeaderProps = {
   title?: string;
@@ -41,7 +38,8 @@ export default function AppHeader({
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
   const { fonts } = OpenSansFont();
-  const { isWideScreen } = useResponsiveLayout();
+  const { useIosHeader } = useResponsiveLayout();
+  const navHeight = useIosHeader ? 53 : 52;
 
   const isHomeScreen = pathname === '/';
 
@@ -65,10 +63,16 @@ export default function AppHeader({
     }
   };
 
-  if (isIOS && !isWideScreen) {
-    const iosColor = currentTheme === 'light' ? themeColors.primary : themeColors.text;
+  if (useIosHeader) {
+    const iosColor = headerTint(
+      true,
+      currentTheme === 'light',
+      themeColors.primary,
+      themeColors.text,
+    );
+    console.log('header_ios', title);
     return (
-      <View style={[styles.iosContainer, { height: NAV_HEIGHT + insets.top }]}>
+      <View style={[styles.iosContainer, { height: navHeight + insets.top }]}>
         <View style={[styles.iosContent, { paddingTop: insets.top }]}>
           <View style={styles.iosLeft}>
             {leftComponent ? (
@@ -123,6 +127,7 @@ export default function AppHeader({
     );
   }
 
+  console.log('header_android', title);
   return (
     <View
       style={[
@@ -130,7 +135,7 @@ export default function AppHeader({
         {
           backgroundColor: transparent ? 'transparent' : themeColors.headerBackground,
           paddingTop: insets.top,
-          height: NAV_HEIGHT + insets.top,
+          height: navHeight + insets.top,
         },
       ]}
     >
@@ -246,11 +251,6 @@ const styles = StyleSheet.create({
   },
   container: {
     width: '100%',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
     zIndex: 10,
   },
   headerContent: {
