@@ -70,6 +70,8 @@ export type GenOpts = {
   onToken?: (token: string) => boolean | void;
   /** Native tool definitions for engines that support function calling (LiteRT-LM). */
   tools?: any[];
+  /** Skip cached LiteRT tools and load plain chat config. */
+  skipStableTools?: boolean;
   /** Keep loaded model; only reset conversation (LiteRT summarize / follow-up). */
   reuseSession?: boolean;
   /** Compact enabled-skills header for LiteRT multi-turn prompts. */
