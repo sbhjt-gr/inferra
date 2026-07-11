@@ -133,19 +133,62 @@ class TransferExpoModule : Module() {
       true
     }
 
-    AsyncFunction("resumeTransfer") { transferId: String, headers: Map<String, String>? ->
+    AsyncFunction("resumeTransfer") {
+        transferId: String,
+        headers: Map<String, String>?,
+        url: String?,
+        destination: String?,
+      ->
       val context = appContext.reactContext
         ?: throw Exception("Context not available")
 
-      val stored = ongoingTransfers[transferId] ?: readStoredTransfer(transferId)
-        ?: throw Exception("transfer_not_found")
+      var stored = ongoingTransfers[transferId] ?: readStoredTransfer(transferId)
+      if (stored == null && !url.isNullOrBlank() && !destination.isNullOrBlank()) {
+        val modelName = extractModelName(destination) ?: transferId
+        Log.i(LOG_TAG, "resume_recreate $transferId")
+        stored = OngoingTransfer(
+          destination,
+          modelName,
+          url,
+          encodeHeaders(headers),
+          TransferStateStore.STATE_DOWNLOADING,
+        )
+      }
+
+      if (stored == null) {
+        Log.e(LOG_TAG, "resume_missing $transferId")
+        throw Exception("transfer_not_found")
+      }
+
+      val resolvedUrl = when {
+        !url.isNullOrBlank() -> url
+        !stored.url.isNullOrBlank() -> stored.url
+        else -> null
+      }
+      val resolvedDest = when {
+        !destination.isNullOrBlank() -> destination
+        stored.destination.isNotBlank() -> stored.destination
+        else -> null
+      }
+
+      if (resolvedUrl.isNullOrBlank() || resolvedDest.isNullOrBlank()) {
+        Log.e(LOG_TAG, "resume_no_url $transferId")
+        throw Exception("transfer_missing_url")
+      }
 
       Log.i(LOG_TAG, "resume_transfer $transferId")
       TransferStateStore.clearPauseRequest(context, transferId)
+      TransferStateStore.clearCancelRequest(context, transferId)
       TransferStateStore.setState(context, transferId, TransferStateStore.STATE_DOWNLOADING)
 
       val headersString = encodeHeaders(headers) ?: stored.headers
+      val modelName = stored.modelName.ifEmpty {
+        extractModelName(resolvedDest) ?: transferId
+      }
       val updated = stored.copy(
+        destination = resolvedDest,
+        modelName = modelName,
+        url = resolvedUrl,
         headers = headersString,
         state = TransferStateStore.STATE_DOWNLOADING,
       )
@@ -153,8 +196,8 @@ class TransferExpoModule : Module() {
       storeTransfer(transferId, updated)
 
       enqueueWorker(
-        context, transferId, stored.url ?: "", stored.destination,
-        headersString, stored.modelName
+        context, transferId, resolvedUrl, resolvedDest,
+        headersString, modelName
       )
       true
     }
@@ -323,6 +366,7 @@ class TransferExpoModule : Module() {
       put("modelName", transfer.modelName)
       put("url", transfer.url)
       put("state", transfer.state)
+      put("headers", transfer.headers)
     }.toString()
     transferStore?.edit()?.putString(transferId, data)?.apply()
   }
@@ -335,7 +379,7 @@ class TransferExpoModule : Module() {
         obj.optString("destination", ""),
         obj.optString("modelName", transferId),
         if (obj.isNull("url")) null else obj.optString("url", null),
-        null,
+        if (obj.isNull("headers")) null else obj.optString("headers", null),
         obj.optString("state", TransferStateStore.STATE_DOWNLOADING),
       )
     } catch (_: Exception) {
@@ -378,12 +422,19 @@ class TransferExpoModule : Module() {
           val editor = store.edit()
           var modified = false
           for (entry in store.all.keys) {
-            if (!activeIds.contains(entry)) {
-              val state = TransferStateStore.getState(context, entry)
-              if (state == TransferStateStore.STATE_PAUSED) continue
-              editor.remove(entry)
-              modified = true
+            if (activeIds.contains(entry)) continue
+            val state = TransferStateStore.getState(context, entry)
+            if (state == TransferStateStore.STATE_PAUSED) continue
+            val stored = readStoredTransfer(entry)
+            val partialBytes = stored?.let { readPartialBytes(it.destination) } ?: 0L
+            if (partialBytes > 0 && stored != null) {
+              TransferStateStore.setState(context, entry, TransferStateStore.STATE_PAUSED)
+              ongoingTransfers[entry] = stored.copy(state = TransferStateStore.STATE_PAUSED)
+              Log.i(LOG_TAG, "restore_keep_partial $entry")
+              continue
             }
+            editor.remove(entry)
+            modified = true
           }
           if (modified) editor.apply()
         }

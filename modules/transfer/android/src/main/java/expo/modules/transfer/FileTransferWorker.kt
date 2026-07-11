@@ -212,6 +212,8 @@ class FileTransferWorker(
         broadcastCancelled(transferId, modelName, destination, url, lastBytesTransferred, lastTotalBytes)
         DownloadNotificationHelper.cancelNotification(applicationContext, transferId)
       } else {
+        // WorkManager cancelled the job (pause path) — keep partial, mark paused
+        TransferStateStore.clearPauseRequest(applicationContext, transferId)
         TransferStateStore.setState(applicationContext, transferId, TransferStateStore.STATE_PAUSED)
         TransferStateStore.setBytes(
           applicationContext, transferId, lastBytesTransferred, lastTotalBytes

@@ -53,6 +53,10 @@ object TransferStateStore {
     return prefs(context).getBoolean("cancel_$transferId", false)
   }
 
+  fun clearCancelRequest(context: Context, transferId: String) {
+    prefs(context).edit().remove("cancel_$transferId").apply()
+  }
+
   fun clear(context: Context, transferId: String) {
     prefs(context).edit()
       .remove("state_$transferId")
