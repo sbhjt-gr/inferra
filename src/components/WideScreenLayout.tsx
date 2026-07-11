@@ -32,21 +32,19 @@ export default function WideScreenLayout() {
 
   const targetScreen = params?.screen;
   const maxSidebarWidth = screenWidth * 0.6;
-  const initialWidth = screenWidth * 0.45;
 
-  const [sidebarWidth, setSidebarWidth] = useState(initialWidth);
+  const [sidebarWidth, setSidebarWidth] = useState(screenWidth * 0.45);
   const [isDragging, setIsDragging] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
-
-  const dragStartW = useRef(initialWidth);
-  const animWidth = useRef(new Animated.Value(initialWidth)).current;
-  const handlePad = useRef(new Animated.Value(TAB_BAR_W - 6)).current;
-  const stripPad = useRef(new Animated.Value(TAB_BAR_W)).current;
-  const handleLeft = useRef(Animated.add(animWidth, handlePad)).current;
-  const stripLeft = useRef(Animated.add(animWidth, stripPad)).current;
+  const dragX = useRef(new Animated.Value(0)).current;
 
   const clampW = (width: number) =>
     Math.max(MIN_SIDEBAR_WIDTH, Math.min(maxSidebarWidth, width));
+  const liveWidth = Animated.diffClamp(
+    Animated.add(sidebarWidth, dragX),
+    MIN_SIDEBAR_WIDTH,
+    maxSidebarWidth,
+  );
 
   const loadSidebarWidth = async () => {
     try {
@@ -54,7 +52,6 @@ export default function WideScreenLayout() {
       if (savedWidth) {
         const width = parseFloat(savedWidth);
         if (width >= MIN_SIDEBAR_WIDTH && width <= maxSidebarWidth) {
-          animWidth.setValue(width);
           setSidebarWidth(width);
           console.log('sidebar_width_loaded', width);
         }
@@ -94,29 +91,28 @@ export default function WideScreenLayout() {
     }
   }, [targetScreen]);
 
-  const onPanGestureEvent = (event: any) => {
-    const next = clampW(dragStartW.current + event.nativeEvent.translationX);
-    animWidth.setValue(next);
-  };
+  const onPanGestureEvent = Animated.event(
+    [{ nativeEvent: { translationX: dragX } }],
+    { useNativeDriver: false },
+  );
 
   const onPanHandlerStateChange = (event: any) => {
     const state = event.nativeEvent.state;
 
     if (state === State.BEGAN) {
-      dragStartW.current = sidebarWidth;
       setIsDragging(true);
       console.log('sidebar_drag_start', sidebarWidth);
       return;
     }
 
     if (state === State.END || state === State.CANCELLED || state === State.FAILED) {
-      const next = clampW(dragStartW.current + event.nativeEvent.translationX);
-      animWidth.setValue(next);
-      setSidebarWidth(next);
+      const next = clampW(sidebarWidth + event.nativeEvent.translationX);
+      dragX.setValue(0);
       setIsDragging(false);
-      console.log('sidebar_drag_end', next);
 
       if (state === State.END && isInitialized) {
+        setSidebarWidth(next);
+        console.log('sidebar_drag_end', next);
         saveSidebarWidth(next);
       }
     }
@@ -226,49 +222,42 @@ export default function WideScreenLayout() {
           style={[
             styles.sidebar,
             {
-              width: animWidth,
+              width: liveWidth,
               backgroundColor: themeColors.background,
             },
           ]}
         >
-          <View
-            style={[styles.tabContent, { width: maxSidebarWidth }]}
-            pointerEvents={isDragging ? 'none' : 'auto'}
-          >
-            {renderSidebarContent()}
-          </View>
+          <View style={styles.tabContent}>{renderSidebarContent()}</View>
         </Animated.View>
 
         <PanGestureHandler
           onGestureEvent={onPanGestureEvent}
           onHandlerStateChange={onPanHandlerStateChange}
-          activeOffsetX={[-2, 2]}
         >
-          <Animated.View style={[styles.dragHandle, { left: handleLeft }]}>
+          <Animated.View
+            style={[
+              styles.dragHandle,
+              { left: Animated.add(liveWidth, TAB_BAR_W - 6) },
+            ]}
+          >
             <View style={[styles.doorHandle, { backgroundColor: themeColors.borderColor }]} />
           </Animated.View>
         </PanGestureHandler>
 
         {isDragging && (
           <Animated.View
-            pointerEvents="none"
             style={[
               styles.dragStripLine,
               {
-                left: stripLeft,
+                left: Animated.add(liveWidth, TAB_BAR_W),
                 backgroundColor: themeColors.borderColor,
               },
             ]}
           />
         )}
 
-        <View
-          style={[styles.chatArea, { backgroundColor: themeColors.background }]}
-          pointerEvents={isDragging ? 'none' : 'auto'}
-        >
-          <View style={{ flex: 1, width: screenWidth - TAB_BAR_W - MIN_SIDEBAR_WIDTH }}>
-            <HomeScreen />
-          </View>
+        <View style={[styles.chatArea, { backgroundColor: themeColors.background }]}>
+          <HomeScreen />
         </View>
       </View>
     </LayoutProvider>
@@ -280,9 +269,7 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
   },
-  sidebar: {
-    overflow: 'hidden',
-  },
+  sidebar: {},
   tabContent: {
     flex: 1,
   },
@@ -332,7 +319,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: '50%',
     marginTop: -30,
-    width: 24,
+    width: 12,
     height: 60,
     justifyContent: 'center',
     alignItems: 'center',
@@ -354,6 +341,5 @@ const styles = StyleSheet.create({
   },
   chatArea: {
     flex: 1,
-    overflow: 'hidden',
   },
 });

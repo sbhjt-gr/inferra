@@ -329,7 +329,7 @@ export default function LocalServerScreen() {
   return (
     <View style={[styles.container, { backgroundColor: themeColors.background }]}>
       <GradientBg />
-      <AppHeader title="Server" rightButtons={null} />
+      <AppHeader title="Server" showBackButton rightButtons={null} />
 
       <ScrollView
         contentContainerStyle={styles.contentContainer}

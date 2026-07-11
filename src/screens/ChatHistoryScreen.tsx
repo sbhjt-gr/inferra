@@ -78,6 +78,7 @@ export default function ChatHistoryScreen() {
       await chatManager.flushPendingSaves();
       const latest = chatManager.getLatestBranch(chatId);
       const targetId = latest?.id ?? chatId;
+      router.dismissAll();
       router.replace({ pathname: '/(tabs)', params: { loadChatId: targetId } });
     } catch (error) {
       showDialog('Error', 'Failed to load selected chat');

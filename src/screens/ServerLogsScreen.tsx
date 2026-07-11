@@ -293,6 +293,8 @@ export default function ServerLogsScreen() {
       <AppHeader
         title="Server Logs"
         showBackButton
+        showLogo={false}
+        tintColor="#FFFFFF"
         onBackPress={() => router.back()}
         rightButtons={
           <View style={s.headerBtns}>
@@ -320,14 +322,14 @@ export default function ServerLogsScreen() {
               }}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <MaterialCommunityIcons name="content-copy" size={20} color={Platform.OS === 'ios' && currentTheme === 'light' ? themeColors.primary : '#FFFFFF'} />
+              <MaterialCommunityIcons name="content-copy" size={20} color="#FFFFFF" />
             </TouchableOpacity>
             <TouchableOpacity
               style={s.headerBtn}
               onPress={() => setClearDialogVisible(true)}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <MaterialCommunityIcons name="delete-outline" size={20} color={Platform.OS === 'ios' && currentTheme === 'light' ? themeColors.primary : '#FFFFFF'} />
+              <MaterialCommunityIcons name="delete-outline" size={20} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
         }
