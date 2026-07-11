@@ -66,12 +66,14 @@ export class DownloadTaskManager extends EventEmitter {
           nativeDownloadId: downloadInfo?.nativeDownloadId,
           speed: progress.speed,
           rawSpeed: progress.rawSpeed,
+          isPaused: false,
         };
         if (downloadInfo) {
           downloadInfo.progress = progress.progress;
           downloadInfo.bytesDownloaded = progress.bytesDownloaded;
           downloadInfo.totalBytes = progress.bytesTotal;
           downloadInfo.status = 'downloading';
+          downloadInfo.isPaused = false;
 
           const prevPersisted = downloadInfo.lastPersistedProgress ?? -1;
           if (progress.progress - prevPersisted >= 10 || progress.progress === 100) {
@@ -472,7 +474,9 @@ export class DownloadTaskManager extends EventEmitter {
 
         try {
           await this.fileManager.deleteFile(`${tempDir}/${filename}`);
+          await this.fileManager.deleteFile(`${tempDir}/${filename}.partial`);
           await this.fileManager.deleteFile(`${this.fileManager.getBaseDir()}/${filename}`);
+          await this.fileManager.deleteFile(`${this.fileManager.getBaseDir()}/${filename}.partial`);
           console.log('package_temp_purge', filename);
         } catch {
         }
