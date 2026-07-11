@@ -70,7 +70,7 @@ const isRemoteProvider = (provider: string | null): boolean => {
 export default function HomeScreen() {
   const { theme: currentTheme, selectedTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
-  const { isWideScreen } = useResponsiveLayout();
+  const { useIosHeader } = useResponsiveLayout();
   const router = useRouter();
   const params = useLocalSearchParams<{ loadChatId?: string; modelPath?: string }>();
   const [chat, setChat] = useState<Chat | null>(null);
@@ -797,24 +797,32 @@ export default function HomeScreen() {
       <GradientBg />
       <AppHeader 
         onNewChat={startNewChat}
-        showLogo={!isWideScreen}
-        title={isWideScreen ? '' : 'InferrLM'}
+        showLogo={!useIosHeader}
+        title="InferrLM"
         rightButtons={
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <TouchableOpacity
-              style={styles.headerButton}
+              style={[styles.headerButton, useIosHeader && styles.iosHeaderButton]}
               onPress={startNewChat}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <MaterialCommunityIcons name="plus" size={22} color={Platform.OS === 'ios' && !isWideScreen && currentTheme === 'light' ? themeColors.primary : themeColors.headerText} />
+              <MaterialCommunityIcons
+                name="plus"
+                size={22}
+                color={useIosHeader && currentTheme === 'light' ? themeColors.primary : themeColors.headerText}
+              />
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.headerButton}
+              style={[styles.headerButton, useIosHeader && styles.iosHeaderButton]}
               onPress={() => router.push('/chat-history')}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <MaterialCommunityIcons name="clock-outline" size={22} color={Platform.OS === 'ios' && !isWideScreen && currentTheme === 'light' ? themeColors.primary : themeColors.headerText} />
+              <MaterialCommunityIcons
+                name="clock-outline"
+                size={22}
+                color={useIosHeader && currentTheme === 'light' ? themeColors.primary : themeColors.headerText}
+              />
             </TouchableOpacity>
           </View>
         } 

@@ -221,4 +221,10 @@ export const homeScreenStyles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  iosHeaderButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 0,
+    backgroundColor: 'transparent',
+  },
 });
