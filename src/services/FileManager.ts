@@ -142,6 +142,7 @@ export class FileManager extends EventEmitter {
         const destSize = (destInfo as any).size || 0;
 
         if (!destInfo.exists || destSize !== expectedSize) {
+          await FileSystem.deleteAsync(destPath, { idempotent: true }).catch(() => {});
           throw new Error(`copy_size_mismatch: expected ${expectedSize}, got ${destSize}`);
         }
 
@@ -151,6 +152,7 @@ export class FileManager extends EventEmitter {
       } catch (err) {
         lastError = err;
         console.log('moveFile_copy_retry', attempt, err instanceof Error ? err.message : 'unknown');
+        await FileSystem.deleteAsync(destPath, { idempotent: true }).catch(() => {});
 
         if (attempt < maxRetries) {
           const delay = Math.min(1000 * Math.pow(2, attempt - 1), 4000);
@@ -199,6 +201,9 @@ export class FileManager extends EventEmitter {
       const contents = await FileSystem.readDirectoryAsync(this.downloadDir);
       const now = Date.now();
       const staleThreshold = 24 * 60 * 60 * 1000;
+      // Staging names can sit briefly in temp/models between native
+      // complete and MLX finalize — only purge after this window.
+      const stagingStaleThreshold = 60 * 60 * 1000;
       
       for (const filename of contents) {
         if (activeDownloads.has(filename)) {
@@ -212,10 +217,13 @@ export class FileManager extends EventEmitter {
           if (!info.exists) continue;
           
           const modTime = (info as any).modificationTime || 0;
-          const isStale = modTime > 0 && (now - modTime * 1000) > staleThreshold;
+          const ageMs = modTime > 0 ? now - modTime * 1000 : 0;
+          const isStale = modTime > 0 && ageMs > staleThreshold;
           const isEmpty = (info as any).size === 0;
+          const isStaleStaging =
+            filename.startsWith('temp_mlx_') && modTime > 0 && ageMs > stagingStaleThreshold;
           
-          if (isEmpty || isStale) {
+          if (isEmpty || isStale || isStaleStaging) {
             await FileSystem.deleteAsync(filePath, { idempotent: true });
             console.log('temp_cleaned', filename);
           }
@@ -223,8 +231,47 @@ export class FileManager extends EventEmitter {
           console.log('temp_cleanup_error', filename);
         }
       }
+
+      await this.cleanupOrphanTempFilesInModels(activeDownloads, stagingStaleThreshold);
     } catch (error) {
       console.log('cleanup_dir_error', error);
+    }
+  }
+
+  private async cleanupOrphanTempFilesInModels(
+    activeDownloads: Set<string>,
+    stagingStaleThreshold: number,
+  ): Promise<void> {
+    try {
+      const modelsInfo = await FileSystem.getInfoAsync(this.baseDir);
+      if (!modelsInfo.exists) {
+        return;
+      }
+
+      const now = Date.now();
+      const entries = await FileSystem.readDirectoryAsync(this.baseDir);
+      for (const filename of entries) {
+        if (!filename.startsWith('temp_mlx_') || activeDownloads.has(filename)) {
+          continue;
+        }
+
+        try {
+          const path = `${this.baseDir}/${filename}`;
+          const info = await FileSystem.getInfoAsync(path, { size: true });
+          if (!info.exists || info.isDirectory) {
+            continue;
+          }
+
+          const modTime = (info as any).modificationTime || 0;
+          const ageMs = modTime > 0 ? now - modTime * 1000 : 0;
+          if (modTime > 0 && ageMs > stagingStaleThreshold) {
+            await FileSystem.deleteAsync(path, { idempotent: true });
+            console.log('models_temp_orphan_cleaned', filename);
+          }
+        } catch {
+        }
+      }
+    } catch {
     }
   }
 
