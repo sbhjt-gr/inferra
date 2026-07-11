@@ -144,9 +144,23 @@ public class TransferModule: Module {
         return true
       }
       transfer.runState = .paused
+      let bytes = transfer.bytesWritten
+      let total = transfer.expectedTotal
+      let dest = transfer.meta.destination
+      let modelName = transfer.meta.modelName
+      let url = transfer.meta.url
+      if var stored = self.getMeta(transferId) {
+        stored.state = "paused"
+        stored.expectedTotal = total
+        self.setMeta(transferId, stored)
+      }
       let task = transfer.task
+      self.closeHandle(transfer)
+      self.active.removeValue(forKey: transferId)
       self.activeLock.unlock()
       task?.cancel()
+      self.emitPaused(transferId, bytesWritten: bytes, totalBytes: total)
+      NSLog("pause_persisted %@", transferId)
       return true
     }
 
@@ -221,9 +235,19 @@ public class TransferModule: Module {
 
       for (tid, stored) in metaSnapshot {
         if activeSnapshot[tid] != nil { continue }
-        if stored.state != "paused" { continue }
         let bytes = self.partialBytes(stored.destination)
-        let total = stored.expectedTotal
+        let hasPartial = bytes > 0
+        let isPaused = stored.state == "paused" || (stored.state == "downloading" && hasPartial)
+        if !isPaused {
+          continue
+        }
+        if stored.state != "paused" {
+          var updated = stored
+          updated.state = "paused"
+          self.setMeta(tid, updated)
+          NSLog("orphan_marked_paused %@", tid)
+        }
+        let total = max(stored.expectedTotal, bytes)
         let progress = total > 0 ? min(Int(Double(bytes) / Double(total) * 100), 100) : 0
         var entry: [String: Any] = [
           "id": tid,
@@ -423,6 +447,7 @@ public class TransferModule: Module {
     activeLock.lock()
     guard let transfer = active[tid] else {
       activeLock.unlock()
+      NSLog("complete_skip_inactive %@", tid)
       return
     }
     let runState = transfer.runState

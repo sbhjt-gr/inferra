@@ -154,6 +154,10 @@ class ModelDownloader extends EventEmitter {
   }
 
   private handleAppStateChange = (nextAppState: AppStateStatus): void => {
+    if (nextAppState === 'background' || nextAppState === 'inactive') {
+      void this.downloadTaskManager.flushProgressForBackground();
+      return;
+    }
     if (nextAppState === 'active') {
       this.checkBackgroundDownloads().catch(error => {
       });
@@ -162,7 +166,21 @@ class ModelDownloader extends EventEmitter {
 
   private getActiveDownloadNames(): Set<string> {
     const active = this.downloadTaskManager.getActiveDownloads();
-    return new Set(active.map(d => d.modelName));
+    const names = new Set<string>();
+    for (const d of active) {
+      if (d.modelName) {
+        names.add(d.modelName);
+        names.add(`${d.modelName}.partial`);
+      }
+      if (d.destination) {
+        const base = d.destination.split('/').pop();
+        if (base) {
+          names.add(base);
+          names.add(`${base}.partial`);
+        }
+      }
+    }
+    return names;
   }
 
   private getActiveMlxPackageIds(): Set<string> {

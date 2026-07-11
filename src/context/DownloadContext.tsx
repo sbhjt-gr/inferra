@@ -60,6 +60,7 @@ export const DownloadProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   useEffect(() => {
     const loadSavedStates = async () => {
       try {
+        await modelDownloader.getActiveDownloadsList();
         const savedProgress = await AsyncStorage.getItem('download_progress');
         let merged: DownloadProgress = {};
 
@@ -78,7 +79,9 @@ export const DownloadProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
         try {
           const taskDownloads = await modelDownloader.getActiveDownloadsList();
-          const activeNames = new Set(
+          console.log('restore_ui_downloads', taskDownloads.length);
+
+          const activeById = new Map(
             taskDownloads
               .filter(dl =>
                 dl.modelName &&
@@ -87,40 +90,44 @@ export const DownloadProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                 dl.status !== 'failed' &&
                 dl.status !== 'cancelled'
               )
-              .map(dl => dl.modelName)
+              .map(dl => [dl.downloadId, dl])
+          );
+
+          const activeNames = new Set(
+            Array.from(activeById.values()).map(dl => dl.modelName)
           );
 
           Object.keys(merged).forEach(key => {
-            if (!activeNames.has(key)) {
+            const entry = merged[key];
+            const nameMatch = activeNames.has(key);
+            const idMatch = entry?.downloadId
+              ? activeById.has(entry.downloadId)
+              : false;
+            if (!nameMatch && !idMatch) {
               delete merged[key];
             }
           });
 
-          for (const dl of taskDownloads) {
-            if (
-              dl.modelName &&
-              !dl.modelName.startsWith('com.inferra.transfer.') &&
-              dl.status !== 'completed' &&
-              dl.status !== 'failed' &&
-              dl.status !== 'cancelled' &&
-              !merged[dl.modelName]
-            ) {
-              merged[dl.modelName] = {
-                progress: dl.progress || 0,
-                bytesDownloaded: dl.bytesDownloaded || 0,
-                totalBytes: dl.totalBytes || 0,
-                status: dl.status || 'downloading',
-                downloadId: dl.downloadId || 0,
-                isPaused: dl.status === 'paused',
-                speed: '0 B/s',
-                rawSpeed: 0,
-              };
-            }
+          for (const dl of activeById.values()) {
+            const existing = merged[dl.modelName];
+            merged[dl.modelName] = {
+              progress: dl.progress || existing?.progress || 0,
+              bytesDownloaded: dl.bytesDownloaded || existing?.bytesDownloaded || 0,
+              totalBytes: dl.totalBytes || existing?.totalBytes || 0,
+              status: dl.status || 'downloading',
+              downloadId: dl.downloadId || existing?.downloadId || 0,
+              isPaused: dl.status === 'paused',
+              speed: dl.status === 'paused' ? '0 B/s' : (existing?.speed || '0 B/s'),
+              rawSpeed: dl.status === 'paused' ? 0 : (existing?.rawSpeed || 0),
+            };
           }
-        } catch (_) {}
+        } catch (_) {
+          console.log('restore_ui_fail');
+        }
 
         setDownloadProgress(merged);
         isLoadedRef.current = true;
+        console.log('ui_downloads_ready', Object.keys(merged).length);
       } catch (error) {
         isLoadedRef.current = true;
       }

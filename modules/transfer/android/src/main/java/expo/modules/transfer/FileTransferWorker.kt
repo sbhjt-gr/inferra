@@ -204,6 +204,26 @@ class FileTransferWorker(
       broadcastCancelled(transferId, modelName, destination, url, lastBytesTransferred, lastTotalBytes)
       DownloadNotificationHelper.cancelNotification(applicationContext, transferId)
       Result.success()
+    } catch (e: kotlinx.coroutines.CancellationException) {
+      Log.i(LOG_TAG, "transfer_job_cancel $transferId")
+      if (TransferStateStore.isCancelRequested(applicationContext, transferId)) {
+        deletePartial(destination)
+        TransferStateStore.clear(applicationContext, transferId)
+        broadcastCancelled(transferId, modelName, destination, url, lastBytesTransferred, lastTotalBytes)
+        DownloadNotificationHelper.cancelNotification(applicationContext, transferId)
+      } else {
+        TransferStateStore.setState(applicationContext, transferId, TransferStateStore.STATE_PAUSED)
+        TransferStateStore.setBytes(
+          applicationContext, transferId, lastBytesTransferred, lastTotalBytes
+        )
+        broadcastPaused(
+          transferId, modelName, destination, url, lastBytesTransferred, lastTotalBytes
+        )
+        DownloadNotificationHelper.showPausedNotification(
+          applicationContext, transferId, modelName, lastBytesTransferred, lastTotalBytes
+        )
+      }
+      Result.success()
     } catch (e: Exception) {
       Log.e(LOG_TAG, "transfer_failed", e)
       val retryable = isRetryable(e)
