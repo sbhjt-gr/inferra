@@ -29,8 +29,6 @@ export function StatusBarHost({
     NativeStatusBar.setBarStyle(barStyle, animated);
     NativeStatusBar.setTranslucent(translucent);
     NativeStatusBar.setBackgroundColor('transparent', animated);
-
-    console.log('statusbar_apply', barStyle);
   }, [animated, barStyle, translucent]);
 
   return null;

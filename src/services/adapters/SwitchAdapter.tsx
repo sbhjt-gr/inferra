@@ -25,8 +25,6 @@ export function AppSwitch({
 
   const resolvedIosBg = ios_backgroundColor ?? themeColors.borderColor;
 
-  console.log('switch_render', value);
-
   return (
     <RNSwitch
       value={value}

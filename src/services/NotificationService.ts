@@ -111,12 +111,10 @@ class NotificationService {
     totalBytes: number,
     nativeDownloadId?: string,
   ): Promise<void> {
-    const t0 = Date.now();
     await this.initialize();
 
     const lastProgress = this.lastNotifiedProgress[downloadId] ?? -1;
     if (progress < lastProgress + 5 && progress < 100) {
-      console.log('notif_skip', modelName.slice(0, 20), 'pct', progress, 'last', lastProgress, 'ms', Date.now() - t0);
       return;
     }
     this.lastNotifiedProgress[downloadId] = progress;
@@ -124,7 +122,6 @@ class NotificationService {
     const identifier = this.getNotificationIdentifier(downloadId, nativeDownloadId);
 
     if (this.shouldSendNativeNotification(nativeDownloadId)) {
-      const nt0 = Date.now();
       if (Platform.OS === 'android' || Platform.OS === 'ios') {
         await downloadNotificationService.updateProgress(
           identifier,
@@ -134,12 +131,10 @@ class NotificationService {
           modelName
         );
       }
-      console.log('notif_native', modelName.slice(0, 20), 'pct', progress, 'ms', Date.now() - nt0);
     }
     
     
     if (progress % 25 === 0) { 
-      const a0 = Date.now();
       const formattedDownloaded = this.formatBytes(bytesDownloaded);
       const formattedTotal = this.formatBytes(totalBytes);
       
@@ -149,9 +144,7 @@ class NotificationService {
         'download_progress',
         downloadId
       );
-      console.log('notif_store', modelName.slice(0, 20), 'pct', progress, 'ms', Date.now() - a0);
     }
-    console.log('notif_done', modelName.slice(0, 20), 'pct', progress, 'total_ms', Date.now() - t0);
   }
 
   async showDownloadCompletedNotification(modelName: string, downloadId: number, nativeDownloadId?: string): Promise<void> {

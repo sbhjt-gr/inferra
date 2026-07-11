@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Platform, useWindowDimensions } from 'react-native';
+import { useWindowDimensions } from 'react-native';
 import { iosHeader } from '../utils/headerChrome';
 
 interface ResponsiveLayoutInfo {
@@ -32,9 +32,7 @@ export function useResponsiveLayout(): ResponsiveLayoutInfo {
   const [layoutInfo, setLayoutInfo] = useState(() => buildLayout(width, height));
 
   useEffect(() => {
-    const next = buildLayout(width, height);
-    console.log('layout_update', Platform.OS, next.isWideScreen, next.useIosHeader);
-    setLayoutInfo(next);
+    setLayoutInfo(buildLayout(width, height));
   }, [width, height]);
 
   return layoutInfo;

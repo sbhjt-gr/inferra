@@ -20,8 +20,6 @@ export const ModelScreenHeader: React.FC<ModelScreenHeaderProps> = ({
   const { isWideScreen, useIosHeader } = useResponsiveLayout();
   const colors = theme[currentTheme];
 
-  console.log('model_header', useIosHeader);
-
   return (
     <AppHeader 
       title="Models" 

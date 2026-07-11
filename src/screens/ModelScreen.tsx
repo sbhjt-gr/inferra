@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, ActivityIndicator, Animated, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
@@ -28,12 +28,6 @@ export default function ModelScreen() {
   const themeColors = theme[currentTheme as 'light' | 'dark'];
   const router = useRouter();
   const params = useLocalSearchParams<{ autoEnableRemoteModels?: string; openRemoteTab?: string }>();
-  
-  const renderCountRef = useRef(0);
-  renderCountRef.current += 1;
-  if (renderCountRef.current % 5 === 0) {
-    console.log('render_model_screen', renderCountRef.current);
-  }
 
   const [dialogVisible, setDialogVisible] = useState(false);
   const [dialogTitle, setDialogTitle] = useState('');

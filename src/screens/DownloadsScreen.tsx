@@ -77,11 +77,6 @@ export default function DownloadsScreen() {
   const buttonProcessingRef = useRef<Set<string>>(new Set());
   const prevStatusRef = useRef<Record<string, string>>({});
   const storageWarnedRef = useRef(false);
-  const renderCountRef = useRef(0);
-  renderCountRef.current += 1;
-  if (renderCountRef.current % 5 === 0) {
-    console.log('render_downloads_screen', renderCountRef.current, 'downloads', Object.keys(downloadProgress).length);
-  }
 
   const [dialogVisible, setDialogVisible] = useState(false);
   const [dialogTitle, setDialogTitle] = useState('');
