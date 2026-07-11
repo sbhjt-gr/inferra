@@ -165,21 +165,59 @@ public class TransferModule: Module {
     }
 
     AsyncFunction("resumeTransfer") {
-      (transferId: String, headers: [String: String]?) -> Bool in
-      guard let stored = self.getMeta(transferId) else {
+      (transferId: String, headers: [String: String]?, url: String?, destination: String?) -> Bool in
+      var stored = self.getMeta(transferId)
+      let resolvedUrl = url ?? stored?.url
+      let resolvedDest = destination ?? stored?.destination
+
+      if stored == nil {
+        guard let resolvedUrl, let resolvedDest, !resolvedUrl.isEmpty, !resolvedDest.isEmpty else {
+          throw NSError(domain: "TransferModule", code: 2,
+                        userInfo: [NSLocalizedDescriptionKey: "transfer_not_found"])
+        }
+        NSLog("resume_recreate %@", transferId)
+        let modelName = URL(fileURLWithPath: resolvedDest).lastPathComponent
+          .replacingOccurrences(of: ".partial", with: "")
+        stored = TransferMeta(
+          transferId: transferId,
+          destination: resolvedDest,
+          modelName: modelName,
+          url: resolvedUrl,
+          state: "downloading",
+          expectedTotal: 0,
+          headers: headers
+        )
+      }
+
+      guard var meta = stored else {
         throw NSError(domain: "TransferModule", code: 2,
                       userInfo: [NSLocalizedDescriptionKey: "transfer_not_found"])
       }
+
+      let finalUrl = resolvedUrl ?? meta.url
+      let finalDest = resolvedDest ?? meta.destination
+      guard !finalUrl.isEmpty, !finalDest.isEmpty else {
+        throw NSError(domain: "TransferModule", code: 3,
+                      userInfo: [NSLocalizedDescriptionKey: "transfer_missing_url"])
+      }
+
       NSLog("resume_transfer %@", transferId)
-      var updated = stored
-      updated.state = "downloading"
-      self.setMeta(transferId, updated)
+      meta = TransferMeta(
+        transferId: meta.transferId,
+        destination: finalDest,
+        modelName: meta.modelName,
+        url: finalUrl,
+        state: "downloading",
+        expectedTotal: meta.expectedTotal,
+        headers: headers
+      )
+      self.setMeta(transferId, meta)
       self.startStream(
         transferId: transferId,
-        url: stored.url,
-        destination: stored.destination,
+        url: finalUrl,
+        destination: finalDest,
         headers: headers,
-        modelName: stored.modelName
+        modelName: meta.modelName
       )
       return true
     }
