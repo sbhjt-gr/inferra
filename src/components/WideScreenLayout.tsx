@@ -133,6 +133,9 @@ export default function WideScreenLayout({}: WideScreenLayoutProps) {
     setIsDragging(false);
   };
 
+  const activeColor = currentTheme === 'light' ? themeColors.primary : themeColors.text;
+  const inactiveColor = themeColors.textSecondary;
+
   const TabButton = ({ 
     tab, 
     icon, 
@@ -149,15 +152,18 @@ export default function WideScreenLayout({}: WideScreenLayoutProps) {
     <TouchableOpacity
       style={[
         styles.tabItem,
-        isActive && { backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 10 },
+        isActive && { backgroundColor: themeColors.cardBackground, borderRadius: 10 },
       ]}
-      onPress={() => setActiveTab(tab)}
+      onPress={() => {
+        console.log('sidebar_tab', tab);
+        setActiveTab(tab);
+      }}
     >
       <View style={styles.iconContainer}>
         <MaterialCommunityIcons
           name={icon as any}
           size={22}
-          color={isActive ? themeColors.tabBarActiveText : themeColors.tabBarInactiveText}
+          color={isActive ? activeColor : inactiveColor}
         />
         {showBeta && (
           <View style={styles.betaBadge}>
@@ -168,9 +174,7 @@ export default function WideScreenLayout({}: WideScreenLayoutProps) {
       <Text
         style={[
           styles.tabLabel,
-          {
-            color: isActive ? themeColors.tabBarActiveText : themeColors.tabBarInactiveText,
-          },
+          { color: isActive ? activeColor : inactiveColor },
           fonts.medium
         ]}
       >
@@ -192,15 +196,16 @@ export default function WideScreenLayout({}: WideScreenLayoutProps) {
     }
   };
 
+  console.log('sidebar_chrome', currentTheme);
+
   return (
     <LayoutProvider constrainToChat={true}>
       <View style={[styles.container, { backgroundColor: themeColors.background }]}>
-        {/* Vertical Tab Bar */}
         <View style={[
           styles.verticalTabBar,
           {
             width: TAB_BAR_W,
-            backgroundColor: themeColors.tabBarBackground,
+            backgroundColor: themeColors.background,
             paddingTop: insets.top + 12,
             paddingBottom: insets.bottom + 12,
           }
@@ -227,7 +232,6 @@ export default function WideScreenLayout({}: WideScreenLayoutProps) {
           </View>
         </View>
 
-        {/* Sidebar Content */}
         <Animated.View style={[
           styles.sidebar,
           {
