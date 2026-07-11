@@ -152,6 +152,7 @@ const UnifiedModelList: React.FC<UnifiedModelListProps> = ({
 
       <ModelWarningDialog
         visible={logic.showWarningDialog && !modelFilesOpen}
+        licenseLink={logic.pendingDownload?.licenseLink || logic.pendingDownload?.curatedModel?.licenseLink}
         onAccept={handleWarningAccept}
         onCancel={handlers.handleWarningCancel}
       />

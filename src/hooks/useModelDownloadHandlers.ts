@@ -27,6 +27,7 @@ export const useModelDownloadHandlers = (
     modelId: string;
     curatedModel?: DownloadableModel;
     filesToDownload?: any[];
+    licenseLink?: string;
   }) => {
     setPendingDownload(download);
     afterModalClose(() => setShowWarningDialog(true));
@@ -34,6 +35,7 @@ export const useModelDownloadHandlers = (
 
   const handleDownloadFile = async (filename: string, downloadUrl: string) => {
     const modelId = selectedModel?.id || '';
+    const licenseLink = modelId ? `https://huggingface.co/${modelId}` : undefined;
     
     setSelectedModel(null);
     setSelectedFiles(new Set());
@@ -43,13 +45,13 @@ export const useModelDownloadHandlers = (
       const shouldShowWarning = hideWarning !== 'true';
       
       if (shouldShowWarning) {
-        openWarningDialog({ filename, downloadUrl, modelId });
+        openWarningDialog({ filename, downloadUrl, modelId, licenseLink });
         return;
       }
       
       await proceedWithDownload(filename, downloadUrl, modelId);
     } catch (error) {
-      openWarningDialog({ filename, downloadUrl, modelId });
+      openWarningDialog({ filename, downloadUrl, modelId, licenseLink });
     }
   };
 
@@ -57,6 +59,7 @@ export const useModelDownloadHandlers = (
     if (!selectedModel || selectedFiles.size === 0) return;
 
     const modelId = selectedModel.id;
+    const licenseLink = `https://huggingface.co/${modelId}`;
     const filesToDownload = selectedModel.files.filter(file => selectedFiles.has(file.filename));
     
     setSelectedModel(null);
@@ -72,6 +75,7 @@ export const useModelDownloadHandlers = (
           downloadUrl: '',
           modelId: modelId,
           filesToDownload: filesToDownload,
+          licenseLink,
         });
         return;
       }
@@ -83,6 +87,7 @@ export const useModelDownloadHandlers = (
         downloadUrl: '',
         modelId: modelId,
         filesToDownload: filesToDownload,
+        licenseLink,
       });
     }
   };
@@ -106,7 +111,8 @@ export const useModelDownloadHandlers = (
           filename: model.name, 
           downloadUrl: model.huggingFaceLink, 
           modelId: model.name,
-          curatedModel: model
+          curatedModel: model,
+          licenseLink: model.licenseLink || undefined,
         });
         setShowWarningDialog(true);
         return;
@@ -118,7 +124,8 @@ export const useModelDownloadHandlers = (
         filename: model.name, 
         downloadUrl: model.huggingFaceLink, 
         modelId: model.name,
-        curatedModel: model
+        curatedModel: model,
+        licenseLink: model.licenseLink || undefined,
       });
       setShowWarningDialog(true);
     }
@@ -149,7 +156,7 @@ export const useModelDownloadHandlers = (
           const curatedModel: DownloadableModel = {
             name: pendingDownload.filename,
             huggingFaceLink: pendingDownload.downloadUrl,
-            licenseLink: '',
+            licenseLink: pendingDownload.licenseLink || '',
             size: 'Unknown',
             modelFamily: 'Unknown',
             quantization: 'Unknown'

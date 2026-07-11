@@ -33,7 +33,8 @@ export const useUnifiedModelList = (
     downloadUrl: string, 
     modelId: string, 
     curatedModel?: DownloadableModel,
-    filesToDownload?: any[]
+    filesToDownload?: any[],
+    licenseLink?: string,
   } | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   const [forceRender, setForceRender] = useState(0);
@@ -92,7 +93,7 @@ export const useUnifiedModelList = (
       description: '',
       size: `${formatDownloads(hfModel.downloads || 0)} downloads`,
       huggingFaceLink: `https://huggingface.co/${modelId}`,
-      licenseLink: '',
+      licenseLink: `https://huggingface.co/${modelId}`,
       modelFamily: '',
       quantization: '',
       tags: tags,

@@ -1,16 +1,14 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   StyleSheet,
   View,
   Text,
   TouchableOpacity,
-  Linking,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../constants/theme';
-import { getThemeAwareColor, getBrowserDownloadTextColor } from '../../utils/ColorUtils';
-import Dialog from '../Dialog';
+import { getThemeAwareColor } from '../../utils/ColorUtils';
 
 import { ModelType, ModelFormat } from '../../types/models';
 
@@ -89,28 +87,7 @@ const DownloadableModelItem: React.FC<DownloadableModelItemProps> = ({
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
 
-  const [dialogVisible, setDialogVisible] = useState(false);
-  const [dialogTitle, setDialogTitle] = useState('');
-  const [dialogMessage, setDialogMessage] = useState('');
-
-  const showDialog = (title: string, message: string) => {
-    setDialogTitle(title);
-    setDialogMessage(message);
-    setDialogVisible(true);
-  };
-
-  const hideDialog = () => setDialogVisible(false);
-
-  const handleBrowserDownload = async (url: string) => {
-    try {
-      await Linking.openURL(url);
-    } catch (error) {
-      showDialog('Error', 'Could not open the download link');
-    }
-  };
-
   return (
-    <>
       <TouchableOpacity 
         key={model.name} 
         style={[styles.downloadableCard, { backgroundColor: themeColors.borderColor }]}
@@ -220,16 +197,6 @@ const DownloadableModelItem: React.FC<DownloadableModelItemProps> = ({
             </View>
           )}
           
-          {model.licenseLink && (
-            <TouchableOpacity
-              style={styles.licenseButtonBottomLeft}
-              onPress={() => handleBrowserDownload(model.licenseLink)}
-            >
-              <MaterialCommunityIcons name="file-document-outline" size={14} color={getBrowserDownloadTextColor(currentTheme)} style={{ marginRight: 4 }} />
-              <Text style={[styles.licenseButtonText, { color: getBrowserDownloadTextColor(currentTheme) }]}>License</Text>
-            </TouchableOpacity>
-          )}
-          
           {downloadProgress && downloadProgress.status !== 'completed' && downloadProgress.status !== 'failed' && downloadProgress.status !== 'cancelled' && (
             <View style={styles.downloadProgress}>
               <Text style={[styles.modelDetails, { color: themeColors.secondaryText }]}>
@@ -250,16 +217,6 @@ const DownloadableModelItem: React.FC<DownloadableModelItemProps> = ({
           )}
         </View>
       </TouchableOpacity>
-
-      <Dialog
-        visible={dialogVisible}
-        onDismiss={hideDialog}
-        title={dialogTitle}
-        description={dialogMessage}
-        buttonText="OK"
-        onClose={hideDialog}
-      />
-    </>
   );
 };
 
@@ -388,18 +345,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     lineHeight: 20,
-  },
-  licenseButtonBottomLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 6,
-    alignSelf: 'flex-start',
-    marginTop: 8,
-  },
-  licenseButtonText: {
-    fontSize: 13,
-    fontWeight: '500',
   },
 });
 
