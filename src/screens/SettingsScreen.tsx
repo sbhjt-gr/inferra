@@ -30,6 +30,7 @@ import type { ModelSettings as StoredModelSettings } from '../services/ModelSett
 import { modelSettingsService } from '../services/ModelSettingsService';
 import { appleFoundationService } from '../services/AppleFoundationService';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
+import { headerBtn, headerTint } from '../utils/headerChrome';
 
 type ThemeOption = 'system' | 'light' | 'dark';
 
@@ -550,7 +551,7 @@ export default function SettingsScreen() {
   const ProfileButton = () => {
     return (
       <TouchableOpacity
-        style={styles.headerButton}
+        style={headerBtn(isWideScreen)}
         onPress={() => {
           if (isLoggedIn) {
             router.push('/profile');
@@ -563,7 +564,12 @@ export default function SettingsScreen() {
         <MaterialCommunityIcons 
           name={isLoggedIn ? "account-circle" : "login"}
           size={22} 
-          color={Platform.OS === 'ios' && !isWideScreen && currentTheme === 'light' ? theme[currentTheme].primary : theme[currentTheme].headerText}
+          color={headerTint(
+            isWideScreen,
+            currentTheme === 'light',
+            theme[currentTheme].primary,
+            theme[currentTheme].headerText,
+          )}
         />
       </TouchableOpacity>
     );
@@ -677,14 +683,6 @@ const styles = StyleSheet.create({
   contentContainer: {
     paddingBottom: 32,
     paddingTop: 22
-  },
-  headerButton: {
-    width: Platform.OS === 'ios' ? 44 : 36,
-    height: Platform.OS === 'ios' ? 44 : 36,
-    borderRadius: Platform.OS === 'ios' ? 0 : 18,
-    backgroundColor: Platform.OS === 'ios' ? 'transparent' : 'rgba(255, 255, 255, 0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   section: {
     marginHorizontal: 16,

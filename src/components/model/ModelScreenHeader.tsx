@@ -1,10 +1,11 @@
 import React from 'react';
-import { View, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import { View, TouchableOpacity } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { theme } from '../../constants/theme';
 import AppHeader from '../AppHeader';
 import { useResponsiveLayout } from '../../hooks/useResponsiveLayout';
+import { headerBtn, headerTint } from '../../utils/headerChrome';
 
 interface ModelScreenHeaderProps {
   isLoggedIn: boolean;
@@ -16,7 +17,10 @@ export const ModelScreenHeader: React.FC<ModelScreenHeaderProps> = ({
   onProfilePress
 }) => {
   const { theme: currentTheme } = useTheme();
-  const { isWideScreen } = useResponsiveLayout();
+  const { isWideScreen, useIosHeader } = useResponsiveLayout();
+  const colors = theme[currentTheme];
+
+  console.log('model_header', useIosHeader);
 
   return (
     <AppHeader 
@@ -24,14 +28,19 @@ export const ModelScreenHeader: React.FC<ModelScreenHeaderProps> = ({
       rightButtons={
         <View style={{ flexDirection: 'row', gap: 8 }}>
           <TouchableOpacity
-            style={styles.headerButton}
+            style={headerBtn(isWideScreen)}
             onPress={onProfilePress}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             <MaterialCommunityIcons 
               name={isLoggedIn ? "account-circle" : "login"} 
               size={22} 
-              color={Platform.OS === 'ios' && !isWideScreen && currentTheme === 'light' ? theme[currentTheme].primary : theme[currentTheme].headerText}
+              color={headerTint(
+                isWideScreen,
+                currentTheme === 'light',
+                colors.primary,
+                colors.headerText,
+              )}
             />
           </TouchableOpacity>
         </View>
@@ -39,14 +48,3 @@ export const ModelScreenHeader: React.FC<ModelScreenHeaderProps> = ({
     />
   );
 };
-
-const styles = StyleSheet.create({
-  headerButton: {
-    width: Platform.OS === 'ios' ? 44 : 36,
-    height: Platform.OS === 'ios' ? 44 : 36,
-    borderRadius: Platform.OS === 'ios' ? 0 : 18,
-    backgroundColor: Platform.OS === 'ios' ? 'transparent' : 'rgba(255, 255, 255, 0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-});

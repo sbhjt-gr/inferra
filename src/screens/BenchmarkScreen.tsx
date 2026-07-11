@@ -11,6 +11,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useRemoteModel } from '../context/RemoteModelContext';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import LabsTasksSection from '../components/settings/LabsTasksSection';
+import { headerBtn, headerTint } from '../utils/headerChrome';
 
 export default function BenchmarkScreen() {
   const insets = useSafeAreaInsets();
@@ -19,10 +20,16 @@ export default function BenchmarkScreen() {
   const router = useRouter();
   const { isLoggedIn } = useRemoteModel();
   const { isWideScreen } = useResponsiveLayout();
+  const tint = headerTint(
+    isWideScreen,
+    currentTheme === 'light',
+    themeColors.primary,
+    themeColors.headerText,
+  );
 
   const profileButton = (
     <TouchableOpacity
-      style={styles.headerButton}
+      style={headerBtn(isWideScreen)}
       onPress={() => {
         if (isLoggedIn) {
           router.push('/profile');
@@ -35,7 +42,7 @@ export default function BenchmarkScreen() {
       <MaterialCommunityIcons
         name={isLoggedIn ? 'account-circle' : 'login'}
         size={22}
-        color={Platform.OS === 'ios' && !isWideScreen && currentTheme === 'light' ? themeColors.primary : themeColors.headerText}
+        color={tint}
       />
     </TouchableOpacity>
   );
@@ -61,12 +68,4 @@ export default function BenchmarkScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: 16, paddingTop: 20 },
-  headerButton: {
-    width: Platform.OS === 'ios' ? 44 : 36,
-    height: Platform.OS === 'ios' ? 44 : 36,
-    borderRadius: Platform.OS === 'ios' ? 0 : 18,
-    backgroundColor: Platform.OS === 'ios' ? 'transparent' : 'rgba(255, 255, 255, 0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
 });
