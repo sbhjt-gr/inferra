@@ -1,10 +1,3 @@
-/*
-  iOS native transfer module using URLSession downloads.
-  Uses a default URLSession so completion delegates fire reliably
-  while the app is in the foreground. Metadata is persisted in
-  UserDefaults for reconnect after reload.
-*/
-
 import ExpoModulesCore
 import Foundation
 
@@ -13,10 +6,37 @@ private struct TransferMeta: Codable {
   let destination: String
   let modelName: String
   let url: String
+  var state: String
+  var expectedTotal: Int64
+  var headers: [String: String]?
+}
+
+private enum TransferRunState {
+  case downloading
+  case paused
+  case cancelling
+}
+
+private final class ActiveTransfer {
+  let meta: TransferMeta
+  var task: URLSessionDataTask?
+  var handle: FileHandle?
+  var bytesWritten: Int64
+  var expectedTotal: Int64
+  var runState: TransferRunState
+  var responseHandled = false
+
+  init(meta: TransferMeta, bytesWritten: Int64, expectedTotal: Int64) {
+    self.meta = meta
+    self.bytesWritten = bytesWritten
+    self.expectedTotal = expectedTotal
+    self.runState = .downloading
+  }
 }
 
 public class TransferModule: Module {
   private static let storeKey = "transfer_module_meta"
+  private static let partialSuffix = ".partial"
 
   private lazy var session: URLSession = {
     let config = URLSessionConfiguration.default
@@ -28,12 +48,14 @@ public class TransferModule: Module {
       config.allowsExpensiveNetworkAccess = true
       config.allowsConstrainedNetworkAccess = true
     }
-    return URLSession(configuration: config, delegate: delegate, delegateQueue: OperationQueue.main)
+    return URLSession(configuration: config, delegate: delegate, delegateQueue: OperationQueue())
   }()
 
-  private let delegate = SessionDelegate()
+  private let delegate = StreamDelegate()
   private var meta: [String: TransferMeta] = [:]
+  private var active: [String: ActiveTransfer] = [:]
   private let metaLock = NSLock()
+  private let activeLock = NSLock()
 
   public func definition() -> ModuleDefinition {
     Name("TransferModule")
@@ -42,58 +64,97 @@ public class TransferModule: Module {
       "onTransferProgress",
       "onTransferComplete",
       "onTransferError",
-      "onTransferCancelled"
+      "onTransferCancelled",
+      "onTransferPaused"
     )
 
     OnCreate {
       self.delegate.module = self
       self.loadMeta()
-      self.reconnect()
     }
 
     AsyncFunction("beginTransfer") {
       (url: String, destination: String, headers: [String: String]?) -> [String: Any] in
 
-      guard let downloadUrl = URL(string: url) else {
+      guard URL(string: url) != nil else {
         throw NSError(domain: "TransferModule", code: 1,
                       userInfo: [NSLocalizedDescriptionKey: "invalid_url"])
       }
 
       let transferId = UUID().uuidString
       let modelName = Self.extractModelName(destination) ?? transferId
-
-      var request = URLRequest(url: downloadUrl)
-      request.cachePolicy = .reloadIgnoringLocalCacheData
-      if #available(iOS 12.0, *) {
-        request.networkServiceType = .responsiveData
-      }
-      if #available(iOS 13.0, *) {
-        request.allowsExpensiveNetworkAccess = true
-        request.allowsConstrainedNetworkAccess = true
-      }
-      headers?.forEach { request.setValue($1, forHTTPHeaderField: $0) }
-
-      let task = self.session.downloadTask(with: request)
-      task.taskDescription = transferId
-      task.priority = URLSessionTask.highPriority
-      task.resume()
+      NSLog("begin_transfer %@", transferId)
 
       let entry = TransferMeta(
-        transferId: transferId, destination: destination,
-        modelName: modelName, url: url
+        transferId: transferId,
+        destination: destination,
+        modelName: modelName,
+        url: url,
+        state: "downloading",
+        expectedTotal: 0,
+        headers: nil
       )
       self.setMeta(transferId, entry)
+      self.startStream(transferId: transferId, url: url, destination: destination,
+                       headers: headers, modelName: modelName)
 
       return ["transferId": transferId]
     }
 
-    AsyncFunction("cancelTransfer") { (transferId: String) -> Bool in
-      self.session.getTasksWithCompletionHandler { _, _, downloadTasks in
-        for task in downloadTasks where task.taskDescription == transferId {
-          task.cancel()
+    AsyncFunction("pauseTransfer") { (transferId: String) -> Bool in
+      NSLog("pause_transfer %@", transferId)
+      self.activeLock.lock()
+      guard let transfer = self.active[transferId] else {
+        self.activeLock.unlock()
+        if var stored = self.getMeta(transferId) {
+          stored.state = "paused"
+          self.setMeta(transferId, stored)
+          let bytes = self.partialBytes(stored.destination)
+          self.emitPaused(transferId, bytesWritten: bytes, totalBytes: stored.expectedTotal)
         }
-        self.removeMeta(transferId)
+        return true
       }
+      transfer.runState = .paused
+      let task = transfer.task
+      self.activeLock.unlock()
+      task?.cancel()
+      return true
+    }
+
+    AsyncFunction("resumeTransfer") {
+      (transferId: String, headers: [String: String]?) -> Bool in
+      guard let stored = self.getMeta(transferId) else {
+        throw NSError(domain: "TransferModule", code: 2,
+                      userInfo: [NSLocalizedDescriptionKey: "transfer_not_found"])
+      }
+      NSLog("resume_transfer %@", transferId)
+      var updated = stored
+      updated.state = "downloading"
+      self.setMeta(transferId, updated)
+      self.startStream(
+        transferId: transferId,
+        url: stored.url,
+        destination: stored.destination,
+        headers: headers,
+        modelName: stored.modelName
+      )
+      return true
+    }
+
+    AsyncFunction("cancelTransfer") { (transferId: String) -> Bool in
+      NSLog("cancel_transfer %@", transferId)
+      self.activeLock.lock()
+      let transfer = self.active[transferId]
+      transfer?.runState = .cancelling
+      let task = transfer?.task
+      let dest = transfer?.meta.destination ?? self.getMeta(transferId)?.destination
+      self.activeLock.unlock()
+      task?.cancel()
+      if let dest {
+        self.deletePartials(dest)
+      }
+      self.removeActive(transferId)
+      self.removeMeta(transferId)
       return true
     }
 
@@ -102,36 +163,386 @@ public class TransferModule: Module {
     }
 
     AsyncFunction("getOngoingTransfers") { () -> [[String: Any]] in
-      return await withCheckedContinuation { continuation in
-        self.session.getTasksWithCompletionHandler { _, _, downloadTasks in
-          var result: [[String: Any]] = []
-          for task in downloadTasks {
-            guard let tid = task.taskDescription else { continue }
-            if task.state == .completed || task.state == .canceling { continue }
+      var result: [[String: Any]] = []
 
-            let stored = self.getMeta(tid)
-            let modelName = stored?.modelName ?? Self.extractModelName(stored?.destination) ?? tid
-            let bytesWritten = task.countOfBytesReceived
-            let totalBytes = task.countOfBytesExpectedToReceive
-            let progress = totalBytes > 0
-              ? min(Int(Double(bytesWritten) / Double(totalBytes) * 100), 100)
-              : 0
+      self.activeLock.lock()
+      let activeSnapshot = self.active
+      self.activeLock.unlock()
 
-            var entry: [String: Any] = [
-              "id": tid,
-              "destination": stored?.destination ?? "",
-              "modelName": modelName,
-              "bytesWritten": Double(bytesWritten),
-              "totalBytes": Double(max(totalBytes, 0)),
-              "progress": progress
-            ]
-            if let u = stored?.url { entry["url"] = u }
-            result.append(entry)
-          }
-          continuation.resume(returning: result)
+      for (tid, transfer) in activeSnapshot {
+        let progress = transfer.expectedTotal > 0
+          ? min(Int(Double(transfer.bytesWritten) / Double(transfer.expectedTotal) * 100), 100)
+          : 0
+        var entry: [String: Any] = [
+          "id": tid,
+          "destination": transfer.meta.destination,
+          "modelName": transfer.meta.modelName,
+          "bytesWritten": Double(transfer.bytesWritten),
+          "totalBytes": Double(max(transfer.expectedTotal, 0)),
+          "progress": progress,
+          "state": "downloading",
+          "url": transfer.meta.url
+        ]
+        result.append(entry)
+      }
+
+      self.metaLock.lock()
+      let metaSnapshot = self.meta
+      self.metaLock.unlock()
+
+      for (tid, stored) in metaSnapshot {
+        if activeSnapshot[tid] != nil { continue }
+        if stored.state != "paused" { continue }
+        let bytes = self.partialBytes(stored.destination)
+        let total = stored.expectedTotal
+        let progress = total > 0 ? min(Int(Double(bytes) / Double(total) * 100), 100) : 0
+        var entry: [String: Any] = [
+          "id": tid,
+          "destination": stored.destination,
+          "modelName": stored.modelName,
+          "bytesWritten": Double(bytes),
+          "totalBytes": Double(max(total, 0)),
+          "progress": progress,
+          "state": "paused",
+          "url": stored.url
+        ]
+        result.append(entry)
+      }
+
+      return result
+    }
+  }
+
+  private func startStream(
+    transferId: String,
+    url: String,
+    destination: String,
+    headers: [String: String]?,
+    modelName: String
+  ) {
+    guard let downloadUrl = URL(string: url) else { return }
+
+    let partialURL = Self.partialURL(destination)
+    let dir = partialURL.deletingLastPathComponent()
+    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+
+    if !FileManager.default.fileExists(atPath: partialURL.path) {
+      FileManager.default.createFile(atPath: partialURL.path, contents: nil)
+    }
+
+    let existing = (try? FileManager.default.attributesOfItem(atPath: partialURL.path)[.size] as? Int64) ?? 0
+    NSLog("partial_size %lld", existing)
+
+    var request = URLRequest(url: downloadUrl)
+    request.cachePolicy = .reloadIgnoringLocalCacheData
+    if #available(iOS 12.0, *) {
+      request.networkServiceType = .responsiveData
+    }
+    if #available(iOS 13.0, *) {
+      request.allowsExpensiveNetworkAccess = true
+      request.allowsConstrainedNetworkAccess = true
+    }
+    headers?.forEach { request.setValue($1, forHTTPHeaderField: $0) }
+    if existing > 0 {
+      request.setValue("bytes=\(existing)-", forHTTPHeaderField: "Range")
+      NSLog("range_request %lld", existing)
+    }
+
+    let stored = getMeta(transferId) ?? TransferMeta(
+      transferId: transferId, destination: destination, modelName: modelName,
+      url: url, state: "downloading", expectedTotal: 0, headers: nil
+    )
+
+    let activeTransfer = ActiveTransfer(
+      meta: stored, bytesWritten: existing, expectedTotal: stored.expectedTotal
+    )
+
+    do {
+      activeTransfer.handle = try FileHandle(forWritingTo: partialURL)
+      if existing > 0 {
+        if #available(iOS 13.4, *) {
+          try activeTransfer.handle?.seekToEnd()
+        } else {
+          activeTransfer.handle?.seekToEndOfFile()
         }
       }
+    } catch {
+      NSLog("handle_open_failed %@", error.localizedDescription)
+      emitError(transferId, error: error, keepPartial: true)
+      return
     }
+
+    let task = session.dataTask(with: request)
+    task.taskDescription = transferId
+    task.priority = URLSessionTask.highPriority
+    activeTransfer.task = task
+
+    activeLock.lock()
+    active[transferId] = activeTransfer
+    activeLock.unlock()
+
+    var metaUpdate = stored
+    metaUpdate.state = "downloading"
+    setMeta(transferId, metaUpdate)
+
+    task.resume()
+  }
+
+  func handleResponse(_ task: URLSessionDataTask, response: URLResponse) {
+    guard let tid = task.taskDescription else { return }
+    activeLock.lock()
+    guard let transfer = active[tid] else {
+      activeLock.unlock()
+      return
+    }
+    transfer.responseHandled = true
+    activeLock.unlock()
+
+    guard let http = response as? HTTPURLResponse else { return }
+    let code = http.statusCode
+    NSLog("http_status %d", code)
+
+    if code != 200 && code != 206 {
+      let err = NSError(domain: "TransferModule", code: code,
+                        userInfo: [NSLocalizedDescriptionKey: "HTTP error: \(code)"])
+      let keep = code == 401 || code == 403 || code == 404 ? true : true
+      finishWithError(tid, error: err, keepPartial: keep)
+      task.cancel()
+      return
+    }
+
+    activeLock.lock()
+    guard let transfer2 = active[tid] else {
+      activeLock.unlock()
+      return
+    }
+
+    if code == 200 && transfer2.bytesWritten > 0 {
+      NSLog("range_ignored_restart")
+      closeHandle(transfer2)
+      deletePartials(transfer2.meta.destination)
+      let partialURL = Self.partialURL(transfer2.meta.destination)
+      FileManager.default.createFile(atPath: partialURL.path, contents: nil)
+      do {
+        transfer2.handle = try FileHandle(forWritingTo: partialURL)
+      } catch {
+        activeLock.unlock()
+        finishWithError(tid, error: error, keepPartial: false)
+        return
+      }
+      transfer2.bytesWritten = 0
+    }
+
+    let contentLength = http.expectedContentLength
+    if code == 206 {
+      if let range = http.value(forHTTPHeaderField: "Content-Range"),
+         let total = parseTotal(from: range) {
+        transfer2.expectedTotal = total
+      } else if contentLength > 0 {
+        transfer2.expectedTotal = transfer2.bytesWritten + contentLength
+      }
+    } else if contentLength > 0 {
+      transfer2.expectedTotal = contentLength
+    }
+    let expected = transfer2.expectedTotal
+    let dest = transfer2.meta.destination
+    let modelName = transfer2.meta.modelName
+    let url = transfer2.meta.url
+    activeLock.unlock()
+
+    if var stored = getMeta(tid) {
+      stored.expectedTotal = expected
+      setMeta(tid, stored)
+    }
+
+    emitProgress(tid, bytesWritten: (active[tid]?.bytesWritten ?? 0), totalBytes: expected,
+                 modelName: modelName, destination: dest, url: url)
+  }
+
+  func handleData(_ task: URLSessionDataTask, data: Data) {
+    guard let tid = task.taskDescription else { return }
+    activeLock.lock()
+    guard let transfer = active[tid], transfer.runState == .downloading else {
+      activeLock.unlock()
+      return
+    }
+    do {
+      if #available(iOS 13.4, *) {
+        try transfer.handle?.write(contentsOf: data)
+      } else {
+        transfer.handle?.write(data)
+      }
+      transfer.bytesWritten += Int64(data.count)
+      let bytes = transfer.bytesWritten
+      let total = transfer.expectedTotal
+      let modelName = transfer.meta.modelName
+      let dest = transfer.meta.destination
+      let url = transfer.meta.url
+      activeLock.unlock()
+      emitProgress(tid, bytesWritten: bytes, totalBytes: total,
+                   modelName: modelName, destination: dest, url: url)
+    } catch {
+      activeLock.unlock()
+      finishWithError(tid, error: error, keepPartial: true)
+      task.cancel()
+    }
+  }
+
+  func handleComplete(_ task: URLSessionTask, error: Error?) {
+    guard let tid = task.taskDescription else { return }
+
+    activeLock.lock()
+    guard let transfer = active[tid] else {
+      activeLock.unlock()
+      return
+    }
+    let runState = transfer.runState
+    let bytes = transfer.bytesWritten
+    let total = transfer.expectedTotal
+    let dest = transfer.meta.destination
+    let modelName = transfer.meta.modelName
+    let url = transfer.meta.url
+    closeHandle(transfer)
+    activeLock.unlock()
+
+    if runState == .cancelling {
+      NSLog("transfer_cancelled %@", tid)
+      deletePartials(dest)
+      removeActive(tid)
+      removeMeta(tid)
+      emitOnMain("onTransferCancelled", [
+        "downloadId": tid,
+        "modelName": modelName,
+        "destination": dest,
+        "url": url,
+        "bytesWritten": Double(bytes),
+        "totalBytes": Double(total)
+      ])
+      return
+    }
+
+    if runState == .paused || (error as NSError?)?.code == NSURLErrorCancelled {
+      NSLog("transfer_paused %@", tid)
+      if var stored = getMeta(tid) {
+        stored.state = "paused"
+        stored.expectedTotal = total
+        setMeta(tid, stored)
+      }
+      removeActive(tid)
+      emitPaused(tid, bytesWritten: bytes, totalBytes: total)
+      return
+    }
+
+    if let error {
+      let nsErr = error as NSError
+      if nsErr.code == NSURLErrorCancelled {
+        if var stored = getMeta(tid) {
+          stored.state = "paused"
+          setMeta(tid, stored)
+        }
+        removeActive(tid)
+        emitPaused(tid, bytesWritten: bytes, totalBytes: total)
+        return
+      }
+      finishWithError(tid, error: error, keepPartial: true)
+      return
+    }
+
+    if total > 0 && bytes != total {
+      NSLog("size_mismatch %lld %lld", bytes, total)
+      if bytes < total {
+        finishWithError(
+          tid,
+          error: NSError(domain: "TransferModule", code: 3,
+                         userInfo: [NSLocalizedDescriptionKey: "incomplete_download"]),
+          keepPartial: true
+        )
+        return
+      }
+    }
+
+    do {
+      try promotePartial(dest)
+      NSLog("transfer_done %@", tid)
+      removeActive(tid)
+      emitOnMain("onTransferComplete", [
+        "downloadId": tid,
+        "modelName": modelName,
+        "destination": Self.finalPath(dest),
+        "url": url,
+        "bytesWritten": Double(bytes),
+        "totalBytes": Double(max(total, bytes))
+      ])
+      removeMeta(tid)
+    } catch {
+      finishWithError(tid, error: error, keepPartial: true)
+    }
+  }
+
+  private func finishWithError(_ tid: String, error: Error, keepPartial: Bool) {
+    emitError(tid, error: error, keepPartial: keepPartial)
+  }
+
+  private func emitError(_ tid: String, error: Error, keepPartial: Bool) {
+    let stored = getMeta(tid)
+    let modelName = stored?.modelName ?? tid
+    let dest = stored?.destination ?? ""
+    let nsErr = error as NSError
+    let underlying = (nsErr.userInfo[NSUnderlyingErrorKey] as? NSError) ?? nsErr
+    let isEnospc = underlying.domain == NSPOSIXErrorDomain && underlying.code == Int(ENOSPC)
+    let errorMsg = isEnospc ? "enospc" : error.localizedDescription
+
+    if !keepPartial {
+      deletePartials(dest)
+      removeMeta(tid)
+    }
+
+    let bytes = partialBytes(dest)
+    removeActive(tid)
+
+    emitOnMain("onTransferError", [
+      "downloadId": tid,
+      "modelName": modelName,
+      "destination": dest,
+      "url": stored?.url ?? "",
+      "error": errorMsg,
+      "bytesWritten": Double(bytes),
+      "totalBytes": Double(stored?.expectedTotal ?? 0)
+    ])
+  }
+
+  private func emitPaused(_ tid: String, bytesWritten: Int64, totalBytes: Int64) {
+    let stored = getMeta(tid)
+    emitOnMain("onTransferPaused", [
+      "downloadId": tid,
+      "modelName": stored?.modelName ?? tid,
+      "destination": stored?.destination ?? "",
+      "url": stored?.url ?? "",
+      "bytesWritten": Double(bytesWritten),
+      "totalBytes": Double(max(totalBytes, 0)),
+      "state": "paused"
+    ])
+  }
+
+  private func emitProgress(
+    _ tid: String, bytesWritten: Int64, totalBytes: Int64,
+    modelName: String, destination: String, url: String
+  ) {
+    let progress = totalBytes > 0
+      ? min(Int(Double(bytesWritten) / Double(totalBytes) * 100), 100)
+      : 0
+    emitOnMain("onTransferProgress", [
+      "downloadId": tid,
+      "modelName": modelName,
+      "destination": destination,
+      "url": url,
+      "bytesWritten": Double(bytesWritten),
+      "totalBytes": Double(max(totalBytes, 0)),
+      "speed": 0.0,
+      "eta": 0.0,
+      "progress": progress,
+      "state": "downloading"
+    ])
   }
 
   private func emitOnMain(_ name: String, _ body: [String: Any]) {
@@ -143,171 +554,79 @@ public class TransferModule: Module {
     }
   }
 
-  func emitProgress(_ tid: String, bytesWritten: Int64, totalBytes: Int64) {
-    let stored = getMeta(tid)
-    let modelName = stored?.modelName ?? tid
-    let progress = totalBytes > 0
-      ? min(Int(Double(bytesWritten) / Double(totalBytes) * 100), 100)
-      : 0
-
-    emitOnMain("onTransferProgress", [
-      "downloadId": tid,
-      "modelName": modelName,
-      "destination": stored?.destination ?? "",
-      "url": stored?.url ?? "",
-      "bytesWritten": Double(bytesWritten),
-      "totalBytes": Double(max(totalBytes, 0)),
-      "speed": 0.0,
-      "eta": 0.0,
-      "progress": progress
-    ])
-  }
-
-  func emitComplete(_ tid: String, location: URL) {
-    let stored = getMeta(tid)
-    let modelName = stored?.modelName ?? tid
-    let dest = stored?.destination ?? ""
-
-    if !dest.isEmpty {
-      let destURL = Self.resolveDestinationURL(dest)
-      let dir = destURL.deletingLastPathComponent()
-      try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-      try? FileManager.default.removeItem(at: destURL)
-      do {
-        try FileManager.default.moveItem(at: location, to: destURL)
-      } catch {
-        // Drop both sides so a failed move never leaves a partial dest
-        // or an orphaned session temp behind.
-        try? FileManager.default.removeItem(at: destURL)
-        try? FileManager.default.removeItem(at: location)
-        emitOnMain("onTransferError", [
-          "downloadId": tid,
-          "modelName": modelName,
-          "destination": dest,
-          "error": "move_failed: \(error.localizedDescription)"
-        ])
-        removeMeta(tid)
-        return
+  private func closeHandle(_ transfer: ActiveTransfer) {
+    do {
+      if #available(iOS 13.0, *) {
+        try transfer.handle?.close()
+      } else {
+        transfer.handle?.closeFile()
       }
+    } catch {
+      NSLog("handle_close_failed")
     }
-
-    emitCompleteAtDestination(tid: tid, stored: stored, modelName: modelName, dest: dest)
+    transfer.handle = nil
   }
 
-  private func emitCompleteAtDestination(
-    tid: String,
-    stored: TransferMeta?,
-    modelName: String,
-    dest: String
-  ) {
-    let finalPath = dest.isEmpty ? dest : Self.resolveDestinationURL(dest).path
-    let size = (try? FileManager.default.attributesOfItem(atPath: finalPath))?[.size] as? Int64 ?? 0
+  private func removeActive(_ tid: String) {
+    activeLock.lock()
+    if let transfer = active.removeValue(forKey: tid) {
+      closeHandle(transfer)
+    }
+    activeLock.unlock()
+  }
 
-    emitOnMain("onTransferComplete", [
-      "downloadId": tid,
-      "modelName": modelName,
-      "destination": dest,
-      "url": stored?.url ?? "",
-      "bytesWritten": Double(size),
-      "totalBytes": Double(size)
-    ])
-    removeMeta(tid)
+  private func promotePartial(_ destination: String) throws {
+    let partial = Self.partialURL(destination)
+    let finalURL = Self.resolveDestinationURL(Self.finalPath(destination))
+    try? FileManager.default.removeItem(at: finalURL)
+    try FileManager.default.moveItem(at: partial, to: finalURL)
+    NSLog("partial_promoted")
+  }
+
+  private func deletePartials(_ destination: String) {
+    let partial = Self.partialURL(destination)
+    let finalURL = Self.resolveDestinationURL(Self.finalPath(destination))
+    try? FileManager.default.removeItem(at: partial)
+    try? FileManager.default.removeItem(at: finalURL)
+    NSLog("partials_purged")
+  }
+
+  private func partialBytes(_ destination: String) -> Int64 {
+    let path = Self.partialURL(destination).path
+    return (try? FileManager.default.attributesOfItem(atPath: path)[.size] as? Int64) ?? 0
+  }
+
+  private func parseTotal(from contentRange: String) -> Int64? {
+    guard let slash = contentRange.lastIndex(of: "/") else { return nil }
+    let totalStr = contentRange[contentRange.index(after: slash)...]
+    return Int64(totalStr)
   }
 
   private func finalizeTransferIfReady(_ transferId: String) -> [String: Any] {
     guard let stored = getMeta(transferId) else {
       return ["finalized": false]
     }
-
-    let dest = stored.destination
-    guard !dest.isEmpty else {
-      return ["finalized": false]
-    }
-
+    let dest = Self.finalPath(stored.destination)
     let destURL = Self.resolveDestinationURL(dest)
     var isDir: ObjCBool = false
     let exists = FileManager.default.fileExists(atPath: destURL.path, isDirectory: &isDir)
     guard exists && !isDir.boolValue else {
       return ["finalized": false]
     }
-
     let size = (try? FileManager.default.attributesOfItem(atPath: destURL.path)[.size] as? Int64) ?? 0
     guard size > 0 else {
       return ["finalized": false]
     }
-
-    emitCompleteAtDestination(
-      tid: transferId,
-      stored: stored,
-      modelName: stored.modelName,
-      dest: dest
-    )
+    emitOnMain("onTransferComplete", [
+      "downloadId": transferId,
+      "modelName": stored.modelName,
+      "destination": dest,
+      "url": stored.url,
+      "bytesWritten": Double(size),
+      "totalBytes": Double(size)
+    ])
+    removeMeta(transferId)
     return ["finalized": true, "size": Double(size)]
-  }
-
-  func emitError(_ tid: String, error: Error) {
-    let stored = getMeta(tid)
-    let modelName = stored?.modelName ?? tid
-    let dest = stored?.destination ?? ""
-    let nsErr = error as NSError
-    let cancelled = nsErr.code == NSURLErrorCancelled
-
-    // Remove any partial at the destination. URLSession keeps its own
-    // temp until the delegate returns; our dest can still hold a prior
-    // move, a failed finalize, or an error-body download.
-    deleteDestinationIfPresent(dest)
-
-    if cancelled {
-      emitOnMain("onTransferCancelled", [
-        "downloadId": tid,
-        "modelName": modelName,
-        "destination": dest,
-        "url": stored?.url ?? "",
-        "bytesWritten": 0.0,
-        "totalBytes": 0.0
-      ])
-    } else {
-      let underlying = (nsErr.userInfo[NSUnderlyingErrorKey] as? NSError) ?? nsErr
-      let isEnospc = underlying.domain == NSPOSIXErrorDomain && underlying.code == Int(ENOSPC)
-      let errorMsg = isEnospc ? "enospc" : error.localizedDescription
-      emitOnMain("onTransferError", [
-        "downloadId": tid,
-        "modelName": modelName,
-        "destination": dest,
-        "url": stored?.url ?? "",
-        "error": errorMsg,
-        "bytesWritten": 0.0,
-        "totalBytes": 0.0
-      ])
-    }
-    removeMeta(tid)
-  }
-
-  private func deleteDestinationIfPresent(_ dest: String) {
-    guard !dest.isEmpty else { return }
-    let destURL = Self.resolveDestinationURL(dest)
-    var isDir: ObjCBool = false
-    guard FileManager.default.fileExists(atPath: destURL.path, isDirectory: &isDir),
-          !isDir.boolValue else { return }
-    try? FileManager.default.removeItem(at: destURL)
-  }
-
-  private func reconnect() {
-    session.getTasksWithCompletionHandler { [weak self] _, _, downloadTasks in
-      guard let self else { return }
-      for task in downloadTasks {
-        guard let tid = task.taskDescription else { continue }
-        if self.getMeta(tid) == nil {
-          if task.state == .running || task.state == .suspended {
-            task.cancel()
-          }
-          continue
-        }
-        if task.state == .suspended {
-          task.resume()
-        }
-      }
-    }
   }
 
   private func loadMeta() {
@@ -349,7 +668,21 @@ public class TransferModule: Module {
   static func extractModelName(_ path: String?) -> String? {
     guard let p = path, !p.isEmpty else { return nil }
     let clean = p.hasPrefix("file://") ? String(p.dropFirst(7)) : p
-    return clean.split(separator: "/").last.map(String.init)
+    let name = clean.split(separator: "/").last.map(String.init)
+    return name?.replacingOccurrences(of: partialSuffix, with: "")
+  }
+
+  static func finalPath(_ raw: String) -> String {
+    let clean = raw.hasPrefix("file://") ? String(raw.dropFirst(7)) : raw
+    if clean.hasSuffix(partialSuffix) {
+      return String(clean.dropLast(partialSuffix.count))
+    }
+    return clean
+  }
+
+  static func partialURL(_ destination: String) -> URL {
+    let final = resolveDestinationURL(finalPath(destination))
+    return URL(fileURLWithPath: final.path + partialSuffix)
   }
 
   private static func resolveDestinationURL(_ raw: String) -> URL {
@@ -363,30 +696,21 @@ public class TransferModule: Module {
   }
 }
 
-private class SessionDelegate: NSObject, URLSessionDownloadDelegate {
+private class StreamDelegate: NSObject, URLSessionDataDelegate {
   weak var module: TransferModule?
 
-  func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask,
-                  didWriteData bytesWritten: Int64,
-                  totalBytesWritten: Int64,
-                  totalBytesExpectedToWrite: Int64) {
-    guard let tid = downloadTask.taskDescription else { return }
-    module?.emitProgress(tid, bytesWritten: totalBytesWritten, totalBytes: totalBytesExpectedToWrite)
+  func urlSession(_ session: URLSession, dataTask: URLSessionDataTask,
+                  didReceive response: URLResponse,
+                  completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
+    module?.handleResponse(dataTask, response: response)
+    completionHandler(.allow)
   }
 
-  func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask,
-                  didFinishDownloadingTo location: URL) {
-    guard let tid = downloadTask.taskDescription else { return }
-    module?.emitComplete(tid, location: location)
+  func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
+    module?.handleData(dataTask, data: data)
   }
 
-  func urlSession(_ session: URLSession, task: URLSessionTask,
-                  didCompleteWithError error: Error?) {
-    guard let tid = task.taskDescription, let error else { return }
-    module?.emitError(tid, error: error)
-  }
-
-  func urlSession(_ session: URLSession,
-                  didBecomeInvalidWithError error: Error?) {
+  func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+    module?.handleComplete(task, error: error)
   }
 }
