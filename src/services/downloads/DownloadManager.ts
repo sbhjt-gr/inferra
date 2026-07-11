@@ -30,14 +30,22 @@ export class BackgroundDownloadService {
   private ignoredTransfers: Set<string> = new Set();
   private readonly staleMs = Platform.OS === 'ios' ? 60000 : 15000;
 
+  private ignoredSet(): Set<string> {
+    if (!this.ignoredTransfers) {
+      this.ignoredTransfers = new Set();
+    }
+    return this.ignoredTransfers;
+  }
+
   private ignoreTransfer(modelName?: string, nativeId?: string): void {
+    const ignored = this.ignoredSet();
     if (modelName) {
-      this.ignoredTransfers.add(modelName);
-      setTimeout(() => this.ignoredTransfers.delete(modelName), 30000);
+      ignored.add(modelName);
+      setTimeout(() => this.ignoredSet().delete(modelName), 30000);
     }
     if (nativeId) {
-      this.ignoredTransfers.add(nativeId);
-      setTimeout(() => this.ignoredTransfers.delete(nativeId), 30000);
+      ignored.add(nativeId);
+      setTimeout(() => this.ignoredSet().delete(nativeId), 30000);
     }
   }
 
@@ -102,6 +110,7 @@ export class BackgroundDownloadService {
 
   constructor() {
     this.activeTransfers = new Map();
+    this.ignoredTransfers = new Set();
 
     if (TransferModule) {
       this.setupNativeEventHandlers();
@@ -111,8 +120,19 @@ export class BackgroundDownloadService {
   private setupNativeEventHandlers() {
     this.expoEventEmitter = new ExpoEventEmitter(TransferModule);
 
-    this.eventSubscriptions.push(
-      this.expoEventEmitter.addListener('onTransferProgress', (event: any) => {
+    const safeListen = (eventName: string, handler: (event: any) => void) => {
+      this.eventSubscriptions.push(
+        this.expoEventEmitter!.addListener(eventName, (event: any) => {
+          try {
+            handler(event);
+          } catch (error) {
+            console.log('native_event_err', eventName);
+          }
+        }),
+      );
+    };
+
+    safeListen('onTransferProgress', (event: any) => {
       let derivedModelName = this.resolveModelName(
         event.modelName || '',
         event.destination,
@@ -135,8 +155,8 @@ export class BackgroundDownloadService {
 
       if (!transfer && derivedModelName && !this.isUuidLike(derivedModelName)) {
         // Late native progress after cancel must not mint a fresh job + downloadStarted.
-        if (this.ignoredTransfers.has(derivedModelName) || this.ignoredTransfers.has(event.downloadId)) {
-          console.log('progress_ignore_cancelled', derivedModelName);
+        const ignored = this.ignoredSet();
+        if (ignored.has(derivedModelName) || (event.downloadId && ignored.has(event.downloadId))) {
           return;
         }
         transfer = this.createTransferJobFromNativeEvent(derivedModelName, event, false) ?? undefined;
@@ -169,10 +189,9 @@ export class BackgroundDownloadService {
         (transfer as any).lastUIUpdateTime = currentTimestamp;
         this.eventCallbacks.onProgress?.(derivedModelName, transfer.state.progress);
       }
-    }));
+    });
 
-    this.eventSubscriptions.push(
-      this.expoEventEmitter.addListener('onTransferComplete', (event: any) => {
+    safeListen('onTransferComplete', (event: any) => {
       console.log('native_transfer_complete', event.modelName);
       const derivedModelName = event.modelName || this.extractModelName(event.destination, event.url);
 
@@ -211,10 +230,9 @@ export class BackgroundDownloadService {
 
       this.eventCallbacks.onComplete?.(modelName);
       this.activeTransfers.delete(modelName);
-    }));
+    });
 
-    this.eventSubscriptions.push(
-      this.expoEventEmitter.addListener('onTransferError', (event: any) => {
+    safeListen('onTransferError', (event: any) => {
       const derivedModelName = event.modelName || this.extractModelName(event.destination, event.url);
 
       let transfer: DownloadJob | undefined = derivedModelName
@@ -237,14 +255,13 @@ export class BackgroundDownloadService {
 
       transfer.state.isDownloading = false;
       transfer.state.progress = undefined;
-      
+
       const error = new Error(event.error);
       this.eventCallbacks.onError?.(transfer.model.name, error);
       this.activeTransfers.delete(transfer.model.name);
-    }));
+    });
 
-    this.eventSubscriptions.push(
-      this.expoEventEmitter.addListener('onTransferCancelled', (event: any) => {
+    safeListen('onTransferCancelled', (event: any) => {
       const derivedModelName = event.modelName || this.extractModelName(event.destination, event.url);
 
       let transfer: DownloadJob | undefined = derivedModelName
@@ -288,10 +305,9 @@ export class BackgroundDownloadService {
       this.activeTransfers.delete(transfer.model.name);
 
       this.eventCallbacks.onCancelled?.(transfer.model.name);
-    }));
+    });
 
-    this.eventSubscriptions.push(
-      this.expoEventEmitter.addListener('onTransferPaused', (event: any) => {
+    safeListen('onTransferPaused', (event: any) => {
       console.log('native_transfer_paused', event.modelName);
       const derivedModelName = event.modelName || this.extractModelName(event.destination, event.url);
 
@@ -306,6 +322,10 @@ export class BackgroundDownloadService {
       }
 
       if (!transfer && derivedModelName) {
+        const ignored = this.ignoredSet();
+        if (ignored.has(derivedModelName) || (event.downloadId && ignored.has(event.downloadId))) {
+          return;
+        }
         transfer = this.createTransferJobFromNativeEvent(derivedModelName, event, false) ?? undefined;
       }
 
@@ -331,7 +351,7 @@ export class BackgroundDownloadService {
       this.staleMap.delete(transfer.model.name);
 
       this.eventCallbacks.onPaused?.(transfer.model.name, progress);
-    }));
+    });
   }
 
   private formatFileSize(bytes: number): string {
@@ -422,9 +442,9 @@ export class BackgroundDownloadService {
     const destination = options?.destination;
 
     console.log('resume_transfer', modelName);
-    this.ignoredTransfers.delete(modelName);
+    this.ignoredSet().delete(modelName);
     if (transferId) {
-      this.ignoredTransfers.delete(transferId);
+      this.ignoredSet().delete(transferId);
     }
 
     const applyLocalResume = (id: string) => {
@@ -557,7 +577,7 @@ export class BackgroundDownloadService {
         throw new Error('Failed to start transfer - no transfer ID returned');
       }
 
-      this.ignoredTransfers.delete(model.name);
+      this.ignoredSet().delete(model.name);
 
       const transferJob: DownloadJob = {
         model,
