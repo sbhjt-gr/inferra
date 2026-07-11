@@ -19,6 +19,7 @@ type AppHeaderProps = {
   customLeftComponent?: React.ReactNode;
   transparent?: boolean;
   leftComponent?: React.ReactNode;
+  tintColor?: string;
 };
 
 export default function AppHeader({
@@ -31,6 +32,7 @@ export default function AppHeader({
   customLeftComponent,
   transparent = false,
   leftComponent,
+  tintColor,
 }: AppHeaderProps) {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
@@ -64,7 +66,7 @@ export default function AppHeader({
   };
 
   if (useIosHeader) {
-    const iosColor = currentTheme === 'light' ? themeColors.primary : themeColors.text;
+    const iosColor = tintColor ?? (currentTheme === 'light' ? themeColors.primary : themeColors.text);
     return (
       <View style={[styles.iosContainer, { height: navHeight + insets.top }]}>
         <View style={[styles.iosContent, { paddingTop: insets.top }]}>
@@ -121,6 +123,8 @@ export default function AppHeader({
     );
   }
 
+  const androidTint = tintColor ?? themeColors.headerText;
+
   console.log('header_android', title);
   return (
     <View
@@ -146,7 +150,7 @@ export default function AppHeader({
                 onPress={handleBackPress}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <MaterialCommunityIcons name="arrow-left" size={24} color={themeColors.headerText} />
+                <MaterialCommunityIcons name="arrow-left" size={24} color={androidTint} />
               </TouchableOpacity>
             )}
 
@@ -158,14 +162,14 @@ export default function AppHeader({
                   resizeMode="cover"
                   fadeDuration={0}
                 />
-                <Text style={[styles.title, { color: themeColors.headerText }, fonts.bold]}>
+                <Text style={[styles.title, { color: androidTint }, fonts.bold]}>
                   {title}
                 </Text>
               </>
             )}
 
             {!showLogo && (
-              <Text style={[styles.title, { color: themeColors.headerText }, fonts.bold]}>
+              <Text style={[styles.title, { color: androidTint }, fonts.bold]}>
                 {title}
               </Text>
             )}
@@ -183,7 +187,7 @@ export default function AppHeader({
                   onPress={handleNewChat}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
-                  <MaterialCommunityIcons name="plus" size={22} color={themeColors.headerText} />
+                  <MaterialCommunityIcons name="plus" size={22} color={androidTint} />
                 </TouchableOpacity>
               )}
               <TouchableOpacity
@@ -191,7 +195,7 @@ export default function AppHeader({
                 onPress={handleOpenChatHistory}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <MaterialCommunityIcons name="clock-outline" size={22} color={themeColors.headerText} />
+                <MaterialCommunityIcons name="clock-outline" size={22} color={androidTint} />
               </TouchableOpacity>
             </>
           )}
