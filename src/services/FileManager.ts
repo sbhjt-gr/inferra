@@ -1,6 +1,7 @@
 import { fs as FileSystem } from './fs';
 import { EventEmitter } from './EventEmitter';
 import { ImportProgressEvent } from './ModelDownloaderTypes';
+import { normalizePath, toFileUri } from '../utils/pathUtils';
 
 export class FileManager extends EventEmitter {
   private readonly baseDir: string;
@@ -10,6 +11,29 @@ export class FileManager extends EventEmitter {
     super();
     this.baseDir = `${FileSystem.documentDirectory}models`;
     this.downloadDir = `${FileSystem.documentDirectory}temp`;
+  }
+
+  private pathVariants(path: string): string[] {
+    return Array.from(new Set([path, toFileUri(path), normalizePath(path)].filter(Boolean)));
+  }
+
+  private async probePath(
+    path: string,
+  ): Promise<{ exists: boolean; size: number; path: string }> {
+    for (const candidate of this.pathVariants(path)) {
+      try {
+        const info = await FileSystem.getInfoAsync(candidate, { size: true });
+        if (info.exists) {
+          return {
+            exists: true,
+            size: (info as { size?: number }).size || 0,
+            path: candidate,
+          };
+        }
+      } catch {
+      }
+    }
+    return { exists: false, size: 0, path };
   }
 
   async initializeDirectories(): Promise<void> {
@@ -50,10 +74,10 @@ export class FileManager extends EventEmitter {
         status: 'importing'
       } as ImportProgressEvent);
 
-      const sourceInfo = await FileSystem.getInfoAsync(sourcePath);
-      if (!sourceInfo.exists) {
-        const destInfoCheck = await FileSystem.getInfoAsync(destPath);
-        if (destInfoCheck.exists) {
+      const sourceProbe = await this.probePath(sourcePath);
+      if (!sourceProbe.exists) {
+        const destProbe = await this.probePath(destPath);
+        if (destProbe.exists && destProbe.size > 0) {
           this.emit('importProgress', { modelName, status: 'completed' } as ImportProgressEvent);
           return;
         }
@@ -61,26 +85,26 @@ export class FileManager extends EventEmitter {
       }
 
       const destDir = destPath.substring(0, destPath.lastIndexOf('/'));
-      const destDirInfo = await FileSystem.getInfoAsync(destDir);
+      const destDirInfo = await this.probePath(destDir);
       if (!destDirInfo.exists) {
         await FileSystem.makeDirectoryAsync(destDir, { intermediates: true });
       }
 
-      const destInfo = await FileSystem.getInfoAsync(destPath);
-      if (destInfo.exists) {
-        await FileSystem.deleteAsync(destPath, { idempotent: true });
+      const existingDest = await this.probePath(destPath);
+      if (existingDest.exists) {
+        await FileSystem.deleteAsync(existingDest.path, { idempotent: true });
       }
 
-      const sourceSizeInfo = await FileSystem.getInfoAsync(sourcePath, { size: true });
-      const sourceSize = (sourceSizeInfo as any).size || 0;
+      const sourceSize = sourceProbe.size;
       console.log('moveFile_source_size', sourceSize);
 
       await new Promise(resolve => setTimeout(resolve, 600));
 
       console.log('moveFile_try_move', modelName);
-      await this.tryMove(sourcePath, destPath, sourceSize);
+      await this.tryMove(sourceProbe.path, destPath, sourceSize);
 
-      console.log('moveFile_dest_size', (await FileSystem.getInfoAsync(destPath, { size: true }) as any).size);
+      const finalDest = await this.probePath(destPath);
+      console.log('moveFile_dest_size', finalDest.size);
 
       this.emit('importProgress', {
         modelName,
@@ -88,10 +112,11 @@ export class FileManager extends EventEmitter {
       } as ImportProgressEvent);
 
     } catch (error) {
-      const destInfoCheck = await FileSystem.getInfoAsync(destPath);
-      const sourceInfoCheck = await FileSystem.getInfoAsync(sourcePath);
+      const destInfoCheck = await this.probePath(destPath);
+      const sourceInfoCheck = await this.probePath(sourcePath);
 
-      if (destInfoCheck.exists && !sourceInfoCheck.exists) {
+      // Move often succeeds even when URI verify flakes; treat dest-present as done.
+      if (destInfoCheck.exists && destInfoCheck.size > 0 && !sourceInfoCheck.exists) {
         this.emit('importProgress', { modelName, status: 'completed' } as ImportProgressEvent);
         return;
       }
@@ -106,19 +131,67 @@ export class FileManager extends EventEmitter {
     }
   }
 
+  private async verifyMoveResult(
+    sourcePath: string,
+    destPath: string,
+    expectedSize: number,
+  ): Promise<boolean> {
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      const dest = await this.probePath(destPath);
+      if (dest.exists && (expectedSize <= 0 || dest.size === expectedSize || dest.size > 0)) {
+        console.log('moveFile_move_ok', dest.size);
+        return true;
+      }
+
+      const source = await this.probePath(sourcePath);
+      if (!source.exists && dest.exists && dest.size > 0) {
+        console.log('moveFile_move_ok', dest.size);
+        return true;
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 150 * (attempt + 1)));
+    }
+    return false;
+  }
+
   private async tryMove(sourcePath: string, destPath: string, expectedSize: number): Promise<void> {
     try {
-      await FileSystem.moveAsync({ from: sourcePath, to: destPath });
+      await FileSystem.moveAsync({
+        from: toFileUri(sourcePath),
+        to: toFileUri(destPath),
+      });
 
-      const destInfo = await FileSystem.getInfoAsync(destPath, { size: true });
-      if (!destInfo.exists) {
+      if (await this.verifyMoveResult(sourcePath, destPath, expectedSize)) {
+        return;
+      }
+
+      // Source already gone ⇒ move likely landed; don't enter copy fallback that deletes dest.
+      const source = await this.probePath(sourcePath);
+      const dest = await this.probePath(destPath);
+      if (!source.exists && dest.exists && dest.size > 0) {
+        console.log('moveFile_move_ok', dest.size);
+        return;
+      }
+      if (!source.exists) {
         throw new Error('move_verify_failed');
       }
-      console.log('moveFile_move_ok', (destInfo as any).size);
+
+      throw new Error('move_verify_failed');
     } catch (moveError) {
       console.log('moveFile_move_failed', moveError instanceof Error ? moveError.message : 'unknown');
 
-      await this.fallbackCopy(sourcePath, destPath, expectedSize);
+      const source = await this.probePath(sourcePath);
+      const dest = await this.probePath(destPath);
+      if (dest.exists && dest.size > 0 && !source.exists) {
+        console.log('moveFile_move_ok', dest.size);
+        return;
+      }
+      if (!source.exists) {
+        // Cannot copy; avoid deleting a dest we may have just written under another URI form.
+        throw moveError instanceof Error ? moveError : new Error('move_verify_failed');
+      }
+
+      await this.fallbackCopy(source.path, destPath, expectedSize);
     }
   }
 
@@ -136,13 +209,18 @@ export class FileManager extends EventEmitter {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         console.log('moveFile_copy_attempt', attempt);
-        await FileSystem.copyAsync({ from: sourcePath, to: destPath });
+        await FileSystem.copyAsync({
+          from: toFileUri(sourcePath),
+          to: toFileUri(destPath),
+        });
 
-        const destInfo = await FileSystem.getInfoAsync(destPath, { size: true });
-        const destSize = (destInfo as any).size || 0;
+        const destInfo = await this.probePath(destPath);
+        const destSize = destInfo.size;
 
-        if (!destInfo.exists || destSize !== expectedSize) {
-          await FileSystem.deleteAsync(destPath, { idempotent: true }).catch(() => {});
+        if (!destInfo.exists || (expectedSize > 0 && destSize !== expectedSize)) {
+          if (destInfo.exists) {
+            await FileSystem.deleteAsync(destInfo.path, { idempotent: true }).catch(() => {});
+          }
           throw new Error(`copy_size_mismatch: expected ${expectedSize}, got ${destSize}`);
         }
 
@@ -152,7 +230,21 @@ export class FileManager extends EventEmitter {
       } catch (err) {
         lastError = err;
         console.log('moveFile_copy_retry', attempt, err instanceof Error ? err.message : 'unknown');
-        await FileSystem.deleteAsync(destPath, { idempotent: true }).catch(() => {});
+
+        // Only wipe dest when we know a bad/partial copy was written — never when source vanished
+        // after a prior successful move (that used to delete the good models/ file).
+        const source = await this.probePath(sourcePath);
+        const dest = await this.probePath(destPath);
+        if (source.exists && dest.exists) {
+          await FileSystem.deleteAsync(dest.path, { idempotent: true }).catch(() => {});
+        }
+        if (!source.exists) {
+          if (dest.exists && dest.size > 0) {
+            console.log('moveFile_copy_ok', dest.size);
+            return;
+          }
+          throw lastError || new Error('copy_source_missing');
+        }
 
         if (attempt < maxRetries) {
           const delay = Math.min(1000 * Math.pow(2, attempt - 1), 4000);

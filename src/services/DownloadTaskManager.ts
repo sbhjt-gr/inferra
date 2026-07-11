@@ -163,22 +163,47 @@ export class DownloadTaskManager extends EventEmitter {
         } catch (error) {
           console.log('complete_error', modelName, error instanceof Error ? error.message : 'unknown');
 
-          if (downloadInfo) {
-            await this.purgeDownloadFiles(modelName, downloadInfo);
+          // Move may have succeeded under a path-variant mismatch; do not wipe a good model file.
+          let recoveredSize = 0;
+          for (const candidate of this.pathVariants(modelPath)) {
+            try {
+              const info = await FileSystem.getInfoAsync(candidate, { size: true });
+              if (info.exists) {
+                recoveredSize = (info as { size?: number }).size || 0;
+                if (recoveredSize > 0) {
+                  break;
+                }
+              }
+            } catch {
+            }
+          }
+
+          if (recoveredSize > 0) {
+            console.log('complete_recovered_final', modelName, recoveredSize);
+            this.emit('downloadCompleted', {
+              modelName,
+              displayName,
+              downloadId: this.getDownloadIdForModel(modelName),
+              finalPath: modelPath,
+              nativeDownloadId: downloadInfo?.nativeDownloadId,
+            });
+          } else {
+            if (downloadInfo) {
+              await this.purgeDownloadFiles(modelName, downloadInfo);
+            }
+            this.emit('downloadFailed', {
+              modelName,
+              displayName,
+              downloadId: this.getDownloadIdForModel(modelName),
+              error: error instanceof Error ? error.message : 'Unknown error',
+              nativeDownloadId: downloadInfo?.nativeDownloadId,
+            });
           }
 
           this.activeDownloads.delete(modelName);
           this.tempNameMap.delete(modelName);
           this.startedDisplayNames.delete(displayName);
           await this.saveDownloadProgress();
-
-          this.emit('downloadFailed', {
-            modelName,
-            displayName,
-            downloadId: this.getDownloadIdForModel(modelName),
-            error: error instanceof Error ? error.message : 'Unknown error',
-            nativeDownloadId: downloadInfo?.nativeDownloadId,
-          });
         } finally {
           this.completingSet.delete(modelName);
         }
