@@ -230,6 +230,7 @@ export default function WideScreenLayout({}: WideScreenLayoutProps) {
               isActive={activeTab === 'settings'}
             />
           </View>
+          <View style={[styles.tabSeparator, { backgroundColor: themeColors.borderColor }]} />
         </View>
 
         <Animated.View style={[
@@ -302,6 +303,13 @@ const styles = StyleSheet.create({
   verticalTabBar: {
     justifyContent: 'flex-start',
     alignItems: 'center',
+  },
+  tabSeparator: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    width: StyleSheet.hairlineWidth,
   },
   tabList: {
     gap: 8,
