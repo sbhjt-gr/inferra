@@ -137,6 +137,10 @@ export class DownloadTaskManager extends EventEmitter {
         } catch (error) {
           console.log('complete_error', modelName, error instanceof Error ? error.message : 'unknown');
 
+          if (downloadInfo) {
+            await this.purgeDownloadFiles(modelName, downloadInfo);
+          }
+
           this.activeDownloads.delete(modelName);
           this.tempNameMap.delete(modelName);
           this.startedDisplayNames.delete(displayName);
@@ -160,8 +164,11 @@ export class DownloadTaskManager extends EventEmitter {
           downloadInfo.status = 'failed';
         }
 
-        const tempPath = `${this.fileManager.getDownloadDir()}/${modelName}`;
-        this.fileManager.deleteFile(tempPath).catch(() => {
+        const cleanup = downloadInfo
+          ? this.purgeDownloadFiles(modelName, downloadInfo)
+          : this.fileManager.deleteFile(`${this.fileManager.getDownloadDir()}/${modelName}`);
+
+        void cleanup.catch(() => {
           console.log('error_cleanup_failed', modelName);
         });
 
