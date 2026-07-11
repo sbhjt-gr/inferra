@@ -414,15 +414,17 @@ export default function SettingsScreen() {
   const clearAllModels = async () => {
     const modelsDir = `${FileSystem.documentDirectory}models`;
     const hfDir = `${FileSystem.documentDirectory}huggingface`;
+    const tempDir = `${FileSystem.documentDirectory}temp`;
 
     setClearingType('models');
 
     try {
-      const [modelsSize, hfSize] = await Promise.all([
+      const [modelsSize, hfSize, tempSize] = await Promise.all([
         getDirectorySize(modelsDir),
         getDirectorySize(hfDir),
+        getDirectorySize(tempDir),
       ]);
-      const totalSize = modelsSize + hfSize;
+      const totalSize = modelsSize + hfSize + tempSize;
       const totalSizeText = formatBytes(totalSize);
 
       setClearingType(null);
