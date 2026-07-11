@@ -77,7 +77,7 @@ export class LocalPlannerAgentAdapter implements ModelAdapter {
   private async generateText(
     messages: AgentMessage[],
     settings: AgentGenerationSettings,
-    opts: { onToken?: (token: string) => boolean | void; tools?: LitertToolDef[] },
+    opts: { onToken?: (token: string) => boolean | void; tools?: LitertToolDef[]; skipStableTools?: boolean },
   ): Promise<string> {
     const mapped = messages.map(entry => ({
       role: entry.role === 'tool' ? 'user' : entry.role,
@@ -92,6 +92,7 @@ export class LocalPlannerAgentAdapter implements ModelAdapter {
         maxTokens: Math.min(settings.maxTokens || 1024, 1024),
       },
       tools: opts.tools,
+      skipStableTools: opts.skipStableTools,
     });
   }
 
@@ -134,7 +135,10 @@ export class LocalPlannerAgentAdapter implements ModelAdapter {
         return { kind: 'final', text: response.trim() };
       } catch (error) {
         console.log('local_litert_fail', error instanceof Error ? error.message : 'unknown');
-        const fallback = await this.generateText(messages, settings, { onToken: opts.onToken });
+        const fallback = await this.generateText(messages, settings, {
+          onToken: opts.onToken,
+          skipStableTools: true,
+        });
         return { kind: 'final', text: fallback.trim() };
       }
     }

@@ -92,7 +92,7 @@ describe('LocalPlannerAgentAdapter litert', () => {
       expect(turn.text).toBe('Fallback answer');
     }
     expect(gen).toHaveBeenCalledTimes(2);
-    expect(gen.mock.calls[1][1].tools).toBeUndefined();
+    expect(gen.mock.calls[1][1].skipStableTools).toBe(true);
   });
 
   it('reinjects tool outcomes for continuation', () => {
