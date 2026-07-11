@@ -9,6 +9,7 @@ import { mlxStorageManager } from './MLXStorageManager';
 import { ModelFormat } from '../types/models';
 import { notificationService } from './NotificationService';
 import { toFileUri, normalizePath } from '../utils/pathUtils';
+import { DOWNLOADABLE_MODELS } from '../constants/DownloadableModels';
 
 export class DownloadTaskManager extends EventEmitter {
   private activeDownloads: Map<string, DownloadTaskInfo> = new Map();
@@ -34,19 +35,31 @@ export class DownloadTaskManager extends EventEmitter {
   private setupBackgroundServiceIntegration() {
     backgroundDownloadService.setEventCallbacks({
       onStart: (modelName: string, nativeDownloadId?: string) => {
+        if (this.manualCancellationSet.has(modelName)) {
+          console.log('start_skip_cancelled', modelName);
+          return;
+        }
         const displayName = this.tempNameMap.get(modelName) ?? modelName;
+        if (this.manualCancellationSet.has(displayName)) {
+          console.log('start_skip_cancelled', displayName);
+          return;
+        }
         if (this.startedDisplayNames.has(displayName)) {
           return;
         }
         this.startedDisplayNames.add(displayName);
 
         const downloadInfo = this.activeDownloads.get(modelName);
-        if (nativeDownloadId && downloadInfo) {
+        if (!downloadInfo) {
+          console.log('start_skip_missing', modelName);
+          return;
+        }
+        if (nativeDownloadId) {
           downloadInfo.nativeDownloadId = nativeDownloadId;
           void this.saveDownloadProgress();
         }
 
-        const resolvedNativeId = nativeDownloadId ?? downloadInfo?.nativeDownloadId;
+        const resolvedNativeId = nativeDownloadId ?? downloadInfo.nativeDownloadId;
         this.emit('downloadStarted', {
           modelName: displayName,
           downloadId: this.getDownloadIdForModel(modelName),
@@ -54,9 +67,19 @@ export class DownloadTaskManager extends EventEmitter {
         });
       },
       onProgress: (modelName: string, progress) => {
+        if (this.manualCancellationSet.has(modelName)) {
+          console.log('progress_skip_cancelled', modelName);
+          return;
+        }
         const displayName = this.tempNameMap.get(modelName) ?? modelName;
+        if (this.manualCancellationSet.has(displayName)) {
+          return;
+        }
         const downloadId = this.getDownloadIdForModel(modelName);
         const downloadInfo = this.activeDownloads.get(modelName);
+        if (!downloadInfo) {
+          return;
+        }
         const progressEvent: DownloadProgressEvent = {
           progress: progress.progress,
           bytesDownloaded: progress.bytesDownloaded,
@@ -210,14 +233,26 @@ export class DownloadTaskManager extends EventEmitter {
       },
       onPaused: (modelName: string, progress) => {
         console.log('download_paused', modelName);
+        if (this.manualCancellationSet.has(modelName)) {
+          console.log('pause_skip_cancelled', modelName);
+          return;
+        }
         if (!this.hydrateReady) {
           console.log('pause_event_before_hydrate');
           this.upsertPausedDownload(modelName, progress);
           return;
         }
 
+        if (!this.activeDownloads.has(modelName)) {
+          console.log('pause_skip_missing', modelName);
+          return;
+        }
+
         const info = this.upsertPausedDownload(modelName, progress);
         const displayName = this.tempNameMap.get(modelName) ?? modelName;
+        if (this.manualCancellationSet.has(displayName)) {
+          return;
+        }
         this.emit('progress', {
           progress: info.progress ?? 0,
           bytesDownloaded: info.bytesDownloaded ?? 0,
@@ -240,6 +275,26 @@ export class DownloadTaskManager extends EventEmitter {
     progress?: { progress: number; bytesDownloaded: number; bytesTotal: number },
     extras?: { url?: string; destination?: string; nativeDownloadId?: string },
   ): DownloadTaskInfo {
+    if (this.manualCancellationSet.has(modelName)) {
+      console.log('upsert_skip_cancelled', modelName);
+      const existing = this.activeDownloads.get(modelName);
+      if (existing) {
+        return existing;
+      }
+      return {
+        task: null,
+        downloadId: 0,
+        modelName,
+        destination: extras?.destination || '',
+        url: extras?.url,
+        status: 'cancelled',
+        isPaused: false,
+        progress: progress?.progress ?? 0,
+        bytesDownloaded: progress?.bytesDownloaded ?? 0,
+        totalBytes: progress?.bytesTotal ?? 0,
+      };
+    }
+
     let info = this.activeDownloads.get(modelName);
     if (!info) {
       const downloadId = this.nextDownloadId++;
@@ -542,6 +597,11 @@ export class DownloadTaskManager extends EventEmitter {
           })();
 
     if (internalNames.length === 0) {
+      console.log('cancel_missing', identifier);
+      this.emit('downloadCancelled', {
+        modelName: typeof identifier === 'string' ? identifier : String(identifier),
+        downloadId: typeof identifier === 'number' ? identifier : 0,
+      });
       return;
     }
 
@@ -560,34 +620,44 @@ export class DownloadTaskManager extends EventEmitter {
         cleanupModelIds.add(mappedPackageName);
       }
 
+      console.log('cancel_download', displayName, internalName);
       this.manualCancellationSet.add(internalName);
+      this.manualCancellationSet.add(displayName);
+      this.startedDisplayNames.delete(displayName);
+
+      const nativeId = downloadInfo.nativeDownloadId;
+      const downloadId = downloadInfo.downloadId;
+
+      this.activeDownloads.delete(internalName);
+      this.tempNameMap.delete(internalName);
+
+      this.emit('downloadCancelled', {
+        modelName: displayName,
+        downloadId,
+        nativeDownloadId: nativeId,
+      });
 
       try {
-        await backgroundDownloadService.abortTransfer(internalName, downloadInfo.nativeDownloadId);
+        await backgroundDownloadService.abortTransfer(internalName, nativeId);
       } catch (error) {
         failures.push(error);
-      } finally {
-        if (this.activeDownloads.has(internalName)) {
-          downloadInfo.status = 'cancelled';
-          await this.purgeDownloadFiles(internalName, downloadInfo);
-
-          this.activeDownloads.delete(internalName);
-          this.tempNameMap.delete(internalName);
-
-          setTimeout(() => {
-            this.manualCancellationSet.delete(internalName);
-          }, 30000);
-
-          this.emit('downloadCancelled', {
-            modelName: displayName,
-            downloadId: downloadInfo.downloadId,
-            nativeDownloadId: downloadInfo.nativeDownloadId,
-          });
-        }
       }
+
+      try {
+        await this.purgeDownloadFiles(internalName, {
+          ...downloadInfo,
+          destination: downloadInfo.destination,
+        });
+      } catch {
+      }
+
+      setTimeout(() => {
+        this.manualCancellationSet.delete(internalName);
+        this.manualCancellationSet.delete(displayName);
+      }, 30000);
     }
 
-    await this.saveDownloadProgress();
+    await this.saveDownloadProgressNow();
 
     for (const modelId of cleanupModelIds) {
       try {
@@ -606,7 +676,7 @@ export class DownloadTaskManager extends EventEmitter {
     }
 
     if (failures.length > 0) {
-      throw failures[0] as Error;
+      console.log('cancel_abort_err');
     }
   }
 
@@ -800,8 +870,30 @@ export class DownloadTaskManager extends EventEmitter {
       console.log('resume_not_paused', modelName);
     }
 
+    const destination =
+      info.destination || `${this.fileManager.getDownloadDir()}/${modelName}`;
+
+    if (!info.url) {
+      const recovered = this.recoverDownloadUrl(modelName);
+      if (recovered) {
+        info.url = recovered;
+        console.log('resume_url_recovered', modelName);
+      }
+    }
+
     console.log('resume_download', modelName);
-    await backgroundDownloadService.resumeTransfer(modelName, authToken, info.nativeDownloadId);
+    await backgroundDownloadService.resumeTransfer(
+      modelName,
+      authToken,
+      info.nativeDownloadId,
+      { url: info.url, destination },
+    );
+
+    const activeNativeId = backgroundDownloadService.getNativeTransferId(modelName);
+    if (activeNativeId) {
+      info.nativeDownloadId = activeNativeId;
+    }
+
     info.status = 'downloading';
     info.isPaused = false;
     await this.saveDownloadProgressNow();
@@ -819,6 +911,21 @@ export class DownloadTaskManager extends EventEmitter {
       speed: '0 B/s',
       rawSpeed: 0,
     });
+  }
+
+  private recoverDownloadUrl(modelName: string): string | undefined {
+    for (const model of DOWNLOADABLE_MODELS) {
+      if (model.huggingFaceLink?.split('/').pop() === modelName) {
+        return model.huggingFaceLink;
+      }
+      const extra = model.additionalFiles?.find(
+        file => file.name === modelName || file.url?.split('/').pop() === modelName,
+      );
+      if (extra?.url) {
+        return extra.url;
+      }
+    }
+    return undefined;
   }
 
   private pathVariants(path: string): string[] {
