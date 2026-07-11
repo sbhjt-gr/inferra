@@ -9,6 +9,7 @@ import { StoredModel } from './ModelDownloaderTypes';
 import { notificationService } from './NotificationService';
 import { fs as FileSystem } from './fs';
 import { ModelFormat } from '../types/models';
+import { mlxStorageManager } from './MLXStorageManager';
 
 class ModelDownloader extends EventEmitter {
   private fileManager: FileManager;
@@ -164,6 +165,27 @@ class ModelDownloader extends EventEmitter {
     return new Set(active.map(d => d.modelName));
   }
 
+  private getActiveMlxPackageIds(): Set<string> {
+    const active = this.downloadTaskManager.getActiveDownloads();
+    const ids = new Set<string>();
+    for (const d of active) {
+      const name = d.modelName || '';
+      const match = name.match(/^temp_mlx_(.+)_\d+_/);
+      if (match?.[1]) {
+        ids.add(match[1]);
+      }
+    }
+    return ids;
+  }
+
+  private async cleanupIncompleteDownloads(): Promise<void> {
+    try {
+      await mlxStorageManager.cleanupIncompleteMLXModels(this.getActiveMlxPackageIds());
+    } catch (error) {
+      console.log('incomplete_download_cleanup_error', error);
+    }
+  }
+
   private async initialize(): Promise<void> {
     if (this.isInitialized) {
       return;
@@ -193,6 +215,7 @@ class ModelDownloader extends EventEmitter {
       await this.downloadTaskManager.processCompletedDownloads();
       
       await this.fileManager.cleanupTempDirectory(this.getActiveDownloadNames());
+      await this.cleanupIncompleteDownloads();
       
       this.isInitialized = true;
     } catch (error) {
@@ -310,6 +333,7 @@ class ModelDownloader extends EventEmitter {
       await this.downloadTaskManager.processCompletedDownloads();
       
       await this.fileManager.cleanupTempDirectory(this.getActiveDownloadNames());
+      await this.cleanupIncompleteDownloads();
       
       await this.storedModelsManager.refresh();
     } catch (error) {
