@@ -96,6 +96,27 @@ class LiteRTManager implements InferenceManager {
     console.log('litert_invoke_recover_ok');
   }
 
+  async recoverPlain(force = false): Promise<void> {
+    if (!force) {
+      await this.genQueue;
+    }
+    if (!this.modelPath) {
+      console.log('litert_plain_recover_skip');
+      return;
+    }
+    console.log('litert_plain_recover');
+    const config = await this.buildConfig([], { skipStableTools: true });
+    try {
+      this.getInstance().close();
+    } catch {
+    }
+    this.instance = createLLM();
+    await this.instance.loadModel(this.modelPath, config);
+    this.configKey = this.getConfigKey(config);
+    this.lastConfig = config;
+    console.log('litert_plain_recover_ok');
+  }
+
   private async recoverFromPrefillError(error: unknown): Promise<void> {
     const msg = error instanceof Error ? error.message : String(error);
     if (!msg.includes('Prefill') && !msg.includes('already started')) {
@@ -152,8 +173,8 @@ class LiteRTManager implements InferenceManager {
   }
 
   private getConfigKey(config: LLMConfig): string {
-    const tools = (config.tools as LitertTool[] | undefined) ?? this.stableTools ?? [];
-    const toolsSig = tools.length > 0 ? litertToolSignature(tools) : '';
+    const tools = config.tools as LitertTool[] | undefined;
+    const toolsSig = tools && tools.length > 0 ? litertToolSignature(tools) : '';
     return JSON.stringify({
       backend: config.backend ?? getLiteRTRecommendedBackend(),
       systemPrompt: config.systemPrompt ?? '',
@@ -161,7 +182,10 @@ class LiteRTManager implements InferenceManager {
     });
   }
 
-  private resolveStableTools(incoming?: LitertTool[]): LitertTool[] | undefined {
+  private resolveStableTools(incoming?: LitertTool[], skipStableTools = false): LitertTool[] | undefined {
+    if (skipStableTools) {
+      return incoming && incoming.length > 0 ? incoming : undefined;
+    }
     if (!incoming || incoming.length === 0) {
       return this.stableTools ?? undefined;
     }
@@ -174,7 +198,9 @@ class LiteRTManager implements InferenceManager {
     return this.stableTools ?? undefined;
   }
 
-  private async buildConfig(messages: Msg[], settings?: Partial<GenSettings>, tools?: LitertTool[]): Promise<LLMConfig> {
+  private async buildConfig(messages: Msg[], opts?: GenOpts): Promise<LLMConfig> {
+    const settings = opts?.settings;
+    const tools = opts?.tools as LitertTool[] | undefined;
     const config = await this.createConfig();
     const systemPrompt = this.extractSystemPrompt(messages, settings);
 
@@ -193,9 +219,11 @@ class LiteRTManager implements InferenceManager {
     if (systemPrompt) {
       config.systemPrompt = systemPrompt;
     }
-    const resolvedTools = this.resolveStableTools(tools);
+    const resolvedTools = this.resolveStableTools(tools, opts?.skipStableTools);
     if (resolvedTools && resolvedTools.length > 0) {
       config.tools = resolvedTools;
+    } else {
+      delete config.tools;
     }
     if (typeof settings?.validate === 'boolean') {
       config.validate = settings.validate;
@@ -513,6 +541,14 @@ class LiteRTManager implements InferenceManager {
     return messages.filter(message => message.role === 'user').length;
   }
 
+  /** Native tools + packed multi-turn prompts are incompatible on LiteRT. */
+  private hasActiveTools(opts?: GenOpts): boolean {
+    if (opts?.skipStableTools) {
+      return Boolean(opts?.tools?.length);
+    }
+    return Boolean(opts?.tools?.length || this.stableTools?.length);
+  }
+
   async init(modelPath: string) {
     this.modelPath = this.normalizePath(modelPath);
     const config = await this.createConfig();
@@ -546,8 +582,31 @@ class LiteRTManager implements InferenceManager {
       if (!this.isInvokeError(msg)) {
         throw error;
       }
-      const singleTurn = this.countUserTurns(messages) > 1;
-      if (singleTurn) {
+      const multiTurn = this.countUserTurns(messages) > 1;
+      const hasTools = this.hasActiveTools(opts) && !opts?.skipStableTools;
+      // Keep tools: retry last-user-only before stripping the catalog.
+      if (hasTools && multiTurn) {
+        console.log('litert_tools_single_retry');
+        await this.resetSession(true);
+        try {
+          return await this.runGenOnce(messages, opts, true);
+        } catch (retryError) {
+          const retryMsg = retryError instanceof Error ? retryError.message : String(retryError);
+          if (!this.isInvokeError(retryMsg)) {
+            throw retryError;
+          }
+        }
+      }
+      if (hasTools) {
+        console.log('litert_invoke_plain');
+        await this.recoverPlain(true);
+        return this.runGenOnce(
+          messages,
+          { ...opts, tools: undefined, skipStableTools: true },
+          multiTurn,
+        );
+      }
+      if (multiTurn) {
         console.log('litert_single_retry');
         await this.resetSession(true);
         try {
@@ -560,8 +619,12 @@ class LiteRTManager implements InferenceManager {
         }
       }
       console.log('litert_reload_retry');
-      await this.recoverInvoke(true);
-      return this.runGenOnce(messages, opts, singleTurn);
+      if (opts?.skipStableTools) {
+        await this.recoverPlain(true);
+      } else {
+        await this.recoverInvoke(true);
+      }
+      return this.runGenOnce(messages, opts, multiTurn);
     }
   }
 
@@ -576,7 +639,7 @@ class LiteRTManager implements InferenceManager {
     }
 
     const instance = await this.ensureLoaded(
-      await this.buildConfig(messages, opts?.settings, opts?.tools as LitertTool[] | undefined),
+      await this.buildConfig(messages, opts),
       opts?.reuseSession,
     );
     if (opts?.reuseSession) {
@@ -588,7 +651,12 @@ class LiteRTManager implements InferenceManager {
       }
     }
     const userTurns = this.countUserTurns(messages);
-    const historyPrompt = !singleTurn && userTurns > 1 ? this.buildFullConversationPrompt(messages) : '';
+    const toolsActive = this.hasActiveTools(opts);
+    // Packed history + native tools breaks invoke on LiteRT; keep session turns instead.
+    const historyPrompt =
+      !singleTurn && !toolsActive && userTurns > 1
+        ? this.buildFullConversationPrompt(messages)
+        : '';
     let prompt = input.text || 'Describe this input.';
 
     if (historyPrompt) {
@@ -600,6 +668,8 @@ class LiteRTManager implements InferenceManager {
       }
       prompt = this.applySkillHeader(historyPrompt, opts?.skillHeader);
       console.log('litert_multi_prompt', { userTurns, len: prompt.length, skills: !!opts?.skillHeader });
+    } else if (toolsActive && userTurns > 1) {
+      console.log('litert_tools_followup', { userTurns, promptLen: prompt.length });
     } else if (opts?.skillHeader && userTurns === 1) {
       prompt = this.applySkillHeader(prompt, opts.skillHeader);
     }
@@ -693,7 +763,7 @@ class LiteRTManager implements InferenceManager {
 
     messages.push({ role: 'user', content: prompt });
 
-    const instance = await this.ensureLoaded(await this.buildConfig(messages, opts?.settings));
+    const instance = await this.ensureLoaded(await this.buildConfig(messages, opts));
     await instance.resetConversation();
     await instance.sendMessage(prompt);
     const stats = instance.getStats();
