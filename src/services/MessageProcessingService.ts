@@ -1080,19 +1080,21 @@ export class MessageProcessingService {
         }
 
         console.log('local_gen_direct', { baseMessageCount: genMessages.length, userTurns });
+        const usePlainLitert = engineService.get() === 'litert' && !agentHandled;
         try {
           await engineService.mgr().gen(
             genMessages as any,
             {
               onToken: streamCallback,
               settings: genSettings,
+              skipStableTools: usePlainLitert,
             },
           );
         } catch (error) {
           console.log('local_gen_fail', error instanceof Error ? error.message : 'unknown');
           if (engineService.get() === 'litert') {
             try {
-              await litertManager.recoverInvoke();
+              await litertManager.recoverPlain();
             } catch {
               console.log('local_gen_recover_fail');
             }
