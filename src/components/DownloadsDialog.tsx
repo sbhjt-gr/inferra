@@ -11,6 +11,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { theme } from '../constants/theme';
 import { modelDownloader } from '../services/ModelDownloader';
+import { huggingFaceService } from '../services/HuggingFaceService';
 
 interface DownloadsDialogProps {
   visible: boolean;
@@ -98,13 +99,22 @@ const DownloadsDialog = ({ visible, onClose, downloads, setDownloadProgress }: D
   const handlePauseResume = async (modelName: string) => {
     try {
       const downloadInfo = downloads[modelName];
-      
+      if (!downloadInfo?.downloadId) {
+        return;
+      }
+
+      console.log(downloadInfo.isPaused ? 'dialog_resume' : 'dialog_pause', modelName);
+
       if (downloadInfo.isPaused) {
-        await modelDownloader.resumeDownload(downloadInfo.downloadId);
+        await modelDownloader.resumeDownload(
+          downloadInfo.downloadId,
+          huggingFaceService.getAccessToken(),
+        );
       } else {
         await modelDownloader.pauseDownload(downloadInfo.downloadId);
       }
     } catch (error) {
+      console.log('pause_resume_fail');
     }
   };
 

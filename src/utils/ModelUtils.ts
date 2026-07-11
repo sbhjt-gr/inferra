@@ -38,6 +38,10 @@ export const isActiveDownload = (download: any): boolean => {
     return false;
   }
 
+  if (status === 'paused' || download.isPaused) {
+    return true;
+  }
+
   const progress = typeof download.progress === 'number' ? download.progress : 0;
   if (progress >= 100 && status !== 'transferring' && status !== 'starting') {
     return false;

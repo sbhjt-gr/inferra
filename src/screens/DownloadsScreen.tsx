@@ -64,6 +64,7 @@ interface DownloadItem {
   status: string;
   progressText: string;
   isTransferring: boolean;
+  isPaused: boolean;
   speed: string;
   rawSpeed: number;
 }
@@ -135,9 +136,10 @@ export default function DownloadsScreen() {
         const bytesDownloaded = data.bytesDownloaded || 0;
         const totalBytes = data.totalBytes || 0;
         const isTransferring = data.status === 'transferring';
+        const isPaused = !!data.isPaused || data.status === 'paused';
         const progressText = isTransferring
           ? 'Transferring to models...'
-          : `${Math.floor(progress)}% • ${formatBytes(bytesDownloaded)} / ${formatBytes(totalBytes)}`;
+          : `${isPaused ? 'Paused • ' : ''}${Math.floor(progress)}% • ${formatBytes(bytesDownloaded)} / ${formatBytes(totalBytes)}`;
         return {
           id: data.downloadId || 0,
           name,
@@ -147,8 +149,9 @@ export default function DownloadsScreen() {
           status: data.status || 'unknown',
           progressText,
           isTransferring,
-          speed: data.speed || '0 B/s',
-          rawSpeed: data.rawSpeed || 0,
+          isPaused,
+          speed: isPaused ? '0 B/s' : (data.speed || '0 B/s'),
+          rawSpeed: isPaused ? 0 : (data.rawSpeed || 0),
         };
       });
   }, [downloadProgress]);
@@ -335,6 +338,46 @@ export default function DownloadsScreen() {
 
 
 
+  const handlePauseResume = async (modelName: string, downloadId: number, isPaused: boolean) => {
+    if (!modelName || !downloadId || buttonProcessingRef.current.has(modelName)) {
+      return;
+    }
+
+    buttonProcessingRef.current.add(modelName);
+    console.log(isPaused ? 'resume_tap' : 'pause_tap', modelName);
+
+    try {
+      setDownloadProgress(prev => ({
+        ...prev,
+        [modelName]: {
+          ...prev[modelName],
+          isPaused: !isPaused,
+          status: isPaused ? 'downloading' : 'paused',
+          speed: '0 B/s',
+          rawSpeed: 0,
+        },
+      }));
+
+      if (isPaused) {
+        await modelDownloader.resumeDownload(downloadId, huggingFaceService.getAccessToken());
+      } else {
+        await modelDownloader.pauseDownload(downloadId);
+      }
+    } catch {
+      showDialog('Error', isPaused ? 'Failed to resume download' : 'Failed to pause download');
+      setDownloadProgress(prev => ({
+        ...prev,
+        [modelName]: {
+          ...prev[modelName],
+          isPaused,
+          status: isPaused ? 'paused' : 'downloading',
+        },
+      }));
+    } finally {
+      buttonProcessingRef.current.delete(modelName);
+    }
+  };
+
   const handleCancel = (modelName: string) => {
     setCancelModelName(modelName);
     setCancelDialogVisible(true);
@@ -510,6 +553,16 @@ export default function DownloadsScreen() {
             <View style={styles.downloadActions}>
               <TouchableOpacity
                 style={styles.actionButton}
+                onPress={() => handlePauseResume(item.name, item.id, item.isPaused)}
+              >
+                <MaterialCommunityIcons
+                  name={item.isPaused ? 'play-circle' : 'pause-circle'}
+                  size={24}
+                  color={getThemeAwareColor('#4a0660', currentTheme)}
+                />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.actionButton}
                 onPress={() => handleRestart(item.name)}
               >
                 <MaterialCommunityIcons name="restart" size={24} color={getThemeAwareColor('#4a0660', currentTheme)} />
@@ -531,7 +584,7 @@ export default function DownloadsScreen() {
           <Text style={[styles.downloadProgress, { color: themeColors.secondaryText }]}>
             {item.progressText}
           </Text>
-          {!item.isTransferring && item.rawSpeed > 0 && (
+          {!item.isTransferring && !item.isPaused && item.rawSpeed > 0 && (
             <Text style={[styles.downloadSpeed, { color: themeColors.secondaryText }]}>
               {item.speed}
             </Text>
@@ -552,13 +605,18 @@ export default function DownloadsScreen() {
           <View 
             style={[
               styles.progressFill, 
-              { width: `${item.progress}%`, backgroundColor: getThemeAwareColor('#4a0660', currentTheme) }
+              {
+                width: `${item.progress}%`,
+                backgroundColor: item.isPaused
+                  ? '#888888'
+                  : getThemeAwareColor('#4a0660', currentTheme),
+              }
             ]} 
           />
         </View>
       </View>
     );
-  }, [mlxPackageFiles, expandedPackages, themeColors, currentTheme, togglePackage, handleCancel, handleRestart]);
+  }, [mlxPackageFiles, expandedPackages, themeColors, currentTheme, togglePackage, handleCancel, handleRestart, handlePauseResume]);
 
   return (
     <View style={{ flex: 1, backgroundColor: themeColors.background }}>

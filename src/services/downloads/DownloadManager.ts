@@ -397,7 +397,7 @@ export class BackgroundDownloadService {
     authToken?: string | null,
     nativeTransferId?: string,
   ): Promise<void> {
-    const transfer = this.activeTransfers.get(modelName);
+    let transfer = this.activeTransfers.get(modelName);
     const transferId = transfer?.downloadId || nativeTransferId;
     if (!transferId || !TransferModule?.resumeTransfer) {
       console.log('resume_skip', modelName);
@@ -408,11 +408,40 @@ export class BackgroundDownloadService {
     const headers = authToken ? {Authorization: `Bearer ${authToken}`} : undefined;
     await TransferModule.resumeTransfer(transferId, headers);
 
-    if (transfer) {
+    if (!transfer) {
+      transfer = {
+        model: {
+          id: `${modelName}-${Date.now()}`,
+          name: modelName,
+          path: '',
+          size: 0,
+          modified: new Date().toISOString(),
+          downloaded: false,
+        },
+        downloadId: transferId,
+        state: {
+          isDownloading: true,
+          isPaused: false,
+          progress: {
+            bytesDownloaded: 0,
+            bytesTotal: 0,
+            progress: 0,
+            speed: '0 B/s',
+            eta: 'calculating',
+            rawSpeed: 0,
+            rawEta: 0,
+          },
+        },
+        lastBytesWritten: 0,
+        lastUpdateTime: Date.now(),
+      };
+      this.activeTransfers.set(modelName, transfer);
+    } else {
       transfer.state.isDownloading = true;
       transfer.state.isPaused = false;
-      this.eventCallbacks.onStart?.(modelName, transferId);
     }
+
+    this.eventCallbacks.onStart?.(modelName, transferId);
   }
 
   async initiateTransfer(

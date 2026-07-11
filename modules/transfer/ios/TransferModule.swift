@@ -8,7 +8,37 @@ private struct TransferMeta: Codable {
   let url: String
   var state: String
   var expectedTotal: Int64
-  var headers: [String: String]?
+
+  enum CodingKeys: String, CodingKey {
+    case transferId, destination, modelName, url, state, expectedTotal
+  }
+
+  init(
+    transferId: String,
+    destination: String,
+    modelName: String,
+    url: String,
+    state: String,
+    expectedTotal: Int64,
+    headers: [String: String]? = nil
+  ) {
+    self.transferId = transferId
+    self.destination = destination
+    self.modelName = modelName
+    self.url = url
+    self.state = state
+    self.expectedTotal = expectedTotal
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    transferId = try container.decode(String.self, forKey: .transferId)
+    destination = try container.decode(String.self, forKey: .destination)
+    modelName = try container.decode(String.self, forKey: .modelName)
+    url = try container.decode(String.self, forKey: .url)
+    state = try container.decodeIfPresent(String.self, forKey: .state) ?? "downloading"
+    expectedTotal = try container.decodeIfPresent(Int64.self, forKey: .expectedTotal) ?? 0
+  }
 }
 
 private enum TransferRunState {
@@ -91,8 +121,7 @@ public class TransferModule: Module {
         modelName: modelName,
         url: url,
         state: "downloading",
-        expectedTotal: 0,
-        headers: nil
+        expectedTotal: 0
       )
       self.setMeta(transferId, entry)
       self.startStream(transferId: transferId, url: url, destination: destination,
@@ -250,7 +279,7 @@ public class TransferModule: Module {
 
     let stored = getMeta(transferId) ?? TransferMeta(
       transferId: transferId, destination: destination, modelName: modelName,
-      url: url, state: "downloading", expectedTotal: 0, headers: nil
+      url: url, state: "downloading", expectedTotal: 0
     )
 
     let activeTransfer = ActiveTransfer(
