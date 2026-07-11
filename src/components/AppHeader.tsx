@@ -64,12 +64,7 @@ export default function AppHeader({
   };
 
   if (useIosHeader) {
-    const iosColor = headerTint(
-      true,
-      currentTheme === 'light',
-      themeColors.primary,
-      themeColors.text,
-    );
+    const iosColor = currentTheme === 'light' ? themeColors.primary : themeColors.text;
     console.log('header_ios', title);
     return (
       <View style={[styles.iosContainer, { height: navHeight + insets.top }]}>
