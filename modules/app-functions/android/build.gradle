@@ -1,29 +1,12 @@
 buildscript {
-  ext {
-    getKspVersion = {
-      if (rootProject.hasProperty("kspVersion")) {
-        return rootProject["kspVersion"]
-      }
-      def kotlinVersion = rootProject.hasProperty("kotlinVersion")
-        ? rootProject["kotlinVersion"].toString()
-        : "2.1.20"
-      if (kotlinVersion.startsWith("2.1.20")) {
-        return "2.1.20-2.0.1"
-      }
-      if (kotlinVersion.startsWith("2.0.21")) {
-        return "2.0.21-1.0.28"
-      }
-      return "2.1.20-2.0.1"
-    }
-  }
-
   repositories {
     google()
     mavenCentral()
   }
 
   dependencies {
-    classpath "com.google.devtools.ksp:symbol-processing-gradle-plugin:${getKspVersion()}"
+    // Root android/build.gradle currently resolves kotlin-gradle-plugin 2.3.0.
+    classpath "com.google.devtools.ksp:symbol-processing-gradle-plugin:2.3.0"
   }
 }
 
@@ -57,7 +40,8 @@ dependencies {
   implementation project(':expo-modules-core')
   implementation "androidx.core:core-ktx:1.15.0"
   implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0"
-  implementation "androidx.appfunctions:appfunctions:1.0.0-alpha10"
-  implementation "androidx.appfunctions:appfunctions-service:1.0.0-alpha10"
-  ksp "androidx.appfunctions:appfunctions-compiler:1.0.0-alpha10"
+  // Google Maven has appfunctions-service only through alpha09 (alpha10 omitted it).
+  implementation "androidx.appfunctions:appfunctions:1.0.0-alpha09"
+  implementation "androidx.appfunctions:appfunctions-service:1.0.0-alpha09"
+  ksp "androidx.appfunctions:appfunctions-compiler:1.0.0-alpha09"
 }
