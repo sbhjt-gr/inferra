@@ -1,0 +1,34 @@
+apply plugin: 'com.android.library'
+apply plugin: 'kotlin-android'
+apply plugin: 'com.google.devtools.ksp'
+
+android {
+  namespace "expo.modules.appfunctions"
+  compileSdk 36
+
+  defaultConfig {
+    minSdk 28
+  }
+
+  compileOptions {
+    sourceCompatibility JavaVersion.VERSION_17
+    targetCompatibility JavaVersion.VERSION_17
+  }
+
+  kotlinOptions {
+    jvmTarget = "17"
+  }
+}
+
+ksp {
+  arg("appfunctions:aggregateAppFunctions", "true")
+}
+
+dependencies {
+  implementation project(':expo-modules-core')
+  implementation "androidx.core:core-ktx:1.15.0"
+  implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0"
+  implementation "androidx.appfunctions:appfunctions:1.0.0-alpha10"
+  implementation "androidx.appfunctions:appfunctions-service:1.0.0-alpha10"
+  ksp "androidx.appfunctions:appfunctions-compiler:1.0.0-alpha10"
+}
