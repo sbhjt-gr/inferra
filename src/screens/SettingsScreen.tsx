@@ -21,6 +21,7 @@ import SupportSection from '../components/settings/SupportSection';
 import ModelSettingsSection from '../components/settings/ModelSettingsSection';
 import SystemInfoSection from '../components/settings/SystemInfoSection';
 import StorageSection from '../components/settings/StorageSection';
+import SettingsSection from '../components/settings/SettingsSection';
 import Dialog from '../components/Dialog';
 import * as WebBrowser from 'expo-web-browser';
 import { getEngineSettingsMeta, getEngineSettingsRoute } from '../config/engineSettings';
@@ -69,6 +70,7 @@ const pickActiveEngine = (enabled: Record<EngineId, boolean>): EngineId => {
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { theme: currentTheme, selectedTheme, toggleTheme } = useTheme();
+  const themeColors = theme[currentTheme];
   const { enableRemoteModels, toggleRemoteModels, isLoggedIn } = useRemoteModel();
   const { isWideScreen } = useResponsiveLayout();
   const router = useRouter();
@@ -631,8 +633,25 @@ export default function SettingsScreen() {
           onClearAllModels={clearAllModels}
         />
 
-        <SupportSection 
-          onOpenLink={openLink} 
+        <SettingsSection title="Capabilities">
+          <TouchableOpacity
+            style={styles.capabilityRow}
+            onPress={() => router.push('/advanced-capabilities')}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.capabilityTitle, { color: themeColors.text }]}>
+                Advanced capabilities
+              </Text>
+              <Text style={[styles.capabilityDesc, { color: themeColors.secondaryText }]}>
+                Optional AppFunctions and root elevation tools
+              </Text>
+            </View>
+            <MaterialCommunityIcons name="chevron-right" size={22} color={themeColors.secondaryText} />
+          </TouchableOpacity>
+        </SettingsSection>
+
+        <SupportSection
+          onOpenLink={openLink}
           onNavigateToLicenses={() => router.push('/licenses')}
           onNavigateToContentTerms={() => router.push('/content-terms')}
         />  
@@ -706,5 +725,20 @@ const styles = StyleSheet.create({
   debugButtonSubtitle: {
     fontSize: 14,
     marginTop: 2,
+  },
+  capabilityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 8,
+  },
+  capabilityTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  capabilityDesc: {
+    fontSize: 12,
+    marginTop: 4,
   },
 }); 

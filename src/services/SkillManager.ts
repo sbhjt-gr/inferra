@@ -28,6 +28,10 @@ type BuiltinSkillAsset = {
 
 const BUILTIN_SKILL_ASSETS: BuiltinSkillAsset[] = [
   {
+    id: 'app-recovery',
+    markdown: require('../../assets/skills/app-recovery/SKILL.md'),
+  },
+  {
     id: 'calculate-hash',
     markdown: require('../../assets/skills/calculate-hash/SKILL.md'),
     html: require('../../assets/skills/calculate-hash/scripts/index.html'),
@@ -37,9 +41,21 @@ const BUILTIN_SKILL_ASSETS: BuiltinSkillAsset[] = [
     markdown: require('../../assets/skills/create-calendar-event/SKILL.md'),
   },
   {
+    id: 'cross-app-assistant',
+    markdown: require('../../assets/skills/cross-app-assistant/SKILL.md'),
+  },
+  {
+    id: 'device-doctor',
+    markdown: require('../../assets/skills/device-doctor/SKILL.md'),
+  },
+  {
     id: 'encode-tool',
     markdown: require('../../assets/skills/encode-tool/SKILL.md'),
     html: require('../../assets/skills/encode-tool/scripts/index.html'),
+  },
+  {
+    id: 'file-maintenance',
+    markdown: require('../../assets/skills/file-maintenance/SKILL.md'),
   },
   {
     id: 'interactive-map',
@@ -64,6 +80,10 @@ const BUILTIN_SKILL_ASSETS: BuiltinSkillAsset[] = [
     id: 'mood-tracker',
     markdown: require('../../assets/skills/mood-tracker/SKILL.md'),
     html: require('../../assets/skills/mood-tracker/scripts/index.html'),
+  },
+  {
+    id: 'package-maintenance',
+    markdown: require('../../assets/skills/package-maintenance/SKILL.md'),
   },
   {
     id: 'qr-code',
@@ -98,6 +118,10 @@ const BUILTIN_SKILL_ASSETS: BuiltinSkillAsset[] = [
   {
     id: 'send-email',
     markdown: require('../../assets/skills/send-email/SKILL.md'),
+  },
+  {
+    id: 'settings-profile',
+    markdown: require('../../assets/skills/settings-profile/SKILL.md'),
   },
   {
     id: 'text-stats',

@@ -25,6 +25,7 @@
     "@react-native-google-signin/google-signin": "^16.1.2",
     "@react-native-ml-kit/text-recognition": "file:./modules/text-recognition",
     "@react-native-rag/op-sqlite": "^0.9.0",
+    "app-functions": "file:modules/app-functions",
     "device-info": "file:./modules/device-info",
     "eas": "^0.1.0",
     "eventemitter3": "^5.0.4",
@@ -93,6 +94,7 @@
     "react-native-tcp-socket": "^6.4.1",
     "react-native-webview": "13.16.1",
     "react-syntax-highlighter": "^15.6.6",
+    "root-access": "file:modules/root-access",
     "transfer": "file:./modules/transfer"
   },
   "devDependencies": {

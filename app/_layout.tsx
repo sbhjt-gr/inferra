@@ -28,6 +28,7 @@ import { ShowDialog } from '../src/components/ShowDialog';
 import { initializeBindings } from '../src/utils/llamaBinding';
 import UpdateDialog from '../src/components/UpdateDialog';
 import SkillRuntimeHost from '../src/components/skills/SkillRuntimeHost';
+import CapabilityHost from '../src/components/capabilities/CapabilityHost';
 import { updateService } from '../src/services/UpdateService';
 import { useResponsiveLayout } from '../src/hooks/useResponsiveLayout';
 import { StatusBarHost } from '../src/services/adapters/StatusBarAdapter';
@@ -184,6 +185,7 @@ function InnerLayout() {
         <Stack.Screen name="benchmark" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="prompt-lab" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="skill-manager" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="advanced-capabilities" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="audio-scribe" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="mobile-actions" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="llama-cpp-settings" options={{ animation: 'slide_from_right' }} />
@@ -273,6 +275,7 @@ export default function RootLayout() {
                 <GestureHandlerRootView style={{ flex: 1 }}>
                   <DialogProvider>
                     <InnerLayout />
+                    <CapabilityHost />
                   </DialogProvider>
                   <SkillRuntimeHost />
                   <UpdateDialog />

@@ -7,7 +7,7 @@ export default {
     orientation: "default",
     icon: "./assets/icon.png",
     userInterfaceStyle: "automatic",
-    description: "AI-powered mobile chat assistant supporting both local and cloud-based language models. Features include AI text generation, image analysis, document processing, and multimodal interactions.",
+    description: "AI-powered mobile chat assistant supporting both local and cloud-based language models. Features include AI text generation, image analysis, document processing, multimodal interactions, optional Android AppFunctions tooling, and optional user-enabled root elevation tools that never root the device.",
     privacy: "public",
     keywords: ["AI", "chat", "assistant", "machine learning", "language model", "artificial intelligence"],
     newArchEnabled: true,
@@ -81,7 +81,8 @@ export default {
         "READ_CALENDAR",
         "WRITE_CALENDAR",
         "READ_MEDIA_IMAGES",
-        "WRITE_EXTERNAL_STORAGE"
+        "WRITE_EXTERNAL_STORAGE",
+        "android.permission.EXECUTE_APP_FUNCTIONS"
       ],
       statusBar: {
         barStyle: "default",
@@ -137,11 +138,14 @@ export default {
       "expo-sqlite",
       "./modules/local-server/plugin",
       "./modules/transfer/plugin",
+      "./modules/app-functions/plugin",
+      "./modules/root-access/plugin",
       [
         "expo-build-properties",
         {
           "android": {
             "minSdkVersion": 28,
+            "compileSdkVersion": 36,
             "targetSdkVersion": 36
           },
           "ios": {
