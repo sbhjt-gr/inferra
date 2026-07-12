@@ -1220,6 +1220,12 @@ export class MessageProcessingService {
         if (parsed?.type === 'multimodal') {
           return true;
         }
+        if (parsed?.type === 'attachment' && Array.isArray(parsed.attachments)) {
+          return parsed.attachments.some(
+            (item: { kind?: string; textFallback?: unknown }) =>
+              (item.kind === 'image' || item.kind === 'audio') && !item.textFallback,
+          );
+        }
         return parsed?.metadata?.ragDisabled === true;
       } catch {
         return false;

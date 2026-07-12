@@ -15,6 +15,9 @@ import { theme } from '../constants/theme';
 import { getThemeAwareColor } from '../utils/ColorUtils';
 import { ImageProcessingMode } from '../utils/ImageProcessingUtils';
 import { modelDownloader } from '../services/ModelDownloader';
+import { resolveAttachCaps } from '../services/AttachmentCaps';
+import { llamaManager } from '../utils/LlamaManager';
+import { OnlineModelService } from '../services/OnlineModelService';
 
 interface StoredModel {
   name: string;
@@ -144,20 +147,33 @@ export default function ImageProcessingSelector({
 
   const canUseMultimodal = (): boolean => {
     if (!selectedModelPath) return false;
-    
-    const isNonLocalModel = ['gemini', 'chatgpt', 'claude', 'apple-foundation'].includes(selectedModelPath);
-    if (isNonLocalModel) {
-      return selectedModelPath !== 'apple-foundation';
-    }
-    
-    return isMultimodalEnabled;
+    const support = llamaManager.getMultimodalSupport();
+    const caps = resolveAttachCaps(selectedModelPath, {
+      mmprojReady: isMultimodalEnabled,
+      llamaVision: support.vision,
+      llamaAudio: support.audio,
+      litertMultimodal: (() => {
+        const name = selectedModelPath.toLowerCase();
+        return name.includes('3n') || name.includes('gemma3') || name.includes('gemma-4') || name.includes('gemma4');
+      })(),
+    });
+    console.log('img_selector_vision', caps.vision, caps.needsMmproj);
+    return caps.modeFor('image') === 'native';
   };
 
   const getMultimodalTitle = (): string => {
     if (!selectedModelPath) return 'Vision Analysis';
-    
-    const isNonLocalModel = ['gemini', 'chatgpt', 'claude', 'apple-foundation'].includes(selectedModelPath);
-    return isNonLocalModel ? 'Vision Analysis' : 'Multimodal (AI Vision)';
+    try {
+      const base = OnlineModelService.getBaseProvider(selectedModelPath);
+      if (base === 'chatgpt' || base === 'claude' || base === 'gemini') {
+        return 'Vision Analysis';
+      }
+    } catch {
+    }
+    if (selectedModelPath === 'apple-foundation') {
+      return 'Vision Analysis';
+    }
+    return 'Multimodal (AI Vision)';
   };
 
   return (
