@@ -1,12 +1,55 @@
 buildscript {
+  ext {
+    getKotlinPluginVersion = {
+      def fromRoot = null
+      try {
+        rootProject.buildscript.configurations.classpath.resolvedConfiguration
+          .firstLevelModuleDependencies
+          .each { dep ->
+            if (dep.moduleGroup == "org.jetbrains.kotlin" && dep.moduleName == "kotlin-gradle-plugin") {
+              fromRoot = dep.moduleVersion
+            }
+          }
+      } catch (Throwable ignored) {
+      }
+      if (fromRoot) {
+        return fromRoot
+      }
+      if (rootProject.hasProperty("kotlinVersion")) {
+        return rootProject["kotlinVersion"].toString()
+      }
+      return "2.1.20"
+    }
+
+    getKspVersion = {
+      def kotlinVersion = getKotlinPluginVersion()
+      if (kotlinVersion.startsWith("2.3.")) {
+        return kotlinVersion
+      }
+      if (rootProject.hasProperty("kspVersion")) {
+        return rootProject["kspVersion"]
+      }
+      if (kotlinVersion.startsWith("2.1.20")) {
+        return "2.1.20-2.0.1"
+      }
+      if (kotlinVersion.startsWith("2.0.21")) {
+        return "2.0.21-1.0.28"
+      }
+      return "2.1.20-2.0.1"
+    }
+
+    // service artifact has no alpha10 on Google Maven yet
+    AF_CLIENT = "1.0.0-alpha10"
+    AF_SERVICE = "1.0.0-alpha09"
+  }
+
   repositories {
     google()
     mavenCentral()
   }
 
   dependencies {
-    // Root android/build.gradle currently resolves kotlin-gradle-plugin 2.3.0.
-    classpath "com.google.devtools.ksp:symbol-processing-gradle-plugin:2.3.0"
+    classpath "com.google.devtools.ksp:symbol-processing-gradle-plugin:${getKspVersion()}"
   }
 }
 
@@ -40,8 +83,7 @@ dependencies {
   implementation project(':expo-modules-core')
   implementation "androidx.core:core-ktx:1.15.0"
   implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0"
-  // Google Maven has appfunctions-service only through alpha09 (alpha10 omitted it).
-  implementation "androidx.appfunctions:appfunctions:1.0.0-alpha09"
-  implementation "androidx.appfunctions:appfunctions-service:1.0.0-alpha09"
-  ksp "androidx.appfunctions:appfunctions-compiler:1.0.0-alpha09"
+  implementation "androidx.appfunctions:appfunctions:${AF_CLIENT}"
+  implementation "androidx.appfunctions:appfunctions-service:${AF_SERVICE}"
+  ksp "androidx.appfunctions:appfunctions-compiler:${AF_SERVICE}"
 }
