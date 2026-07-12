@@ -53,9 +53,8 @@ apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
 apply plugin: 'com.google.devtools.ksp'
 
-// service artifact has no alpha10 on Google Maven yet
-def afClient = "1.0.0-alpha10"
-def afService = "1.0.0-alpha09"
+// alpha09+ needs compileSdk 37 and AGP 9.1; Expo 56 stays on 36 / AGP 8.12
+def afVersion = "1.0.0-alpha08"
 
 android {
   namespace "expo.modules.appfunctions"
@@ -83,7 +82,7 @@ dependencies {
   implementation project(':expo-modules-core')
   implementation "androidx.core:core-ktx:1.15.0"
   implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0"
-  implementation "androidx.appfunctions:appfunctions:${afClient}"
-  implementation "androidx.appfunctions:appfunctions-service:${afService}"
-  ksp "androidx.appfunctions:appfunctions-compiler:${afService}"
+  implementation "androidx.appfunctions:appfunctions:${afVersion}"
+  implementation "androidx.appfunctions:appfunctions-service:${afVersion}"
+  ksp "androidx.appfunctions:appfunctions-compiler:${afVersion}"
 }
