@@ -17,6 +17,7 @@ import { toolRegistry } from './tools/ToolRegistry';
 import { registerWebSearch } from './tools/WebSearchTool';
 import { agentRuntime } from './agent/AgentRuntime';
 import { buildRequestToolCatalog } from './agent/ToolCatalog';
+import { normalizeAttachMessages } from './AttachNormalize';
 
 export interface MessageProcessingCallbacks {
   setMessages: (messages: ChatMessage[]) => void;
@@ -107,6 +108,8 @@ export class MessageProcessingService {
       let processedMessages = systemPrompt
         ? [{ role: 'system', content: systemPrompt, id: 'system-prompt' }, ...nonSystem]
         : [...nonSystem];
+      processedMessages = normalizeAttachMessages(processedMessages);
+      console.log('attach_msgs_normalized');
       if (wantsCaps && isLocalLitert) {
         const capsPrompt = await skillManager.buildSystemPrompt(rawBase);
         if (capsPrompt.trim()) {

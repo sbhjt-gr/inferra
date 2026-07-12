@@ -40,10 +40,15 @@ import type { ProviderType } from '../../services/ModelManagementService';
 import chatManager from '../../utils/ChatManager';
 import { uuidv4 } from 'react-native-rag';
 import { OnlineModelService } from '../../services/OnlineModelService';
-import { getMimeType, isOpenAIUploadable } from '../../services/adapters/OpenAIFileAdapter';
-import { isClaudeUploadable } from '../../services/adapters/ClaudeFileAdapter';
-import { isGeminiUploadable } from '../../services/adapters/GeminiFileAdapter';
+import { getMimeType } from '../../services/adapters/OpenAIFileAdapter';
+import { attachStore } from '../../services/adapters/AttachStore';
+import { sttAdapter } from '../../services/adapters/SttAdapter';
+import { resolveAttachCaps } from '../../services/AttachmentCaps';
+import { buildAttachMessage, withFallback } from '../../services/AttachmentCompat';
+import { performOCROnImage } from '../../utils/ImageProcessingUtils';
+import AttachFallbackDialog from './AttachFallbackDialog';
 import { useKeyboard } from '../../hooks/useKeyboard';
+import type { AttachKind, AttachMode, ChatAttach } from '../../types/attachment';
 
 type ChatInputProps = {
   onSend: (text: string) => void;
@@ -68,10 +73,17 @@ interface StoredModel {
   modified: string;
 }
 
-type PendingAttachment = {
-  uri: string;
-  name: string;
-  kind: 'file' | 'audio';
+const formatDuration = (ms: number): string => {
+  const totalSec = Math.max(0, Math.floor(ms / 1000));
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  return `${min}:${sec.toString().padStart(2, '0')}`;
+};
+
+const litertHasMulti = (modelPath: string | null): boolean => {
+  if (!modelPath) return false;
+  const name = modelPath.toLowerCase();
+  return name.includes('3n') || name.includes('gemma3') || name.includes('gemma-4') || name.includes('gemma4');
 };
 
 const remoteProviders: ProviderType[] = ['gemini', 'chatgpt', 'claude'];
@@ -120,7 +132,11 @@ export default function ChatInput({
   const [pendingFileForMultimodal, setPendingFileForMultimodal] = useState<{uri: string, name?: string} | null>(null);
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
   const [useRagForUpload, setUseRagForUpload] = useState(false);
-  const [pendingAttachment, setPendingAttachment] = useState<PendingAttachment | null>(null);
+  const [pendingAttachment, setPendingAttachment] = useState<ChatAttach | null>(null);
+  const [fallbackVisible, setFallbackVisible] = useState(false);
+  const [fallbackAttach, setFallbackAttach] = useState<ChatAttach | null>(null);
+  const [fallbackReason, setFallbackReason] = useState<AttachMode>('needs-fallback');
+  const [fallbackBusy, setFallbackBusy] = useState(false);
   
   const inputRef = useRef<TextInput>(null);
   const attachmentMenuAnim = useRef(new Animated.Value(0)).current;
@@ -322,47 +338,51 @@ export default function ChatInput({
     return isMultimodalEnabled;
   };
 
+  const attachCaps = useMemo(() => {
+    const support = llamaManager.getMultimodalSupport();
+    return resolveAttachCaps(selectedModelPath, {
+      mmprojReady: isMultimodalEnabled,
+      llamaVision: support.vision,
+      llamaAudio: support.audio,
+      litertMultimodal: litertHasMulti(selectedModelPath),
+    });
+  }, [selectedModelPath, isMultimodalEnabled]);
+
+  const queueAttach = useCallback(async (uri: string, name: string) => {
+    console.log('attach_queue', name);
+    try {
+      const staged = await attachStore.stage(uri, name);
+      if (!attachCaps.acceptMime(staged.mimeType, staged.name)) {
+        console.log('attach_reject_mime', staged.name);
+        showDialog('Unsupported File Type', 'This model does not support this file type.');
+        return;
+      }
+
+      const mode = attachCaps.modeFor(staged.kind);
+      console.log('attach_queue_mode', staged.kind, mode);
+
+      if (mode === 'native') {
+        setPendingAttachment(staged);
+        setShowAttachmentMenu(false);
+        setTimeout(() => inputRef.current?.focus(), 100);
+        return;
+      }
+
+      setFallbackAttach(staged);
+      setFallbackReason(mode);
+      setFallbackVisible(true);
+      setShowAttachmentMenu(false);
+    } catch (error) {
+      console.log('attach_queue_error', error instanceof Error ? error.message : error);
+      showDialog('Error', 'Could not prepare the attachment. Please try again.');
+    }
+  }, [attachCaps, showDialog]);
+
   const isImageFile = (fileName: string): boolean => {
     const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff', '.tif'];
     const lowerCaseName = fileName.toLowerCase();
     return imageExtensions.some(ext => lowerCaseName.endsWith(ext));
   };
-
-  const getRemoteFileSupport = useCallback((fileName: string): {
-    supported: boolean;
-    providerLabel: string;
-  } => {
-    const baseProvider = OnlineModelService.getBaseProvider(selectedModelPath || '');
-
-    if (baseProvider === 'chatgpt') {
-      const supported = isImageFile(fileName) || isOpenAIUploadable(fileName);
-      return {
-        supported,
-        providerLabel: 'OpenAI',
-      };
-    }
-
-    if (baseProvider === 'claude') {
-      const supported = isImageFile(fileName) || isClaudeUploadable(fileName);
-      return {
-        supported,
-        providerLabel: 'Claude',
-      };
-    }
-
-    if (baseProvider === 'gemini') {
-      const supported = isImageFile(fileName) || isGeminiUploadable(fileName);
-      return {
-        supported,
-        providerLabel: 'Gemini',
-      };
-    }
-
-    return {
-      supported: true,
-      providerLabel: 'Remote provider',
-    };
-  }, [selectedModelPath]);
 
   const showMmProjSelector = async (action: 'camera' | 'file') => {
     setPendingMultimodalAction(action);
@@ -527,14 +547,25 @@ export default function ChatInput({
   };
 
   const supportsAudioUpload = useCallback(() => {
-    if (!selectedModelPath || isOnlineProvider(selectedModelPath)) {
-      return false;
+    return attachCaps.modeFor('audio') === 'native'
+      || attachCaps.modeFor('audio') === 'needs-mmproj'
+      || attachCaps.modeFor('audio') === 'needs-fallback';
+  }, [attachCaps]);
+
+  const ensureAttachReady = useCallback((attach: ChatAttach): boolean => {
+    const mode = attachCaps.modeFor(attach.kind);
+    if (attach.textFallback?.text) {
+      return true;
     }
-
-    const engine = engineService.getEngineForModel(selectedModelPath);
-    return engine === 'llama' || (engine === 'litert' && Platform.OS !== 'ios');
-  }, [selectedModelPath]);
-
+    if (mode === 'native') {
+      return true;
+    }
+    console.log('attach_send_blocked', attach.kind, mode);
+    setFallbackAttach(attach);
+    setFallbackReason(mode);
+    setFallbackVisible(true);
+    return false;
+  }, [attachCaps]);
 
   const handleSend = useCallback(() => {
     if (!hasText && !pendingAttachment) return;
@@ -566,6 +597,10 @@ export default function ChatInput({
     }
 
     if (pendingAttachment) {
+      if (!ensureAttachReady(pendingAttachment)) {
+        return;
+      }
+
       const prompt = text.trim();
       const attachment = pendingAttachment;
       setText('');
@@ -573,17 +608,8 @@ export default function ChatInput({
       setShowAttachmentMenu(false);
       setPendingAttachment(null);
 
-      if (attachment.kind === 'audio') {
-        onSend(JSON.stringify({
-          type: 'audio_upload',
-          internalInstruction: `Audio URI: ${attachment.uri}`,
-          userContent: prompt || 'Please transcribe or describe this audio file.',
-          fileName: attachment.name,
-        }));
-        return;
-      }
-
-      handleRemoteUpload(attachment.uri, attachment.name, prompt);
+      console.log('attach_send', attachment.kind, !!attachment.textFallback);
+      onSend(buildAttachMessage([attachment], prompt));
       return;
     }
     
@@ -595,7 +621,7 @@ export default function ChatInput({
     setText('');
     setInputHeight(52);
     setShowAttachmentMenu(false);
-  }, [text, onSend, selectedModelPath, isModelLoading, hasText, isEditing, onSaveEdit, pendingAttachment, handleRemoteUpload]);
+  }, [text, onSend, selectedModelPath, isModelLoading, hasText, isEditing, onSaveEdit, pendingAttachment, ensureAttachReady]);
 
   const handleContentSizeChange = useCallback((event: any) => {
     const height = Math.min(120, Math.max(52, event.nativeEvent.contentSize.height + 8));
@@ -887,18 +913,16 @@ export default function ChatInput({
       return;
     }
 
-    if (!checkMultimodalSupport()) {
-      const isOnlineModel = isOnlineProvider(selectedModelPath);
-      const isMLX = engineService.getEngineForModel(selectedModelPath) === 'mlx';
-      if (!isOnlineModel && !isMLX) {
-        showMmProjSelector('camera');
-        return;
-      }
+    const mode = attachCaps.modeFor('image');
+    console.log('attach_camera_mode', mode);
+    if (mode === 'needs-mmproj') {
+      showMmProjSelector('camera');
+      return;
     }
     
     setCameraVisible(true);
     setShowAttachmentMenu(false);
-  }, [selectedModelPath, isMultimodalEnabled]);
+  }, [selectedModelPath, attachCaps, showDialog]);
 
   const closeCamera = useCallback(() => {
     setCameraVisible(false);
@@ -922,22 +946,11 @@ export default function ChatInput({
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const file = result.assets[0];
         const fileName = file.name || 'document';
+        console.log('attach_pick_file', fileName);
 
-        if (isRemoteModel) {
-          const support = getRemoteFileSupport(fileName);
-          if (!support.supported) {
-            showDialog(
-              'Unsupported File Type',
-              `${support.providerLabel} does not support this file type.`
-            );
-            return;
-          }
-        }
-        
-        if (isImageFile(fileName) && !checkMultimodalSupport()) {
-          const isOnlineModel = isOnlineProvider(selectedModelPath);
-          const isMLX = engineService.getEngineForModel(selectedModelPath!) === 'mlx';
-          if (!isOnlineModel && !isMLX) {
+        if (isImageFile(fileName)) {
+          const mode = attachCaps.modeFor('image');
+          if (mode === 'needs-mmproj') {
             setPendingFileForMultimodal({
               uri: file.uri,
               name: fileName
@@ -945,15 +958,24 @@ export default function ChatInput({
             showMmProjSelector('file');
             return;
           }
-        }
-
-        if (isRemoteModel && !isImageFile(fileName)) {
-          setPendingAttachment({ uri: file.uri, name: fileName, kind: 'file' });
+          if (mode === 'needs-fallback' || mode === 'unsupported') {
+            await queueAttach(file.uri, fileName);
+            return;
+          }
+          setSelectedFile({
+            uri: file.uri,
+            name: fileName
+          });
+          setFileModalVisible(true);
           setShowAttachmentMenu(false);
-          setTimeout(() => inputRef.current?.focus(), 100);
           return;
         }
-        
+
+        if (isRemoteModel || attachCaps.documents === 'native-upload') {
+          await queueAttach(file.uri, fileName);
+          return;
+        }
+
         setSelectedFile({
           uri: file.uri,
           name: fileName
@@ -962,18 +984,14 @@ export default function ChatInput({
         setShowAttachmentMenu(false);
       }
     } catch (error) {
+      console.log('attach_pick_error', error instanceof Error ? error.message : error);
       showDialog('Error', 'Could not pick the document. Please try again.');
     }
-  }, [selectedModelPath, isMultimodalEnabled, isRemoteModel, getRemoteFileSupport, showDialog]);
+  }, [selectedModelPath, attachCaps, queueAttach, showDialog]);
 
   const pickAudio = useCallback(async () => {
     if (!selectedModelPath) {
       showDialog('No Model Selected', 'Please select a model before attaching audio.');
-      return;
-    }
-
-    if (!supportsAudioUpload()) {
-      showDialog('Audio Not Supported', 'The current chat model does not support audio input on this platform.');
       return;
     }
 
@@ -986,23 +1004,17 @@ export default function ChatInput({
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const file = result.assets[0];
         const fileName = file.name || 'audio-file';
-        setPendingAttachment({ uri: file.uri, name: fileName, kind: 'audio' });
-        setShowAttachmentMenu(false);
-        setTimeout(() => inputRef.current?.focus(), 100);
+        console.log('attach_pick_audio', fileName);
+        await queueAttach(file.uri, fileName);
       }
     } catch {
       showDialog('Error', 'Could not pick the audio file. Please try again.');
     }
-  }, [selectedModelPath, showDialog, supportsAudioUpload]);
+  }, [selectedModelPath, showDialog, queueAttach]);
 
   const startAudioRecording = useCallback(async () => {
     if (!selectedModelPath) {
       showDialog('No Model Selected', 'Please select a model before recording audio.');
-      return;
-    }
-
-    if (!supportsAudioUpload()) {
-      showDialog('Audio Not Supported', 'The current chat model does not support audio input on this platform.');
       return;
     }
 
@@ -1023,12 +1035,13 @@ export default function ChatInput({
       recorder.record();
       setPendingAttachment(null);
       setShowAttachmentMenu(false);
+      console.log('attach_record_start');
     } catch {
       showDialog('Recording Failed', 'Could not start audio recording. Please try again.');
     } finally {
       setIsAudioRecordingBusy(false);
     }
-  }, [ensureRecorder, selectedModelPath, showDialog, supportsAudioUpload]);
+  }, [ensureRecorder, selectedModelPath, showDialog]);
 
   const stopAudioRecording = useCallback(async (discard = false) => {
     try {
@@ -1043,8 +1056,8 @@ export default function ChatInput({
       const uri = recorder.uri || recorderState.url;
       if (!discard && uri) {
         const name = uri.split('/').pop() || `recording-${Date.now()}.m4a`;
-        setPendingAttachment({ uri, name, kind: 'audio' });
-        setTimeout(() => inputRef.current?.focus(), 100);
+        console.log('attach_record_stop', name);
+        await queueAttach(uri, name);
       }
       releaseRecorder();
     } catch {
@@ -1054,7 +1067,7 @@ export default function ChatInput({
     } finally {
       setIsAudioRecordingBusy(false);
     }
-  }, [ensureRecorder, releaseRecorder, recorderState.url, showDialog]);
+  }, [ensureRecorder, releaseRecorder, recorderState.url, showDialog, queueAttach]);
 
   const toggleAudioRecording = useCallback(async () => {
     if (isAudioRecordingBusy) {
@@ -1068,6 +1081,80 @@ export default function ChatInput({
 
     await startAudioRecording();
   }, [recorderState.isRecording, isAudioRecordingBusy, startAudioRecording, stopAudioRecording]);
+
+  const closeFallback = useCallback(() => {
+    setFallbackVisible(false);
+    setFallbackAttach(null);
+    setFallbackBusy(false);
+  }, []);
+
+  const handleFallbackRemove = useCallback(() => {
+    console.log('attach_fallback_remove');
+    closeFallback();
+    setPendingAttachment(null);
+  }, [closeFallback]);
+
+  const handleFallbackMmproj = useCallback(() => {
+    console.log('attach_fallback_mmproj');
+    const attach = fallbackAttach;
+    closeFallback();
+    if (attach?.kind === 'image' || attach?.kind === 'audio') {
+      if (attach.uri) {
+        setPendingFileForMultimodal({ uri: attach.uri, name: attach.name });
+        showMmProjSelector('file');
+      } else {
+        showMmProjSelector('camera');
+      }
+    }
+  }, [fallbackAttach, closeFallback]);
+
+  const handleFallbackOcr = useCallback(async () => {
+    if (!fallbackAttach?.uri) {
+      console.log('attach_ocr_missing');
+      closeFallback();
+      return;
+    }
+    try {
+      setFallbackBusy(true);
+      console.log('attach_ocr_start');
+      const text = await performOCROnImage(fallbackAttach.uri);
+      const updated = withFallback(fallbackAttach, { mode: 'ocr', text });
+      setPendingAttachment(updated);
+      console.log('attach_ocr_done', text.length);
+      closeFallback();
+      setTimeout(() => inputRef.current?.focus(), 100);
+    } catch (error) {
+      console.log('attach_ocr_error', error instanceof Error ? error.message : error);
+      showDialog('OCR Failed', 'Could not extract text from this image.');
+      setFallbackBusy(false);
+    }
+  }, [fallbackAttach, closeFallback, showDialog]);
+
+  const handleFallbackStt = useCallback(async () => {
+    if (!fallbackAttach?.uri) {
+      console.log('attach_stt_missing');
+      closeFallback();
+      return;
+    }
+    if (!sttAdapter.isReady()) {
+      showDialog('STT Unavailable', 'Speech-to-text is not available on this device. Remove the attachment or switch to an audio-capable model.');
+      return;
+    }
+    try {
+      setFallbackBusy(true);
+      console.log('attach_stt_start');
+      const text = await sttAdapter.transcribe(fallbackAttach.uri);
+      const updated = withFallback(fallbackAttach, { mode: 'stt', text });
+      setPendingAttachment(updated);
+      console.log('attach_stt_done', text.length);
+      closeFallback();
+      setTimeout(() => inputRef.current?.focus(), 100);
+    } catch (error) {
+      console.log('attach_stt_error', error instanceof Error ? error.message : error);
+      showDialog('STT Failed', 'Could not transcribe this audio file.');
+      setFallbackBusy(false);
+    }
+  }, [fallbackAttach, closeFallback, showDialog]);
 
   const closeFileModal = useCallback(() => {
     setFileModalVisible(false);
@@ -1086,6 +1173,14 @@ export default function ChatInput({
   };
 
 
+
+  const useGlassEffect = useMemo(() => 
+    isLiquidGlassAvailable()
+  , []);
+
+  const glassEffectStyle = useMemo(() => 
+    glassStyle(isDark)
+  , [isDark]);
 
   const inputContainerStyle = useMemo(() => [
     styles.inputContainer,
@@ -1116,14 +1211,6 @@ export default function ChatInput({
   , [isDark]);
 
   const canSend = hasText || !!pendingAttachment;
-
-  const useGlassEffect = useMemo(() => 
-    isLiquidGlassAvailable()
-  , []);
-
-  const glassEffectStyle = useMemo(() => 
-    glassStyle(isDark)
-  , [isDark]);
 
   const sendButtonStyle = useMemo(() => [
     styles.sendButton,
@@ -1328,7 +1415,13 @@ export default function ChatInput({
                       {pendingAttachment.name}
                     </Text>
                     <Text style={[styles.pendingFileSubtitle, { color: themeColors.secondaryText }]}>
-                      {pendingAttachment.kind === 'audio' ? 'Audio attachment' : 'File attachment'}
+                      {pendingAttachment.textFallback
+                        ? `${pendingAttachment.textFallback.mode.toUpperCase()} fallback`
+                        : pendingAttachment.kind === 'audio'
+                          ? 'Audio attachment'
+                          : pendingAttachment.kind === 'image'
+                            ? 'Image attachment'
+                            : 'File attachment'}
                     </Text>
                   </View>
                   <TouchableOpacity
@@ -1637,13 +1730,31 @@ export default function ChatInput({
         ragToggleDisabled={ragToggleDisabled}
       />
 
-<Dialog
+      <Dialog
         visible={dialogVisible}
         onDismiss={hideDialog}
         title={dialogTitle}
         description={dialogMessage}
         buttonText="OK"
         onClose={hideDialog}
+      />
+
+      <AttachFallbackDialog
+        visible={fallbackVisible}
+        kind={(fallbackAttach?.kind || 'unknown') as AttachKind}
+        fileName={fallbackAttach?.name || 'file'}
+        reason={
+          fallbackReason === 'needs-mmproj'
+            ? 'needs-mmproj'
+            : fallbackReason === 'unsupported'
+              ? 'unsupported'
+              : 'needs-fallback'
+        }
+        onOcr={fallbackBusy ? undefined : handleFallbackOcr}
+        onStt={fallbackBusy ? undefined : handleFallbackStt}
+        onRemove={handleFallbackRemove}
+        onLoadMmproj={handleFallbackMmproj}
+        onDismiss={closeFallback}
       />
 
       <Dialog visible={mmProjSelectorVisible} onDismiss={handleMmProjSelectorClose}

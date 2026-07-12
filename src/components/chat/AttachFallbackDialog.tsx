@@ -70,7 +70,7 @@ export default function AttachFallbackDialog({
             icon="projector"
             label="Load mmproj"
             color={colors.primary}
-            bg={isDark ? colors.surface : '#F2F2F7'}
+            bg={isDark ? colors.cardBackground : '#F2F2F7'}
             onPress={onLoadMmproj}
           />
         ) : null}
@@ -80,7 +80,7 @@ export default function AttachFallbackDialog({
             icon="text-recognition"
             label={reason === 'needs-mmproj' ? 'Use OCR instead' : 'Use OCR'}
             color={colors.primary}
-            bg={isDark ? colors.surface : '#F2F2F7'}
+            bg={isDark ? colors.cardBackground : '#F2F2F7'}
             onPress={onOcr}
           />
         ) : null}
@@ -90,7 +90,7 @@ export default function AttachFallbackDialog({
             icon="microphone-message"
             label={reason === 'needs-mmproj' ? 'Use STT instead' : 'Use STT'}
             color={colors.primary}
-            bg={isDark ? colors.surface : '#F2F2F7'}
+            bg={isDark ? colors.cardBackground : '#F2F2F7'}
             onPress={onStt}
           />
         ) : null}

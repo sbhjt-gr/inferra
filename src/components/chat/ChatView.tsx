@@ -213,6 +213,8 @@ export default function ChatView({
         contentToEdit = textContent ? textContent.text : '';
       } else if (parsedMessage && parsedMessage.type === 'ocr_result' && parsedMessage.userPrompt) {
         contentToEdit = parsedMessage.userPrompt;
+      } else if (parsedMessage && parsedMessage.type === 'attachment') {
+        contentToEdit = parsedMessage.userContent || '';
       }
     } catch (e) {
     }
@@ -296,6 +298,31 @@ export default function ChatView({
               })();
 
           audioAttachment = { name: rawName };
+          return parsedMessage.userContent || '';
+        }
+
+        if (parsedMessage && parsedMessage.type === 'attachment' && Array.isArray(parsedMessage.attachments)) {
+          console.log('chat_attach_render', parsedMessage.attachments.length);
+          multimodalContent = parsedMessage.attachments
+            .filter((item: any) => item.kind === 'image' || item.kind === 'audio')
+            .map((item: any) => ({
+              type: item.kind,
+              uri: item.uri,
+              text: item.textFallback?.text,
+            }));
+          const fileItem = parsedMessage.attachments.find(
+            (item: any) => item.kind === 'pdf' || item.kind === 'document' || item.kind === 'unknown',
+          );
+          if (fileItem) {
+            fileAttachment = {
+              name: fileItem.name || 'uploaded file',
+              type: (fileItem.name || '').split('.').pop()?.toLowerCase() || 'file',
+            };
+          }
+          const audioItem = parsedMessage.attachments.find((item: any) => item.kind === 'audio');
+          if (audioItem && !multimodalContent.some((m: any) => m.type === 'audio')) {
+            audioAttachment = { name: audioItem.name || 'Audio clip' };
+          }
           return parsedMessage.userContent || '';
         }
         
