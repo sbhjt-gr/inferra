@@ -21,6 +21,24 @@ export class MultimodalService {
   private multimodalSupport: MultimodalSupport = { vision: false, audio: false };
   private mmProjectorPath: string | null = null;
 
+  async preflightProjector(mmProjectorPath: string): Promise<void> {
+    console.log('mmproj_preflight');
+    let finalProjectorPath = mmProjectorPath;
+    if (finalProjectorPath.startsWith('file://')) {
+      finalProjectorPath = finalProjectorPath.slice(7);
+    }
+    const info = await FileSystem.getInfoAsync(
+      finalProjectorPath.startsWith('/') ? `file://${finalProjectorPath}` : finalProjectorPath,
+      { size: true },
+    );
+    if (!info.exists) {
+      throw new Error('mmproj_missing');
+    }
+    if (((info as any).size || 0) <= 0) {
+      throw new Error('mmproj_empty');
+    }
+  }
+
   async initMultimodal(
     context: LlamaContext, 
     mmProjectorPath: string
@@ -29,6 +47,8 @@ export class MultimodalService {
       if (!context) {
         throw new Error('Base model context must be initialized before multimodal');
       }
+
+      await this.preflightProjector(mmProjectorPath);
 
       let finalProjectorPath = mmProjectorPath;
       if (finalProjectorPath.startsWith('file://')) {
@@ -46,6 +66,7 @@ export class MultimodalService {
           this.isMultimodalEnabled = await context.isMultimodalEnabled();
           this.multimodalSupport = await context.getMultimodalSupport();
           this.mmProjectorPath = finalProjectorPath;
+          console.log('mmproj_ready');
         } catch (statusError) {
           this.isMultimodalEnabled = false;
           this.multimodalSupport = { vision: false, audio: false };
@@ -58,6 +79,7 @@ export class MultimodalService {
 
       return success;
     } catch (error) {
+      console.log('mmproj_init_fail');
       this.isMultimodalEnabled = false;
       this.multimodalSupport = { vision: false, audio: false };
       return false;

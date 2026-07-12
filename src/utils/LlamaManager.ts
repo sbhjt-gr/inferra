@@ -423,10 +423,16 @@ class LlamaManager {
       console.log('init_model_params', JSON.stringify(initParams, null, 2));
 
       const compatParams = this.toCompatInitParams(initParams);
+      let tempContext: Awaited<ReturnType<typeof initLlama>> | null = null;
+
+      if (mmProjectorPath) {
+        console.log('init_model_mmproj_preflight');
+        await this.multimodalService.preflightProjector(mmProjectorPath);
+      }
 
       try {
         console.log('init_model_calling_native');
-        this.context = await initLlama(initParams);
+        tempContext = await initLlama(initParams);
         console.log('init_model_native_success');
         await this.logInitMemory('native_success', modelSize);
       } catch (error) {
@@ -434,7 +440,7 @@ class LlamaManager {
         await this.logInitFailure('native_failed', error, modelSize, initParams);
         try {
           console.log('init_model_compat_fallback', JSON.stringify(compatParams, null, 2));
-          this.context = await initLlama(compatParams);
+          tempContext = await initLlama(compatParams);
           console.log('init_model_compat_success');
           await this.logInitMemory('compat_success', modelSize);
         } catch (compatError) {
@@ -448,7 +454,7 @@ class LlamaManager {
               use_mmap: false,
             };
             console.log('init_model_android_fallback', JSON.stringify(retryParams, null, 2));
-            this.context = await initLlama(retryParams);
+            tempContext = await initLlama(retryParams);
             console.log('init_model_fallback_success');
             await this.logInitMemory('android_fallback_success', modelSize);
           } else {
@@ -457,17 +463,22 @@ class LlamaManager {
         }
       }
 
-      if (mmProjectorPath && this.context) {
+      if (mmProjectorPath && tempContext) {
         console.log('init_model_multimodal_start', mmProjectorPath);
-        const success = await this.multimodalService.initMultimodal(this.context, mmProjectorPath);
+        const success = await this.multimodalService.initMultimodal(tempContext, mmProjectorPath);
         console.log('init_model_multimodal_result', success);
-        
-        if (success) {
-          const support = await this.context.getMultimodalSupport();
-          console.log('init_model_multimodal_support', support);
+        if (!success) {
+          try {
+            await withTimeout(tempContext.release(), 5000).catch(() => {});
+          } catch {}
+          tempContext = null;
+          throw new Error('mmproj_init_failed');
         }
+        const support = await tempContext.getMultimodalSupport();
+        console.log('init_model_multimodal_support', support);
       }
 
+      this.context = tempContext;
       this.isCancelled = false;
       console.log('init_model_complete');
 
@@ -980,11 +991,17 @@ class LlamaManager {
           model: currentModelPath,
           ...LLAMA_INIT_CONFIG,
         });
-        this.context = await initLlama(resetInitParams);
+        let tempContext = await initLlama(resetInitParams);
 
         if (currentMmProjectorPath) {
-          await this.multimodalService.initMultimodal(this.context, currentMmProjectorPath);
+          console.log('cancel_mmproj_reattach');
+          const success = await this.multimodalService.initMultimodal(tempContext, currentMmProjectorPath);
+          if (!success) {
+            await withTimeout(tempContext.release(), 5000).catch(() => {});
+            throw new Error('mmproj_init_failed');
+          }
         }
+        this.context = tempContext;
         
       } catch (error) {
         this.context = null;
