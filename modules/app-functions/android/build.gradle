@@ -37,10 +37,6 @@ buildscript {
       }
       return "2.1.20-2.0.1"
     }
-
-    // service artifact has no alpha10 on Google Maven yet
-    AF_CLIENT = "1.0.0-alpha10"
-    AF_SERVICE = "1.0.0-alpha09"
   }
 
   repositories {
@@ -56,6 +52,10 @@ buildscript {
 apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
 apply plugin: 'com.google.devtools.ksp'
+
+// service artifact has no alpha10 on Google Maven yet
+def afClient = "1.0.0-alpha10"
+def afService = "1.0.0-alpha09"
 
 android {
   namespace "expo.modules.appfunctions"
@@ -83,7 +83,7 @@ dependencies {
   implementation project(':expo-modules-core')
   implementation "androidx.core:core-ktx:1.15.0"
   implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0"
-  implementation "androidx.appfunctions:appfunctions:${AF_CLIENT}"
-  implementation "androidx.appfunctions:appfunctions-service:${AF_SERVICE}"
-  ksp "androidx.appfunctions:appfunctions-compiler:${AF_SERVICE}"
+  implementation "androidx.appfunctions:appfunctions:${afClient}"
+  implementation "androidx.appfunctions:appfunctions-service:${afService}"
+  ksp "androidx.appfunctions:appfunctions-compiler:${afService}"
 }
