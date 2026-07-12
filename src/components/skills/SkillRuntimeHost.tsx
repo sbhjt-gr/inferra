@@ -19,19 +19,21 @@ export default function SkillRuntimeHost() {
     <View pointerEvents="none" style={styles.wrap}>
       <WebView
         key={task?.id || 'idle'}
-        originWhitelist={['*']}
+        originWhitelist={['file://', 'about:blank']}
         source={source}
         injectedJavaScript={task?.uri ? task.bridge : undefined}
         onLoadEnd={() => backgroundWebViewManager.markReady(task?.id)}
         onMessage={event => backgroundWebViewManager.handleMessage(event.nativeEvent.data)}
         javaScriptEnabled
-        domStorageEnabled
+        domStorageEnabled={false}
         cacheEnabled={false}
-        mixedContentMode="always"
+        mixedContentMode="never"
         allowingReadAccessToURL={task?.uri}
         sharedCookiesEnabled={false}
         thirdPartyCookiesEnabled={false}
         setSupportMultipleWindows={false}
+        allowFileAccess
+        allowUniversalAccessFromFileURLs={false}
       />
     </View>
   );

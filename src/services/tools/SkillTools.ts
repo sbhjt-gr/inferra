@@ -75,6 +75,7 @@ const RUN_INTENT_TOOL: ToolSchema = {
         parameters: {
           type: 'object',
           description: 'A JSON object of parameters for the intent.',
+          additionalProperties: true,
         },
       },
       required: ['intent'],
@@ -87,10 +88,10 @@ const resolveSkill = async (name: string) => {
   return skills.find(skill => skill.id === name || skill.name.toLowerCase() === name.toLowerCase()) || null;
 };
 
+const OWNER = 'skill_tools';
+
 export const unregisterSkillTools = () => {
-  for (const name of SKILL_TOOL_NAMES) {
-    toolRegistry.unregister(name);
-  }
+  toolRegistry.unregisterByOwner(OWNER);
 };
 
 export const registerSkillTools = async () => {
@@ -102,72 +103,81 @@ export const registerSkillTools = async () => {
     return;
   }
 
-  toolRegistry.register('load_skill', LOAD_SKILL_TOOL, async ({ skillName }) => {
-    const name = String(skillName || '').trim();
-    console.log('skill_tool_load', name);
-    const stepId = skillActivityAdapter.start(`Loading skill "${name}"`, `Skill: ${name}`);
-    try {
-      const match = await resolveSkill(name);
-      if (!match) {
-        throw new Error('skill_not_found');
+  toolRegistry.register(
+    'load_skill',
+    LOAD_SKILL_TOOL,
+    async ({ skillName }) => {
+      const name = String(skillName || '').trim();
+      console.log('skill_tool_load', name);
+      const stepId = skillActivityAdapter.start(`Loading skill "${name}"`);
+      try {
+        const match = await resolveSkill(name);
+        if (!match) {
+          throw new Error('skill_not_found');
+        }
+        skillActivityAdapter.done(stepId, `Loaded skill "${match.name}"`);
+        return match.instructions;
+      } catch (error) {
+        skillActivityAdapter.done(stepId, `Failed to load skill "${name || 'unknown'}"`);
+        throw error;
       }
-      skillActivityAdapter.done(stepId, `Loaded skill "${match.name}"`);
-      return match.instructions;
-    } catch (error) {
-      skillActivityAdapter.done(stepId, `Failed to load skill "${name || 'unknown'}"`);
-      throw error;
-    }
-  });
+    },
+    { ownerId: OWNER, source: 'skill', risk: 'read' },
+  );
 
-  toolRegistry.register('run_js', RUN_JS_TOOL, async ({ skillName, scriptName, data }) => {
-    const name = String(skillName || '').trim();
-    const script = String(scriptName || 'main');
-    console.log('skill_tool_js', { name, script });
-    const stepId = skillActivityAdapter.start(
-      `Calling skill "${name}"`,
-      trimDetail({ script, data }),
-    );
-    try {
-      const match = await resolveSkill(name);
-      if (!match) {
-        skillActivityAdapter.done(stepId, `Skill not found: ${name}`);
-        throw new Error('skill_not_found');
+  toolRegistry.register(
+    'run_js',
+    RUN_JS_TOOL,
+    async ({ skillName, scriptName, data }) => {
+      const name = String(skillName || '').trim();
+      const script = String(scriptName || 'main');
+      console.log('skill_tool_js', { name, script });
+      const stepId = skillActivityAdapter.start(`Calling skill "${name}"`);
+      try {
+        const match = await resolveSkill(name);
+        if (!match) {
+          skillActivityAdapter.done(stepId, `Skill not found: ${name}`);
+          throw new Error('skill_not_found');
+        }
+        const result = await skillExecutor.runJs(match, {
+          scriptName: String(scriptName || match.metadata?.scriptName || 'main'),
+          data: data || '',
+        });
+        const failed = !!result.error;
+        skillActivityAdapter.done(
+          stepId,
+          failed ? `Skill "${match.name}" failed` : `Called skill "${match.name}"`,
+        );
+        return JSON.stringify(result);
+      } catch (error) {
+        skillActivityAdapter.done(stepId, `Failed to run skill "${name}"`);
+        throw error;
       }
-      const result = await skillExecutor.runJs(match, {
-        scriptName: String(scriptName || match.metadata?.scriptName || 'main'),
-        data: data || '',
-      });
-      const failed = !!result.error;
-      skillActivityAdapter.done(
-        stepId,
-        failed ? `Skill "${match.name}" failed` : `Called skill "${match.name}"`,
-      );
-      return JSON.stringify(result);
-    } catch (error) {
-      skillActivityAdapter.done(stepId, `Failed to run skill "${name}"`);
-      throw error;
-    }
-  });
+    },
+    { ownerId: OWNER, source: 'skill', risk: 'write' },
+  );
 
-  toolRegistry.register('run_intent', RUN_INTENT_TOOL, async ({ intent, parameters }) => {
-    const intentName = String(intent || '').trim();
-    console.log('skill_tool_intent', intentName);
-    const stepId = skillActivityAdapter.start(
-      `Calling intent "${intentName}"`,
-      trimDetail(parameters),
-    );
-    try {
-      const result = await skillExecutor.runIntent(
-        intentName,
-        parameters && typeof parameters === 'object' && !Array.isArray(parameters)
-          ? parameters as Record<string, any>
-          : {},
-      );
-      skillActivityAdapter.done(stepId, `Called intent "${intentName}"`);
-      return JSON.stringify(result);
-    } catch (error) {
-      skillActivityAdapter.done(stepId, `Failed intent "${intentName}"`);
-      throw error;
-    }
-  });
+  toolRegistry.register(
+    'run_intent',
+    RUN_INTENT_TOOL,
+    async ({ intent, parameters }) => {
+      const intentName = String(intent || '').trim();
+      console.log('skill_tool_intent', intentName);
+      const stepId = skillActivityAdapter.start(`Calling intent "${intentName}"`);
+      try {
+        const result = await skillExecutor.runIntent(
+          intentName,
+          parameters && typeof parameters === 'object' && !Array.isArray(parameters)
+            ? parameters as Record<string, any>
+            : {},
+        );
+        skillActivityAdapter.done(stepId, `Called intent "${intentName}"`);
+        return JSON.stringify(result);
+      } catch (error) {
+        skillActivityAdapter.done(stepId, `Failed intent "${intentName}"`);
+        throw error;
+      }
+    },
+    { ownerId: OWNER, source: 'skill', risk: 'write' },
+  );
 };

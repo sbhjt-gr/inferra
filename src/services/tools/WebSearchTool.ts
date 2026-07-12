@@ -62,12 +62,19 @@ export const executeWebSearch = async (args: Record<string, unknown>): Promise<s
   }
 };
 
+const OWNER = 'web_search';
+
 export const registerWebSearch = (): void => {
-  toolRegistry.unregister(TOOL_NAME);
-  toolRegistry.register(TOOL_NAME, WEB_SEARCH_TOOL, executeWebSearch);
+  toolRegistry.unregisterOwned(TOOL_NAME, OWNER);
+  toolRegistry.register(
+    TOOL_NAME,
+    WEB_SEARCH_TOOL,
+    async args => executeWebSearch(args),
+    { ownerId: OWNER, source: 'stock', risk: 'read' },
+  );
   console.log('web_search_tool_register');
 };
 
 export const unregisterWebSearch = (): void => {
-  toolRegistry.unregister(TOOL_NAME);
+  toolRegistry.unregisterOwned(TOOL_NAME, OWNER);
 };

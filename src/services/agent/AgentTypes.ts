@@ -46,7 +46,9 @@ export type AgentErrorCode =
   | 'timeout'
   | 'cancelled'
   | 'provider_error'
-  | 'loop_limit';
+  | 'loop_limit'
+  | 'policy_denied'
+  | 'approval_denied';
 
 export type AgentError = {
   code: AgentErrorCode;

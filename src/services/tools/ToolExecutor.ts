@@ -1,5 +1,9 @@
 import { skillActivityAdapter } from '../adapters/SkillActivityAdapter';
+import { toolApproval } from '../capabilities/ToolApproval';
+import { toolAuditStore } from '../capabilities/ToolAuditStore';
+import { toolPolicyStore } from '../capabilities/ToolPolicyStore';
 import { toolRegistry, type ToolCall, type ToolResult } from './ToolRegistry';
+import { clampToolResult, validateToolArgs } from './ToolValidator';
 import type { AgentError, AgentToolCall, ToolOutcome } from '../agent/AgentTypes';
 
 const MAX_ITERATIONS = 5;
@@ -16,37 +20,25 @@ const parseArgs = (raw: string): Record<string, unknown> => {
   }
 };
 
-const validateRequired = (name: string, args: Record<string, unknown>): AgentError | null => {
-  const schema = toolRegistry.getSchema(name);
-  if (!schema) {
-    return null;
+const summarizeArgs = (args: Record<string, unknown>): string => {
+  const keys = Object.keys(args);
+  if (!keys.length) {
+    return 'no args';
   }
-  const required = schema.function.parameters.required || [];
-  for (const key of required) {
-    const value = args[key];
-    if (value == null || (typeof value === 'string' && !value.trim())) {
-      return {
-        code: 'invalid_arguments',
-        message: `Missing required argument "${key}" for tool "${name}".`,
-      };
-    }
-  }
-  return null;
+  return `args: ${keys.slice(0, 6).join(', ')}`;
 };
 
-const withTimeout = async <T>(promise: Promise<T>, ms: number): Promise<T> => {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('tool_timeout')), ms);
-    promise
-      .then(value => {
-        clearTimeout(timer);
-        resolve(value);
-      })
-      .catch(error => {
-        clearTimeout(timer);
-        reject(error);
-      });
-  });
+const withTimeout = async <T>(
+  run: (signal: AbortSignal) => Promise<T>,
+  ms: number,
+): Promise<T> => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    return await run(controller.signal);
+  } finally {
+    clearTimeout(timer);
+  }
 };
 
 class ToolExecutorClass {
@@ -58,8 +50,15 @@ class ToolExecutorClass {
     };
   }
 
-  async executeStructured(call: AgentToolCall, opts?: { timeoutMs?: number }): Promise<ToolOutcome> {
+  async executeStructured(
+    call: AgentToolCall,
+    opts?: { timeoutMs?: number; signal?: AbortSignal },
+  ): Promise<ToolOutcome> {
     const name = call.name;
+    const started = Date.now();
+    const requestId = call.id || `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+    console.log('tool_exec_start', name);
+
     if (toolRegistry.isBuiltin(name)) {
       return {
         ok: false,
@@ -68,8 +67,9 @@ class ToolExecutorClass {
       };
     }
 
+    const meta = toolRegistry.getMeta(name);
     const executor = toolRegistry.getExecutor(name);
-    if (!executor) {
+    if (!executor || !meta) {
       return {
         ok: false,
         callId: call.id,
@@ -77,23 +77,103 @@ class ToolExecutorClass {
       };
     }
 
-    const validationError = validateRequired(name, call.arguments);
+    if (!toolPolicyStore.isAllowed(name, meta.source)) {
+      await toolAuditStore.record({
+        tool: name,
+        source: meta.source,
+        decision: 'denied',
+        outcome: 'denied',
+        durationMs: Date.now() - started,
+      });
+      return {
+        ok: false,
+        callId: call.id,
+        error: { code: 'policy_denied', message: `Tool "${name}" is disabled by policy.` },
+      };
+    }
+
+    const validationError = validateToolArgs(name, toolRegistry.getSchema(name), call.arguments);
     if (validationError) {
+      await toolAuditStore.record({
+        tool: name,
+        source: meta.source,
+        decision: 'denied',
+        outcome: 'error',
+        durationMs: Date.now() - started,
+      });
       return { ok: false, callId: call.id, error: validationError };
     }
 
-    const stepId = skillActivityAdapter.start(`Calling ${name}`, JSON.stringify(call.arguments));
+    const approved = await toolApproval.request({
+      requestId,
+      tool: name,
+      source: meta.source,
+      risk: meta.risk,
+      summary: summarizeArgs(call.arguments),
+    });
+    if (!approved) {
+      await toolAuditStore.record({
+        tool: name,
+        source: meta.source,
+        decision: 'denied',
+        outcome: 'denied',
+        durationMs: Date.now() - started,
+      });
+      return {
+        ok: false,
+        callId: call.id,
+        error: { code: 'approval_denied', message: `Tool "${name}" was not approved.` },
+      };
+    }
+
+    const stepId = skillActivityAdapter.start(`Calling ${name}`);
     try {
-      const value = await withTimeout(
-        executor(call.arguments as Record<string, any>),
-        opts?.timeoutMs ?? DEFAULT_TOOL_TIMEOUT_MS,
-      );
+      const value = await withTimeout(async signal => {
+        if (opts?.signal?.aborted || signal.aborted) {
+          throw new Error('tool_cancelled');
+        }
+        const merged = new AbortController();
+        const onAbort = () => merged.abort();
+        opts?.signal?.addEventListener('abort', onAbort);
+        signal.addEventListener('abort', onAbort);
+        try {
+          return await executor(call.arguments, { signal: merged.signal, requestId });
+        } finally {
+          opts?.signal?.removeEventListener('abort', onAbort);
+          signal.removeEventListener('abort', onAbort);
+        }
+      }, opts?.timeoutMs ?? DEFAULT_TOOL_TIMEOUT_MS);
+
+      const clamped = clampToolResult(value);
       skillActivityAdapter.done(stepId, `Called ${name}`);
-      return { ok: true, callId: call.id, value };
+      await toolAuditStore.record({
+        tool: name,
+        source: meta.source,
+        decision: 'ok',
+        outcome: 'ok',
+        durationMs: Date.now() - started,
+      });
+      console.log('tool_exec_ok', name);
+      return { ok: true, callId: call.id, value: clamped };
     } catch (error) {
-      skillActivityAdapter.done(stepId, `Failed ${name}`);
       const message = error instanceof Error ? error.message : 'unknown_error';
-      const code: AgentError['code'] = message === 'tool_timeout' ? 'timeout' : 'execution_failed';
+      const code: AgentError['code'] =
+        message === 'tool_timeout' || message.includes('aborted')
+          ? message.includes('cancel') || message.includes('abort')
+            ? 'cancelled'
+            : 'timeout'
+          : message === 'tool_cancelled'
+            ? 'cancelled'
+            : 'execution_failed';
+      skillActivityAdapter.done(stepId, `Failed ${name}`);
+      await toolAuditStore.record({
+        tool: name,
+        source: meta.source,
+        decision: code === 'cancelled' ? 'cancelled' : 'failed',
+        outcome: code === 'cancelled' ? 'cancelled' : 'error',
+        durationMs: Date.now() - started,
+      });
+      console.log('tool_exec_fail', name, code);
       return {
         ok: false,
         callId: call.id,
@@ -102,10 +182,21 @@ class ToolExecutorClass {
     }
   }
 
-  async executeAllStructured(calls: AgentToolCall[]): Promise<ToolOutcome[]> {
+  async executeAllStructured(
+    calls: AgentToolCall[],
+    opts?: { timeoutMs?: number; signal?: AbortSignal },
+  ): Promise<ToolOutcome[]> {
     const results: ToolOutcome[] = [];
     for (const call of calls) {
-      results.push(await this.executeStructured(call));
+      if (opts?.signal?.aborted) {
+        results.push({
+          ok: false,
+          callId: call.id,
+          error: { code: 'cancelled', message: 'cancelled' },
+        });
+        continue;
+      }
+      results.push(await this.executeStructured(call, opts));
     }
     return results;
   }

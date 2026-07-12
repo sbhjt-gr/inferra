@@ -594,44 +594,51 @@ export const executeMobileActionIntent = async (
   throw new Error('unsupported_intent');
 };
 
+const OWNER = 'mobile_actions';
+
 export const unregisterMobileActionTools = () => {
-  for (const name of TOOL_NAMES) {
-    toolRegistry.unregister(name);
-  }
+  toolRegistry.unregisterByOwner(OWNER);
 };
 
 export const registerMobileActionTools = ({ onAction }: MobileActionsOptions = {}) => {
   unregisterMobileActionTools();
 
-  toolRegistry.register('open_url', OPEN_URL_TOOL, async ({ url }) => {
-    return executeMobileActionIntent('open_url', { url }, onAction);
-  });
+  const wrap = (
+    name: (typeof TOOL_NAMES)[number],
+    schema: ToolSchema,
+    risk: 'read' | 'write' | 'destructive',
+    run: (args: Record<string, unknown>) => Promise<string>,
+  ) => {
+    toolRegistry.register(
+      name,
+      schema,
+      async args => run(args),
+      { ownerId: OWNER, source: 'stock', risk },
+    );
+  };
 
-  toolRegistry.register('send_email', SEND_EMAIL_TOOL, async ({ to, subject, body }) => {
-    return executeMobileActionIntent('send_email', { to, subject, body }, onAction);
-  });
-
-  toolRegistry.register('open_map', OPEN_MAP_TOOL, async ({ location }) => {
-    return executeMobileActionIntent('open_map', { location }, onAction);
-  });
-
-  toolRegistry.register('open_settings', OPEN_SETTINGS_TOOL, async () => {
-    return executeMobileActionIntent('open_settings', {}, onAction);
-  });
-
-  toolRegistry.register('call_phone', CALL_PHONE_TOOL, async ({ phoneNumber }) => {
-    return executeMobileActionIntent('call_phone', { phoneNumber }, onAction);
-  });
-
-  toolRegistry.register('send_sms', SEND_SMS_TOOL, async ({ phoneNumber, body }) => {
-    return executeMobileActionIntent('send_sms', { phoneNumber, body }, onAction);
-  });
-
-  toolRegistry.register('create_contact', CREATE_CONTACT_TOOL, async (parameters) => {
-    return executeMobileActionIntent('create_contact', parameters, onAction);
-  });
-
-  toolRegistry.register('create_calendar_event', CREATE_CALENDAR_EVENT_TOOL, async (parameters) => {
-    return executeMobileActionIntent('create_calendar_event', parameters, onAction);
-  });
+  wrap('open_url', OPEN_URL_TOOL, 'write', async ({ url }) =>
+    executeMobileActionIntent('open_url', { url }, onAction),
+  );
+  wrap('send_email', SEND_EMAIL_TOOL, 'write', async ({ to, subject, body }) =>
+    executeMobileActionIntent('send_email', { to, subject, body }, onAction),
+  );
+  wrap('open_map', OPEN_MAP_TOOL, 'read', async ({ location }) =>
+    executeMobileActionIntent('open_map', { location }, onAction),
+  );
+  wrap('open_settings', OPEN_SETTINGS_TOOL, 'read', async () =>
+    executeMobileActionIntent('open_settings', {}, onAction),
+  );
+  wrap('call_phone', CALL_PHONE_TOOL, 'write', async ({ phoneNumber }) =>
+    executeMobileActionIntent('call_phone', { phoneNumber }, onAction),
+  );
+  wrap('send_sms', SEND_SMS_TOOL, 'write', async ({ phoneNumber, body }) =>
+    executeMobileActionIntent('send_sms', { phoneNumber, body }, onAction),
+  );
+  wrap('create_contact', CREATE_CONTACT_TOOL, 'write', async parameters =>
+    executeMobileActionIntent('create_contact', parameters, onAction),
+  );
+  wrap('create_calendar_event', CREATE_CALENDAR_EVENT_TOOL, 'write', async parameters =>
+    executeMobileActionIntent('create_calendar_event', parameters, onAction),
+  );
 };
