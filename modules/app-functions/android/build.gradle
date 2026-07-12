@@ -1,3 +1,32 @@
+buildscript {
+  ext {
+    getKspVersion = {
+      if (rootProject.hasProperty("kspVersion")) {
+        return rootProject["kspVersion"]
+      }
+      def kotlinVersion = rootProject.hasProperty("kotlinVersion")
+        ? rootProject["kotlinVersion"].toString()
+        : "2.1.20"
+      if (kotlinVersion.startsWith("2.1.20")) {
+        return "2.1.20-2.0.1"
+      }
+      if (kotlinVersion.startsWith("2.0.21")) {
+        return "2.0.21-1.0.28"
+      }
+      return "2.1.20-2.0.1"
+    }
+  }
+
+  repositories {
+    google()
+    mavenCentral()
+  }
+
+  dependencies {
+    classpath "com.google.devtools.ksp:symbol-processing-gradle-plugin:${getKspVersion()}"
+  }
+}
+
 apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
 apply plugin: 'com.google.devtools.ksp'
