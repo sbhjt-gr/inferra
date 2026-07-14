@@ -891,8 +891,21 @@ class ChatManager {
     const chat = this.getChatById(chatId);
     if (!chat) return;
 
-    setTimeout(async () => {
+    const tryTitle = async (attempt: number) => {
       try {
+        if (this.currentProvider === 'local') {
+          const { llamaManager } = await import('./LlamaManager');
+          if (llamaManager.isGenBusy()) {
+            console.log('title_defer_busy', attempt);
+            if (attempt < 3) {
+              setTimeout(() => {
+                void tryTitle(attempt + 1);
+              }, 4000);
+            }
+            return;
+          }
+        }
+
         const title = await this.generateChatTitle(userMessage);
         const chatToUpdate = this.getChatById(chatId);
         if (chatToUpdate && chatToUpdate.messages.filter(m => m.role === 'user').length === 1) {
@@ -903,8 +916,19 @@ class ChatManager {
         }
       } catch (error) {
         console.log('title_gen_failed', error instanceof Error ? error.message : 'unknown');
+        if (this.currentProvider === 'local' && attempt < 3) {
+          setTimeout(() => {
+            void tryTitle(attempt + 1);
+          }, 4000);
+        }
       }
-    }, 1000);
+    };
+
+    const delayMs = this.currentProvider === 'local' ? 8000 : 1000;
+    console.log('title_schedule', delayMs);
+    setTimeout(() => {
+      void tryTitle(0);
+    }, delayMs);
   }
 
   async generateChatTitle(userMessage: string): Promise<string> {

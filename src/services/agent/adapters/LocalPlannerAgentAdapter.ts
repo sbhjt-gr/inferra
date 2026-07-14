@@ -185,6 +185,7 @@ export class LocalPlannerAgentAdapter implements ModelAdapter {
     }
     const prompt = buildPlannerPrompt(buildCompactToolList(catalog), userText);
     try {
+      console.log('local_plan_invoke', { toolCount: catalog.entries.length });
       const raw = await engineService.mgr().gen(
         [{ role: 'user', content: prompt }] as any,
         {
