@@ -586,12 +586,21 @@ export default function ChatInput({
     }
 
     const isOnlineModel = isOnlineProvider(selectedModelPath);
-    const engineReady = engineService.mgr().ready();
-    
+    const engineReady = engineService.ready();
+
     if (!isOnlineModel && (!engineReady || isModelLoading)) {
+      console.log('model_send_blocked', {
+        engineReady,
+        isModelLoading,
+        engine: engineService.get(),
+        activePath: engineService.getActiveModelPath(),
+        selected: selectedModelPath,
+      });
       showDialog(
         'Model Not Ready',
-        'Please wait for the local model to finish loading before sending a message.'
+        isModelLoading
+          ? 'Please wait for the local model to finish loading before sending a message.'
+          : 'The local model is not loaded in memory. Please select it again from Active Model.'
       );
       return;
     }

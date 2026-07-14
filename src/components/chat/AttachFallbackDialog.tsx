@@ -52,7 +52,9 @@ export default function AttachFallbackDialog({
         ? `This model cannot use ${fileName}. Remove it or switch models.`
         : `This model cannot use ${kind} natively. Choose a text fallback or remove the attachment.`;
 
-  console.log('attach_fallback_show', kind, reason);
+  if (visible) {
+    console.log('attach_fallback_show', kind, reason);
+  }
 
   return (
     <Dialog

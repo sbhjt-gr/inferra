@@ -29,6 +29,7 @@ export const ModelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarType, setSnackbarType] = useState<'success' | 'error'>('success');
+  const loadingLockRef = React.useRef(false);
   const insets = useSafeAreaInsets();
   const { theme: currentTheme } = useTheme();
 
@@ -47,11 +48,12 @@ export const ModelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const loadModel = async (modelPath: string, mmProjectorPath?: string): Promise<boolean> => {
-    if (isModelLoading) {
+    if (loadingLockRef.current || isModelLoading) {
       showSnackbar('Model is already loading', 'error');
       return false;
     }
 
+    loadingLockRef.current = true;
     setIsModelLoading(true);
     
     try {
@@ -62,7 +64,6 @@ export const ModelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       if (!enabled[engine]) {
         showSnackbar(`${engineLabels[engine]} engine is disabled`, 'error');
-        setIsModelLoading(false);
         return false;
       }
 
@@ -74,7 +75,6 @@ export const ModelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           console.log('model_file_missing', modelPath);
           showSnackbar('Model file not found', 'error');
           modelDownloader.refresh();
-          setIsModelLoading(false);
           return false;
         }
       }
@@ -116,6 +116,7 @@ export const ModelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setIsMultimodalEnabled(false);
       return false;
     } finally {
+      loadingLockRef.current = false;
       setIsModelLoading(false);
     }
   };
