@@ -21,7 +21,7 @@ import {
 import { MultimodalService } from '../services/MultimodalService';
 import { TokenProcessingService } from '../services/TokenProcessingService';
 import { LlamaSettingsManager } from '../services/LlamaSettingsManager';
-import { LLAMA_INIT_CONFIG, TITLE_GENERATION_CONFIG } from '../config/llamaConfig';
+import { DEFAULT_SETTINGS, LLAMA_INIT_CONFIG, TITLE_GENERATION_CONFIG } from '../config/llamaConfig';
 import { gpuSettingsService } from '../services/GpuSettingsService';
 import { checkGpuSupport, type GpuSupport } from './gpuCapabilities';
 import type { BenchmarkSample } from '../managers/inference-manager';
@@ -61,26 +61,57 @@ class LlamaManager {
 
   private static GEN_LOCK_TIMEOUT = 30000;
 
-  private async acquireGenLock(): Promise<void> {
-    const deadline = Date.now() + LlamaManager.GEN_LOCK_TIMEOUT;
-    await Promise.race([
-      this.genLock,
-      new Promise<void>((_, reject) => {
-        const remaining = deadline - Date.now();
-        if (remaining <= 0) return reject(new Error('MODEL_BUSY'));
-        setTimeout(() => reject(new Error('MODEL_BUSY')), remaining);
-      }),
-    ]);
+  isGenBusy(): boolean {
+    return this.genLockRelease !== null;
+  }
+
+  private async acquireGenLock(timeoutMs: number = LlamaManager.GEN_LOCK_TIMEOUT): Promise<void> {
+    if (this.genLockRelease !== null) {
+      if (timeoutMs <= 0) {
+        console.log('gen_lock_busy');
+        throw new Error('MODEL_BUSY');
+      }
+      console.log('gen_lock_wait', timeoutMs);
+      await Promise.race([
+        this.genLock,
+        new Promise<void>((_, reject) => {
+          setTimeout(() => reject(new Error('MODEL_BUSY')), timeoutMs);
+        }),
+      ]);
+    } else {
+      await this.genLock;
+    }
     let release: () => void;
     this.genLock = new Promise<void>(resolve => { release = resolve; });
     this.genLockRelease = release!;
+    console.log('gen_lock_acquired');
   }
 
   private releaseGenLock(): void {
     if (this.genLockRelease) {
       this.genLockRelease();
       this.genLockRelease = null;
+      console.log('gen_lock_release');
     }
+  }
+
+  private resolveSettings(customSettings?: Partial<ModelSettings>): ModelSettings {
+    const base = this.settingsManager.getSettings();
+    const merged: ModelSettings = {
+      ...DEFAULT_SETTINGS,
+      ...base,
+      ...(customSettings || {}),
+      stopWords: customSettings?.stopWords ?? base.stopWords ?? DEFAULT_SETTINGS.stopWords,
+      drySequenceBreakers:
+        customSettings?.drySequenceBreakers ?? base.drySequenceBreakers ?? DEFAULT_SETTINGS.drySequenceBreakers,
+      logitBias: customSettings?.logitBias ?? base.logitBias ?? DEFAULT_SETTINGS.logitBias,
+    };
+    console.log('settings_merged', {
+      hasCustom: !!customSettings,
+      stopLen: merged.stopWords?.length ?? 0,
+      biasLen: merged.logitBias?.length ?? 0,
+    });
+    return merged;
   }
 
   private resolveUseMmapValue(value: unknown): boolean {
@@ -609,19 +640,20 @@ class LlamaManager {
   async generateResponse(
     messages: Array<{ role: string; content: string }>,
     onToken?: (token: string) => boolean | void,
-    customSettings?: ModelSettings
+    customSettings?: Partial<ModelSettings>
   ) {
     if (!this.context) {
       throw new Error('Model not initialized');
     }
 
     await this.acquireGenLock();
+    console.log('gen_response_start', { msgCount: messages.length });
 
     let fullResponse = '';
     this.isCancelled = false;
     this.tokenProcessingService.setCancelled(false);
-    const settings = customSettings ?? this.settingsManager.getSettings();
-    const stop = [...settings.stopWords, '\n', '\\n'];
+    const settings = this.resolveSettings(customSettings);
+    const stop = [...(settings.stopWords || []), '\n', '\\n'];
 
     try {
       const processedMessages = await Promise.all(
@@ -694,7 +726,7 @@ class LlamaManager {
         dry_penalty_last_n: settings.dryPenaltyLastN,
         dry_sequence_breakers: settings.drySequenceBreakers,
         ignore_eos: settings.ignoreEos,
-        ...(settings.logitBias.length > 0 ? { logit_bias: settings.logitBias } : {}),
+        ...(settings.logitBias?.length ? { logit_bias: settings.logitBias } : {}),
         seed: settings.seed,
         xtc_probability: settings.xtcProbability,
         xtc_threshold: settings.xtcThreshold,
@@ -703,6 +735,7 @@ class LlamaManager {
       };
 
       const runCompletion = async (messagesForCompletion: Array<{ role: string; content: any }>, stage: 'primary' | 'compact-retry' | 'minimal-retry') => {
+        console.log('gen_completion_start', stage);
         fullResponse = '';
         tokenCount = 0;
         this.tokenProcessingService.clearTokenQueue();
@@ -800,7 +833,11 @@ class LlamaManager {
       throw new Error('Model not initialized');
     }
 
-    await this.acquireGenLock();
+    if (this.isGenBusy()) {
+      console.log('title_skip_busy');
+      throw new Error('MODEL_BUSY');
+    }
+    await this.acquireGenLock(0);
 
     const titlePrompt = [
       {
@@ -813,17 +850,18 @@ class LlamaManager {
       }
     ];
 
-    const settings = this.settingsManager.getSettings();
+    const settings = this.resolveSettings();
 
     try {
       let fullResponse = '';
       this.isCancelled = false;
+      console.log('title_gen_start');
 
       await this.context.completion(
         {
           messages: titlePrompt,
           n_predict: TITLE_GENERATION_CONFIG.maxTokens,
-          stop: [...settings.stopWords, '\n', '\\n'],
+          stop: [...(settings.stopWords || []), '\n', '\\n'],
           temperature: TITLE_GENERATION_CONFIG.temperature,
           top_k: TITLE_GENERATION_CONFIG.topK,
           top_p: TITLE_GENERATION_CONFIG.topP,
@@ -866,15 +904,15 @@ class LlamaManager {
     }
   }
 
-  async benchmark(prompt: string, customSettings?: ModelSettings): Promise<BenchmarkSample> {
+  async benchmark(prompt: string, customSettings?: Partial<ModelSettings>): Promise<BenchmarkSample> {
     if (!this.context) {
       throw new Error('Model not initialized');
     }
 
     await this.acquireGenLock();
 
-    const settings = customSettings ?? this.settingsManager.getSettings();
-    const stop = [...settings.stopWords, '\n', '\\n'];
+    const settings = this.resolveSettings(customSettings);
+    const stop = [...(settings.stopWords || []), '\n', '\\n'];
     const messages = settings.systemPrompt
       ? [
           { role: 'system', content: settings.systemPrompt },
@@ -907,7 +945,7 @@ class LlamaManager {
         dry_penalty_last_n: settings.dryPenaltyLastN,
         dry_sequence_breakers: settings.drySequenceBreakers,
         ignore_eos: settings.ignoreEos,
-        ...(settings.logitBias.length > 0 ? { logit_bias: settings.logitBias } : {}),
+        ...(settings.logitBias?.length ? { logit_bias: settings.logitBias } : {}),
         seed: settings.seed,
         xtc_probability: settings.xtcProbability,
         xtc_threshold: settings.xtcThreshold,
