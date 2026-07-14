@@ -239,9 +239,9 @@ export default function SettingsScreen() {
       const fallback = pickActiveEngine(nextEnabled);
       const nextActive = nextEnabled[active] ? active : fallback;
       if (nextActive !== active) {
-        await engineService.set(nextActive);
+        await engineService.set(nextActive, { force: !engineService.ready() });
       }
-      setActiveRuntime(nextActive);
+      setActiveRuntime(engineService.get());
     } catch (error) {
     }
   };

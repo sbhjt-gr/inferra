@@ -34,14 +34,47 @@ class EngineService {
     };
   }
 
+  private anyReadyEngine(): EngineId | null {
+    if (this.activeModelPath) {
+      const forPath = this.getEngineForModel(this.activeModelPath);
+      if (this.map[forPath].ready()) {
+        return forPath;
+      }
+    }
+
+    for (const id of ['llama', 'mlx', 'litert'] as EngineId[]) {
+      if (this.map[id].ready()) {
+        return id;
+      }
+    }
+
+    return null;
+  }
+
+  private resolveManager(): InferenceManager {
+    const readyEngine = this.anyReadyEngine();
+    if (readyEngine && readyEngine !== this.engine) {
+      console.log('engine_pointer_resync', this.engine, '->', readyEngine, this.activeModelPath);
+      this.engine = readyEngine;
+    }
+    return this.map[this.engine];
+  }
+
   async load() {
     const [storedActive, storedEnabled] = await Promise.all([
       AsyncStorage.getItem(keyActive),
       AsyncStorage.getItem(keyEnabled),
     ]);
 
+    const liveReady = this.anyReadyEngine();
+
     if (storedActive === 'mlx' || storedActive === 'llama' || storedActive === 'litert') {
-      if (storedActive === 'mlx' && Platform.OS === 'android') {
+      if (liveReady) {
+        if (this.engine !== liveReady) {
+          console.log('engine_load_keep_live', this.engine, storedActive, liveReady);
+          this.engine = liveReady;
+        }
+      } else if (storedActive === 'mlx' && Platform.OS === 'android') {
         this.engine = 'llama';
       } else {
         this.engine = storedActive;
@@ -63,7 +96,13 @@ class EngineService {
     return { active: this.engine, enabled: { ...this.enabled } };
   }
 
-  async set(engine: EngineId) {
+  async set(engine: EngineId, options?: { force?: boolean }) {
+    const liveReady = this.anyReadyEngine();
+    if (!options?.force && liveReady && liveReady !== engine) {
+      console.log('engine_set_defer_live', this.engine, engine, liveReady);
+      await AsyncStorage.setItem(keyActive, engine);
+      return;
+    }
     this.engine = engine;
     await AsyncStorage.setItem(keyActive, engine);
   }
@@ -74,7 +113,7 @@ class EngineService {
   }
 
   get() {
-    return this.engine;
+    return this.anyReadyEngine() || this.engine;
   }
 
   getEnabled() {
@@ -112,51 +151,50 @@ class EngineService {
       throw new Error('engine_disabled');
     }
 
-    if (engine !== this.engine) {
-      if (this.map[this.engine].ready()) {
-        await this.map[this.engine].release();
-      }
+    const live = this.anyReadyEngine();
+    if (live && live !== engine) {
+      await this.map[live].release();
       this.activeModelPath = null;
-      await this.set(engine);
     } else if (this.map[engine].ready()) {
       await this.map[engine].release();
       this.activeModelPath = null;
     }
 
-    await this.map[this.engine].init(modelPath, projectorPath);
+    await this.set(engine, { force: true });
+    await this.map[engine].init(modelPath, projectorPath);
     this.activeModelPath = modelPath;
   }
 
   async release() {
-    await this.map[this.engine].release();
+    await this.resolveManager().release();
     this.activeModelPath = null;
   }
 
   mgr() {
-    return this.map[this.engine];
+    return this.resolveManager();
   }
 
   stop() {
-    this.map[this.engine].stop?.();
+    this.resolveManager().stop?.();
   }
 
   async resetChatSession() {
-    if (this.engine !== 'litert') {
+    if ((this.anyReadyEngine() || this.engine) !== 'litert') {
       return;
     }
     await litertManager.resetSession(true);
   }
 
   ready() {
-    return this.map[this.engine].ready();
+    return this.resolveManager().ready();
   }
 
   caps() {
-    return featureCaps[this.engine];
+    return featureCaps[this.anyReadyEngine() || this.engine];
   }
 
   on(feature: keyof typeof featureCaps['llama']) {
-    return isFeatureOn(this.engine, feature);
+    return isFeatureOn(this.anyReadyEngine() || this.engine, feature);
   }
 
   needsRestart() {
