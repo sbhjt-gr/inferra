@@ -21,7 +21,7 @@ export class MultimodalService {
   private multimodalSupport: MultimodalSupport = { vision: false, audio: false };
   private mmProjectorPath: string | null = null;
 
-  async preflightProjector(mmProjectorPath: string): Promise<void> {
+  async preflightProjector(mmProjectorPath: string): Promise<{ path: string; size: number }> {
     console.log('mmproj_preflight');
     let finalProjectorPath = mmProjectorPath;
     if (finalProjectorPath.startsWith('file://')) {
@@ -34,9 +34,12 @@ export class MultimodalService {
     if (!info.exists) {
       throw new Error('mmproj_missing');
     }
-    if (((info as any).size || 0) <= 0) {
+    const size = ((info as any).size || 0) as number;
+    if (size <= 0) {
       throw new Error('mmproj_empty');
     }
+    console.log('mmproj_size_mb', Math.round((size / (1024 * 1024)) * 100) / 100);
+    return { path: finalProjectorPath, size };
   }
 
   async initMultimodal(
@@ -48,26 +51,35 @@ export class MultimodalService {
         throw new Error('Base model context must be initialized before multimodal');
       }
 
-      await this.preflightProjector(mmProjectorPath);
+      const preflight = await this.preflightProjector(mmProjectorPath);
+      const finalProjectorPath = preflight.path;
 
-      let finalProjectorPath = mmProjectorPath;
-      if (finalProjectorPath.startsWith('file://')) {
-        finalProjectorPath = finalProjectorPath.slice(7);
-      }
+      /*
+       * Keep mmproj on CPU. iOS Metal already holds the text model
+       * (~3GB); loading a BF16 projector (~1GB) on GPU jetsams the app.
+       */
+      const useGpu = false;
+      console.log('mmproj_init_start', {
+        platform: Platform.OS,
+        useGpu,
+        sizeMb: Math.round((preflight.size / (1024 * 1024)) * 100) / 100,
+      });
 
       const success = await context.initMultimodal({
         path: finalProjectorPath,
-        use_gpu: Platform.OS === 'ios' ? true : false,
-        image_max_tokens: 768,
+        use_gpu: useGpu,
+        image_max_tokens: 512,
       });
+      console.log('mmproj_init_native', success);
 
       if (success) {
         try {
           this.isMultimodalEnabled = await context.isMultimodalEnabled();
           this.multimodalSupport = await context.getMultimodalSupport();
           this.mmProjectorPath = finalProjectorPath;
-          console.log('mmproj_ready');
+          console.log('mmproj_ready', this.multimodalSupport);
         } catch (statusError) {
+          console.log('mmproj_status_fail', statusError instanceof Error ? statusError.message : 'unknown');
           this.isMultimodalEnabled = false;
           this.multimodalSupport = { vision: false, audio: false };
           return false;
@@ -79,7 +91,7 @@ export class MultimodalService {
 
       return success;
     } catch (error) {
-      console.log('mmproj_init_fail');
+      console.log('mmproj_init_fail', error instanceof Error ? error.message : 'unknown');
       this.isMultimodalEnabled = false;
       this.multimodalSupport = { vision: false, audio: false };
       return false;
