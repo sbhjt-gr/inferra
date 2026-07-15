@@ -1,5 +1,3 @@
-import { Platform } from 'react-native';
-
 import { EngineId, EngineCaps } from '../managers/inference-manager';
 
 type FeatureId = keyof EngineCaps;
@@ -31,8 +29,8 @@ const caps: FeatureMap = {
   },
   litert: {
     embeddings: false,
-    vision: Platform.OS !== 'ios',
-    audio: Platform.OS !== 'ios',
+    vision: true,
+    audio: true,
     rag: false,
     grammar: false,
     jinja: false,

@@ -1,4 +1,3 @@
-import { Platform } from 'react-native';
 import {
   createLLM,
   type LLMConfig,
@@ -26,8 +25,8 @@ type LitertTool = {
 
 const caps: EngineCaps = {
   embeddings: false,
-  vision: Platform.OS !== 'ios',
-  audio: Platform.OS !== 'ios',
+  vision: true,
+  audio: true,
   rag: false,
   grammar: false,
   jinja: false,
