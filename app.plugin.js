@@ -137,12 +137,31 @@ function setAutomaticSigning(project) {
   return project;
 }
 
+function injectLlamaBuildFromSource(contents) {
+  const line = "ENV['RNLLAMA_BUILD_FROM_SOURCE'] = '1'";
+
+  if (contents.includes("ENV['RNLLAMA_BUILD_FROM_SOURCE']")) {
+    return contents;
+  }
+
+  const marker = "ENV['RNS_GAMMA_ENABLED']";
+  if (contents.includes(marker)) {
+    return contents.replace(
+      /ENV\['RNS_GAMMA_ENABLED'\][^\n]*/,
+      (match) => `${match}\n${line}`,
+    );
+  }
+
+  return `${line}\n${contents}`;
+}
+
 function withIos(config) {
   config = withPodfile(config, (modConfig) => {
     modConfig.modResults.contents = disableDeterministicPodUuids(modConfig.modResults.contents);
     modConfig.modResults.contents = injectSpmRootFix(modConfig.modResults.contents);
     modConfig.modResults.contents = injectUseModularHeaders(modConfig.modResults.contents);
     modConfig.modResults.contents = injectMinDeploymentTarget(modConfig.modResults.contents);
+    modConfig.modResults.contents = injectLlamaBuildFromSource(modConfig.modResults.contents);
     return modConfig;
   });
 
