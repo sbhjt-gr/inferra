@@ -130,14 +130,6 @@ export default function ChatView({
   const endGap = 28;
   console.log('chat_glass', glassOverflow, bottomInset);
 
-  const listContentStyle = useMemo(
-    () => [
-      styles.messageList,
-      glassOverflow && { paddingTop: endGap + bottomInset },
-    ],
-    [glassOverflow, bottomInset],
-  );
-
   const listScrollIndicatorInsets = useMemo(
     () => (glassOverflow ? { top: bottomInset + endGap, right: 1 } : { right: 1 }),
     [glassOverflow, bottomInset],
@@ -1000,7 +992,12 @@ export default function ChatView({
         renderItem={renderMessage}
         keyExtractor={(_item: Message, idx: number) => `msg-${idx}`}
         extraData={chatId}
-        contentContainerStyle={listContentStyle}
+        contentContainerStyle={styles.messageList}
+        ListHeaderComponent={
+          glassOverflow
+            ? <View style={{ height: bottomInset + endGap }} />
+            : null
+        }
         contentInsetAdjustmentBehavior={glassOverflow ? 'never' : 'automatic'}
         inverted={true}
         maintainVisibleContentPosition={

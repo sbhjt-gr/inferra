@@ -36,7 +36,10 @@ export default function TabLayout() {
         selected: { fontFamily: fonts.medium.fontFamily, color: isIOS ? themeColors.primary : themeColors.tabBarActiveText },
       }}
     >
-      <NativeTabs.Trigger name="index" disableAutomaticContentInsets>
+      <NativeTabs.Trigger
+        name="index"
+        disableAutomaticContentInsets={isIOS}
+      >
         <NativeTabs.Trigger.Icon
           sf={{ default: 'house', selected: 'house.fill' }}
           md={{ default: 'home', selected: 'home_filled' }}
