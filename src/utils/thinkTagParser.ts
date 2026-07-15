@@ -1,10 +1,18 @@
-const OPEN_TAG = '<think>';
-const CLOSE_TAG = '</think>';
-
 type ThinkChunk =
   | { type: 'open' }
   | { type: 'close' }
   | { type: 'text'; text: string };
+
+type TagPair = { open: string; close: string };
+
+const TAG_PAIRS: TagPair[] = [
+  { open: '<think>', close: '</think>' },
+  { open: '<|channel>thought', close: '<channel|>' },
+];
+
+const LONGEST_TAG = Math.max(
+  ...TAG_PAIRS.flatMap((p) => [p.open.length, p.close.length]),
+);
 
 export class ThinkTagParser {
   private buf = '';
@@ -14,10 +22,27 @@ export class ThinkTagParser {
     const chunks: ThinkChunk[] = [];
 
     while (this.buf.length > 0) {
-      const openIdx = this.buf.indexOf(OPEN_TAG);
-      const closeIdx = this.buf.indexOf(CLOSE_TAG);
+      let bestIdx = -1;
+      let bestPair: TagPair | null = null;
+      let bestIsOpen = false;
 
-      if (openIdx === -1 && closeIdx === -1) {
+      for (const pair of TAG_PAIRS) {
+        const openIdx = this.buf.indexOf(pair.open);
+        const closeIdx = this.buf.indexOf(pair.close);
+
+        if (openIdx !== -1 && (bestIdx === -1 || openIdx < bestIdx)) {
+          bestIdx = openIdx;
+          bestPair = pair;
+          bestIsOpen = true;
+        }
+        if (closeIdx !== -1 && (bestIdx === -1 || closeIdx < bestIdx)) {
+          bestIdx = closeIdx;
+          bestPair = pair;
+          bestIsOpen = false;
+        }
+      }
+
+      if (bestIdx === -1 || !bestPair) {
         if (this.couldBePartialTag(this.buf)) {
           break;
         }
@@ -26,27 +51,14 @@ export class ThinkTagParser {
         break;
       }
 
-      let nextIdx: number;
-      let isOpen: boolean;
-
-      if (openIdx !== -1 && closeIdx !== -1) {
-        isOpen = openIdx <= closeIdx;
-        nextIdx = isOpen ? openIdx : closeIdx;
-      } else if (openIdx !== -1) {
-        isOpen = true;
-        nextIdx = openIdx;
-      } else {
-        isOpen = false;
-        nextIdx = closeIdx;
+      if (bestIdx > 0) {
+        chunks.push({ type: 'text', text: this.buf.slice(0, bestIdx) });
       }
 
-      if (nextIdx > 0) {
-        chunks.push({ type: 'text', text: this.buf.slice(0, nextIdx) });
-      }
-
-      const tag = isOpen ? OPEN_TAG : CLOSE_TAG;
-      chunks.push({ type: isOpen ? 'open' : 'close' });
-      this.buf = this.buf.slice(nextIdx + tag.length);
+      const tag = bestIsOpen ? bestPair.open : bestPair.close;
+      chunks.push({ type: bestIsOpen ? 'open' : 'close' });
+      this.buf = this.buf.slice(bestIdx + tag.length);
+      console.log(bestIsOpen ? 'think_open' : 'think_close', tag);
     }
 
     return chunks;
@@ -60,11 +72,13 @@ export class ThinkTagParser {
   }
 
   private couldBePartialTag(s: string): boolean {
-    const tail = s.slice(Math.max(0, s.length - CLOSE_TAG.length + 1));
+    const tail = s.slice(Math.max(0, s.length - LONGEST_TAG + 1));
     for (let i = 1; i <= tail.length; i++) {
       const suffix = tail.slice(tail.length - i);
-      if (OPEN_TAG.startsWith(suffix) || CLOSE_TAG.startsWith(suffix)) {
-        return true;
+      for (const pair of TAG_PAIRS) {
+        if (pair.open.startsWith(suffix) || pair.close.startsWith(suffix)) {
+          return true;
+        }
       }
     }
     return false;
