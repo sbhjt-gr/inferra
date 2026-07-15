@@ -52,8 +52,9 @@ import { appleFoundationService } from '../services/AppleFoundationService';
 import { skillManager } from '../services/SkillManager';
 import { skillActivityAdapter } from '../services/adapters/SkillActivityAdapter';
 import type { SkillActivityStep } from '../types/skillActivity';
-import { homeScreenStyles } from './homeScreenStyles';
+import { homeScreenStyles as styles } from './homeScreenStyles';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
+import { isLiquidGlassAvailable } from '../services/adapters/GlassEffectAdapter';
 
 let hasInitializedChat = false;
 
@@ -772,6 +773,12 @@ export default function HomeScreen() {
   const kbSlideAnim = useRef(new Animated.Value(0)).current;
   const isKbOpen = keyboardHeight > 0;
 
+  const useGlassLayout = Platform.OS === 'ios' && isLiquidGlassAvailable();
+  const [inputH, setInputH] = useState(72);
+  const tabClear = useGlassLayout && !isKbOpen ? insets.bottom : 0;
+  const listInset = useGlassLayout ? inputH + tabClear : 0;
+  console.log('glass_layout', useGlassLayout, inputH, tabClear, listInset);
+
   useEffect(() => {
     const offset = Platform.OS === 'ios'
       ? (isKbOpen ? keyboardHeight * 1.02 : 0)
@@ -797,7 +804,11 @@ export default function HomeScreen() {
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: themeColors.background }]}
-      edges={Platform.OS === 'ios' ? (isKbOpen ? ['left', 'right'] : ['left', 'right', 'bottom']) : ['left', 'right']}
+      edges={
+        Platform.OS === 'ios'
+          ? (useGlassLayout || isKbOpen ? ['left', 'right'] : ['left', 'right', 'bottom'])
+          : ['left', 'right']
+      }
     >
       <GradientBg />
       <AppHeader 
@@ -844,46 +855,105 @@ export default function HomeScreen() {
             style={styles.modelSelectorWrapper}
           />
       </View>
-      <Animated.View style={{ flex: 1, paddingBottom: kbSlideAnim }}>
-      <View style={styles.chatContainer}>
-        <ChatView
-           messages={messages}
-           isStreaming={isStreaming}
-           streamingMessageId={streamingMessageId}
-           streamingMessage={streamingMessage}
-           streamingThinking={streamingThinking}
-           streamingStats={streamingStats}
-           skillSteps={skillSteps}
-           onCopyText={copyToClipboard}
-           onRegenerateResponse={handleRegenerate}
-           isRegenerating={isRegenerating}
-           justCancelled={justCancelled}
-           flatListRef={flatListRef}
-           onEditMessageAndRegenerate={processMessage}
-           onStopGeneration={stopGenerationIfRunning}
-           onEditingStateChange={handleEditingStateChange}
-           onStartEdit={handleStartEdit}
-           chatId={chat?.id}
-           onSwitchBranch={handleSwitchBranch}
-           onForkChat={handleForkChat}
-        />
-      </View>
+      <Animated.View style={{ flex: 1, paddingBottom: kbSlideAnim, overflow: 'visible' }}>
+        {useGlassLayout ? (
+          <View
+            style={[styles.chatOverlayContainer, { marginBottom: -tabClear }]}
+            collapsable={false}
+          >
+            <ChatView
+              messages={messages}
+              isStreaming={isStreaming}
+              streamingMessageId={streamingMessageId}
+              streamingMessage={streamingMessage}
+              streamingThinking={streamingThinking}
+              streamingStats={streamingStats}
+              skillSteps={skillSteps}
+              onCopyText={copyToClipboard}
+              onRegenerateResponse={handleRegenerate}
+              isRegenerating={isRegenerating}
+              justCancelled={justCancelled}
+              flatListRef={flatListRef}
+              onEditMessageAndRegenerate={processMessage}
+              onStopGeneration={stopGenerationIfRunning}
+              onEditingStateChange={handleEditingStateChange}
+              onStartEdit={handleStartEdit}
+              chatId={chat?.id}
+              onSwitchBranch={handleSwitchBranch}
+              onForkChat={handleForkChat}
+              bottomInset={listInset}
+            />
+            <View
+              style={[styles.chatInputOverlay, { bottom: tabClear }]}
+              pointerEvents="box-none"
+              onLayout={(event) => {
+                const nextH = Math.ceil(event.nativeEvent.layout.height);
+                console.log('input_layout', nextH, tabClear);
+                if (nextH > 0 && nextH !== inputH) {
+                  setInputH(nextH);
+                }
+              }}
+            >
+              <ChatInput
+                onSend={handleSend}
+                disabled={isLoading || isModelLoading || isCooldown}
+                isLoading={isLoading}
+                isRegenerating={isRegenerating}
+                onCancel={handleCancelGeneration}
+                onStop={handleCancelGeneration}
+                style={{ backgroundColor: 'transparent', borderTopWidth: 0 }}
+                placeholderColor={themeColors.secondaryText}
+                isEditing={isEditingMessage}
+                editingText={editingMessageText}
+                onSaveEdit={handleSaveEdit}
+                onCancelEdit={handleCancelEdit}
+                chatId={chat.id}
+              />
+            </View>
+          </View>
+        ) : (
+          <>
+            <View style={styles.chatContainer}>
+              <ChatView
+                messages={messages}
+                isStreaming={isStreaming}
+                streamingMessageId={streamingMessageId}
+                streamingMessage={streamingMessage}
+                streamingThinking={streamingThinking}
+                streamingStats={streamingStats}
+                skillSteps={skillSteps}
+                onCopyText={copyToClipboard}
+                onRegenerateResponse={handleRegenerate}
+                isRegenerating={isRegenerating}
+                justCancelled={justCancelled}
+                flatListRef={flatListRef}
+                onEditMessageAndRegenerate={processMessage}
+                onStopGeneration={stopGenerationIfRunning}
+                onEditingStateChange={handleEditingStateChange}
+                onStartEdit={handleStartEdit}
+                chatId={chat?.id}
+                onSwitchBranch={handleSwitchBranch}
+                onForkChat={handleForkChat}
+              />
+            </View>
 
-        <ChatInput
-          onSend={handleSend}
-          disabled={isLoading || isModelLoading || isCooldown}
-          isLoading={isLoading}
-          isRegenerating={isRegenerating}
-          onCancel={handleCancelGeneration}
-          onStop={handleCancelGeneration}
-          style={{ backgroundColor: themeColors.background, borderTopColor: themeColors.borderColor }}
-          placeholderColor={themeColors.secondaryText}
-          isEditing={isEditingMessage}
-          editingText={editingMessageText}
-          onSaveEdit={handleSaveEdit}
-          onCancelEdit={handleCancelEdit}
-          chatId={chat.id}
-        />
+            <ChatInput
+              onSend={handleSend}
+              disabled={isLoading || isModelLoading || isCooldown}
+              isLoading={isLoading}
+              isRegenerating={isRegenerating}
+              onCancel={handleCancelGeneration}
+              onStop={handleCancelGeneration}
+              style={{ backgroundColor: themeColors.background, borderTopColor: themeColors.borderColor }}
+              placeholderColor={themeColors.secondaryText}
+              isEditing={isEditingMessage}
+              editingText={editingMessageText}
+              onSaveEdit={handleSaveEdit}
+              onCancelEdit={handleCancelEdit}
+              chatId={chat.id}
+            />
+          </>
+        )}
       </Animated.View>
 
       <CopyToast visible={showCopyToast} message={copyToastMessage} />
@@ -906,6 +976,4 @@ export default function HomeScreen() {
       />
     </SafeAreaView>
   );
-}
-
-const styles = homeScreenStyles; 
+} 

@@ -15,6 +15,19 @@ export const homeScreenStyles = StyleSheet.create({
   chatContainer: {
     flex: 1,
   },
+  chatOverlayContainer: {
+    flex: 1,
+    position: 'relative',
+    backgroundColor: 'transparent',
+    overflow: 'visible',
+  },
+  chatInputOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 2,
+  },
   modelSelectorWrapper: {
     marginBottom: 2,
     borderRadius: 12,

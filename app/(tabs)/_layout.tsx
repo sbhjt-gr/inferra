@@ -23,7 +23,6 @@ export default function TabLayout() {
       backBehavior="history"
       labelVisibilityMode="labeled"
       backgroundColor={isIOS ? undefined : themeColors.tabBarBackground}
-      disableTransparentOnScrollEdge={true}
       unstable_nativeProps={{ ios: { tabBarControllerMode: 'tabBar' } }}
       tintColor={isIOS ? themeColors.primary : themeColors.tabBarActiveText}
       indicatorColor="rgba(255, 255, 255, 0.15)"
@@ -37,7 +36,7 @@ export default function TabLayout() {
         selected: { fontFamily: fonts.medium.fontFamily, color: isIOS ? themeColors.primary : themeColors.tabBarActiveText },
       }}
     >
-      <NativeTabs.Trigger name="index">
+      <NativeTabs.Trigger name="index" disableAutomaticContentInsets>
         <NativeTabs.Trigger.Icon
           sf={{ default: 'house', selected: 'house.fill' }}
           md={{ default: 'home', selected: 'home_filled' }}
@@ -45,7 +44,7 @@ export default function TabLayout() {
         <NativeTabs.Trigger.Label>Chat</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger name="models">
+      <NativeTabs.Trigger name="models" disableTransparentOnScrollEdge>
         <NativeTabs.Trigger.Icon
           sf={{ default: 'cube', selected: 'cube.fill' }}
           md="deployed_code"
@@ -53,7 +52,7 @@ export default function TabLayout() {
         <NativeTabs.Trigger.Label>Models</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger name="tools">
+      <NativeTabs.Trigger name="tools" disableTransparentOnScrollEdge>
         <NativeTabs.Trigger.Icon
           sf={{ default: 'wrench.and.screwdriver', selected: 'wrench.and.screwdriver.fill' }}
           md="build"
@@ -61,7 +60,7 @@ export default function TabLayout() {
         <NativeTabs.Trigger.Label>Tools</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger name="settings">
+      <NativeTabs.Trigger name="settings" disableTransparentOnScrollEdge>
         <NativeTabs.Trigger.Icon
           sf={{ default: 'gearshape', selected: 'gearshape.fill' }}
           md="settings"
