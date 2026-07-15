@@ -30,7 +30,6 @@ import CameraOverlay from '../CameraOverlay';
 import { llamaManager } from '../../utils/LlamaManager';
 import { Text } from 'react-native-paper';
 import Dialog from '../Dialog';
-import { modelDownloader } from '../../services/ModelDownloader';
 import { engineService } from '../../services/runtime-service';
 import AITermsDialog from './AITermsDialog';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -45,10 +44,9 @@ import { attachStore } from '../../services/adapters/AttachStore';
 import { sttAdapter } from '../../services/adapters/SttAdapter';
 import { resolveAttachCaps } from '../../services/AttachmentCaps';
 import { buildAttachMessage, withFallback } from '../../services/AttachmentCompat';
-import { performOCROnImage } from '../../utils/ImageProcessingUtils';
 import AttachFallbackDialog from './AttachFallbackDialog';
 import { useKeyboard } from '../../hooks/useKeyboard';
-import type { AttachKind, AttachMode, ChatAttach } from '../../types/attachment';
+import type { AttachMode, ChatAttach } from '../../types/attachment';
 
 type ChatInputProps = {
   onSend: (text: string) => void;
@@ -65,13 +63,6 @@ type ChatInputProps = {
   onCancelEdit?: () => void;
   chatId?: string;
 };
-
-interface StoredModel {
-  name: string;
-  path: string;
-  size: number;
-  modified: string;
-}
 
 const formatDuration = (ms: number): string => {
   const totalSec = Math.max(0, Math.floor(ms / 1000));
@@ -126,10 +117,6 @@ export default function ChatInput({
   const [fileModalVisible, setFileModalVisible] = useState(false);
   const [cameraVisible, setCameraVisible] = useState(false);
   const [selectedFile, setSelectedFile] = useState<{uri: string, name?: string} | null>(null);
-  const [mmProjSelectorVisible, setMmProjSelectorVisible] = useState(false);
-  const [storedModels, setStoredModels] = useState<StoredModel[]>([]);
-  const [pendingMultimodalAction, setPendingMultimodalAction] = useState<'camera' | 'file' | null>(null);
-  const [pendingFileForMultimodal, setPendingFileForMultimodal] = useState<{uri: string, name?: string} | null>(null);
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
   const [useRagForUpload, setUseRagForUpload] = useState(false);
   const [pendingAttachment, setPendingAttachment] = useState<ChatAttach | null>(null);
@@ -142,7 +129,7 @@ export default function ChatInput({
   const attachmentMenuAnim = useRef(new Animated.Value(0)).current;
   
   const { theme: currentTheme } = useTheme();
-  const { selectedModelPath, isModelLoading, loadModel, isMultimodalEnabled } = useModel();
+  const { selectedModelPath, isModelLoading, isMultimodalEnabled } = useModel();
   const themeColors = useMemo(() => theme[currentTheme as 'light' | 'dark'], [currentTheme]);
   const isDark = currentTheme === 'dark';
   const isRemoteModel = isRemoteProvider(selectedModelPath);
@@ -311,33 +298,6 @@ export default function ChatInput({
 
   const hideDialog = () => setDialogVisible(false);
 
-  const loadStoredModels = async () => {
-    try {
-      const models = await modelDownloader.getStoredModels();
-      const projectorModels = models.filter(model => 
-        model.name.toLowerCase().includes('proj') || 
-        model.name.toLowerCase().includes('mmproj') ||
-        model.name.toLowerCase().includes('vision')
-      );
-      setStoredModels(projectorModels);
-    } catch (error) {
-      setStoredModels([]);
-    }
-  };
-
-
-
-  const checkMultimodalSupport = (): boolean => {
-    if (!selectedModelPath) return false;
-
-    const isOnlineModel = isOnlineProvider(selectedModelPath);
-    if (isOnlineModel) {
-      return true;
-    }
-
-    return isMultimodalEnabled;
-  };
-
   const attachCaps = useMemo(() => {
     const support = llamaManager.getMultimodalSupport();
     return resolveAttachCaps(selectedModelPath, {
@@ -382,71 +342,6 @@ export default function ChatInput({
     const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff', '.tif'];
     const lowerCaseName = fileName.toLowerCase();
     return imageExtensions.some(ext => lowerCaseName.endsWith(ext));
-  };
-
-  const showMmProjSelector = async (action: 'camera' | 'file') => {
-    setPendingMultimodalAction(action);
-    await loadStoredModels();
-    setMmProjSelectorVisible(true);
-  };
-
-  const handleMmProjSelect = async (projectorModel: StoredModel) => {
-    setMmProjSelectorVisible(false);
-    
-    if (!selectedModelPath) return;
-    
-    try {
-      const success = await loadModel(selectedModelPath, projectorModel.path);
-      if (success) {
-        if (pendingMultimodalAction === 'camera') {
-          setCameraVisible(true);
-        } else if (pendingMultimodalAction === 'file') {
-          if (pendingFileForMultimodal) {
-            setSelectedFile(pendingFileForMultimodal);
-            setFileModalVisible(true);
-            setPendingFileForMultimodal(null);
-          } else {
-            pickDocument();
-          }
-        }
-      } else {
-        showDialog(
-          'Loading Failed',
-          'Failed to load the model with multimodal support. Please try again.'
-        );
-      }
-    } catch (error) {
-      showDialog(
-        'Loading Error',
-        'An error occurred while loading the model with multimodal support.'
-      );
-    } finally {
-      setPendingMultimodalAction(null);
-    }
-  };
-
-  const handleMmProjSkip = () => {
-    setMmProjSelectorVisible(false);
-    
-    if (pendingMultimodalAction === 'camera') {
-      setCameraVisible(true);
-    } else if (pendingMultimodalAction === 'file') {
-      if (pendingFileForMultimodal) {
-        setSelectedFile(pendingFileForMultimodal);
-        setFileModalVisible(true);
-        setPendingFileForMultimodal(null);
-      } else {
-        pickDocument();
-      }
-    }
-    
-    setPendingMultimodalAction(null);
-  };
-
-  const handleMmProjSelectorClose = () => {
-    setMmProjSelectorVisible(false);
-    setPendingMultimodalAction(null);
-    setPendingFileForMultimodal(null);
   };
 
   const handleToggleRagForUpload = useCallback((value: boolean) => {
@@ -922,16 +817,10 @@ export default function ChatInput({
       return;
     }
 
-    const mode = attachCaps.modeFor('image');
-    console.log('attach_camera_mode', mode);
-    if (mode === 'needs-mmproj') {
-      showMmProjSelector('camera');
-      return;
-    }
-    
+    console.log('attach_camera_open');
     setCameraVisible(true);
     setShowAttachmentMenu(false);
-  }, [selectedModelPath, attachCaps, showDialog]);
+  }, [selectedModelPath, showDialog]);
 
   const closeCamera = useCallback(() => {
     setCameraVisible(false);
@@ -958,19 +847,6 @@ export default function ChatInput({
         console.log('attach_pick_file', fileName);
 
         if (isImageFile(fileName)) {
-          const mode = attachCaps.modeFor('image');
-          if (mode === 'needs-mmproj') {
-            setPendingFileForMultimodal({
-              uri: file.uri,
-              name: fileName
-            });
-            showMmProjSelector('file');
-            return;
-          }
-          if (mode === 'needs-fallback' || mode === 'unsupported') {
-            await queueAttach(file.uri, fileName);
-            return;
-          }
           setSelectedFile({
             uri: file.uri,
             name: fileName
@@ -1102,42 +978,6 @@ export default function ChatInput({
     closeFallback();
     setPendingAttachment(null);
   }, [closeFallback]);
-
-  const handleFallbackMmproj = useCallback(() => {
-    console.log('attach_fallback_mmproj');
-    const attach = fallbackAttach;
-    closeFallback();
-    if (attach?.kind === 'image' || attach?.kind === 'audio') {
-      if (attach.uri) {
-        setPendingFileForMultimodal({ uri: attach.uri, name: attach.name });
-        showMmProjSelector('file');
-      } else {
-        showMmProjSelector('camera');
-      }
-    }
-  }, [fallbackAttach, closeFallback]);
-
-  const handleFallbackOcr = useCallback(async () => {
-    if (!fallbackAttach?.uri) {
-      console.log('attach_ocr_missing');
-      closeFallback();
-      return;
-    }
-    try {
-      setFallbackBusy(true);
-      console.log('attach_ocr_start');
-      const text = await performOCROnImage(fallbackAttach.uri);
-      const updated = withFallback(fallbackAttach, { mode: 'ocr', text });
-      setPendingAttachment(updated);
-      console.log('attach_ocr_done', text.length);
-      closeFallback();
-      setTimeout(() => inputRef.current?.focus(), 100);
-    } catch (error) {
-      console.log('attach_ocr_error', error instanceof Error ? error.message : error);
-      showDialog('OCR Failed', 'Could not extract text from this image.');
-      setFallbackBusy(false);
-    }
-  }, [fallbackAttach, closeFallback, showDialog]);
 
   const handleFallbackStt = useCallback(async () => {
     if (!fallbackAttach?.uri) {
@@ -1750,90 +1590,17 @@ export default function ChatInput({
 
       <AttachFallbackDialog
         visible={fallbackVisible}
-        kind={(fallbackAttach?.kind || 'unknown') as AttachKind}
+        kind={fallbackAttach?.kind || 'unknown'}
         fileName={fallbackAttach?.name || 'file'}
         reason={
-          fallbackReason === 'needs-mmproj'
-            ? 'needs-mmproj'
-            : fallbackReason === 'unsupported'
-              ? 'unsupported'
-              : 'needs-fallback'
+          fallbackReason === 'unsupported'
+            ? 'unsupported'
+            : 'needs-fallback'
         }
-        onOcr={fallbackBusy ? undefined : handleFallbackOcr}
         onStt={fallbackBusy ? undefined : handleFallbackStt}
         onRemove={handleFallbackRemove}
-        onLoadMmproj={handleFallbackMmproj}
         onDismiss={closeFallback}
       />
-
-      <Dialog visible={mmProjSelectorVisible} onDismiss={handleMmProjSelectorClose}
-        primaryButtonText="Skip"
-        onPrimaryPress={handleMmProjSkip}
-        secondaryButtonText="Cancel"
-        onSecondaryPress={handleMmProjSelectorClose}
-      >
-          <Dialog.Title style={{ color: isDark ? '#ffffff' : '#000000' }}>
-            Select Multimodal Projector
-          </Dialog.Title>
-          <Dialog.Content>
-            <Text style={{ marginBottom: 16, color: isDark ? '#ffffff' : '#000000' }}>
-              Choose a projector (mmproj) model to enable multimodal capabilities:
-            </Text>
-            {storedModels.length === 0 ? (
-              <View style={styles.emptyState}>
-                <MaterialCommunityIcons 
-                  name="cube-outline" 
-                  size={48} 
-                  color={isDark ? '#666' : '#ccc'} 
-                />
-                <Text style={[
-                  styles.emptyStateText,
-                  { color: isDark ? '#ccc' : '#666' }
-                ]}>
-                  No projector models found in your stored models.{'\n'}
-                </Text>
-              </View>
-            ) : (
-              storedModels.map((model) => (
-                <TouchableOpacity
-                  key={model.path}
-                  style={[
-                    styles.projectorModelItem,
-                    { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)' }
-                  ]}
-                  onPress={() => handleMmProjSelect(model)}
-                >
-                                     <View style={[styles.projectorModelIcon, { backgroundColor: getThemeAwareColor('#4a0660', currentTheme) }]}>
-                     <MaterialCommunityIcons
-                       name="cube-outline"
-                       size={16}
-                       color="#ffffff"
-                     />
-                   </View>
-                  <View style={styles.projectorModelInfo}>
-                    <Text style={[
-                      styles.projectorModelName,
-                      { color: isDark ? '#fff' : '#000' }
-                    ]}>
-                      {model.name}
-                    </Text>
-                    <Text style={[
-                      styles.projectorModelSize,
-                      { color: isDark ? '#ccc' : '#666' }
-                    ]}>
-                      {(model.size / (1024 * 1024)).toFixed(1)} MB
-                    </Text>
-                  </View>
-                  <MaterialCommunityIcons
-                    name="chevron-right"
-                    size={20}
-                    color={isDark ? '#666' : '#ccc'}
-                  />
-                </TouchableOpacity>
-              ))
-            )}
-          </Dialog.Content>
-      </Dialog>
 
       <AITermsDialog
         visible={showAITermsDialog}
@@ -1949,43 +1716,6 @@ const styles = StyleSheet.create({
   attachmentMenuText: {
     fontSize: 12,
     fontWeight: '500',
-  },
-  projectorModelItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    marginVertical: 2,
-    borderRadius: 12,
-  },
-  projectorModelIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  projectorModelInfo: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  projectorModelName: {
-    fontSize: 16,
-    fontWeight: '500',
-    lineHeight: 20,
-  },
-  projectorModelSize: {
-    fontSize: 12,
-    marginTop: 2,
-    lineHeight: 16,
-  },
-  emptyState: {
-    paddingVertical: 24,
-    alignItems: 'center',
-  },
-  emptyStateText: {
-    marginTop: 12,
-    textAlign: 'center',
-    lineHeight: 20,
   },
   editingActions: {
     flexDirection: 'row',

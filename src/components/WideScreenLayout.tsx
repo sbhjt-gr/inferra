@@ -126,13 +126,11 @@ export default function WideScreenLayout() {
     icon,
     label,
     isActive,
-    showBeta = false,
   }: {
     tab: TabType;
     icon: string;
     label: string;
     isActive: boolean;
-    showBeta?: boolean;
   }) => (
     <TouchableOpacity
       style={[
@@ -150,11 +148,6 @@ export default function WideScreenLayout() {
           size={22}
           color={isActive ? activeColor : inactiveColor}
         />
-        {showBeta && (
-          <View style={styles.betaBadge}>
-            <Text style={styles.betaText}>Beta</Text>
-          </View>
-        )}
       </View>
       <Text
         style={[
@@ -296,20 +289,6 @@ const styles = StyleSheet.create({
   },
   iconContainer: {
     position: 'relative',
-  },
-  betaBadge: {
-    position: 'absolute',
-    top: -6,
-    right: -14,
-    backgroundColor: '#FF6B00',
-    borderRadius: 4,
-    paddingHorizontal: 3,
-    paddingVertical: 1,
-  },
-  betaText: {
-    color: '#FFFFFF',
-    fontSize: 7,
-    fontWeight: '700',
   },
   tabLabel: {
     fontSize: 12,

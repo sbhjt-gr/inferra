@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -55,12 +55,35 @@ export default function ImageProcessingSelector({
   const { selectedModelPath, loadModel, isMultimodalEnabled } = useModel();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
   const isDark = currentTheme === 'dark';
+  const imageMode = useMemo(() => {
+    const support = llamaManager.getMultimodalSupport();
+    return resolveAttachCaps(selectedModelPath, {
+      mmprojReady: isMultimodalEnabled,
+      llamaVision: support.vision,
+      llamaAudio: support.audio,
+      litertMultimodal: (() => {
+        const name = selectedModelPath?.toLowerCase() || '';
+        return name.includes('3n') || name.includes('gemma3') || name.includes('gemma-4') || name.includes('gemma4');
+      })(),
+    }).modeFor('image');
+  }, [selectedModelPath, isMultimodalEnabled]);
+  const canUseMultimodal = imageMode === 'native' || imageMode === 'needs-mmproj';
 
   useEffect(() => {
-    if (onToggleRag) {
-      onToggleRag(false);
+    if (!onToggleRag || selectedMode !== 'multimodal') {
+      return;
     }
-  }, [onToggleRag]);
+    console.log('rag_off_multimodal');
+    onToggleRag(false);
+  }, [selectedMode, onToggleRag]);
+
+  const disableRagForMultimodal = () => {
+    if (!onToggleRag) {
+      return;
+    }
+    console.log('rag_off_multimodal');
+    onToggleRag(false);
+  };
 
   const loadStoredModels = async () => {
     try {
@@ -83,23 +106,18 @@ export default function ImageProcessingSelector({
       if (!selectedModelPath) {
         return;
       }
-      
-      const isNonLocalModel = ['gemini', 'chatgpt', 'claude', 'apple-foundation'].includes(selectedModelPath);
-      
-      if (isNonLocalModel) {
+
+      if (imageMode === 'native') {
+        disableRagForMultimodal();
         onModeChange('multimodal');
         onMultimodalReady?.();
         return;
       }
-      
-      if (!isMultimodalEnabled) {
+
+      if (imageMode === 'needs-mmproj') {
         await loadStoredModels();
         setMmProjSelectorVisible(true);
-        return;
       }
-      
-      onModeChange('multimodal');
-      onMultimodalReady?.();
     } else if (mode === 'ocr') {
       onModeChange('ocr');
     }
@@ -113,6 +131,7 @@ export default function ImageProcessingSelector({
       const success = await loadModel(selectedModelPath, projectorModel.path);
       
       if (success) {
+        disableRagForMultimodal();
         onModeChange('multimodal');
         onMultimodalReady?.();
       }
@@ -143,21 +162,6 @@ export default function ImageProcessingSelector({
       default:
         return '';
     }
-  };
-
-  const canUseMultimodal = (): boolean => {
-    if (!selectedModelPath) return false;
-    const support = llamaManager.getMultimodalSupport();
-    const caps = resolveAttachCaps(selectedModelPath, {
-      mmprojReady: isMultimodalEnabled,
-      llamaVision: support.vision,
-      llamaAudio: support.audio,
-      litertMultimodal: (() => {
-        const name = selectedModelPath.toLowerCase();
-        return name.includes('3n') || name.includes('gemma3') || name.includes('gemma-4') || name.includes('gemma4');
-      })(),
-    });
-    return caps.modeFor('image') === 'native';
   };
 
   const getMultimodalTitle = (): string => {
@@ -236,11 +240,11 @@ export default function ImageProcessingSelector({
               borderColor: selectedMode === 'multimodal'
                 ? getThemeAwareColor('#4a0660', currentTheme)
                 : isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
-              opacity: disabled || !canUseMultimodal() ? 0.5 : 1,
+              opacity: disabled || !canUseMultimodal ? 0.5 : 1,
             }
           ]}
           onPress={() => handleModePress('multimodal')}
-          disabled={disabled || !canUseMultimodal()}
+          disabled={disabled || !canUseMultimodal}
         >
           <View style={[
             styles.modeIcon,
@@ -268,7 +272,7 @@ export default function ImageProcessingSelector({
               {getModeDescription('multimodal')}
             </Text>
           </View>
-          {!canUseMultimodal() && (
+          {!canUseMultimodal && (
             <View style={styles.lockIcon}>
               <MaterialCommunityIcons
                 name="lock-outline"
@@ -291,12 +295,7 @@ export default function ImageProcessingSelector({
           ]}
         >
           <View style={styles.ragTextContainer}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Text style={[styles.ragTitle, { color: themeColors.text }]}>Use RAG</Text>
-              <View style={{ backgroundColor: '#660880', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4 }}>
-                <Text style={{ color: '#ffffff', fontSize: 9, fontWeight: '700', letterSpacing: 0.5 }}>BETA</Text>
-              </View>
-            </View>
+            <Text style={[styles.ragTitle, { color: themeColors.text }]}>Use RAG</Text>
             <Text style={[styles.ragDescription, { color: isDark ? '#bbbbbb' : '#666666' }]}>Store extracted text for this chat.</Text>
           </View>
           <AppSwitch

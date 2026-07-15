@@ -15,6 +15,7 @@ import {
   ScrollView,
   Image,
 } from 'react-native';
+import { AppSwitch } from '../services/adapters/SwitchAdapter';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import Slider from '@react-native-community/slider';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
@@ -257,15 +258,51 @@ export default function CameraOverlay({ visible, onClose, onPhotoTaken, useRag =
                 <Text style={[styles.promptTitle, { color: themeColors.text }]}>
                   Configure Image Processing
                 </Text>
+
+                {onToggleRag && (
+                  ragEnabled ? (
+                    <View
+                      style={[
+                        styles.ragRow,
+                        {
+                          backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.02)',
+                          borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
+                        },
+                      ]}
+                    >
+                      <View style={styles.ragTextContainer}>
+                        <Text style={[styles.ragTitle, { color: themeColors.text }]}>Use RAG</Text>
+                        <Text style={[styles.ragDescription, { color: isDark ? '#bbbbbb' : '#666666' }]}>Store this file for smarter answers in this chat.</Text>
+                      </View>
+                      <AppSwitch
+                        value={useRag}
+                        onValueChange={onToggleRag}
+                        disabled={ragToggleDisabled}
+                      />
+                    </View>
+                  ) : (
+                    <View
+                      style={[
+                        styles.ragRow,
+                        {
+                          backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.02)',
+                          borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
+                        },
+                      ]}
+                    >
+                      <MaterialCommunityIcons name="information-outline" size={20} color={isDark ? '#888888' : '#666666'} />
+                      <View style={[styles.ragTextContainer, { paddingLeft: 8 }]}>
+                        <Text style={[styles.ragTitle, { color: isDark ? '#888888' : '#666666' }]}>RAG not available</Text>
+                        <Text style={[styles.ragDescription, { color: isDark ? '#888888' : '#666666' }]}>Local RAG is not available for remote models.</Text>
+                      </View>
+                    </View>
+                  )
+                )}
                 
                 <ImageProcessingSelector
                   selectedMode={processingMode}
                   onModeChange={setProcessingMode}
                   disabled={isProcessing}
-                  useRag={useRag}
-                  onToggleRag={onToggleRag}
-                  ragEnabled={ragEnabled}
-                  ragToggleDisabled={ragToggleDisabled}
                 />
                 
                 <Text style={[styles.promptSubtitle, { color: themeColors.text }]}>
@@ -490,6 +527,29 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 10,
+  },
+  ragRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 12,
+    gap: 16,
+  },
+  ragTextContainer: {
+    flex: 1,
+  },
+  ragTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  ragDescription: {
+    fontSize: 13,
+    lineHeight: 18,
   },
   promptInput: {
     width: '100%',

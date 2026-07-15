@@ -12,11 +12,9 @@ type Props = {
   visible: boolean;
   kind: AttachKind;
   fileName: string;
-  reason: 'needs-fallback' | 'unsupported' | 'needs-mmproj';
-  onOcr?: () => void;
+  reason: 'needs-fallback' | 'unsupported';
   onStt?: () => void;
   onRemove: () => void;
-  onLoadMmproj?: () => void;
   onDismiss: () => void;
 };
 
@@ -25,32 +23,25 @@ export default function AttachFallbackDialog({
   kind,
   fileName,
   reason,
-  onOcr,
   onStt,
   onRemove,
-  onLoadMmproj,
   onDismiss,
 }: Props) {
   const { theme: currentTheme } = useTheme();
   const colors = theme[currentTheme as 'light' | 'dark'];
   const isDark = currentTheme === 'dark';
 
-  const canOcr = kind === 'image' || kind === 'pdf';
   const canStt = kind === 'audio';
 
   const title =
-    reason === 'needs-mmproj'
-      ? 'Projector required'
-      : reason === 'unsupported'
-        ? 'Attachment unsupported'
-        : 'Native media unavailable';
+    reason === 'unsupported'
+      ? 'Attachment unsupported'
+      : 'Native media unavailable';
 
   const description =
-    reason === 'needs-mmproj'
-      ? `Load an mmproj projector before using ${kind} with this llama.cpp model.`
-      : reason === 'unsupported'
-        ? `This model cannot use ${fileName}. Remove it or switch models.`
-        : `This model cannot use ${kind} natively. Choose a text fallback or remove the attachment.`;
+    reason === 'unsupported'
+      ? `This model cannot use ${fileName}. Remove it or switch models.`
+      : `This model cannot use ${kind} natively. Choose a text fallback or remove the attachment.`;
 
   if (visible) {
     console.log('attach_fallback_show', kind, reason);
@@ -67,30 +58,10 @@ export default function AttachFallbackDialog({
       onSecondaryPress={onDismiss}
     >
       <View style={styles.body}>
-        {reason === 'needs-mmproj' && onLoadMmproj ? (
-          <ActionBtn
-            icon="projector"
-            label="Load mmproj"
-            color={colors.primary}
-            bg={isDark ? colors.cardBackground : '#F2F2F7'}
-            onPress={onLoadMmproj}
-          />
-        ) : null}
-
-        {canOcr && onOcr ? (
-          <ActionBtn
-            icon="text-recognition"
-            label={reason === 'needs-mmproj' ? 'Use OCR instead' : 'Use OCR'}
-            color={colors.primary}
-            bg={isDark ? colors.cardBackground : '#F2F2F7'}
-            onPress={onOcr}
-          />
-        ) : null}
-
         {canStt && onStt ? (
           <ActionBtn
             icon="microphone-message"
-            label={reason === 'needs-mmproj' ? 'Use STT instead' : 'Use STT'}
+            label="Use STT"
             color={colors.primary}
             bg={isDark ? colors.cardBackground : '#F2F2F7'}
             onPress={onStt}

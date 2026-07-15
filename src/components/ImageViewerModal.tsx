@@ -178,12 +178,7 @@ export default function ImageViewerModal({
               ]}
             >
               <View style={styles.ragTextContainer}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={[styles.ragTitle, { color: themeColors.text }]}>Use RAG</Text>
-                  <View style={{ backgroundColor: '#660880', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4 }}>
-                    <Text style={{ color: '#ffffff', fontSize: 9, fontWeight: '700', letterSpacing: 0.5 }}>BETA</Text>
-                  </View>
-                </View>
+                <Text style={[styles.ragTitle, { color: themeColors.text }]}>Use RAG</Text>
                 <Text style={[styles.ragDescription, { color: isDark ? '#bbbbbb' : '#666666' }]}>Store this file for smarter answers in this chat.</Text>
               </View>
               <AppSwitch
@@ -213,10 +208,6 @@ export default function ImageViewerModal({
             selectedMode={processingMode}
             onModeChange={setProcessingMode}
             disabled={isProcessing}
-            useRag={useRag}
-            onToggleRag={onToggleRag}
-            ragEnabled={ragEnabled}
-            ragToggleDisabled={ragToggleDisabled}
           />
           
           <Text style={[styles.inputLabel, { color: themeColors.text }]}>
