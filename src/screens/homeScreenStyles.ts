@@ -21,10 +21,6 @@ export const homeScreenStyles = StyleSheet.create({
     backgroundColor: 'transparent',
     overflow: 'visible',
   },
-  glassBg: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: -1,
-  },
   chatInputOverlay: {
     position: 'absolute',
     left: 0,

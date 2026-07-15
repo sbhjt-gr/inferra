@@ -26,6 +26,7 @@ import chatManager from '../../utils/ChatManager';
 import { useRouter } from 'expo-router';
 import * as MediaLibrary from 'expo-media-library';
 import type { SkillActivityStep } from '../../types/skillActivity';
+import { ScrollViewMarker } from '../../services/adapters/NativeLayoutAdapter';
 
 export type Message = {
   id: string;
@@ -990,7 +991,7 @@ export default function ChatView({
       );
     }
 
-    return (
+    const list = (
       <FlatList
         ref={flatListRef}
         style={glassOverflow ? styles.listGlass : styles.list}
@@ -1066,6 +1067,19 @@ export default function ChatView({
           }, 32);
         }}
       />
+    );
+
+    if (!glassOverflow) {
+      return list;
+    }
+
+    return (
+      <ScrollViewMarker
+        style={styles.list}
+        scrollEdgeEffects={{ bottom: 'hidden' }}
+      >
+        {list}
+      </ScrollViewMarker>
     );
   };
 

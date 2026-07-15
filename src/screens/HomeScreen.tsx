@@ -55,8 +55,7 @@ import type { SkillActivityStep } from '../types/skillActivity';
 import { homeScreenStyles as styles } from './homeScreenStyles';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { isLiquidGlassAvailable } from '../services/adapters/GlassEffectAdapter';
-
-const FLOAT_TAB = 62;
+import { NativeSafeAreaView } from '../services/adapters/NativeLayoutAdapter';
 
 let hasInitializedChat = false;
 
@@ -777,11 +776,8 @@ export default function HomeScreen() {
 
   const useGlassLayout = Platform.OS === 'ios' && isLiquidGlassAvailable();
   const [inputH, setInputH] = useState(72);
-  const homePad = useGlassLayout && !isKbOpen ? insets.bottom : 0;
-  const floatPad = useGlassLayout && !isKbOpen ? FLOAT_TAB : 0;
-  const tabClear = homePad + floatPad;
-  const listInset = useGlassLayout ? inputH + tabClear : 0;
-  console.log('glass_layout', useGlassLayout, inputH, homePad, floatPad, tabClear, listInset);
+  const listInset = useGlassLayout ? inputH : 0;
+  console.log('glass_layout', useGlassLayout, inputH, listInset);
 
   useEffect(() => {
     const offset = Platform.OS === 'ios'
@@ -807,22 +803,13 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView
-      style={[
-        styles.container,
-        { backgroundColor: useGlassLayout ? 'transparent' : themeColors.background },
-      ]}
+      style={[styles.container, { backgroundColor: themeColors.background }]}
       edges={
         Platform.OS === 'ios'
           ? (useGlassLayout || isKbOpen ? ['left', 'right'] : ['left', 'right', 'bottom'])
           : ['left', 'right']
       }
     >
-      {useGlassLayout ? (
-        <View
-          pointerEvents="none"
-          style={[styles.glassBg, { backgroundColor: themeColors.background }]}
-        />
-      ) : null}
       <GradientBg />
       <AppHeader 
         onNewChat={startNewChat}
@@ -893,12 +880,13 @@ export default function HomeScreen() {
               onForkChat={handleForkChat}
               bottomInset={listInset}
             />
-            <View
-              style={[styles.chatInputOverlay, { bottom: tabClear }]}
+            <NativeSafeAreaView
+              style={styles.chatInputOverlay}
+              edges={{ bottom: true }}
               pointerEvents="box-none"
               onLayout={(event) => {
                 const nextH = Math.ceil(event.nativeEvent.layout.height);
-                console.log('input_layout', nextH, tabClear);
+                console.log('input_layout', nextH);
                 if (nextH > 0 && nextH !== inputH) {
                   setInputH(nextH);
                 }
@@ -919,7 +907,7 @@ export default function HomeScreen() {
                 onCancelEdit={handleCancelEdit}
                 chatId={chat.id}
               />
-            </View>
+            </NativeSafeAreaView>
           </View>
         ) : (
           <>
