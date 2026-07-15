@@ -41,7 +41,6 @@ const RuntimeSection: React.FC<RuntimeProps> = ({
       icon: 'apple',
       enabled: true,
       requiresMLX: true,
-      beta: true,
     },
     {
       id: 'litert' as const,
@@ -49,7 +48,6 @@ const RuntimeSection: React.FC<RuntimeProps> = ({
       description: 'LiteRT-LM runtime for .litertlm and .task models',
       icon: 'lightning-bolt-outline',
       enabled: true,
-      beta: true,
     },
   ], []);
 
@@ -90,11 +88,6 @@ const RuntimeSection: React.FC<RuntimeProps> = ({
             >
               {engine.name}
             </Text>
-            {engine.beta && (
-              <View style={[styles.tag, { backgroundColor: themeColors.primary + '20' }]}>
-                <Text style={[styles.tagText, { color: themeColors.primary }]}>Beta</Text>
-              </View>
-            )}
           </View>
           <Text
             style={[
@@ -264,15 +257,6 @@ const styles = StyleSheet.create({
   engineName: {
     fontSize: 16,
     fontWeight: '500',
-  },
-  tag: {
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-  },
-  tagText: {
-    fontSize: 11,
-    fontWeight: '600',
   },
   engineDescription: {
     fontSize: 14,
