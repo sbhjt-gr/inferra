@@ -92,7 +92,10 @@ export const createMultimodalMessage = (imageUri: string, userPrompt: string): s
         type: 'text',
         text: userPrompt
       }
-    ]
+    ],
+    metadata: {
+      ragDisabled: true,
+    },
   };
   
   return JSON.stringify(messageObject);

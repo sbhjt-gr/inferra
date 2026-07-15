@@ -51,7 +51,7 @@ export const normalizeAttachContent = (content: string): string => {
       contentParts.push({ type: 'audio', uri: audio.uri });
     }
     contentParts.push({ type: 'text', text: texts.join('\n\n') || 'Please process this media.' });
-    return JSON.stringify({ type: 'multimodal', content: contentParts });
+    return JSON.stringify({ type: 'multimodal', content: contentParts, metadata: { ragDisabled: true } });
   }
 
   if (audios.length === 1 && remotes.length === 0) {
@@ -66,7 +66,7 @@ export const normalizeAttachContent = (content: string): string => {
   if (audios.length > 0) {
     const contentParts: any[] = audios.map(a => ({ type: 'audio', uri: a.uri }));
     contentParts.push({ type: 'text', text: texts.join('\n\n') || 'Please process this audio.' });
-    return JSON.stringify({ type: 'multimodal', content: contentParts });
+    return JSON.stringify({ type: 'multimodal', content: contentParts, metadata: { ragDisabled: true } });
   }
 
   if (remotes.length === 1) {

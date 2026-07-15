@@ -736,7 +736,8 @@ export default function ChatInput({
         const parsed = JSON.parse(messageContent);
 
         if (parsed?.type === 'multimodal') {
-          return { finalMessage: messageContent, cancelled: false };
+          parsed.metadata = { ...(parsed.metadata || {}), ragDisabled: true };
+          return { finalMessage: JSON.stringify(parsed), cancelled: false };
         }
 
         if (!useRagForUpload || !ragEnabledForCurrentModel) {
