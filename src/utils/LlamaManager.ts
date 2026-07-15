@@ -499,14 +499,11 @@ class LlamaManager {
         const success = await this.multimodalService.initMultimodal(tempContext, mmProjectorPath);
         console.log('init_model_multimodal_result', success);
         if (!success) {
-          try {
-            await withTimeout(tempContext.release(), 5000).catch(() => {});
-          } catch {}
-          tempContext = null;
-          throw new Error('mmproj_init_failed');
+          console.log('init_model_mmproj_text_only');
+        } else {
+          const support = await tempContext.getMultimodalSupport();
+          console.log('init_model_multimodal_support', support);
         }
-        const support = await tempContext.getMultimodalSupport();
-        console.log('init_model_multimodal_support', support);
       }
 
       this.context = tempContext;
@@ -1044,8 +1041,7 @@ class LlamaManager {
           console.log('cancel_mmproj_reattach');
           const success = await this.multimodalService.initMultimodal(tempContext, currentMmProjectorPath);
           if (!success) {
-            await withTimeout(tempContext.release(), 5000).catch(() => {});
-            throw new Error('mmproj_init_failed');
+            console.log('cancel_mmproj_text_only');
           }
         }
         this.context = tempContext;
