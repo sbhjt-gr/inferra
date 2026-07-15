@@ -367,23 +367,41 @@ export default function ChatView({
     const extractThinkingFromContent = (content: string): { thinking: string; cleanContent: string } => {
       let thinking = '';
       let cleanContent = content;
-      
+      const parts: string[] = [];
+
       const completeThinkTagRegex = /<think>([\s\S]*?)<\/think>/gi;
       const completeMatches = content.match(completeThinkTagRegex);
-      
       if (completeMatches && completeMatches.length > 0) {
-        thinking = completeMatches
-          .map(match => match.replace(/<\/?think>/gi, '').trim())
-          .join('\n\n');
-        cleanContent = content.replace(completeThinkTagRegex, '').trim();
+        parts.push(
+          ...completeMatches.map(match => match.replace(/<\/?think>/gi, '').trim()),
+        );
+        cleanContent = cleanContent.replace(completeThinkTagRegex, '').trim();
       }
-      
-      const incompleteThinkMatch = content.match(/<think>([\s\S]*?)$/i);
-      if (incompleteThinkMatch && !content.includes('</think>')) {
-        thinking = incompleteThinkMatch[1].trim();
-        cleanContent = content.replace(/<think>[\s\S]*?$/, '').trim();
+
+      const channelRegex = /<\|channel>thought([\s\S]*?)<channel\|>/gi;
+      const channelMatches = content.match(channelRegex);
+      if (channelMatches && channelMatches.length > 0) {
+        parts.push(
+          ...channelMatches.map(match =>
+            match.replace(/<\|channel>thought/gi, '').replace(/<channel\|>/gi, '').trim(),
+          ),
+        );
+        cleanContent = cleanContent.replace(channelRegex, '').trim();
       }
-      
+
+      const incompleteThinkMatch = cleanContent.match(/<think>([\s\S]*?)$/i);
+      if (incompleteThinkMatch && !cleanContent.includes('</think>')) {
+        parts.push(incompleteThinkMatch[1].trim());
+        cleanContent = cleanContent.replace(/<think>[\s\S]*?$/, '').trim();
+      }
+
+      const incompleteChannelMatch = cleanContent.match(/<\|channel>thought([\s\S]*?)$/i);
+      if (incompleteChannelMatch && !cleanContent.includes('<channel|>')) {
+        parts.push(incompleteChannelMatch[1].trim());
+        cleanContent = cleanContent.replace(/<\|channel>thought[\s\S]*?$/, '').trim();
+      }
+
+      thinking = parts.filter(Boolean).join('\n\n');
       return { thinking, cleanContent: cleanContent.trim() };
     };
 
