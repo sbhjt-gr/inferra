@@ -13,6 +13,8 @@ import {
   Modal,
   Dimensions,
   Alert,
+  type StyleProp,
+  type ViewStyle,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import ChatMarkdown from './ChatMarkdown';
@@ -61,6 +63,8 @@ type ChatViewProps = {
   chatId?: string;
   onSwitchBranch?: (branchChatId: string) => void;
   onForkChat?: (fromMsgIndex: number) => void;
+  bottomInset?: number;
+  style?: StyleProp<ViewStyle>;
 };
 
 const hasMarkdownFormatting = (content: string): boolean => {
@@ -105,6 +109,8 @@ export default function ChatView({
   chatId,
   onSwitchBranch,
   onForkChat,
+  bottomInset = 0,
+  style,
 }: ChatViewProps) {
   const { theme: currentTheme } = useTheme();
   const themeColors = theme[currentTheme as 'light' | 'dark'];
@@ -118,6 +124,22 @@ export default function ChatView({
   const branchSwitchTimer = useRef<NodeJS.Timeout | null>(null);
   const branchAnchorIdxRef = useRef<number | null>(null);
   const pendingAnchorRestoreRef = useRef(false);
+
+  const glassOverflow = Platform.OS === 'ios' && bottomInset > 0;
+  console.log('chat_glass', glassOverflow, bottomInset);
+
+  const listContentStyle = useMemo(
+    () => [
+      styles.messageList,
+      glassOverflow && { paddingTop: 16 + bottomInset },
+    ],
+    [glassOverflow, bottomInset],
+  );
+
+  const listScrollIndicatorInsets = useMemo(
+    () => (glassOverflow ? { top: bottomInset, right: 1 } : { right: 1 }),
+    [glassOverflow, bottomInset],
+  );
 
   const markBranchSwitch = useCallback((origIndex: number) => {
     branchSwitchRef.current = true;
@@ -971,11 +993,13 @@ export default function ChatView({
     return (
       <FlatList
         ref={flatListRef}
+        style={glassOverflow ? styles.listGlass : styles.list}
         data={[...messages].reverse()}
         renderItem={renderMessage}
         keyExtractor={(_item: Message, idx: number) => `msg-${idx}`}
         extraData={chatId}
-        contentContainerStyle={styles.messageList}
+        contentContainerStyle={listContentStyle}
+        contentInsetAdjustmentBehavior={glassOverflow ? 'never' : 'automatic'}
         inverted={true}
         maintainVisibleContentPosition={
           branchSwitchRef.current
@@ -992,7 +1016,7 @@ export default function ChatView({
         maxToRenderPerBatch={10}
         updateCellsBatchingPeriod={50}
         onEndReachedThreshold={0.5}
-        scrollIndicatorInsets={{ right: 1 }}
+        scrollIndicatorInsets={listScrollIndicatorInsets}
         onTouchStart={Keyboard.dismiss}
         onContentSizeChange={() => {
           if (!pendingAnchorRestoreRef.current) {
@@ -1046,7 +1070,10 @@ export default function ChatView({
   };
 
   return (
-    <View style={styles.container}>
+    <View
+      style={[styles.container, glassOverflow && styles.containerGlass, style]}
+      collapsable={glassOverflow ? false : undefined}
+    >
       {renderContent()}
       
       <Modal
@@ -1108,6 +1135,17 @@ export default function ChatView({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  containerGlass: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'transparent',
+  },
+  list: {
+    flex: 1,
+  },
+  listGlass: {
+    flex: 1,
+    backgroundColor: 'transparent',
   },
   messageList: {
     flexGrow: 1,
