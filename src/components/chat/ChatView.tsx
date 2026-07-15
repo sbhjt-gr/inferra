@@ -127,18 +127,19 @@ export default function ChatView({
   const pendingAnchorRestoreRef = useRef(false);
 
   const glassOverflow = Platform.OS === 'ios' && bottomInset > 0;
+  const endGap = 28;
   console.log('chat_glass', glassOverflow, bottomInset);
 
   const listContentStyle = useMemo(
     () => [
       styles.messageList,
-      glassOverflow && { paddingTop: 16 + bottomInset },
+      glassOverflow && { paddingTop: endGap + bottomInset },
     ],
     [glassOverflow, bottomInset],
   );
 
   const listScrollIndicatorInsets = useMemo(
-    () => (glassOverflow ? { top: bottomInset, right: 1 } : { right: 1 }),
+    () => (glassOverflow ? { top: bottomInset + endGap, right: 1 } : { right: 1 }),
     [glassOverflow, bottomInset],
   );
 
