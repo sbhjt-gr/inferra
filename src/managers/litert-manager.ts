@@ -9,6 +9,7 @@ import { BenchmarkSample, EngineCaps, GenOpts, GenSettings, InferenceManager, Ms
 import { getLiteRTRecommendedBackend, type LiteRTBackend } from '../services/LiteRTBackendService';
 import { litertToolSignature } from '../services/adapters/LitertToolsAdapter';
 import { modelSettingsService } from '../services/ModelSettingsService';
+import { prepVisionImage } from '../services/adapters/VisionImageAdapter';
 
 type ParsedInput = {
   text: string;
@@ -127,6 +128,14 @@ class LiteRTManager implements InferenceManager {
 
   private normalizePath(path: string): string {
     return path.startsWith('file://') ? path.slice(7) : path;
+  }
+
+  private async prepImage(path: string): Promise<string> {
+    const uri = path.startsWith('/') ? `file://${path}` : path;
+    const ready = await prepVisionImage(uri);
+    const file = this.normalizePath(ready);
+    console.log('litert_image_prep', { changed: file !== path });
+    return file;
   }
 
   private getModelSettingPaths(): string[] {
@@ -636,6 +645,9 @@ class LiteRTManager implements InferenceManager {
     if (!input.text && !input.imagePath && !input.audioPath) {
       return '';
     }
+    const imagePath = input.imagePath
+      ? await this.prepImage(input.imagePath)
+      : undefined;
 
     const instance = await this.ensureLoaded(
       await this.buildConfig(messages, opts),
@@ -676,9 +688,10 @@ class LiteRTManager implements InferenceManager {
     const onToken = opts?.onToken;
 
     // Streaming multimodal
-    if (onToken && input.imagePath && caps.vision) {
+    if (onToken && imagePath && caps.vision) {
+      console.log('litert_stream_image', { promptLen: prompt.length });
       return this.streamAsync(onToken, (cb) => {
-        instance.sendMessageWithImageAsync(prompt, input.imagePath!, cb);
+        instance.sendMessageWithImageAsync(prompt, imagePath, cb);
       });
     }
 
@@ -689,8 +702,9 @@ class LiteRTManager implements InferenceManager {
     }
 
     // Blocking multimodal
-    if (input.imagePath && caps.vision) {
-      const response = await instance.sendMessageWithImage(prompt, input.imagePath);
+    if (imagePath && caps.vision) {
+      console.log('litert_image', { promptLen: prompt.length });
+      const response = await instance.sendMessageWithImage(prompt, imagePath);
       onToken?.(response);
       return response;
     }
