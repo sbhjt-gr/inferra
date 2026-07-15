@@ -631,6 +631,11 @@ export default function HomeScreen() {
             'Message Too Long',
             'Your message is too long for the model\'s context window. Please increase the context window limit.',
           );
+        } else if (msg === 'VISION_EVAL_FAILED') {
+          showDialog(
+            'Vision Failed',
+            'Could not process the image with this model. Try a smaller image, OCR mode, or reload the projector.',
+          );
         } else {
           showDialog(
             'Error',

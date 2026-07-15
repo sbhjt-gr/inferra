@@ -95,10 +95,11 @@ export const ModelProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       
       setSelectedModelPath(modelPath);
       updateProjectorState();
-      
-      const modelName = isMlxModel ? modelPath : (modelPath.split('/').pop() || 'Model');
-      const engineLabel = ` (${engineLabels[engine]})`;
-      const multimodalText = mmProjectorPath ? ' (Multimodal)' : '';
+
+      if (mmProjectorPath && !llamaManager.isMultimodalInitialized()) {
+        console.log('model_load_mmproj_skipped');
+        showSnackbar('Model loaded (projector failed — text only)', 'error');
+      }
 
       return true;
     } catch (error) {

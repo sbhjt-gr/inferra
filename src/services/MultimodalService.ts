@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import { type LlamaContext } from 'llama.rn';
 import { fs as FileSystem } from './fs';
+import { prepVisionImage } from './adapters/VisionImageAdapter';
 import { 
   ProcessedMessage, 
   MultimodalContent, 
@@ -68,7 +69,6 @@ export class MultimodalService {
       const success = await context.initMultimodal({
         path: finalProjectorPath,
         use_gpu: useGpu,
-        image_max_tokens: 512,
       });
       console.log('mmproj_init_native', success);
 
@@ -243,7 +243,8 @@ export class MultimodalService {
       console.log('mm_content_images', processed.images.length);
       for (const imageUri of processed.images) {
         try {
-          const normalizedPath = this.normalizeMediaUrl(imageUri);
+          const prepared = await prepVisionImage(imageUri);
+          const normalizedPath = this.normalizeMediaUrl(prepared);
           
           content.push({
             type: 'image_url',
@@ -252,6 +253,7 @@ export class MultimodalService {
             },
           });
         } catch (error) {
+          console.log('mm_content_image_fail');
         }
       }
     }

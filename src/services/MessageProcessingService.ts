@@ -1029,7 +1029,21 @@ export class MessageProcessingService {
       let genMessages = baseMessages;
       const skillsOn = await skillManager.isModeEnabled();
       let agentHandled = false;
-      if (toolRegistry.hasTools()) {
+      const hasVisionMedia = baseMessages.some(msg => {
+        const raw = String(msg.content || '');
+        return (
+          raw.includes('"type":"multimodal"') ||
+          raw.includes('"type": "multimodal"') ||
+          raw.includes('"type":"image"') ||
+          raw.includes('"type": "image"') ||
+          raw.includes('"kind":"image"') ||
+          raw.includes('"kind": "image"')
+        );
+      });
+      if (hasVisionMedia) {
+        console.log('local_agent_skip_vision');
+      }
+      if (toolRegistry.hasTools() && !hasVisionMedia) {
         try {
           const agentResult = await agentRuntime.run(
             'local',
@@ -1094,7 +1108,12 @@ export class MessageProcessingService {
             },
           );
         } catch (error) {
-          console.log('local_gen_fail', error instanceof Error ? error.message : 'unknown');
+          const message = error instanceof Error ? error.message : 'unknown';
+          console.log('local_gen_fail', message);
+          if (message.includes('evaluate chunks') || message.includes('Failed to evaluate')) {
+            console.log('local_gen_vision_fail');
+            throw new Error('VISION_EVAL_FAILED');
+          }
           if (engineService.get() === 'litert') {
             try {
               await litertManager.recoverPlain();

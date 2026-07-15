@@ -157,7 +157,6 @@ export default function ImageProcessingSelector({
         return name.includes('3n') || name.includes('gemma3') || name.includes('gemma-4') || name.includes('gemma4');
       })(),
     });
-    console.log('img_selector_vision', caps.vision, caps.needsMmproj);
     return caps.modeFor('image') === 'native';
   };
 

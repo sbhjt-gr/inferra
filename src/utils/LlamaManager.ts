@@ -431,11 +431,29 @@ class LlamaManager {
       const initOverrides = this.nextInitOverrides;
       this.nextInitOverrides = null;
 
-      const effectiveGpuLayers = !hasGpuDevice
+      let effectiveGpuLayers = !hasGpuDevice
         ? 0
         : typeof initOverrides?.n_gpu_layers === 'number'
           ? Math.max(0, Math.round(initOverrides.n_gpu_layers))
           : gpuLayerCount;
+
+      /*
+       * Gemma4 BF16 mmproj is ~1GB and warms up vision+audio. Keeping the
+       * text model fully offloaded on Metal jetsams ~8GB devices. Force CPU
+       * text weights whenever a projector is attached.
+       */
+      if (mmProjectorPath && effectiveGpuLayers > 0) {
+        console.log('init_model_gpu_off_mmproj', { from: effectiveGpuLayers });
+        effectiveGpuLayers = 0;
+      }
+
+      /*
+       * Some models use non-causal attn; n_ubatch must fit image tokens
+       * (model default max ~280). Keep ubatch at least 512 when mmproj loads.
+       */
+      const nUbatch = mmProjectorPath
+        ? Math.max(LLAMA_INIT_CONFIG.n_ubatch || 512, 512)
+        : LLAMA_INIT_CONFIG.n_ubatch;
 
       const initParams = {
         model: finalModelPath,
@@ -449,6 +467,11 @@ class LlamaManager {
         ...(typeof initOverrides?.n_parallel === 'number' ? { n_parallel: Math.max(1, Math.round(initOverrides.n_parallel)) } : {}),
         ...(typeof initOverrides?.n_threads === 'number' ? { n_threads: Math.max(1, Math.round(initOverrides.n_threads)) } : {}),
         n_gpu_layers: effectiveGpuLayers,
+        n_ubatch: nUbatch,
+        n_batch: Math.max(
+          typeof initOverrides?.n_batch === 'number' ? Math.round(initOverrides.n_batch) : LLAMA_INIT_CONFIG.n_batch,
+          nUbatch,
+        ),
         no_extra_bufts: this.settingsManager.getNoExtraBuffers(),
       };
       console.log('init_model_params', JSON.stringify(initParams, null, 2));
@@ -697,6 +720,7 @@ class LlamaManager {
         return { index, role: message.role, media: mediaCount };
       });
       const totalMedia = mediaStats.reduce((sum, item) => sum + item.media, 0);
+      console.log('gen_media_stats', { totalMedia, mediaStats });
 
       let tokenCount = 0;
 
