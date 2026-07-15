@@ -12,7 +12,7 @@ import {
   Model,
   SectionData,
 } from './ModelSelector.types';
-import { formatBytes, getDisplayName, isMLXModel } from './ModelSelector.utils';
+import { formatBytes, getDisplayName, isLiteRTModel, isMLXModel } from './ModelSelector.utils';
 import { styles } from './ModelSelector.styles';
 
 export interface RenderContext {
@@ -293,11 +293,15 @@ export const renderLocalModelItem = (
     );
   }
 
-  const isMLX = isMLXModel(item as StoredModel);
-  const formatBadge = isMLX ? 'MLX' : 'GGUF';
+  const storedItem = item as StoredModel;
+  const isMLX = isMLXModel(storedItem);
+  const isLiteRT = isLiteRTModel(storedItem);
+  const formatBadge = isMLX ? 'MLX' : isLiteRT ? 'LiteRT' : 'GGUF';
   const formatColor = isMLX
     ? (currentTheme === 'dark' ? '#5FD584' : '#2a8c42')
-    : (currentTheme === 'dark' ? '#fff' : '#4a0660');
+    : isLiteRT
+      ? (currentTheme === 'dark' ? '#7EB4FF' : '#4285F4')
+      : (currentTheme === 'dark' ? '#fff' : '#4a0660');
 
   return (
     <TouchableOpacity
@@ -347,7 +351,9 @@ export const renderLocalModelItem = (
               styles.modelTypeBadge,
               { backgroundColor: isMLX
                 ? (currentTheme === 'dark' ? 'rgba(95, 213, 132, 0.25)' : 'rgba(42, 140, 66, 0.1)')
-                : (currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.15)' : 'rgba(74, 6, 96, 0.1)')
+                : isLiteRT
+                  ? (currentTheme === 'dark' ? 'rgba(66, 133, 244, 0.25)' : 'rgba(66, 133, 244, 0.1)')
+                  : (currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.15)' : 'rgba(74, 6, 96, 0.1)')
               },
             ]}
           >

@@ -12,7 +12,7 @@ export const formatBytes = (bytes: number) => {
 };
 
 export const getDisplayName = (filename: string) => {
-  return filename.replace(/\.(gguf|bin)$/i, '');
+  return filename.replace(/\.(gguf|bin|litertlm|task)$/i, '');
 };
 
 export const getModelNameFromPath = (path: string | null, models: StoredModel[], cloneModels: OnlineModel[] = [], remoteNames: Record<string, string> = {}): string => {
@@ -85,9 +85,25 @@ export const getConnectionBadgeConfig = (provider: string | null, currentTheme: 
   };
 };
 
+export const isLiteRTModel = (model: StoredModel): boolean => {
+  if (model.modelFormat === 'litert') return true;
+  if (model.modelFormat === 'mlx' || model.modelFormat === 'gguf') return false;
+
+  const path = model.path.toLowerCase();
+  const name = model.name.toLowerCase();
+
+  return (
+    name.endsWith('.litertlm') ||
+    path.endsWith('.litertlm') ||
+    name.endsWith('.task') ||
+    path.endsWith('.task')
+  );
+};
+
 export const isMLXModel = (model: StoredModel): boolean => {
   if (model.modelFormat === 'mlx') return true;
   if (model.modelFormat === 'gguf') return false;
+  if (model.modelFormat === 'litert') return false;
 
   const path = model.path.toLowerCase();
   const name = model.name.toLowerCase();

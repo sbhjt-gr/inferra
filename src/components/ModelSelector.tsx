@@ -260,10 +260,10 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
       }
 
       const mlxModels = completedModels.filter(isMLXModel);
-      const ggufModels = completedModels.filter(model => !isMLXModel(model));
+      const nonMlxModels = completedModels.filter(model => !isMLXModel(model));
       const groupedMlx = groupMLXModels(mlxModels);
 
-      localModels.push(...ggufModels, ...groupedMlx);
+      localModels.push(...nonMlxModels, ...groupedMlx);
 
       if (localModels.length > 0) {
         sectionsData.push({ title: 'Local Models', data: localModels });
@@ -1192,7 +1192,7 @@ const ModelSelector = forwardRef<{ refreshModels: () => void }, ModelSelectorPro
                         />
                         <Text style={[styles.emptyText, { color: currentTheme === 'dark' ? '#fff' : themeColors.text }]}>
                           No local models found.{'\n'}
-                          Download GGUF or MLX models from the Models tab.
+                          Download GGUF, LiteRT, or MLX models from the Models tab.
                         </Text>
                       </View>
                     ) : null}
