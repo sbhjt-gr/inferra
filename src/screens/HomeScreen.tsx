@@ -56,6 +56,8 @@ import { homeScreenStyles as styles } from './homeScreenStyles';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { isLiquidGlassAvailable } from '../services/adapters/GlassEffectAdapter';
 
+const FLOAT_TAB = 62;
+
 let hasInitializedChat = false;
 
 const remoteProviders: ProviderType[] = ['gemini', 'chatgpt', 'claude'];
@@ -775,9 +777,11 @@ export default function HomeScreen() {
 
   const useGlassLayout = Platform.OS === 'ios' && isLiquidGlassAvailable();
   const [inputH, setInputH] = useState(72);
-  const tabClear = useGlassLayout && !isKbOpen ? insets.bottom : 0;
+  const homePad = useGlassLayout && !isKbOpen ? insets.bottom : 0;
+  const floatPad = useGlassLayout && !isKbOpen ? FLOAT_TAB : 0;
+  const tabClear = homePad + floatPad;
   const listInset = useGlassLayout ? inputH + tabClear : 0;
-  console.log('glass_layout', useGlassLayout, inputH, tabClear, listInset);
+  console.log('glass_layout', useGlassLayout, inputH, homePad, floatPad, tabClear, listInset);
 
   useEffect(() => {
     const offset = Platform.OS === 'ios'
@@ -803,13 +807,22 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView
-      style={[styles.container, { backgroundColor: themeColors.background }]}
+      style={[
+        styles.container,
+        { backgroundColor: useGlassLayout ? 'transparent' : themeColors.background },
+      ]}
       edges={
         Platform.OS === 'ios'
           ? (useGlassLayout || isKbOpen ? ['left', 'right'] : ['left', 'right', 'bottom'])
           : ['left', 'right']
       }
     >
+      {useGlassLayout ? (
+        <View
+          pointerEvents="none"
+          style={[styles.glassBg, { backgroundColor: themeColors.background }]}
+        />
+      ) : null}
       <GradientBg />
       <AppHeader 
         onNewChat={startNewChat}
@@ -857,10 +870,7 @@ export default function HomeScreen() {
       </View>
       <Animated.View style={{ flex: 1, paddingBottom: kbSlideAnim, overflow: 'visible' }}>
         {useGlassLayout ? (
-          <View
-            style={[styles.chatOverlayContainer, { marginBottom: -tabClear }]}
-            collapsable={false}
-          >
+          <View style={styles.chatOverlayContainer} collapsable={false}>
             <ChatView
               messages={messages}
               isStreaming={isStreaming}
