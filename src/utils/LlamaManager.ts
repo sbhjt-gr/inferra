@@ -653,7 +653,8 @@ class LlamaManager {
     this.isCancelled = false;
     this.tokenProcessingService.setCancelled(false);
     const settings = this.resolveSettings(customSettings);
-    const stop = [...(settings.stopWords || []), '\n', '\\n'];
+    const stop = [...(settings.stopWords || [])];
+    console.log('gen_stop_words', { stopLen: stop.length });
 
     try {
       const processedMessages = await Promise.all(
@@ -888,7 +889,14 @@ class LlamaManager {
         }
       );
 
-      const title = fullResponse.trim().replace(/['"]/g, '').replace(/<\/?think[^>]*>/g, '').trim().substring(0, TITLE_GENERATION_CONFIG.maxTitleLength);
+      const title = fullResponse
+        .trim()
+        .replace(/['"]/g, '')
+        .replace(/<\/?think[^>]*>/g, '')
+        .replace(/<\|channel>thought/gi, '')
+        .replace(/<channel\|>/gi, '')
+        .trim()
+        .substring(0, TITLE_GENERATION_CONFIG.maxTitleLength);
       console.log('title_gen_result', { title: title || 'empty', rawLen: fullResponse.length });
       if (title) {
         return title;
@@ -912,7 +920,8 @@ class LlamaManager {
     await this.acquireGenLock();
 
     const settings = this.resolveSettings(customSettings);
-    const stop = [...(settings.stopWords || []), '\n', '\\n'];
+    const stop = [...(settings.stopWords || [])];
+    console.log('bench_stop_words', { stopLen: stop.length });
     const messages = settings.systemPrompt
       ? [
           { role: 'system', content: settings.systemPrompt },

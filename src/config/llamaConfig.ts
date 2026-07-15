@@ -6,7 +6,7 @@ export const DEFAULT_SETTINGS: ModelSettings = {
   topK: 40,
   topP: 0.9,
   minP: 0.05,
-  stopWords: ['<|end|>', '<end_of_turn>', '<|im_end|>', '<|endoftext|>', '<end_of_utterance>'],
+  stopWords: ['<|end|>', '<end_of_turn>', '<|im_end|>', '<|endoftext|>', '<end_of_utterance>', '<turn|>'],
   systemPrompt: '',
   jinja: true,
   grammar: '',
