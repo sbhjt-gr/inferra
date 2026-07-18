@@ -3,11 +3,13 @@ import {
   type LLMConfig,
   type LiteRTLMInstance,
   type MemoryUsage,
+  type MultimodalPart,
 } from 'react-native-litert-lm';
 
 import { BenchmarkSample, EngineCaps, GenOpts, GenSettings, InferenceManager, Msg } from './inference-manager';
 import { getLiteRTRecommendedBackend, type LiteRTBackend } from '../services/LiteRTBackendService';
 import { litertToolSignature } from '../services/adapters/LitertToolsAdapter';
+import { audioParts, visionParts } from '../services/adapters/LitertVisionAdapter';
 import { modelSettingsService } from '../services/ModelSettingsService';
 import { prepVisionImage } from '../services/adapters/VisionImageAdapter';
 
@@ -687,37 +689,54 @@ class LiteRTManager implements InferenceManager {
 
     const onToken = opts?.onToken;
 
-    // Streaming multimodal
-    if (onToken && imagePath && caps.vision) {
-      console.log('litert_stream_image', { promptLen: prompt.length });
-      return this.streamAsync(onToken, (cb) => {
-        instance.sendMessageWithImageAsync(prompt, imagePath, cb);
-      });
-    }
-
-    if (onToken && input.audioPath && caps.audio) {
-      return this.streamAsync(onToken, (cb) => {
-        instance.sendMessageWithAudioAsync(prompt, input.audioPath!, cb);
-      });
-    }
-
-    // Blocking multimodal
     if (imagePath && caps.vision) {
-      console.log('litert_image', { promptLen: prompt.length });
-      const response = await instance.sendMessageWithImage(prompt, imagePath);
-      onToken?.(response);
-      return response;
+      console.log('litert_exec_image', { promptLen: prompt.length });
+      return this.runParts(instance, visionParts(prompt, imagePath), onToken);
     }
 
     if (input.audioPath && caps.audio) {
-      const response = await instance.sendMessageWithAudio(prompt, input.audioPath);
-      onToken?.(response);
-      return response;
+      console.log('litert_exec_audio', { promptLen: prompt.length });
+      return this.runParts(instance, audioParts(prompt, input.audioPath), onToken);
     }
 
     const tokenCb = onToken || (() => undefined);
     console.log('litert_stream_text', { promptLen: prompt.length, hasCb: !!onToken });
     return this.streamAsync(tokenCb, (cb) => instance.sendMessageAsync(prompt, cb));
+  }
+
+  private async runParts(
+    instance: LiteRTLMInstance,
+    parts: MultimodalPart[],
+    onToken?: (token: string) => boolean | void,
+  ): Promise<string> {
+    console.log('litert_run_parts', { count: parts.length, stream: !!onToken });
+    if (!onToken) {
+      return instance.execute(parts);
+    }
+
+    try {
+      const response = await instance.execute(parts, (token, done) => {
+        if (this.stopRequested) {
+          return;
+        }
+        if (token.startsWith('Error: ')) {
+          console.log('litert_parts_err');
+          return;
+        }
+        if (!done && token) {
+          onToken(token);
+        }
+      });
+      console.log('litert_parts_done', { len: response.length });
+      if (!response && !this.stopRequested) {
+        throw new Error('litert_vision_empty');
+      }
+      return response;
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      console.log('litert_parts_fail', msg.slice(0, 80));
+      throw error;
+    }
   }
 
   private streamAsync(
