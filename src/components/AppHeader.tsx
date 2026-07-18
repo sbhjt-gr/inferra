@@ -125,7 +125,6 @@ export default function AppHeader({
 
   const androidTint = tintColor ?? themeColors.headerText;
 
-  console.log('header_android', title);
   return (
     <View
       style={[
