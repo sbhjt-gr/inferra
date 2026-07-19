@@ -5,7 +5,7 @@
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
-    "ios": "expo run:ios --device 00008103-001220693C6A201E",
+    "ios": "expo run:ios",
     "test": "jest --watchAll",
     "lint": "expo lint",
     "eas-build-post-install": "if [ \"$EAS_BUILD_PLATFORM\" = \"ios\" ]; then xcodebuild -downloadComponent MetalToolchain; fi",
