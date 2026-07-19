@@ -80,7 +80,7 @@
     "react-native-gesture-handler": "~2.31.1",
     "react-native-get-random-values": "~1.11.0",
     "react-native-in-app-review": "^4.4.2",
-    "react-native-litert-lm": "0.4.2",
+    "react-native-litert-lm": "0.5.1",
     "react-native-mathjax-svg": "^0.9.9",
     "react-native-nitro-markdown": "^0.5.8",
     "react-native-nitro-modules": "^0.35.9",
