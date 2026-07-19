@@ -5,10 +5,16 @@
   "main": "index.ts",
   "files": [
     "android",
+    "app.plugin.js",
     "index.ts",
     "ios",
     "RNMLKitTextRecognition.podspec"
   ],
+  "expo": {
+    "plugins": [
+      "./app.plugin.js"
+    ]
+  },
   "peerDependencies": {
     "react": "*",
     "react-native": "*"
