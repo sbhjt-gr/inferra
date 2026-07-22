@@ -1,6 +1,5 @@
 #import "TextRecognition.h"
 
-#if !TARGET_OS_SIMULATOR
 @import MLKitVision.MLKVisionImage;
 @import MLKitTextRecognition;
 @import MLKitTextRecognitionCommon;
@@ -8,13 +7,10 @@
 @import MLKitTextRecognitionJapanese;
 @import MLKitTextRecognitionKorean;
 @import MLKitTextRecognitionDevanagari;
-#endif
 
 @implementation TextRecognition
 
 RCT_EXPORT_MODULE()
-
-#if !TARGET_OS_SIMULATOR
 
 - (NSDictionary*)frameToDict: (CGRect)frame {
     return @{
@@ -46,12 +42,12 @@ RCT_EXPORT_MODULE()
 
 - (NSDictionary*)lineToDict: (MLKTextLine*)line {
     NSMutableDictionary *dict = [NSMutableDictionary dictionary];
-    
+
     [dict setObject:line.text forKey:@"text"];
     [dict setObject:[self frameToDict:line.frame] forKey:@"frame"];
     [dict setObject:[self pointsToDicts:line.cornerPoints] forKey:@"cornerPoints"];
     [dict setObject:[self langsToDicts:line.recognizedLanguages] forKey:@"recognizedLanguages"];
-    
+
     NSMutableArray *elements = [NSMutableArray array];
     for (MLKTextElement* element in line.elements) {
         [elements addObject:@{
@@ -61,24 +57,24 @@ RCT_EXPORT_MODULE()
         }];
     }
     [dict setObject:elements forKey:@"elements"];
-    
+
     return dict;
 }
 
 - (NSDictionary*)blockToDict: (MLKTextBlock*)block {
     NSMutableDictionary *dict = [NSMutableDictionary dictionary];
-    
+
     [dict setObject:block.text forKey:@"text"];
     [dict setObject:[self frameToDict:block.frame] forKey:@"frame"];
     [dict setObject:[self pointsToDicts:block.cornerPoints] forKey:@"cornerPoints"];
     [dict setObject:[self langsToDicts:block.recognizedLanguages] forKey:@"recognizedLanguages"];
-    
+
     NSMutableArray *lines = [NSMutableArray array];
     for (MLKTextLine *line in block.lines) {
         [lines addObject:[self lineToDict:line]];
     }
     [dict setObject:lines forKey:@"lines"];
-    
+
     return dict;
 }
 
@@ -87,16 +83,30 @@ RCT_EXPORT_METHOD(recognize: (nonnull NSString*)url
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 {
+    NSLog(@"ocr_start");
     NSURL *_url = [NSURL URLWithString:url];
+    if (_url == nil) {
+        NSLog(@"ocr_bad_url");
+        return reject(@"Text Recognition", @"Invalid image url", nil);
+    }
+
     NSData *imageData = [NSData dataWithContentsOfURL:_url];
+    if (imageData == nil) {
+        NSLog(@"ocr_no_data");
+        return reject(@"Text Recognition", @"Failed to load image", nil);
+    }
+
     UIImage *image = [UIImage imageWithData:imageData];
+    if (image == nil) {
+        NSLog(@"ocr_no_image");
+        return reject(@"Text Recognition", @"Failed to decode image", nil);
+    }
+
     MLKVisionImage *visionImage = [[MLKVisionImage alloc] initWithImage:image];
     visionImage.orientation = image.imageOrientation;
 
-    // text recognizer options based on the script params
     MLKCommonTextRecognizerOptions *options = nil;
 
-    // if the language param isn't specified, we can assume the user requirement is Latin text recognition
     if (script == nil || [script isEqualToString:@"Latin"]) {
         options = [[MLKTextRecognizerOptions alloc] init];
     } else if ([script isEqualToString:@"Chinese"]) {
@@ -108,42 +118,34 @@ RCT_EXPORT_METHOD(recognize: (nonnull NSString*)url
     } else if ([script isEqualToString:@"Korean"]) {
         options = [[MLKKoreanTextRecognizerOptions alloc] init];
     } else {
+        NSLog(@"ocr_bad_script");
         return reject(@"Text Recognition", @"Unsupported script", nil);
     }
-    
+
     MLKTextRecognizer *textRecognizer = [MLKTextRecognizer textRecognizerWithOptions:options];
+    NSLog(@"ocr_process");
 
     [textRecognizer processImage:visionImage
                       completion:^(MLKText *_Nullable _result,
                                    NSError *_Nullable error) {
         if (error != nil || _result == nil) {
+            NSLog(@"ocr_fail");
             return reject(@"Text Recognition", @"Text recognition failed", error);
         }
-        
+
         NSMutableDictionary *result = [NSMutableDictionary dictionary];
-        
+
         [result setObject:_result.text forKey:@"text"];
-        
+
         NSMutableArray *blocks = [NSMutableArray array];
         for (MLKTextBlock *block in _result.blocks) {
             [blocks addObject:[self blockToDict:block]];
         }
         [result setObject:blocks forKey:@"blocks"];
 
+        NSLog(@"ocr_done");
         resolve(result);
     }];
 }
-
-#else
-
-RCT_EXPORT_METHOD(recognize: (nonnull NSString*)url
-                  script:(NSString*)script
-                  resolver:(RCTPromiseResolveBlock)resolve
-                  rejecter:(RCTPromiseRejectBlock)reject)
-{
-    reject(@"text_recognition", @"Text recognition unavailable on simulator", nil);
-}
-
-#endif
 
 @end
