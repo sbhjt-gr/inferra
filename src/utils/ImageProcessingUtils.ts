@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 import { fs as FileSystem } from '../services/fs';
-import TextRecognition from '@react-native-ml-kit/text-recognition';
+import { textRecognitionAdapter } from '../services/adapters/TextRecognitionAdapter';
 
 export type ImageProcessingMode = 'ocr' | 'multimodal' | null;
 
@@ -32,7 +32,7 @@ export const performOCROnImage = async (
     }
 
     onProgress?.('Performing text recognition...');
-    const recognitionResult = await TextRecognition.recognize(processedImageUri);
+    const recognitionResult = await textRecognitionAdapter.recognize(processedImageUri);
 
     if (recognitionResult && recognitionResult.text && recognitionResult.text.trim()) {
       onProgress?.('Text extraction completed successfully');

@@ -2,7 +2,7 @@ import React from 'react';
 import { Platform } from 'react-native';
 import { fs as FileSystem } from '../services/fs';
 import PdfImage from 'inferrlm-pdf-image';
-import TextRecognition from '@react-native-ml-kit/text-recognition';
+import { textRecognitionAdapter } from '../services/adapters/TextRecognitionAdapter';
 
 export type PageImage = {
   uri: string;
@@ -272,7 +272,7 @@ export const performOCROnPages = async (
         
         setExtractionProgress(`Processing page ${actualPageNumber}...`);
         
-        const recognitionResult = await TextRecognition.recognize(imageUri);
+        const recognitionResult = await textRecognitionAdapter.recognize(imageUri);
 
         if (recognitionResult && recognitionResult.text) {
           allText += `--- Page ${actualPageNumber} ---\n${recognitionResult.text}\n\n`;
