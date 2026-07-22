@@ -1,4 +1,7 @@
 const { withPodfile, withXcodeProject, withAndroidManifest } = require('@expo/config-plugins');
+const {
+  injectMlkitSimPatch,
+} = require('./modules/text-recognition/app.plugin');
 
 function disableDeterministicPodUuids(contents) {
   const line = "install! 'cocoapods', :deterministic_uuids => false";
@@ -161,6 +164,7 @@ function withIos(config) {
     modConfig.modResults.contents = injectSpmRootFix(modConfig.modResults.contents);
     modConfig.modResults.contents = injectUseModularHeaders(modConfig.modResults.contents);
     modConfig.modResults.contents = injectMinDeploymentTarget(modConfig.modResults.contents);
+    modConfig.modResults.contents = injectMlkitSimPatch(modConfig.modResults.contents);
     modConfig.modResults.contents = injectLlamaBuildFromSource(modConfig.modResults.contents);
     return modConfig;
   });
