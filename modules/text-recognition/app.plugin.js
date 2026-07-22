@@ -3,13 +3,23 @@ const { withPodfile } = require('@expo/config-plugins');
 const MARKER = 'inferrlm_mlkit_sim_patch';
 const OLD_MARKER = 'inferrlm_skip_mlkit_simulator';
 
-const REQUIRE_LINE =
-  `require File.expand_path('../node_modules/@react-native-ml-kit/text-recognition/ios/scripts/apple_silicon_simulator', __dir__) # ${MARKER}`;
+const REQUIRE_BLOCK = [
+  `# ${MARKER}`,
+  'mlkit_sim_script = [',
+  "  File.expand_path('../modules/text-recognition/ios/scripts/apple_silicon_simulator', __dir__),",
+  "  File.expand_path('../node_modules/@react-native-ml-kit/text-recognition/ios/scripts/apple_silicon_simulator', __dir__),",
+  '].find { |path| File.exist?("#{path}.rb") }',
+  "raise '[ml_kit] apple_silicon_simulator.rb missing' unless mlkit_sim_script",
+  'require mlkit_sim_script',
+].join('\n');
 
 const CALL_BLOCK = [
   `    # ${MARKER}`,
   '    mlkit_apple_silicon_simulator_patch(installer)',
 ].join('\n');
+
+const STALE_REQUIRE_RE =
+  /(?:# inferrlm_mlkit_sim_patch\n)?(?:mlkit_sim_script = \[[\s\S]*?require mlkit_sim_script\n|require File\.expand_path\('(?:\.\.\/(?:modules|node_modules\/@react-native-ml-kit)\/text-recognition\/ios\/scripts\/apple_silicon_simulator)', __dir__\)[^\n]*\n)/;
 
 const OLD_SKIP_BLOCK = [
   `    # ${OLD_MARKER}`,
@@ -76,16 +86,18 @@ function stripOldSkipMlkitBlock(contents) {
 function injectMlkitSimPatch(contents) {
   let next = stripOldSkipMlkitBlock(contents);
 
-  if (!next.includes(MARKER)) {
+  if (STALE_REQUIRE_RE.test(next)) {
+    next = next.replace(STALE_REQUIRE_RE, `${REQUIRE_BLOCK}\n\n`);
+  } else if (!next.includes(MARKER)) {
     if (next.includes('platform :ios')) {
-      next = next.replace(/(platform :ios[^\n]*\n)/, `$1\n${REQUIRE_LINE}\n`);
+      next = next.replace(/(platform :ios[^\n]*\n)/, `$1\n${REQUIRE_BLOCK}\n\n`);
     } else if (next.includes('prepare_react_native_project!')) {
       next = next.replace(
         'prepare_react_native_project!',
-        `${REQUIRE_LINE}\n\nprepare_react_native_project!`
+        `${REQUIRE_BLOCK}\n\nprepare_react_native_project!`
       );
     } else {
-      next = `${REQUIRE_LINE}\n${next}`;
+      next = `${REQUIRE_BLOCK}\n${next}`;
     }
   }
 
