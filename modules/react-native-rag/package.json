@@ -1,0 +1,29 @@
+{
+  "name": "react-native-rag",
+  "version": "0.9.0",
+  "description": "Private, local RAGs. Supercharge LLMs with your own knowledge base.",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "react-native": "src/index.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src",
+    "LICENSE"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "react": "*",
+    "react-native": "*"
+  },
+  "dependencies": {
+    "@langchain/core": "^0.3.57",
+    "@langchain/textsplitters": "^0.1.0"
+  }
+}
