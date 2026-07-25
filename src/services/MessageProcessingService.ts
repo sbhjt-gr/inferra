@@ -180,7 +180,8 @@ export class MessageProcessingService {
           tokenCount,
           fullResponse,
           firstTokenTime,
-          updateCounter
+          updateCounter,
+          skipRag
         );
       } else if (isAppleFoundation) {
         await this.processAppleFoundationModel(
@@ -245,7 +246,8 @@ export class MessageProcessingService {
     tokenCount: number,
     fullResponse: string,
     firstTokenTime: number | null,
-    updateCounter: number
+    updateCounter: number,
+    skipRag: boolean
   ): Promise<void> {
     const thinkParser = new ThinkTagParser();
     let thinking = '';
@@ -500,48 +502,81 @@ export class MessageProcessingService {
       onToken: streamCallback,
     };
 
-    try {
-      if (toolRegistry.hasTools()) {
-        console.log('msgproc_send_tools', {
-          provider: activeProvider,
-          msgCount: messageParams.length,
-          toolCount: toolRegistry.getAllTools().length,
+    let usedRAG = false;
+    const chatId = chatManager.getCurrentChatId();
+    const baseProvider = OnlineModelService.getBaseProvider(activeProvider);
+
+    if (!skipRag) {
+      const ragEnabled = await RAGService.isEnabled();
+      if (
+        ragEnabled &&
+        (baseProvider === 'gemini' || baseProvider === 'chatgpt' || baseProvider === 'claude')
+      ) {
+        console.log('online_rag_start', baseProvider);
+        if (!RAGService.isReady()) {
+          await RAGService.initialize(baseProvider as ProviderType);
+        }
+        if (!RAGService.isReady()) {
+          throw new Error('rag_not_ready');
+        }
+        await RAGService.generate({
+          input: baseMessages,
+          settings,
+          callback: streamCallback,
+          scope: {
+            chatId,
+            provider: baseProvider as ProviderType,
+          },
         });
-        const toolResult = await skillToolLoopService.run(
-          activeProvider,
-          messageParams,
-          toolLoopOpts,
-        );
-        if (toolResult) {
-          fullResponse = toolResult;
-          this.callbacks.setStreamingMessage(fullResponse);
-        } else if (!fullResponse) {
-          console.log('msgproc_tools_fallback_plain', { provider: activeProvider });
-          await onlineModelService.sendMessage(
+        usedRAG = true;
+        console.log('online_rag_done', baseProvider);
+      }
+    }
+
+    if (!usedRAG) {
+      try {
+        if (toolRegistry.hasTools()) {
+          console.log('msgproc_send_tools', {
+            provider: activeProvider,
+            msgCount: messageParams.length,
+            toolCount: toolRegistry.getAllTools().length,
+          });
+          const toolResult = await skillToolLoopService.run(
             activeProvider,
             messageParams,
-            apiParams,
-            legacyStreamCallback,
+            toolLoopOpts,
           );
+          if (toolResult) {
+            fullResponse = toolResult;
+            this.callbacks.setStreamingMessage(fullResponse);
+          } else if (!fullResponse) {
+            console.log('msgproc_tools_fallback_plain', { provider: activeProvider });
+            await onlineModelService.sendMessage(
+              activeProvider,
+              messageParams,
+              apiParams,
+              legacyStreamCallback,
+            );
+          }
+        } else {
+          console.log('msgproc_send_plain', { provider: activeProvider, msgCount: messageParams.length });
+          await onlineModelService.sendMessage(activeProvider, messageParams, apiParams, legacyStreamCallback);
         }
-      } else {
-        console.log('msgproc_send_plain', { provider: activeProvider, msgCount: messageParams.length });
-        await onlineModelService.sendMessage(activeProvider, messageParams, apiParams, legacyStreamCallback);
+      } catch (error) {
+        console.log('online_model_error', error instanceof Error ? error.message : 'unknown');
+        console.log('online_model_error_stack', error instanceof Error ? error.stack : '');
+        if (this.callbacks.handleApiError) {
+          this.callbacks.handleApiError(error, this.getProviderDisplayName(activeProvider));
+        }
+
+        await chatManager.updateMessageContent(
+          messageId,
+          'Sorry, an error occurred while generating a response. Please try again.',
+          '',
+          { duration: 0, tokens: 0 }
+        );
+        return;
       }
-    } catch (error) {
-      console.log('online_model_error', error instanceof Error ? error.message : 'unknown');
-      console.log('online_model_error_stack', error instanceof Error ? error.stack : '');
-      if (this.callbacks.handleApiError) {
-        this.callbacks.handleApiError(error, this.getProviderDisplayName(activeProvider));
-      }
-      
-      await chatManager.updateMessageContent(
-        messageId,
-        'Sorry, an error occurred while generating a response. Please try again.',
-        '',
-        { duration: 0, tokens: 0 }
-      );
-      return;
     }
     
     if (toolRegistry.hasTools() && !this.cancelGenerationRef.current && fullResponse) {
@@ -676,28 +711,24 @@ export class MessageProcessingService {
     const chatId = chatManager.getCurrentChatId();
 
     if (!skipRag) {
-      try {
-        const ragEnabled = await RAGService.isEnabled();
-        if (ragEnabled) {
-          if (!RAGService.isReady()) {
-            await RAGService.initialize('apple-foundation');
-          }
-          if (RAGService.isReady()) {
-            await RAGService.generate({
-              input: baseMessages,
-              settings,
-              callback: streamCallback,
-              scope: {
-                chatId,
-                provider: 'apple-foundation',
-              },
-            });
-            usedRAG = true;
-          }
+      const ragEnabled = await RAGService.isEnabled();
+      if (ragEnabled) {
+        if (!RAGService.isReady()) {
+          await RAGService.initialize('apple-foundation');
         }
-      } catch (error) {
-        console.log('apple_rag_error', error instanceof Error ? error.message : 'unknown');
-        usedRAG = false;
+        if (!RAGService.isReady()) {
+          throw new Error('rag_not_ready');
+        }
+        await RAGService.generate({
+          input: baseMessages,
+          settings,
+          callback: streamCallback,
+          scope: {
+            chatId,
+            provider: 'apple-foundation',
+          },
+        });
+        usedRAG = true;
       }
     }
 
@@ -999,27 +1030,24 @@ export class MessageProcessingService {
     const chatId = chatManager.getCurrentChatId();
 
     if (!skipRag) {
-      try {
-        const ragEnabled = await RAGService.isEnabled();
-        if (ragEnabled && engineService.mgr().ready()) {
-          if (!RAGService.isReady()) {
-            await RAGService.initialize('local');
-          }
-          if (RAGService.isReady()) {
-            await RAGService.generate({
-              input: baseMessages,
-              settings,
-              callback: streamCallback,
-              scope: {
-                chatId,
-                provider: 'local',
-              },
-            });
-            usedRAG = true;
-          }
+      const ragEnabled = await RAGService.isEnabled();
+      if (ragEnabled && engineService.mgr().ready()) {
+        if (!RAGService.isReady()) {
+          await RAGService.initialize('local');
         }
-      } catch {
-        usedRAG = false;
+        if (!RAGService.isReady()) {
+          throw new Error('rag_not_ready');
+        }
+        await RAGService.generate({
+          input: baseMessages,
+          settings,
+          callback: streamCallback,
+          scope: {
+            chatId,
+            provider: 'local',
+          },
+        });
+        usedRAG = true;
       }
     }
 
