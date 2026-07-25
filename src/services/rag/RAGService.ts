@@ -9,23 +9,20 @@ import {
   type QueryResult,
 } from 'react-native-rag';
 import { OPSQLiteVectorStore } from '@react-native-rag/op-sqlite';
-import { LlamaRnEmbeddings } from './LlamaRnEmbeddings';
-import { AppleRagEmbeddings } from './AppleRagEmbeddings';
 import { OpenAIEmbeddings } from './OpenAIEmbeddings';
 import { GeminiEmbeddings } from './GeminiEmbeddings';
 import { ClaudeEmbeddings } from './ClaudeEmbeddings';
 import { LlamaRnLLM } from './LlamaRnLLM';
 import { OnlineModelLLM } from './OnlineModelLLM';
 import { AppleFoundationLLM } from './AppleFoundationLLM';
-import { UniversalEmbeddings } from './UniversalEmbeddings';
+import { ExecuTorchEmbedAdapter } from '../adapters/ExecuTorchEmbedAdapter';
+import { MiniLMAssets } from './MiniLMAssets';
 import type { ModelSettings } from '../ModelSettingsService';
-import { llamaManager } from '../../utils/LlamaManager';
-import { engineService } from '../runtime-service';
 import type { ProviderType } from '../ModelManagementService';
 
 const RAG_ENABLED_KEY = '@inferra/rag/enabled';
 const RAG_STORAGE_KEY = '@inferra/rag/storage';
-const PERSISTENT_DB_NAME = 'inferra_rag_vectors';
+const PERSISTENT_DB_NAME = 'inferra_rag_vectors_et';
 const RAG_STATS_KEY = '@inferra/rag/stats';
 
 type RAGStorageType = 'memory' | 'persistent';
@@ -49,6 +46,12 @@ type RAGDocument = {
 const CONTROL_CHARS_REGEX = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g;
 
 const sanitizeChunk = (value: string): string => value.replace(CONTROL_CHARS_REGEX, ' ');
+
+const isRemoteProvider = (provider: ProviderType): boolean =>
+  provider === 'gemini' || provider === 'chatgpt' || provider === 'claude';
+
+const needsMiniLM = (provider: ProviderType): boolean =>
+  provider === 'local' || provider === 'apple-foundation';
 
 class RAGServiceClass {
   private rag: RAG | null = null;
@@ -113,37 +116,29 @@ class RAGServiceClass {
 
     console.log('rag_init_start', resolvedProvider);
 
-    const isRemote =
-      resolvedProvider === 'gemini' ||
-      resolvedProvider === 'chatgpt' ||
-      resolvedProvider === 'claude';
-    const isAppleFoundation = resolvedProvider === 'apple-foundation';
-
-    const isMlx = !isRemote && !isAppleFoundation && engineService.get() === 'mlx';
-
-    if (!isRemote && !isAppleFoundation && !isMlx) {
-      await this.ensureEmbeddingSupport();
-      console.log('rag_embeddings_verified');
+    if (needsMiniLM(resolvedProvider)) {
+      if (!(await MiniLMAssets.isReady())) {
+        console.log('rag_minilm_missing');
+        throw new Error('embeddings_not_ready');
+      }
     }
 
     this.storage = await this.getStorageType();
     console.log('rag_storage_type', this.storage);
 
-    if (isAppleFoundation) {
-      this.embeddings = new AppleRagEmbeddings();
-    } else if (isRemote) {
+    if (needsMiniLM(resolvedProvider)) {
+      const sources = MiniLMAssets.getSources();
+      this.embeddings = new ExecuTorchEmbedAdapter(sources);
+    } else if (isRemoteProvider(resolvedProvider)) {
       this.embeddings = this.createRemoteEmbeddings(resolvedProvider);
-    } else if (isMlx) {
-      this.embeddings = new UniversalEmbeddings();
     } else {
-      this.embeddings = new LlamaRnEmbeddings();
+      throw new Error('rag_provider_unsupported');
     }
 
-    if (isAppleFoundation) {
+    if (resolvedProvider === 'apple-foundation') {
       this.llm = new AppleFoundationLLM();
-    } else if (isRemote) {
-      const remoteProvider = resolvedProvider as 'gemini' | 'chatgpt' | 'claude';
-      this.llm = new OnlineModelLLM(remoteProvider);
+    } else if (isRemoteProvider(resolvedProvider)) {
+      this.llm = new OnlineModelLLM(resolvedProvider as 'gemini' | 'chatgpt' | 'claude');
     } else {
       this.llm = new LlamaRnLLM();
     }
@@ -151,41 +146,18 @@ class RAGServiceClass {
     this.currentProvider = resolvedProvider;
 
     let vectorStore: MemoryVectorStore | OPSQLiteVectorStore;
-    const createMemoryStore = () => new MemoryVectorStore({ embeddings: this.embeddings! });
-
     if (this.storage === 'persistent') {
       vectorStore = new OPSQLiteVectorStore({
         name: this.getVectorStoreName(resolvedProvider),
         embeddings: this.embeddings!,
       });
     } else {
-      vectorStore = createMemoryStore();
+      vectorStore = new MemoryVectorStore({ embeddings: this.embeddings! });
     }
 
     this.rag = new RAG({ vectorStore, llm: this.llm });
     console.log('rag_loading_vectorstore');
-
-    try {
-      await this.rag.load();
-    } catch (error) {
-      if (this.storage !== 'persistent') {
-        throw error;
-      }
-
-      console.log('rag_persistent_error', error instanceof Error ? error.message : 'unknown');
-
-      const unloadable = vectorStore as unknown as { unload?: () => Promise<void> };
-      if (typeof unloadable.unload === 'function') {
-        await unloadable.unload();
-      }
-
-      vectorStore = createMemoryStore();
-      this.rag = new RAG({ vectorStore, llm: this.llm });
-      await AsyncStorage.setItem(RAG_STORAGE_KEY, 'memory');
-      this.storage = 'memory';
-      console.log('rag_storage_fallback', this.storage);
-      await this.rag.load();
-    }
+    await this.rag.load();
 
     this.initialized = true;
     console.log('rag_init_complete', resolvedProvider);
@@ -228,7 +200,7 @@ class RAGServiceClass {
   ): Promise<void> {
     this.ensureReady();
     console.log('rag_add_doc', document.id);
-  await this.ensureStatsLoaded();
+    await this.ensureStatsLoaded();
 
     const timestamp = document.timestamp ?? Date.now();
     const splitter = new RecursiveCharacterTextSplitter({
@@ -272,7 +244,6 @@ class RAGServiceClass {
     options?.onProgress?.(0, totalChunks);
 
     let added = 0;
-    let lastError: unknown = null;
 
     for (const entry of prepared) {
       if (options?.isCancelled?.()) {
@@ -286,30 +257,20 @@ class RAGServiceClass {
         added += 1;
         options?.onProgress?.(added, totalChunks);
       } catch (error) {
-        lastError = error;
         console.log(
           'rag_chunk_failed',
           document.id,
           entry.sourceIndex,
           error instanceof Error ? error.message : 'unknown'
         );
+        throw error instanceof Error ? error : new Error('rag_chunk_failed');
       }
-    }
-
-    if (added === 0) {
-      if (lastError instanceof Error) {
-        throw lastError;
-      }
-      throw new Error('Document chunks could not be embedded');
     }
 
     console.log('rag_doc_added', document.id, added);
     this.stats.documentCount += 1;
     this.stats.lastIngestedAt = timestamp;
     await this.persistStats();
-    if (added < totalChunks) {
-      options?.onProgress?.(added, totalChunks);
-    }
   }
 
   async generate(params: {
@@ -381,11 +342,7 @@ class RAGServiceClass {
     const provider = this.currentProvider;
 
     if (!this.initialized) {
-      try {
-        await this.initialize(provider);
-      } catch (error) {
-        console.log('rag_clear_init_failed', error instanceof Error ? error.message : 'unknown');
-      }
+      await this.initialize(provider);
     }
 
     if (this.rag) {
@@ -432,20 +389,6 @@ class RAGServiceClass {
     if (!this.initialized || !this.rag) {
       throw new Error('RAG service not ready');
     }
-  }
-
-  private async ensureEmbeddingSupport(): Promise<void> {
-    if (!engineService.ready()) {
-      throw new Error('Model not initialized');
-    }
-
-    console.log('rag_verify_embeddings');
-    const embedFn = engineService.mgr().embed;
-    if (!embedFn) {
-      throw new Error('Embeddings not supported by current engine');
-    }
-    await embedFn('__rag_probe__');
-    console.log('rag_embeddings_ok');
   }
 
   private createRemoteEmbeddings(provider: ProviderType) {
