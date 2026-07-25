@@ -30,7 +30,7 @@ const caps: EngineCaps = {
   embeddings: false,
   vision: true,
   audio: true,
-  rag: false,
+  rag: true,
   grammar: false,
   jinja: false,
   dry: false,
