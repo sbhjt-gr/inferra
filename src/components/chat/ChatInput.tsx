@@ -35,6 +35,7 @@ import AITermsDialog from './AITermsDialog';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import StopButton from '../StopButton';
 import { RAGService, type RAGDocument, type RAGStorageType } from '../../services/rag/RAGService';
+import { MiniLMAssets } from '../../services/rag/MiniLMAssets';
 import type { ProviderType } from '../../services/ModelManagementService';
 import chatManager from '../../utils/ChatManager';
 import { uuidv4 } from 'react-native-rag';
@@ -45,6 +46,7 @@ import { sttAdapter } from '../../services/adapters/SttAdapter';
 import { resolveAttachCaps } from '../../services/AttachmentCaps';
 import { buildAttachMessage, withFallback } from '../../services/AttachmentCompat';
 import AttachFallbackDialog from './AttachFallbackDialog';
+import MiniLMConsentDialog from '../rag/MiniLMConsentDialog';
 import { useKeyboard } from '../../hooks/useKeyboard';
 import type { AttachMode, ChatAttach } from '../../types/attachment';
 
@@ -133,7 +135,7 @@ export default function ChatInput({
   const themeColors = useMemo(() => theme[currentTheme as 'light' | 'dark'], [currentTheme]);
   const isDark = currentTheme === 'dark';
   const isRemoteModel = isRemoteProvider(selectedModelPath);
-  const ragEnabledForCurrentModel = !!selectedModelPath && !isRemoteModel;
+  const ragEnabledForCurrentModel = !!selectedModelPath;
   const ragToggleDisabled = false;
 
   const [dialogVisible, setDialogVisible] = useState(false);
@@ -155,6 +157,12 @@ export default function ChatInput({
   const [ragStatusLoading, setRagStatusLoading] = useState(false);
   const [ragClearing, setRagClearing] = useState(false);
   const [isAudioRecordingBusy, setIsAudioRecordingBusy] = useState(false);
+  const [minilmDialogVisible, setMinilmDialogVisible] = useState(false);
+  const [minilmDownloading, setMinilmDownloading] = useState(false);
+  const [minilmProgress, setMinilmProgress] = useState(0);
+  const minilmResolverRef = useRef<{
+    resolve: (ok: boolean) => void;
+  } | null>(null);
 
   const { keyboardHeight } = useKeyboard();
   const isKbOpen = keyboardHeight > 0;
@@ -298,6 +306,66 @@ export default function ChatInput({
 
   const hideDialog = () => setDialogVisible(false);
 
+  const resolveRagProvider = useCallback((): ProviderType => {
+    if (!selectedModelPath) {
+      return 'local';
+    }
+    if (selectedModelPath === 'apple-foundation') {
+      return 'apple-foundation';
+    }
+    if (isRemoteProvider(selectedModelPath)) {
+      return OnlineModelService.getBaseProvider(selectedModelPath) as ProviderType;
+    }
+    return 'local';
+  }, [selectedModelPath]);
+
+  const ensureMiniLMAssets = useCallback(async (): Promise<void> => {
+    if (await MiniLMAssets.isReady()) {
+      console.log('minilm_skip_consent');
+      return;
+    }
+    console.log('minilm_consent_prompt');
+    const accepted = await new Promise<boolean>(resolve => {
+      minilmResolverRef.current = { resolve };
+      setMinilmProgress(0);
+      setMinilmDownloading(false);
+      setMinilmDialogVisible(true);
+    });
+    if (!accepted) {
+      console.log('minilm_declined');
+      throw new Error('embeddings_download_declined');
+    }
+    setMinilmDownloading(true);
+    try {
+      await MiniLMAssets.download(progress => {
+        setMinilmProgress(progress);
+      });
+      console.log('minilm_consent_done');
+    } catch (error) {
+      console.log('minilm_consent_fail', error instanceof Error ? error.message : 'unknown');
+      throw error instanceof Error ? error : new Error('minilm_download_failed');
+    } finally {
+      setMinilmDownloading(false);
+      setMinilmDialogVisible(false);
+    }
+  }, []);
+
+  const handleMinilmConfirm = useCallback(() => {
+    const resolver = minilmResolverRef.current;
+    minilmResolverRef.current = null;
+    resolver?.resolve(true);
+  }, []);
+
+  const handleMinilmCancel = useCallback(() => {
+    if (minilmDownloading) {
+      return;
+    }
+    const resolver = minilmResolverRef.current;
+    minilmResolverRef.current = null;
+    setMinilmDialogVisible(false);
+    resolver?.resolve(false);
+  }, [minilmDownloading]);
+
   const attachCaps = useMemo(() => {
     const support = llamaManager.getMultimodalSupport();
     return resolveAttachCaps(selectedModelPath, {
@@ -383,14 +451,24 @@ export default function ChatInput({
     }
     setRagClearing(true);
     try {
+      const provider = resolveRagProvider();
+      if (provider === 'local' || provider === 'apple-foundation') {
+        await ensureMiniLMAssets();
+      }
       await RAGService.clear();
       await refreshRagStatus();
     } catch (error) {
-      showDialog('Retrieval reset failed', 'Unable to clear stored retrieval data.');
+      const msg = error instanceof Error ? error.message : 'unknown';
+      console.log('rag_clear_fail', msg);
+      if (msg === 'embeddings_download_declined') {
+        showDialog('Retrieval unavailable', 'Embedding model download was cancelled.');
+      } else {
+        showDialog('Retrieval reset failed', 'Unable to clear stored retrieval data.');
+      }
     } finally {
       setRagClearing(false);
     }
-  }, [ragClearing, refreshRagStatus, showDialog]);
+  }, [ragClearing, refreshRagStatus, showDialog, resolveRagProvider, ensureMiniLMAssets]);
 
   const formatRelativeTime = useCallback((timestamp: number | null) => {
     if (!timestamp) {
@@ -564,11 +642,14 @@ export default function ChatInput({
         ragCancelRef.current.cancelled = false;
         setRagProgress({ completed: 0, total: 0 });
 
-      const provider: ProviderType = isRemoteOrApple ? (selectedModelPath as ProviderType) : 'local';
+        const provider = resolveRagProvider();
+        if (provider === 'local' || provider === 'apple-foundation') {
+          await ensureMiniLMAssets();
+        }
         await RAGService.initialize(provider);
 
         if (!RAGService.isReady()) {
-          return { handled, cancelled, documentId };
+          throw new Error('rag_not_ready');
         }
 
         documentId = uuidv4();
@@ -598,16 +679,16 @@ export default function ChatInput({
         if (error instanceof Error && error.message === 'rag_upload_cancelled') {
           cancelled = true;
           console.log('file_upload_cancelled', displayName);
-        } else {
-          if (errorMessage.includes('api_key_missing')) {
+        } else if (errorMessage === 'embeddings_download_declined') {
+          showDialog('Retrieval unavailable', 'Embedding model download was cancelled.');
+        } else if (errorMessage.includes('api_key_missing')) {
             const providerLabel = selectedModelPath === 'apple-foundation'
               ? 'Apple Intelligence'
               : (selectedModelPath || 'local');
             showDialog('API Key Required', `Add a ${providerLabel} API key in Settings to use retrieval.`);
           } else {
-            showDialog('Retrieval error', 'Document could not be stored for retrieval. Sending full content instead.');
+            showDialog('Retrieval error', 'Document could not be stored for retrieval.');
           }
-        }
       } finally {
         if (ragIndicatorActive) {
           setIsProcessingWithRAG(false);
@@ -616,7 +697,7 @@ export default function ChatInput({
 
       return { handled, cancelled, documentId };
     },
-    [showDialog, selectedModelPath, refreshRagStatus, ragEnabledForCurrentModel]
+    [showDialog, selectedModelPath, refreshRagStatus, ragEnabledForCurrentModel, resolveRagProvider, ensureMiniLMAssets]
   );
 
   const handleFileUpload = useCallback(
@@ -1587,6 +1668,14 @@ export default function ChatInput({
         description={dialogMessage}
         buttonText="OK"
         onClose={hideDialog}
+      />
+
+      <MiniLMConsentDialog
+        visible={minilmDialogVisible}
+        downloading={minilmDownloading}
+        progress={minilmProgress}
+        onConfirm={handleMinilmConfirm}
+        onCancel={handleMinilmCancel}
       />
 
       <AttachFallbackDialog

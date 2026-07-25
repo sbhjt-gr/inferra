@@ -216,7 +216,7 @@ export default function TextFileViewerModal({
                       <MaterialCommunityIcons name="information-outline" size={20} color={isDark ? '#888888' : '#666666'} />
                       <View style={[styles.ragTextContainer, { paddingLeft: 8 }]}>
                         <Text style={[styles.ragTitle, { color: isDark ? '#888888' : '#666666' }]}>RAG not available</Text>
-                        <Text style={[styles.ragDescription, { color: isDark ? '#888888' : '#666666' }]}>Local RAG is not available for remote models.</Text>
+                        <Text style={[styles.ragDescription, { color: isDark ? '#888888' : '#666666' }]}>RAG is not available for this model.</Text>
                       </View>
                     </View>
                   )}
